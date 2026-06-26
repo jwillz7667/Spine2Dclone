@@ -3,13 +3,30 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "main": "./out/main/main.js",
   "scripts": {
-    "build": "tsc -p tsconfig.json --noEmit",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "start": "electron-vite preview",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
     "@marionette/format": "workspace:*",
     "@marionette/runtime-core": "workspace:*",
-    "@marionette/runtime-web": "workspace:*"
+    "@marionette/runtime-web": "workspace:*",
+    "dockview": "^1.17.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "electron": "^31.7.0",
+    "electron-vite": "^2.3.0",
+    "vite": "^5.4.11",
+    "vitest": "^2.1.8"
   }
 }

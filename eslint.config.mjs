@@ -109,6 +109,23 @@ export default tseslint.config(
     },
   },
 
+  // Align no-unused-vars with tsc's noUnusedParameters: an underscore prefix marks an
+  // intentionally unused binding (e.g. a required-by-signature React/dockview panel prop).
+  {
+    files: ['**/*.{ts,tsx,mts,cts}'],
+    rules: {
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        {
+          argsIgnorePattern: '^_',
+          varsIgnorePattern: '^_',
+          caughtErrorsIgnorePattern: '^_',
+          ignoreRestSiblings: true,
+        },
+      ],
+    },
+  },
+
   // INV-4: no-explicit-any is an explicit error in the contract packages (redundant with
   // recommended, stated here so the guarantee is local to the packages that must hold it).
   {

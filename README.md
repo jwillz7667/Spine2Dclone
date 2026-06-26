@@ -12,8 +12,15 @@ the master index and dependency graph in `docs/DEV_PLAN.md`. Project laws and co
 
 ## Status
 
-Phase 0 (Foundations) is in progress. WP-0.1 (monorepo, tooling, boundary lint, CI skeleton) has
-landed. See `docs/plan/phase-0-foundations.md` for the work-package breakdown.
+Phase 0 (Foundations) is in progress. WP-0.1 (monorepo, tooling, boundary lint, CI skeleton) and
+WP-0.2 (Electron + React shell, three dockview panels, hardened secure IPC) have landed. See
+`docs/plan/phase-0-foundations.md` for the work-package breakdown.
+
+Launch the editor shell in development:
+
+```bash
+pnpm --filter editor dev      # opens the window with the hierarchy/viewport/inspector panels
+```
 
 ## Repository layout
 

@@ -1,0 +1,15 @@
+{
+  "name": "editor",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json --noEmit",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@marionette/format": "workspace:*",
+    "@marionette/runtime-core": "workspace:*",
+    "@marionette/runtime-web": "workspace:*"
+  }
+}

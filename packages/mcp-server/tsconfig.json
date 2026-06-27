@@ -1,0 +1,22 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist",
+    "composite": true,
+    "tsBuildInfoFile": "./dist/tsconfig.tsbuildinfo",
+    // This is a Node package (stdio transport, fs-backed file store). The pure tool core stays
+    // node-free by convention; node:* is used only in node-files / headless / bin.
+    "types": ["node"],
+    // The @modelcontextprotocol/sdk ships declarations that are not clean under
+    // exactOptionalPropertyTypes (a third-party d.ts issue, like PixiJS). Skip lib checking for this
+    // package only; our own source stays strict.
+    "skipLibCheck": true
+  },
+  "include": ["src/**/*.ts"],
+  "references": [
+    { "path": "../format" },
+    { "path": "../runtime-core" },
+    { "path": "../document-core" }
+  ]
+}

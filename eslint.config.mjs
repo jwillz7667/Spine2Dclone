@@ -277,6 +277,28 @@ export default tseslint.config(
     },
   },
 
+  // mcp-server: the headless MCP control surface (WP-M.1). It drives document-core commands and reads
+  // runtime-core solves, exposing them as MCP tools so an AI can fully author scenes (the same path the
+  // GUI uses, LAW 2). It is renderer-free: no PixiJS, no React, no runtime-web, no DOM/browser globals.
+  {
+    files: ['packages/mcp-server/src/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            PIXI_PATTERN,
+            {
+              group: ['react', 'react-dom', '@marionette/runtime-web', '@marionette/runtime-web/*'],
+              message: 'mcp-server is renderer-free: no React, no PixiJS, no runtime-web.',
+            },
+          ],
+        },
+      ],
+      'no-restricted-globals': ['error', ...PURE_CORE_RESTRICTED_GLOBALS],
+    },
+  },
+
   // Editor process split (phase-0-foundations.md WP-0.1 matrix). eslint-plugin-boundaries
   // enforces the element-to-element edges; the per-element no-restricted-imports below add the
   // package-name and Node-built-in bans that boundaries (which classifies by file path) cannot.
@@ -290,6 +312,7 @@ export default tseslint.config(
         { type: 'runtime-core', pattern: 'packages/runtime-core/src/**' },
         { type: 'runtime-web', pattern: 'packages/runtime-web/src/**' },
         { type: 'document-core', pattern: 'packages/document-core/src/**' },
+        { type: 'mcp-server', pattern: 'packages/mcp-server/src/**' },
         { type: 'editor-main', pattern: 'apps/editor/src/main/**' },
         { type: 'editor-preload', pattern: 'apps/editor/src/preload/**' },
         { type: 'editor-shared', pattern: 'apps/editor/src/shared/**' },
@@ -308,11 +331,24 @@ export default tseslint.config(
             // document-core is the renderer-agnostic command/history spine (ADR-0001). It consumes
             // only format (validate/hash/types) and, where a transform command needs it, runtime-core.
             { from: ['document-core'], allow: ['document-core', 'format', 'runtime-core'] },
+            // mcp-server exposes document-core commands as MCP tools (WP-M.1). It drives the same
+            // commands the GUI does and reads runtime-core solves; never the renderer/UI packages.
+            {
+              from: ['mcp-server'],
+              allow: ['mcp-server', 'document-core', 'format', 'runtime-core'],
+            },
             // editor-main hosts the headless MCP server (WP-M.1), which drives document-core commands
             // and reads runtime-core solves; it stays off the renderer/UI packages.
             {
               from: ['editor-main'],
-              allow: ['editor-main', 'editor-shared', 'document-core', 'format', 'runtime-core'],
+              allow: [
+                'editor-main',
+                'editor-shared',
+                'mcp-server',
+                'document-core',
+                'format',
+                'runtime-core',
+              ],
             },
             { from: ['editor-preload'], allow: ['editor-preload', 'editor-shared'] },
             { from: ['editor-shared'], allow: ['editor-shared'] },

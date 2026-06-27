@@ -28,7 +28,8 @@
       "@marionette/format/types": ["./packages/format/src/types.ts"],
       "@marionette/runtime-core": ["./packages/runtime-core/src/index.ts"],
       "@marionette/runtime-web": ["./packages/runtime-web/src/index.ts"],
-      "@marionette/document-core": ["./packages/document-core/src/index.ts"]
+      "@marionette/document-core": ["./packages/document-core/src/index.ts"],
+      "@marionette/mcp-server": ["./packages/mcp-server/src/index.ts"]
     }
   }
 }

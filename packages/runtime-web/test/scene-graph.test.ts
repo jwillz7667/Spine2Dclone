@@ -180,6 +180,24 @@ describe('SkeletonView setup-pose scene graph', () => {
     expect(layers(view).attachments.children).toHaveLength(1);
   });
 
+  it('clears to an empty scene, releasing every display object, and rebuilds on the next sync', () => {
+    const view = new SkeletonView();
+    view.sync(minimalDocument());
+
+    view.clear();
+
+    const { attachments, bones } = layers(view);
+    expect(bones.children).toHaveLength(0);
+    expect(attachments.children).toHaveLength(0);
+    expect(view.describe().bones).toHaveLength(0);
+    expect(view.describe().attachments).toHaveLength(0);
+
+    // The view stays reusable: a later sync rebuilds the pools from scratch.
+    view.sync(minimalDocument());
+    expect(layers(view).bones.children).toHaveLength(1);
+    expect(layers(view).attachments.children).toHaveLength(1);
+  });
+
   it('treats the content hash as opaque by default but verifies it on request', () => {
     const wrongHash = '0'.repeat(64);
     const tampered = { ...minimalDocument(), hash: wrongHash };

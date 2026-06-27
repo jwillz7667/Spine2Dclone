@@ -3,7 +3,13 @@
   "compilerOptions": {
     "rootDir": "src",
     "outDir": "dist",
-    "lib": ["ES2022", "DOM", "DOM.Iterable"]
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    // PixiJS v8 ships declarations that are not clean under exactOptionalPropertyTypes (a third-party
+    // d.ts issue, not our source). Skip lib checking for this package ONLY; the contract packages
+    // (format, runtime-core) keep skipLibCheck:false so their own strictness is unaffected. This
+    // relaxes checking of .d.ts files only, never the strictness applied to our own code.
+    "skipLibCheck": true
   },
-  "include": ["src/**/*.ts"]
+  "include": ["src/**/*.ts"],
+  "references": [{ "path": "../format" }, { "path": "../runtime-core" }]
 }

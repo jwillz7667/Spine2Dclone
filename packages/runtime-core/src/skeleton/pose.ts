@@ -36,6 +36,10 @@ export interface Pose {
   readonly local: Float64Array;
   // MAT2X3_STRIDE lanes per bone: the world matrix, written by computeWorldTransforms.
   readonly world: Float64Array;
+  // index -> bone.length (the bone's setup length along its local X axis). Captured at build time and
+  // read by two-bone IK (solveIkTwoBone) to size the chain segments; not otherwise part of the world
+  // pass. One f64 per bone.
+  readonly boneLength: Float64Array;
 
   readonly slotCount: number;
   // index -> slot name, document (draw) order. Lets a caller read resolved color/attachment by name.
@@ -76,6 +80,7 @@ export function allocatePose(
     setup: new Float64Array(boneCount * SETUP_STRIDE),
     local: new Float64Array(boneCount * MAT2X3_STRIDE),
     world: new Float64Array(boneCount * MAT2X3_STRIDE),
+    boneLength: new Float64Array(boneCount),
     slotCount,
     slotNames,
     slotBoneIndices: new Int32Array(slotCount),

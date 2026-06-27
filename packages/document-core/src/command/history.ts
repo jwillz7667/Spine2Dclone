@@ -42,6 +42,9 @@ export class History {
   // HistoryEvent. In-session execute is NOT committed (it only applies the mutation for live feedback)
   // and fires no HistoryEvent.
   execute(cmd: Command): HistoryEvent | null {
+    // Reject a re-entrant call (a commit listener that mutates history) BEFORE any mutation, so the
+    // model and the stacks are never left in a corrupted state (the guard prevents, not just detects).
+    this.assertNotNotifying(cmd.kind);
     cmd.do(this.ctx); // applies the mutation; bumps model.revision
     if (this.session) {
       this.coalesceIntoSession(cmd);
@@ -63,11 +66,13 @@ export class History {
   }
 
   beginInteraction(): void {
+    this.assertNotNotifying('beginInteraction');
     this.session = [];
     this.deps.model.beginBatch(); // switch to in-place mutation for this gesture
   }
 
   endInteraction(label: string): HistoryEvent | null {
+    this.assertNotNotifying('endInteraction');
     const batch = this.session ?? [];
     this.session = null;
     this.deps.model.commitBatch(); // single copy-on-write boundary, exit batch mode
@@ -76,12 +81,16 @@ export class History {
     const entry = batch.length === 1 && first ? first : new CompositeCommand(label, batch);
     this.past.push(entry); // exactly ONE undo step for the whole gesture
     this.future.length = 0;
-    this.lastAt = this.deps.now();
+    // A completed gesture is a deterministic undo boundary: prevent a later discrete same-target edit
+    // from window-merging into it (sessions are primary, the window is a fallback for gestureless
+    // edits, command-history Section 5.2). A sentinel lastAt makes the next execute start a new step.
+    this.lastAt = Number.NEGATIVE_INFINITY;
     this.enforceDepth();
     return this.commit('execute', entry);
   }
 
   undo(): HistoryEvent | null {
+    this.assertNotNotifying('undo');
     const cmd = this.past.pop();
     if (!cmd) return null;
     cmd.undo(this.ctx);
@@ -90,6 +99,7 @@ export class History {
   }
 
   redo(): HistoryEvent | null {
+    this.assertNotNotifying('redo');
     const cmd = this.future.pop();
     if (!cmd) return null;
     cmd.do(this.ctx);
@@ -143,9 +153,14 @@ export class History {
     session.push(cmd);
   }
 
+  // Reject re-entrant history mutation. Called at the entry of every mutating method, so a commit
+  // listener that calls execute/undo/redo/begin/endInteraction is rejected BEFORE it can mutate the
+  // model or touch the stacks (command-history Section 5.1: a typed error, not stack corruption).
+  private assertNotNotifying(kind: string): void {
+    if (this.notifying) throw new HistoryReentrancyError(kind);
+  }
+
   private commit(phase: HistoryPhase, cmd: Command): HistoryEvent {
-    // A listener that triggers a nested mutation would corrupt the stacks; that is a typed error.
-    if (this.notifying) throw new HistoryReentrancyError(cmd.kind);
     const hint = cmd.selectionHint?.(phase);
     const event: HistoryEvent =
       hint === undefined

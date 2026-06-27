@@ -1,5 +1,6 @@
 import { parseDocument } from '@marionette/format';
 import type { SkeletonDocument } from '@marionette/format/types';
+import { DocumentInvariantError } from '../command/errors';
 import type { BoneEntity, DocState } from '../model/doc-state';
 import type { BoneId, IdFactory } from '../model/ids';
 import { buildLoadedDocument, type Document } from './document';
@@ -9,6 +10,20 @@ import type { DocumentEnvironment } from './environment';
 // order), resolve parent NAME references to BoneIds, and carry the non-bone body verbatim. The format
 // validator already guaranteed unique bone names and parent-before-child ordering, so name resolution
 // is total and the boneOrder invariant holds.
+function resolveParentId(
+  parent: string | null,
+  nameToId: ReadonlyMap<string, BoneId>,
+): BoneId | null {
+  if (parent === null) return null;
+  const id = nameToId.get(parent);
+  if (id === undefined) {
+    // Unreachable for a validated document (the format validator rejects an unresolved parent), but
+    // fail fast rather than silently nulling a dangling reference (symmetry with export).
+    throw new DocumentInvariantError(`bone references parent "${parent}", which does not exist`);
+  }
+  return id;
+}
+
 function formatToDocState(document: SkeletonDocument, ids: IdFactory): DocState {
   const nameToId = new Map<string, BoneId>();
   const boneOrder: BoneId[] = [];
@@ -20,7 +35,7 @@ function formatToDocState(document: SkeletonDocument, ids: IdFactory): DocState 
   const bones = new Map<BoneId, BoneEntity>();
   document.bones.forEach((bone, index) => {
     const id = boneOrder[index]!;
-    const parent = bone.parent === null ? null : (nameToId.get(bone.parent) ?? null);
+    const parent = resolveParentId(bone.parent, nameToId);
     bones.set(id, {
       id,
       name: bone.name,

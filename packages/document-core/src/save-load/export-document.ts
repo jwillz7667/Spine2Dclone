@@ -1,6 +1,6 @@
 import { computeContentHash, CURRENT_FORMAT_VERSION, validateDocument } from '@marionette/format';
 import type { Bone, SkeletonDocument } from '@marionette/format/types';
-import { ExportValidationError } from '../command/errors';
+import { DocumentInvariantError, ExportValidationError } from '../command/errors';
 import type { DocumentReadModel } from '../model/read-model';
 
 // Project the internal model to the format (command-history Section 7.1): resolve BoneId references to
@@ -9,6 +9,18 @@ import type { DocumentReadModel } from '../model/read-model';
 // lives there, never duplicated here). Finally run validateDocument on its own output, so the
 // bone-ordering invariant and name uniqueness (the export-only D9 contract) are enforced here; an
 // invalid projection throws ExportValidationError (LAW 3: fail loudly), never ships silently.
+function resolveParentName(
+  parent: string | null,
+  idToName: ReadonlyMap<string, string>,
+): string | null {
+  if (parent === null) return null;
+  const name = idToName.get(parent);
+  if (name === undefined) {
+    throw new DocumentInvariantError(`bone references parent id ${parent}, which does not exist`);
+  }
+  return name;
+}
+
 export function exportDocument(model: DocumentReadModel): SkeletonDocument {
   const orderedBones = model.bones(); // in boneOrder
   const idToName = new Map<string, string>();
@@ -16,7 +28,9 @@ export function exportDocument(model: DocumentReadModel): SkeletonDocument {
 
   const bones: Bone[] = orderedBones.map((bone) => ({
     name: bone.name,
-    parent: bone.parent === null ? null : (idToName.get(bone.parent) ?? null),
+    // A dangling parent id is corrupt internal state (a command bug). Fail loudly here rather than
+    // silently coercing it to a root, which export is THE place to surface (command-history 7.1).
+    parent: resolveParentName(bone.parent, idToName),
     length: bone.length,
     x: bone.x,
     y: bone.y,

@@ -97,5 +97,24 @@ export const createBoneSpec: CommandSpec = {
     if (after.boneOrder.length !== before.boneOrder.length + 1) {
       throw new Error('bone.create expected boneOrder to grow by one');
     }
+    const beforeIds = new Set(before.bones.map((bone) => bone.id));
+    const created = after.bones.find((bone) => !beforeIds.has(bone.id));
+    if (!created) throw new Error('bone.create did not add a new bone');
+    // The created bone must carry the fixture geometry exactly (catches a bug that inserts a bone with
+    // wrong or default field values, which a count-only check would miss).
+    if (
+      created.length !== 50 ||
+      created.x !== 10 ||
+      created.y !== 20 ||
+      created.rotation !== 15 ||
+      created.scaleX !== 1 ||
+      created.scaleY !== 1 ||
+      created.shearX !== 0 ||
+      created.shearY !== 0 ||
+      created.transformMode !== 'normal' ||
+      !created.name.startsWith('created_')
+    ) {
+      throw new Error('bone.create did not apply the fixture geometry to the new bone');
+    }
   },
 };

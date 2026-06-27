@@ -8,6 +8,9 @@ import type { SkeletonDocument } from '@marionette/format/types';
 import { describe, expect, it } from 'vitest';
 import {
   CreateBoneCommand,
+  DeleteBoneCommand,
+  ExportValidationError,
+  assertInvariants,
   createDocument,
   exportDocument,
   loadDocument,
@@ -134,6 +137,18 @@ describe('save / load seam', () => {
     const doc = loadDocument(original, makeTestEnv().env);
     const exported = exportDocument(doc.model);
     expect(exported).toEqual(original);
+  });
+
+  it('fails loudly when a Phase-0 delete orphans a preserved slot reference', () => {
+    // Phase 0 DeleteBone is bone-subtree-only (the rider-aware variant is Phase 1), so deleting a
+    // slot-referenced bone leaves a dangling slot. assertInvariants surfaces it in dev/test, and the
+    // export boundary refuses to ship it (LAW 3 fail-loudly), rather than writing an invalid file.
+    const doc = loadDocument(richDocument(), makeTestEnv().env);
+    const root = doc.model.bones()[0]!;
+    doc.history.execute(new DeleteBoneCommand(root.id));
+
+    expect(() => assertInvariants(doc.model)).toThrow();
+    expect(() => exportDocument(doc.model)).toThrow(ExportValidationError);
   });
 
   it('rejects malformed JSON with a typed error and builds no Document', () => {

@@ -189,3 +189,24 @@ export class DocumentModelInternal implements DocumentReadModel {
     this.batching = false;
   }
 }
+
+// A read-only facade over the internal model, handed to UI and the MCP server as Document.model. The
+// internal instance has PUBLIC write methods (insertBone/patchBone/...), so returning it directly,
+// even typed as DocumentReadModel, would let a holder reach the write surface through an `as` cast and
+// bypass LAW 2. This facade exposes ONLY the read methods (a fresh delegating object, no write
+// methods at runtime), so the write capability is reachable solely through History via the Mutator.
+export function createReadModel(model: DocumentModelInternal): DocumentReadModel {
+  return {
+    get revision(): number {
+      return model.revision;
+    },
+    get name(): string {
+      return model.name;
+    },
+    getBone: (id) => model.getBone(id),
+    bones: () => model.bones(),
+    findBoneByName: (name) => model.findBoneByName(name),
+    preserved: () => model.preserved(),
+    snapshot: () => model.snapshot(),
+  };
+}

@@ -21,6 +21,7 @@ import { rotateBoneSpec } from './rotate-bone.command';
 import { scaleBoneSpec } from './scale-bone.command';
 import { setActiveAttachmentSpec } from './set-active-attachment.command';
 import { setAnimationDurationSpec } from './set-animation-duration.command';
+import { setAtlasRefSpec } from './set-atlas-ref.command';
 import { setBoneLengthSpec } from './set-bone-length.command';
 import { setBoneTransformModeSpec } from './set-bone-transform-mode.command';
 import { setCurveSpec } from './set-curve.command';
@@ -53,6 +54,7 @@ export const commandRegistry: readonly CommandSpec[] = [
   addRegionAttachmentSpec,
   removeAttachmentSpec,
   setActiveAttachmentSpec,
+  setAtlasRefSpec,
   setRegionAttachmentTransformSpec,
   createAnimationSpec,
   deleteAnimationSpec,

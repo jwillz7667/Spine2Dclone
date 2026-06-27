@@ -35,6 +35,7 @@ export {
   SetActiveAttachmentCommand,
   setActiveAttachmentSpec,
 } from './set-active-attachment.command';
+export { SetAtlasRefCommand, setAtlasRefSpec } from './set-atlas-ref.command';
 export {
   SetRegionAttachmentTransformCommand,
   setRegionAttachmentTransformSpec,

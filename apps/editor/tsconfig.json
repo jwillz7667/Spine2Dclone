@@ -8,5 +8,13 @@
     "types": ["node", "vite/client"],
     "skipLibCheck": true
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx"]
+  "include": ["src/**/*.ts", "src/**/*.tsx"],
+  // Reference the composite packages the editor consumes so tsc resolves them through their built
+  // declarations (not their source, which lives outside the editor rootDir). turbo's typecheck task
+  // depends on ^build, so these declarations exist before the editor is typechecked.
+  "references": [
+    { "path": "../../packages/format" },
+    { "path": "../../packages/runtime-core" },
+    { "path": "../../packages/runtime-web" }
+  ]
 }

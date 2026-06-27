@@ -1,4 +1,4 @@
-import { mkdir } from 'node:fs/promises';
+import { mkdir, readFile } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 import { app, BrowserWindow, dialog } from 'electron';
 import { createNodeFileStore, isAtlasError, runAtlasPipeline } from './atlas';
@@ -51,7 +51,19 @@ export async function importAtlasFromDirectory(): Promise<IpcResult<AtlasImportR
       outputDir,
       fileStore: createNodeFileStore(),
     });
-    return { ok: true, data: { status: 'imported', atlas } };
+    // Read the packed page PNGs back from the app-owned output dir so the sandboxed renderer (no
+    // filesystem) can build GPU textures from the bytes. The page list is the AtlasRef we just produced,
+    // so it is small and bounded; a parallel read over those few files is fine. Each Buffer is copied into
+    // a standalone, exactly-sized Uint8Array (Buffer is a Uint8Array, possibly a pooled view) so the bytes
+    // that cross the isomorphic IPC contract are unambiguous. A read failure fails the whole import (no
+    // partial success): the renderer gets every page or a typed error.
+    const pages = await Promise.all(
+      atlas.pages.map(async (page) => ({
+        file: page.file,
+        data: new Uint8Array(await readFile(join(outputDir, page.file))),
+      })),
+    );
+    return { ok: true, data: { status: 'imported', atlas, pages } };
   } catch (error) {
     // The pack pipeline throws a typed AtlasError carrying a stable code; surface the code so the renderer
     // notice is actionable. Any other failure is reported with its message.

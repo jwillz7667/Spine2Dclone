@@ -1,9 +1,12 @@
 import type { IDockviewPanelProps } from 'dockview';
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactElement } from 'react';
 import type { AtlasRef } from '@marionette/format/types';
+import { buildRegionTextures, makeRegionTextureResolver } from '@marionette/runtime-web';
 import { SetAtlasRefCommand, documentHost } from '../document';
+import { atlasTextureStore } from '../editor-state/atlas-texture-store';
 import { useDocumentRevision } from '../editor-state/use-document-revision';
 import { buildAtlasView } from './assets-atlas-view';
+import { loadPageTextures } from './atlas-textures';
 
 const ACCENT = '#5aa0ff';
 const NOTICE_DURATION_MS = 4000;
@@ -41,11 +44,15 @@ export function AssetsPanel(_props: IDockviewPanelProps): ReactElement {
     [],
   );
 
-  // The main process owns the dialog and the pack; on success we set the atlas through History (LAW 2). A
-  // user cancel is a silent no-op; a handler error becomes a transient notice. The atlas crosses the wire
-  // as `unknown` (the response keeps it opaque, exactly like fileOpen's document); the main-process
-  // pipeline is the trusted producer of a typed AtlasRef and the format validator re-checks it at export
-  // (LAW 3), so this single narrowing assertion is justified.
+  // The main process owns the dialog and the pack; on success we set the atlas through History (LAW 2) and
+  // publish the page textures so the same regions render textured in the viewport. A user cancel is a
+  // silent no-op; a handler error becomes a transient notice. The atlas crosses the wire as `unknown` (the
+  // response keeps it opaque, exactly like fileOpen's document); the main-process pipeline is the trusted
+  // producer of a typed AtlasRef and the format validator re-checks it at export (LAW 3), so this single
+  // narrowing assertion is justified. The busy state is held until BOTH the command and the texture build
+  // settle. The command runs first so the document carries the regions before the textures resolve them; a
+  // texture-load failure leaves the placeholder (the document still has the atlas) and surfaces a notice
+  // rather than crashing the panel.
   async function importSprites(): Promise<void> {
     setIsImporting(true);
     try {
@@ -56,7 +63,15 @@ export function AssetsPanel(_props: IDockviewPanelProps): ReactElement {
       }
       if (result.data.status === 'canceled') return;
       const atlas = result.data.atlas as AtlasRef;
+      const pages = result.data.pages;
       documentHost.current().history.execute(new SetAtlasRefCommand(atlas));
+      try {
+        const pageTextures = await loadPageTextures(pages);
+        const resolver = makeRegionTextureResolver(buildRegionTextures(atlas, pageTextures));
+        atlasTextureStore.setResolver(resolver, [...pageTextures.values()]);
+      } catch (error) {
+        showNotice(error instanceof Error ? error.message : 'failed to load atlas page textures');
+      }
     } finally {
       setIsImporting(false);
     }

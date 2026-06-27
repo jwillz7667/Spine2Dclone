@@ -3,6 +3,7 @@ import { useEffect, useRef, type CSSProperties, type ReactElement } from 'react'
 import { SkeletonView } from '@marionette/runtime-web';
 import type { SkeletonDocument } from '@marionette/format/types';
 import { documentHost, exportDocument } from '../document';
+import { atlasTextureStore } from '../editor-state/atlas-texture-store';
 import { useCameraStore } from '../editor-state/camera-store';
 import { useSelectionStore } from '../editor-state/selection-store';
 import { usePlaybackStore } from '../editor-state/playback-store';
@@ -47,6 +48,7 @@ export function ViewportPanelContent(): ReactElement {
     let detachTool: (() => void) | null = null;
     let unsubscribeCamera: (() => void) | null = null;
     let unsubscribeSelection: (() => void) | null = null;
+    let unsubscribeTextures: (() => void) | null = null;
 
     void (async () => {
       const created = new Application();
@@ -107,6 +109,16 @@ export function ViewportPanelContent(): ReactElement {
         gizmoDirty = true;
       });
 
+      // The region texture resolver is ephemeral editor state (the atlas pixels are loaded per import
+      // session, never in the document). It changes only on import/clear, so the binding is event-driven,
+      // not per-frame: the subscription just sets a flag, and the tick below applies the resolver and
+      // forces ONE re-render. Starts true so the CURRENT resolver is applied at mount, covering the case
+      // where an atlas was imported before this viewport mounted (or a StrictMode remount).
+      let resolverDirty = true;
+      unsubscribeTextures = atlasTextureStore.subscribe(() => {
+        resolverDirty = true;
+      });
+
       // The last successfully exported document, cached by model.revision. SkeletonView keys its prepared
       // pose on document IDENTITY (a WeakMap), so this reference MUST stay stable while the document is
       // unchanged: re-exporting every frame would defeat that cache and re-pay full validation per frame
@@ -120,6 +132,17 @@ export function ViewportPanelContent(): ReactElement {
 
       const tick = (ticker: Ticker): void => {
         const model = documentHost.current().model;
+
+        // Bind a new (or initial) region texture resolver before deciding what to render. setTextureResolver
+        // invalidates the view's scene cache, but the change detector below only re-syncs on a revision or
+        // target change, so reset the target gate to force ONE re-render that rebinds the textures. This
+        // tick runs at NORMAL priority, ahead of Pixi's render (LOW), so the rebuilt scene is what gets
+        // drawn this frame: the old page source the store just destroyed on re-import is never rendered.
+        if (resolverDirty) {
+          view.setTextureResolver(atlasTextureStore.getResolver());
+          resolverDirty = false;
+          lastTarget = null;
+        }
 
         const revisionChanged = model.revision !== lastRevision;
         if (revisionChanged) {
@@ -198,6 +221,7 @@ export function ViewportPanelContent(): ReactElement {
       detachTool?.();
       unsubscribeCamera?.();
       unsubscribeSelection?.();
+      unsubscribeTextures?.();
       if (app !== null) {
         app.destroy({ removeView: true }, { children: true });
         app = null;

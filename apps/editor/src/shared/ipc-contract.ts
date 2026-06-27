@@ -53,14 +53,36 @@ export const fileOpenResponseSchema = z.discriminatedUnion('status', [
 
 export type FileOpenResponse = z.infer<typeof fileOpenResponseSchema>;
 
+// One packed atlas page's bytes, carried back to the sandboxed renderer alongside the AtlasRef. The
+// renderer cannot read the app-owned output dir itself (no filesystem in the sandbox), so the main process
+// reads each page PNG it just wrote and ships the raw bytes here. Transport is a Uint8Array: Electron's
+// structured clone preserves it end to end (a Node Buffer is a Uint8Array and arrives in the renderer as a
+// plain Uint8Array), and z.instanceof validates it without the ~33% size bloat and extra decode step of a
+// base64 string. `file` is the AtlasPage.file basename, the key runtime-web's buildRegionTextures resolves
+// each page texture by, so the renderer can map bytes -> Texture -> region sub-textures.
+export const atlasImportPageSchema = z
+  .object({ file: z.string().min(1), data: z.instanceof(Uint8Array) })
+  .strict();
+
+export type AtlasImportPage = z.infer<typeof atlasImportPageSchema>;
+
 // atlas:import. No request payload (the renderer supplies NO filesystem path, the path-injection
-// defense): the main process shows the directory dialog, runs the deterministic pack pipeline, and
-// returns the packed AtlasRef, or a canceled status if the user dismissed the dialog. The atlas is opaque
-// at the transport layer (z.unknown), exactly like file:open's document: the main-process pipeline is the
-// trusted producer of a typed AtlasRef, and the format validator re-checks it at export (LAW 3).
+// defense): the main process shows the directory dialog, runs the deterministic pack pipeline, reads the
+// packed page PNGs back into bytes, and returns the packed AtlasRef plus those page bytes, or a canceled
+// status if the user dismissed the dialog. The atlas is opaque at the transport layer (z.unknown), exactly
+// like file:open's document: the main-process pipeline is the trusted producer of a typed AtlasRef, and the
+// format validator re-checks it at export (LAW 3). `pages` carries the pixels the sandboxed renderer needs
+// to build textures (it cannot read userData itself); it is always present on success (empty for an empty
+// atlas).
 export const atlasImportRequestSchema = z.undefined();
 export const atlasImportResponseSchema = z.discriminatedUnion('status', [
-  z.object({ status: z.literal('imported'), atlas: z.unknown() }).strict(),
+  z
+    .object({
+      status: z.literal('imported'),
+      atlas: z.unknown(),
+      pages: z.array(atlasImportPageSchema),
+    })
+    .strict(),
   z.object({ status: z.literal('canceled') }).strict(),
 ]);
 

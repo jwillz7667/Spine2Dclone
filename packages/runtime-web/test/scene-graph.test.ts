@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Container, Sprite } from 'pixi.js';
+import { Container, Sprite, Texture } from 'pixi.js';
 import { FormatValidationError } from '@marionette/format';
 import {
   buildPose,
@@ -13,8 +13,9 @@ import {
   type Pose,
 } from '@marionette/runtime-core';
 import type { SkeletonDocument } from '@marionette/format/types';
-import { SkeletonView } from '../src';
+import { makeRegionTextureResolver, SkeletonView } from '../src';
 import { bone, makeDocument, minimalDocument, region, slot } from './rig';
+import { makeSolidTexture } from './texture-fixtures';
 
 // Independently solve a document and read a bone world matrix, so assertions compare SkeletonView's
 // scene against runtime-core's output rather than against itself.
@@ -40,6 +41,32 @@ function countDescendants(container: Container): number {
   let total = container.children.length;
   for (const child of container.children) total += countDescendants(child);
   return total;
+}
+
+function firstSprite(view: SkeletonView): Sprite {
+  const child = layers(view).attachments.children[0];
+  if (!(child instanceof Sprite)) throw new Error('expected an attachment sprite');
+  return child;
+}
+
+// The four world-space corners of the first attachment sprite's rendered texture quad. A Pixi Sprite
+// (anchor 0.5) draws its texture from (-w/2, -h/2) to (w/2, h/2) in local space; mapping those corners
+// through the sprite's local matrix yields where the quad actually lands in world space. This is the
+// real placement (what the user sees), independent of the texture's pixel size, so it is the right thing
+// to compare across a placeholder vs a real texture.
+function regionWorldQuad(view: SkeletonView): Array<readonly [number, number]> {
+  const sprite = firstSprite(view);
+  sprite.updateLocalTransform();
+  const lt = sprite.localTransform;
+  const m: Mat2x3 = [lt.a, lt.b, lt.c, lt.d, lt.tx, lt.ty];
+  const hw = sprite.texture.width / 2;
+  const hh = sprite.texture.height / 2;
+  return [
+    transformPoint(m, -hw, -hh),
+    transformPoint(m, hw, -hh),
+    transformPoint(m, hw, hh),
+    transformPoint(m, -hw, hh),
+  ];
 }
 
 describe('SkeletonView setup-pose scene graph', () => {
@@ -196,6 +223,82 @@ describe('SkeletonView setup-pose scene graph', () => {
     view.sync(minimalDocument());
     expect(layers(view).bones.children).toHaveLength(1);
     expect(layers(view).attachments.children).toHaveLength(1);
+  });
+
+  it('binds the resolved region texture, falling back to Texture.WHITE when unresolved', () => {
+    const document = minimalDocument(); // slot "body" shows region whose path is "body"
+    const texture = makeSolidTexture(48, 16);
+
+    const view = new SkeletonView();
+    // No resolver yet: the placeholder (Texture.WHITE) is bound.
+    view.sync(document);
+    expect(firstSprite(view).texture).toBe(Texture.WHITE);
+
+    // A resolver that knows "body": the real texture is bound after a re-sync (setTextureResolver
+    // invalidates the cached scene, so the next sync rebuilds the binding).
+    view.setTextureResolver(makeRegionTextureResolver(new Map([['body', texture]])));
+    view.sync(document);
+    expect(firstSprite(view).texture).toBe(texture);
+
+    // A resolver that returns null for everything: fall back to the placeholder (partial atlas case).
+    view.setTextureResolver(() => null);
+    view.sync(document);
+    expect(firstSprite(view).texture).toBe(Texture.WHITE);
+
+    // Clearing the resolver also returns to the placeholder.
+    view.setTextureResolver(makeRegionTextureResolver(new Map([['body', texture]])));
+    view.sync(document);
+    expect(firstSprite(view).texture).toBe(texture);
+    view.setTextureResolver(null);
+    view.sync(document);
+    expect(firstSprite(view).texture).toBe(Texture.WHITE);
+  });
+
+  it('renders a real atlas texture at the byte-identical world placement as the placeholder', () => {
+    // A full-affine placement (translated + rotated bone, offset + rotated region) so the invariant is
+    // tested against more than a translation, and an authored region size (40x80) that differs from the
+    // texture pixel size (64x32), which is exactly what the size normalization must reconcile.
+    const document = makeDocument({
+      bones: [bone('root', null, { x: 10, y: 20, rotation: 30 })],
+      slots: [slot('body', 'root', 'body')],
+      skin: {
+        body: { body: region('body', { x: 5, y: -3, rotation: 15, width: 40, height: 80 }) },
+      },
+    });
+
+    // Placeholder render: no resolver, so the sprite shows Texture.WHITE (1x1).
+    const placeholderView = new SkeletonView();
+    placeholderView.sync(document);
+    const placeholderQuad = regionWorldQuad(placeholderView);
+    const placeholderCenter = placeholderView.describe().attachments[0]!.worldPosition;
+
+    // Real-texture render: 64x32, deliberately non-unit AND non-square so a wrong normalization (e.g. a
+    // single uniform factor, or none) would visibly distort the quad.
+    const texture = makeSolidTexture(64, 32);
+    const texturedView = new SkeletonView();
+    texturedView.setTextureResolver(makeRegionTextureResolver(new Map([['body', texture]])));
+    texturedView.sync(document);
+    const texturedQuad = regionWorldQuad(texturedView);
+    const texturedCenter = texturedView.describe().attachments[0]!.worldPosition;
+
+    // The two renders genuinely differ in the texture bound to the sprite (64x32 vs the 1x1 placeholder).
+    expect(firstSprite(texturedView).texture).toBe(texture);
+    expect([texture.width, texture.height]).toEqual([64, 32]);
+    expect(firstSprite(placeholderView).texture).toBe(Texture.WHITE);
+    expect([Texture.WHITE.width, Texture.WHITE.height]).toEqual([1, 1]);
+
+    // INVARIANT (handoff 8.9): the texture only fills the quad, it must not move the attachment. The
+    // center (the sprite-world translation that describe() exposes) is identical, and every corner of the
+    // rendered quad is identical to 1e-9, even though one sprite carries a 64x32 texture and the other a
+    // 1x1 placeholder. This proves the size normalization keeps a real texture exactly where the
+    // placeholder was. (The sprite's decomposed SCALE necessarily differs by texW/texH, which is the
+    // normalization doing its job; the placement, the world quad, is what must be invariant.)
+    expect(texturedCenter[0]).toBeCloseTo(placeholderCenter[0], 9);
+    expect(texturedCenter[1]).toBeCloseTo(placeholderCenter[1], 9);
+    for (let i = 0; i < 4; i += 1) {
+      expect(texturedQuad[i]![0]).toBeCloseTo(placeholderQuad[i]![0], 9);
+      expect(texturedQuad[i]![1]).toBeCloseTo(placeholderQuad[i]![1], 9);
+    }
   });
 
   it('treats the content hash as opaque by default but verifies it on request', () => {

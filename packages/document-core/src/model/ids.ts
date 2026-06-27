@@ -10,9 +10,14 @@ declare const ID_BRAND: unique symbol;
 // any `any`. The brand is phantom: it exists only in the type system, never at runtime.
 export type Id<K extends string> = string & { readonly [ID_BRAND]: K };
 
-// Phase 0 needs only bone identity. Other id brands (SlotId, AnimationId, ...) are declared by the
+// Phase 0 needs only bone identity. Other id brands (AnimationId, KeyframeId, ...) are declared by the
 // phase whose entities they address (LAW 5), not pre-scaffolded here.
 export type BoneId = Id<'bone'>;
+
+// Phase 1 (WP-1.2) promotes slots to id-keyed entities. A SlotEntity is addressed by SlotId, never by
+// name or draw-order index, so a rename or reorder never invalidates a captured command (command-
+// history Section 2). Attachments carry no id of their own; they are addressed by (SlotId, name).
+export type SlotId = Id<'slot'>;
 
 // IDs are minted by a single injected generator (no hidden global; dependency injection per house
 // rules). The counter is per-Document and monotonic, so ids are unique within a document and

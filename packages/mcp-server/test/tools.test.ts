@@ -195,4 +195,89 @@ describe('MCP tools', () => {
       'FILE_READ_ERROR',
     );
   });
+
+  it('authors slots and attachments, reorders draw order, and cascades a bone delete', async () => {
+    const deps = makeDeps();
+    const { documentId } = asRecord(await call(deps, 'document.new', { name: 'rig' }));
+    const { boneId: rootId } = asRecord(
+      await call(deps, 'bone.create', { documentId, name: 'root', length: 100 }),
+    );
+    const { boneId: armId } = asRecord(
+      await call(deps, 'bone.create', { documentId, parentId: rootId, name: 'arm', x: 50 }),
+    );
+
+    const { slotId: bodyId } = asRecord(
+      await call(deps, 'slot.create', { documentId, boneId: rootId, name: 'body' }),
+    );
+    const { slotId: handId } = asRecord(
+      await call(deps, 'slot.create', { documentId, boneId: armId, name: 'hand' }),
+    );
+    expect(typeof bodyId).toBe('string');
+
+    // Region attachment + activate it in setup pose.
+    await call(deps, 'attach.region.add', {
+      documentId,
+      slotId: bodyId,
+      name: 'torso',
+      path: 'tex_torso',
+      width: 64,
+      height: 64,
+    });
+    await call(deps, 'slot.activeAttachment', { documentId, slotId: bodyId, attachment: 'torso' });
+    const bodyGet = asRecord(await call(deps, 'slot.get', { documentId, slotId: bodyId }));
+    expect(asRecord(bodyGet.slot).attachment).toBe('torso');
+    expect((bodyGet.attachments as unknown[]).length).toBe(1);
+
+    // Reorder body to the end of the draw order.
+    await call(deps, 'slot.reorder', { documentId, slotId: bodyId, toIndex: 1 });
+    const listed = asRecord(await call(deps, 'slot.list', { documentId }));
+    expect((listed.slots as Array<{ name: string }>).map((s) => s.name)).toEqual(['hand', 'body']);
+
+    // Color edit through a command.
+    await call(deps, 'slot.color', {
+      documentId,
+      slotId: handId,
+      color: { r: 0.5, g: 0.25, b: 0.1, a: 1 },
+    });
+
+    // Deleting the root bone cascades its slot (body) and that slot's attachment in one undo step.
+    await call(deps, 'bone.delete', { documentId, boneId: rootId });
+    const afterDelete = asRecord(await call(deps, 'slot.list', { documentId }));
+    expect((afterDelete.slots as unknown[]).length).toBe(0); // arm subtree took hand too
+    await call(deps, 'history.undo', { documentId });
+    const afterUndo = asRecord(await call(deps, 'slot.list', { documentId }));
+    expect((afterUndo.slots as unknown[]).length).toBe(2); // both slots restored
+
+    const bodyAgain = asRecord(await call(deps, 'slot.get', { documentId, slotId: bodyId }));
+    expect((bodyAgain.attachments as unknown[]).length).toBe(1); // attachment restored too
+  });
+
+  it('surfaces typed errors for unknown slots and attachments', async () => {
+    const deps = makeDeps();
+    const { documentId } = asRecord(await call(deps, 'document.new', { name: 's' }));
+    const { boneId } = asRecord(
+      await call(deps, 'bone.create', { documentId, name: 'root', length: 1 }),
+    );
+    const { slotId } = asRecord(
+      await call(deps, 'slot.create', { documentId, boneId, name: 'body' }),
+    );
+
+    await expectToolError(
+      call(deps, 'slot.color', {
+        documentId,
+        slotId: 'nope',
+        color: { r: 1, g: 1, b: 1, a: 1 },
+      }),
+      'SLOT_NOT_FOUND',
+    );
+    await expectToolError(
+      call(deps, 'attach.remove', { documentId, slotId, name: 'missing' }),
+      'ATTACHMENT_NOT_FOUND',
+    );
+    // An out-of-range color channel is rejected at the boundary.
+    await expectToolError(
+      call(deps, 'slot.color', { documentId, slotId, color: { r: 2, g: 0, b: 0, a: 1 } }),
+      'INVALID_INPUT',
+    );
+  });
 });

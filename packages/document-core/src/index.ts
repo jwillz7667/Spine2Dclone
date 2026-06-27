@@ -28,11 +28,25 @@ export {
 export type { DocumentError } from './command/errors';
 
 // Model (read surface + value types; the write surface stays private)
-export type { BoneEntity, DocState, PreservedContent } from './model/doc-state';
+export type {
+  BoneEntity,
+  SlotEntity,
+  RegionAttachmentEntity,
+  PreservedAttachmentEntity,
+  AttachmentEntity,
+  DocState,
+  PreservedContent,
+} from './model/doc-state';
 export { emptyPreservedContent, newDocState } from './model/doc-state';
-export type { Id, BoneId, IdFactory } from './model/ids';
+export type { Id, BoneId, SlotId, IdFactory } from './model/ids';
 export { makeIdFactory } from './model/ids';
-export type { DocumentReadModel, DocSnapshot, BoneSnapshot } from './model/read-model';
+export type {
+  DocumentReadModel,
+  DocSnapshot,
+  BoneSnapshot,
+  SlotSnapshot,
+  AttachmentSnapshot,
+} from './model/read-model';
 
 // Commands (classes for tools/MCP, specs/registry for the harness)
 export {
@@ -46,11 +60,30 @@ export {
   RenameBoneCommand,
   ReparentBoneCommand,
   DeleteBoneCommand,
+  CreateSlotCommand,
+  DeleteSlotCommand,
+  RenameSlotCommand,
+  SetSlotBlendModeCommand,
+  SetSlotColorCommand,
+  ReorderSlotCommand,
+  AddRegionAttachmentCommand,
+  RemoveAttachmentCommand,
+  SetActiveAttachmentCommand,
+  SetRegionAttachmentTransformCommand,
   wrapDegrees,
   commandRegistry,
   findBoneSnapshot,
+  findSlotSnapshot,
+  findAttachmentSnapshot,
 } from './commands';
-export type { BoneGeometry, CommandSpec, CommandFixture } from './commands';
+export type {
+  BoneGeometry,
+  SlotInit,
+  RegionAttachmentInit,
+  RegionTransform,
+  CommandSpec,
+  CommandFixture,
+} from './commands';
 
 // Save / load seam
 export type { DocumentEnvironment, Document } from './save-load';

@@ -139,16 +139,24 @@ describe('save / load seam', () => {
     expect(exported).toEqual(original);
   });
 
-  it('fails loudly when a Phase-0 delete orphans a preserved slot reference', () => {
-    // Phase 0 DeleteBone is bone-subtree-only (the rider-aware variant is Phase 1), so deleting a
-    // slot-referenced bone leaves a dangling slot. assertInvariants surfaces it in dev/test, and the
-    // export boundary refuses to ship it (LAW 3 fail-loudly), rather than writing an invalid file.
+  it('cascades the slot and attachment when its bone is deleted, restoring them on undo', () => {
+    // WP-1.2: DeleteBone now cascades the slots riding deleted bones and their attachments (the slice
+    // of TASK-1.1.2 for slots/attachments), so deleting a slot-referenced bone leaves NO orphan: the
+    // model stays consistent (assertInvariants passes). richDocument has only one bone, so the export
+    // boundary still fails loudly here, not because of a dangling slot but because the format requires
+    // at least one bone. Undo restores the full document exactly.
     const doc = loadDocument(richDocument(), makeTestEnv().env);
+    const before = doc.model.snapshot();
     const root = doc.model.bones()[0]!;
     doc.history.execute(new DeleteBoneCommand(root.id));
 
-    expect(() => assertInvariants(doc.model)).toThrow();
-    expect(() => exportDocument(doc.model)).toThrow(ExportValidationError);
+    expect(doc.model.slots()).toHaveLength(0); // the slot riding root cascaded away
+    expect(() => assertInvariants(doc.model)).not.toThrow(); // no orphaned slot or attachment
+    expect(() => exportDocument(doc.model)).toThrow(ExportValidationError); // zero bones remain
+
+    doc.history.undo();
+    expect(doc.model.snapshot()).toEqual(before); // exact restore, slot + attachment included
+    expect(exportDocument(doc.model)).toEqual(richDocument()); // and exportable again
   });
 
   it('rejects malformed JSON with a typed error and builds no Document', () => {

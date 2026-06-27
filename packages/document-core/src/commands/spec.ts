@@ -1,10 +1,30 @@
 import type { Command } from '../command/command';
 import type { IdFactory } from '../model/ids';
-import type { BoneSnapshot, DocSnapshot, DocumentReadModel } from '../model/read-model';
+import type {
+  AttachmentSnapshot,
+  BoneSnapshot,
+  DocSnapshot,
+  DocumentReadModel,
+  SlotSnapshot,
+} from '../model/read-model';
 
 // Find a bone projection by internal id within a snapshot (used by assertApplied delta checks).
 export function findBoneSnapshot(snapshot: DocSnapshot, id: string): BoneSnapshot | undefined {
   return snapshot.bones.find((bone) => bone.id === id);
+}
+
+// Find a slot projection by internal id within a snapshot.
+export function findSlotSnapshot(snapshot: DocSnapshot, id: string): SlotSnapshot | undefined {
+  return snapshot.slots.find((slot) => slot.id === id);
+}
+
+// Find an attachment projection by its (slotId, name) address within a snapshot.
+export function findAttachmentSnapshot(
+  snapshot: DocSnapshot,
+  slotId: string,
+  name: string,
+): AttachmentSnapshot | undefined {
+  return snapshot.attachments.find((att) => att.slotId === slotId && att.name === name);
 }
 
 // A representative, ready-to-apply command plus the seed it was built against.

@@ -23,7 +23,13 @@ export const useSelectionStore = create<SelectionStore>((set) => ({
     set((state) => {
       if (hint === undefined || hint.kind === 'preserve') return state;
       if (hint.kind === 'clear') return { selectedBoneIds: [] };
-      return { selectedBoneIds: hint.entities.map((entity) => entity.id) };
+      // This store tracks bone selection only; slot selection (EntityRef 'slot', added in WP-1.2) gets
+      // its own store when the slot inspector lands (a separate follow-up), so non-bone hints are
+      // filtered out here rather than coerced into the bone selection.
+      const boneIds = hint.entities.flatMap((entity) =>
+        entity.type === 'bone' ? [entity.id] : [],
+      );
+      return { selectedBoneIds: boneIds };
     }),
   prune: (exists) =>
     set((state) => {

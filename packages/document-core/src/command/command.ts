@@ -1,4 +1,4 @@
-import type { BoneId, IdFactory } from '../model/ids';
+import type { BoneId, IdFactory, SlotId } from '../model/ids';
 import type { Mutator } from '../model/mutator';
 
 // The privileged context a command sees (command-history Section 4.1). It carries exactly two things,
@@ -13,9 +13,11 @@ export interface CommandContext {
 export type HistoryPhase = 'execute' | 'undo' | 'redo';
 
 // A selection target carries an entity REFERENCE (internal id plus kind), never document data, so the
-// non-undoable selection store can reselect after an undo/redo. Phase 0 selects bones only; other
-// kinds are added by the phase that makes them selectable (LAW 5).
-export type EntityRef = { readonly type: 'bone'; readonly id: BoneId };
+// non-undoable selection store can reselect after an undo/redo. Phase 1 (WP-1.2) makes slots
+// selectable; later phases add further kinds (keyframes in WP-1.5, constraints in Phase 2) (LAW 5).
+export type EntityRef =
+  | { readonly type: 'bone'; readonly id: BoneId }
+  | { readonly type: 'slot'; readonly id: SlotId };
 
 export type SelectionHint =
   | { readonly kind: 'select'; readonly entities: readonly EntityRef[] }

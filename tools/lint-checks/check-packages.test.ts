@@ -30,7 +30,9 @@ describe('findForbiddenPackages (LAW 5)', () => {
 
   it('passes for a clean Phase-0 layout', () => {
     root = mkdtempSync(join(tmpdir(), 'mc-package-guard-'));
-    for (const pkg of ['format', 'runtime-core', 'runtime-web']) {
+    // document-core and mcp-server are Phase-0 allowed per ADR-0001 (renderer-agnostic command spine
+    // plus the headless MCP control surface).
+    for (const pkg of ['format', 'runtime-core', 'runtime-web', 'document-core', 'mcp-server']) {
       mkdirSync(join(root, 'packages', pkg), { recursive: true });
     }
     mkdirSync(join(root, 'apps', 'editor'), { recursive: true });

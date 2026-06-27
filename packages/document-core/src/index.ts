@@ -24,6 +24,8 @@ export {
   HistoryReentrancyError,
   ExportValidationError,
   ReparentCycleError,
+  AnimationDurationError,
+  KeyframeCollisionError,
 } from './command/errors';
 export type { DocumentError } from './command/errors';
 
@@ -34,11 +36,21 @@ export type {
   RegionAttachmentEntity,
   PreservedAttachmentEntity,
   AttachmentEntity,
+  AnimationEntity,
+  BoneChannel,
+  BoneTimelineSet,
+  SlotTimelineSet,
+  KeyframeEntity,
+  AttachmentFrameEntity,
+  KeyframeValue,
+  RotateValue,
+  Vec2Value,
+  ColorValue,
   DocState,
   PreservedContent,
 } from './model/doc-state';
 export { emptyPreservedContent, newDocState } from './model/doc-state';
-export type { Id, BoneId, SlotId, IdFactory } from './model/ids';
+export type { Id, BoneId, SlotId, AnimationId, KeyframeId, IdFactory } from './model/ids';
 export { makeIdFactory } from './model/ids';
 export type {
   DocumentReadModel,
@@ -46,6 +58,11 @@ export type {
   BoneSnapshot,
   SlotSnapshot,
   AttachmentSnapshot,
+  AnimationSnapshot,
+  BoneTimelineSnapshot,
+  SlotTimelineSnapshot,
+  KeyframeSnapshot,
+  AttachmentFrameSnapshot,
 } from './model/read-model';
 
 // Commands (classes for tools/MCP, specs/registry for the harness)
@@ -70,17 +87,30 @@ export {
   RemoveAttachmentCommand,
   SetActiveAttachmentCommand,
   SetRegionAttachmentTransformCommand,
+  CreateAnimationCommand,
+  DeleteAnimationCommand,
+  RenameAnimationCommand,
+  SetAnimationDurationCommand,
+  SetKeyframeCommand,
+  MoveKeyframeCommand,
+  DeleteKeyframeCommand,
+  SetCurveCommand,
+  DuplicateAnimationCommand,
+  PasteKeyframesCommand,
   wrapDegrees,
   commandRegistry,
   findBoneSnapshot,
   findSlotSnapshot,
   findAttachmentSnapshot,
+  findAnimationSnapshot,
 } from './commands';
 export type {
   BoneGeometry,
   SlotInit,
   RegionAttachmentInit,
   RegionTransform,
+  KeyframeTarget,
+  PastedKeyframe,
   CommandSpec,
   CommandFixture,
 } from './commands';

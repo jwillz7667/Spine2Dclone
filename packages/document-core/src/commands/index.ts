@@ -40,6 +40,26 @@ export {
   setRegionAttachmentTransformSpec,
 } from './set-region-attachment-transform.command';
 export type { RegionTransform } from './set-region-attachment-transform.command';
+export { CreateAnimationCommand, createAnimationSpec } from './create-animation.command';
+export { DeleteAnimationCommand, deleteAnimationSpec } from './delete-animation.command';
+export { RenameAnimationCommand, renameAnimationSpec } from './rename-animation.command';
+export {
+  SetAnimationDurationCommand,
+  setAnimationDurationSpec,
+} from './set-animation-duration.command';
+export { SetKeyframeCommand, setKeyframeSpec } from './set-keyframe.command';
+export { MoveKeyframeCommand, moveKeyframeSpec } from './move-keyframe.command';
+export { DeleteKeyframeCommand, deleteKeyframeSpec } from './delete-keyframe.command';
+export { SetCurveCommand, setCurveSpec } from './set-curve.command';
+export { DuplicateAnimationCommand, duplicateAnimationSpec } from './duplicate-animation.command';
+export { PasteKeyframesCommand, pasteKeyframesSpec } from './paste-keyframes.command';
+export type { PastedKeyframe } from './paste-keyframes.command';
+export type { KeyframeTarget } from './keyframe-support';
 export { commandRegistry } from './registry';
 export type { CommandSpec, CommandFixture } from './spec';
-export { findBoneSnapshot, findSlotSnapshot, findAttachmentSnapshot } from './spec';
+export {
+  findBoneSnapshot,
+  findSlotSnapshot,
+  findAttachmentSnapshot,
+  findAnimationSnapshot,
+} from './spec';

@@ -40,6 +40,7 @@ describe('computed-result command replays its stored result on redo', () => {
         slots: new Map(),
         slotOrder: [],
         attachments: new Map(),
+        animations: new Map(),
         preserved: emptyPreservedContent(),
       },
       ids,

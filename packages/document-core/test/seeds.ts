@@ -1,4 +1,5 @@
 import type {
+  Animation,
   AtlasRegion,
   Bone,
   RegionAttachment,
@@ -73,6 +74,7 @@ interface DocBody {
   readonly slots?: Slot[];
   readonly skins?: SkeletonDocument['skins'];
   readonly atlas?: SkeletonDocument['atlas'];
+  readonly animations?: Record<string, Animation>;
 }
 
 function doc(name: string, bones: Bone[], body: DocBody = {}): SkeletonDocument {
@@ -83,10 +85,43 @@ function doc(name: string, bones: Bone[], body: DocBody = {}): SkeletonDocument 
     bones,
     slots: body.slots ?? [],
     skins: body.skins ?? [{ name: 'default', attachments: {} }],
-    animations: {},
+    animations: body.animations ?? {},
     atlas: body.atlas ?? { pages: [] },
   };
 }
+
+// A single idle animation exercising every authored channel across the seed's bone and slot: a bezier-
+// eased rotate, a translate, and a slot color tint, in strict time order within [0, duration]. It makes
+// every WP-1.5 animation/keyframe command applicable with a real delta and lets DeleteBone/DeleteSlot
+// exercise the animation-track prune cascade.
+const idleAnimation: Animation = {
+  duration: 1,
+  bones: {
+    root: {
+      rotate: [
+        { time: 0, value: { angle: 0 }, curve: 'linear' },
+        {
+          time: 0.5,
+          value: { angle: 30 },
+          curve: { type: 'bezier', cx1: 0.25, cy1: 0.1, cx2: 0.75, cy2: 0.9 },
+        },
+        { time: 1, value: { angle: 0 }, curve: 'linear' },
+      ],
+      translate: [
+        { time: 0, value: { x: 0, y: 0 }, curve: 'linear' },
+        { time: 1, value: { x: 10, y: 0 }, curve: 'stepped' },
+      ],
+    },
+  },
+  slots: {
+    body: {
+      color: [
+        { time: 0, value: { color: { r: 1, g: 1, b: 1, a: 1 } }, curve: 'linear' },
+        { time: 1, value: { color: { r: 1, g: 0, b: 0, a: 1 } }, curve: 'linear' },
+      ],
+    },
+  },
+};
 
 export const seeds = {
   // One root bone (normalized rotation), the common seed.
@@ -112,6 +147,12 @@ export const seeds = {
       ],
     },
   }),
+  // One bone, one slot, and one idle animation with keyframes across channels (incl. a bezier). The
+  // WP-1.5 animation/keyframe seed: every keyframe command is applicable here with a real delta.
+  animated: doc('animated', [bone('root', null)], {
+    slots: [slot('body', 'root')],
+    animations: { idle: idleAnimation },
+  }),
 } as const;
 
 export interface Seed {
@@ -124,6 +165,7 @@ export const seedList: readonly Seed[] = [
   { id: 'rig', json: seeds.rig },
   { id: 'rotated', json: seeds.rotated },
   { id: 'slotted', json: seeds.slotted },
+  { id: 'animated', json: seeds.animated },
 ];
 
 // A deterministic test environment: a controllable fake clock (so coalescing-window tests are

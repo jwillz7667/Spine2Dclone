@@ -19,6 +19,14 @@ export type BoneId = Id<'bone'>;
 // history Section 2). Attachments carry no id of their own; they are addressed by (SlotId, name).
 export type SlotId = Id<'slot'>;
 
+// Phase 1 (WP-1.5) promotes animations and their keyframes to id-keyed entities. An AnimationEntity is
+// addressed by AnimationId (never by its name, which is the on-disk record key and is mutable), and a
+// KeyframeEntity by KeyframeId. Addressing a keyframe by id is load-bearing: an array index goes stale
+// the instant a sibling keyframe is inserted or deleted, so commands target keyframes by KeyframeId and
+// keep the channel array time-sorted as an invariant (command-history Section 2).
+export type AnimationId = Id<'animation'>;
+export type KeyframeId = Id<'keyframe'>;
+
 // IDs are minted by a single injected generator (no hidden global; dependency injection per house
 // rules). The counter is per-Document and monotonic, so ids are unique within a document and
 // deterministic given a fixed mint order (which makes load-path tests reproducible).

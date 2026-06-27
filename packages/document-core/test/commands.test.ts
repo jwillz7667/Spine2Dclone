@@ -371,7 +371,8 @@ function danglingSlotState(): DocState {
     ]),
     slotOrder: [slotId],
     attachments: new Map(),
-    preserved: { animations: {}, atlas: { pages: [] }, extraSkins: [] },
+    animations: new Map(),
+    preserved: { atlas: { pages: [] }, extraSkins: [] },
   };
 }
 

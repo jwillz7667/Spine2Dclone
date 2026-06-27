@@ -43,6 +43,7 @@ function state(partial: Partial<DocState> & Pick<DocState, 'bones' | 'boneOrder'
     slots: new Map(),
     slotOrder: [],
     attachments: new Map(),
+    animations: new Map(),
     preserved: emptyPreservedContent(),
     ...partial,
   };

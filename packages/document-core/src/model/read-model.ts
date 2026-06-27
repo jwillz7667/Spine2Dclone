@@ -1,6 +1,22 @@
-import type { Attachment, BlendMode, RGBA, TransformMode } from '@marionette/format/types';
-import type { AttachmentEntity, BoneEntity, PreservedContent, SlotEntity } from './doc-state';
-import type { BoneId, SlotId } from './ids';
+import type {
+  Attachment,
+  BlendMode,
+  CurveType,
+  RGBA,
+  TransformMode,
+} from '@marionette/format/types';
+import type {
+  AnimationEntity,
+  AttachmentEntity,
+  AttachmentFrameEntity,
+  BoneEntity,
+  KeyframeEntity,
+  KeyframeValue,
+  PreservedContent,
+  SlotEntity,
+} from './doc-state';
+import { cloneCurve, cloneKeyframeValue } from './doc-state';
+import type { AnimationId, BoneId, SlotId } from './ids';
 
 // The public read surface given to the UI and to commands (command-history Section 3.2). Every
 // accessor returns a frozen value copy or a readonly view; no accessor leaks a handle that can mutate
@@ -21,8 +37,12 @@ export interface DocumentReadModel {
   // the order is deterministic for callers that enumerate.
   attachments(slotId: SlotId): readonly AttachmentEntity[];
   getAttachment(slotId: SlotId, name: string): AttachmentEntity | undefined;
-  // The preserved (not-yet-promoted) document body, read-only. Phase 1 holds animations, the atlas,
-  // and non-default skins verbatim.
+  getAnimation(id: AnimationId): AnimationEntity | undefined;
+  // All animations, sorted by id (the on-disk record is name-keyed and order-insignificant, so a
+  // deterministic enumeration sorts by the stable internal id).
+  animations(): readonly AnimationEntity[];
+  // The preserved (not-yet-promoted) document body, read-only. Phase 1 holds the atlas and non-default
+  // skins verbatim.
   preserved(): PreservedContent;
   // Canonical, deterministically-ordered, deep-equality-comparable projection (includes internal ids).
   snapshot(): DocSnapshot;
@@ -80,10 +100,53 @@ export type AttachmentSnapshot =
       readonly value: Attachment;
     };
 
+// A plain keyframe projection: the internal id, time, value, and curve as value copies (so the snapshot
+// never aliases the live model). Keyframes within a channel are listed in strictly ascending time order.
+export interface KeyframeSnapshot {
+  readonly id: string;
+  readonly time: number;
+  readonly value: KeyframeValue;
+  readonly curve: CurveType;
+}
+
+// A plain attachment-frame projection (stepped, no curve), in ascending time order.
+export interface AttachmentFrameSnapshot {
+  readonly id: string;
+  readonly time: number;
+  readonly name: string | null;
+}
+
+// A plain per-bone timeline projection, keyed by the internal BoneId string (a reference, stable across
+// a bone rename), with each channel in time order.
+export interface BoneTimelineSnapshot {
+  readonly boneId: string;
+  readonly rotate: readonly KeyframeSnapshot[];
+  readonly translate: readonly KeyframeSnapshot[];
+  readonly scale: readonly KeyframeSnapshot[];
+  readonly shear: readonly KeyframeSnapshot[];
+}
+
+// A plain per-slot timeline projection, keyed by the internal SlotId string.
+export interface SlotTimelineSnapshot {
+  readonly slotId: string;
+  readonly color: readonly KeyframeSnapshot[];
+  readonly attachment: readonly AttachmentFrameSnapshot[];
+}
+
+// A plain animation projection. `bones`/`slots` are sorted by their internal id so the snapshot is
+// deterministic and stable across renames.
+export interface AnimationSnapshot {
+  readonly id: string;
+  readonly name: string;
+  readonly duration: number;
+  readonly bones: readonly BoneTimelineSnapshot[]; // sorted by boneId
+  readonly slots: readonly SlotTimelineSnapshot[]; // sorted by slotId
+}
+
 // The full internal-state projection the round-trip harness deep-compares (command-history Section
 // 3.4). Maps serialize as arrays sorted by id; order-significant arrays (boneOrder, slotOrder) preserve
-// order; attachments sort by (slotId, name); numbers are verbatim (undo restores stored mementos, so
-// the round-trip is bit-exact, no epsilon).
+// order; attachments sort by (slotId, name); animations sort by id with keyframes in time order;
+// numbers are verbatim (undo restores stored mementos, so the round-trip is bit-exact, no epsilon).
 export interface DocSnapshot {
   readonly formatVersion: string;
   readonly name: string;
@@ -92,6 +155,7 @@ export interface DocSnapshot {
   readonly slots: readonly SlotSnapshot[]; // sorted by id
   readonly slotOrder: readonly string[]; // order-significant (draw order)
   readonly attachments: readonly AttachmentSnapshot[]; // sorted by (slotId, name)
+  readonly animations: readonly AnimationSnapshot[]; // sorted by id
   readonly preserved: PreservedContent; // verbatim (already deeply immutable)
 }
 
@@ -146,4 +210,44 @@ export function attachmentToSnapshot(slotId: SlotId, att: AttachmentEntity): Att
     };
   }
   return { slotId, kind: 'preserved', name: att.name, value: att.value };
+}
+
+// Project one keyframe to its snapshot shape (value and curve deep-copied).
+function keyframeToSnapshot(kf: KeyframeEntity): KeyframeSnapshot {
+  return {
+    id: kf.id,
+    time: kf.time,
+    value: cloneKeyframeValue(kf.value),
+    curve: cloneCurve(kf.curve),
+  };
+}
+
+function attachmentFrameToSnapshot(frame: AttachmentFrameEntity): AttachmentFrameSnapshot {
+  return { id: frame.id, time: frame.time, name: frame.name };
+}
+
+// Project an animation entity to its snapshot shape: bones and slots sorted by their internal id, each
+// channel a value copy in time order. Keyframe arrays are already time-sorted in the model.
+export function animationToSnapshot(animation: AnimationEntity): AnimationSnapshot {
+  const bones: BoneTimelineSnapshot[] = [];
+  for (const [boneId, set] of animation.bones) {
+    bones.push({
+      boneId,
+      rotate: set.rotate.map(keyframeToSnapshot),
+      translate: set.translate.map(keyframeToSnapshot),
+      scale: set.scale.map(keyframeToSnapshot),
+      shear: set.shear.map(keyframeToSnapshot),
+    });
+  }
+  bones.sort((a, b) => (a.boneId < b.boneId ? -1 : a.boneId > b.boneId ? 1 : 0));
+  const slots: SlotTimelineSnapshot[] = [];
+  for (const [slotId, set] of animation.slots) {
+    slots.push({
+      slotId,
+      color: set.color.map(keyframeToSnapshot),
+      attachment: set.attachment.map(attachmentFrameToSnapshot),
+    });
+  }
+  slots.sort((a, b) => (a.slotId < b.slotId ? -1 : a.slotId > b.slotId ? 1 : 0));
+  return { id: animation.id, name: animation.name, duration: animation.duration, bones, slots };
 }

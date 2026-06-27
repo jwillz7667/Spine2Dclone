@@ -1,6 +1,7 @@
 import type { Command } from '../command/command';
 import type { IdFactory } from '../model/ids';
 import type {
+  AnimationSnapshot,
   AttachmentSnapshot,
   BoneSnapshot,
   DocSnapshot,
@@ -25,6 +26,14 @@ export function findAttachmentSnapshot(
   name: string,
 ): AttachmentSnapshot | undefined {
   return snapshot.attachments.find((att) => att.slotId === slotId && att.name === name);
+}
+
+// Find an animation projection by its internal id within a snapshot.
+export function findAnimationSnapshot(
+  snapshot: DocSnapshot,
+  id: string,
+): AnimationSnapshot | undefined {
+  return snapshot.animations.find((animation) => animation.id === id);
 }
 
 // A representative, ready-to-apply command plus the seed it was built against.

@@ -5,6 +5,7 @@ import {
   verifyContentHash,
 } from '@marionette/format';
 import type { SkeletonDocument } from '@marionette/format/types';
+import { buildPose, sampleSkeleton, SLOT_COLOR_STRIDE } from '@marionette/runtime-core';
 import { describe, expect, it } from 'vitest';
 import {
   CreateBoneCommand,
@@ -157,6 +158,46 @@ describe('save / load seam', () => {
     doc.history.undo();
     expect(doc.model.snapshot()).toEqual(before); // exact restore, slot + attachment included
     expect(exportDocument(doc.model)).toEqual(richDocument()); // and exportable again
+  });
+
+  it('round-trips an animation with keyframes through the projection, deep-equal', () => {
+    const doc = loadDocument(seeds.animated, makeTestEnv().env);
+    const json1 = exportDocument(doc.model);
+
+    // The exported animation is EXACTLY the 3-field format shape: no empty ik/transform/deform/
+    // drawOrder/events collections (the implemented Animation type would reject them with SCHEMA_SHAPE).
+    expect(Object.keys(json1.animations)).toEqual(['idle']);
+    expect(Object.keys(json1.animations.idle!).sort()).toEqual(['bones', 'duration', 'slots']);
+    expect(json1.animations.idle!.bones.root!.rotate).toHaveLength(3);
+    expect(json1.animations.idle!.bones.root!.translate).toHaveLength(2);
+    expect(json1.animations.idle!.slots.body!.color).toHaveLength(2);
+
+    // Reloading and re-exporting reproduces the projection exactly (keyframe ids are minted fresh on
+    // load but never serialized, so the format JSON is identical).
+    const reloaded = loadDocument(json1, makeTestEnv().env);
+    const json2 = exportDocument(reloaded.model);
+    expect(json2).toEqual(json1);
+  });
+
+  it('exports an animation the WP-1.4 sampler consumes without throwing and to a sane pose', () => {
+    // The sampler reads the EXPORTED format (animation.bones[name].rotate[i].value.angle, slots[name]
+    // .color, ...), so this proves the editable model projects to exactly what runtime-core consumes.
+    const doc = loadDocument(seeds.animated, makeTestEnv().env);
+    const exported = exportDocument(doc.model);
+    const pose = buildPose(exported);
+
+    expect(() => sampleSkeleton(exported, 'idle', 0.5, pose)).not.toThrow();
+    for (const value of pose.world) expect(Number.isFinite(value)).toBe(true);
+
+    // At t=1.0 the body slot color reaches the final red keyframe (per-component RGBA, replacing setup).
+    sampleSkeleton(exported, 'idle', 1, pose);
+    const bodyIndex = pose.slotNames.indexOf('body');
+    expect(bodyIndex).toBeGreaterThanOrEqual(0);
+    const base = bodyIndex * SLOT_COLOR_STRIDE;
+    expect(pose.slotColor[base]).toBeCloseTo(1); // r
+    expect(pose.slotColor[base + 1]).toBeCloseTo(0); // g
+    expect(pose.slotColor[base + 2]).toBeCloseTo(0); // b
+    expect(pose.slotColor[base + 3]).toBeCloseTo(1); // a
   });
 
   it('rejects malformed JSON with a typed error and builds no Document', () => {

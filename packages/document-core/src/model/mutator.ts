@@ -1,5 +1,15 @@
-import type { AttachmentEntity, BoneEntity, RegionAttachmentEntity, SlotEntity } from './doc-state';
-import type { BoneId, SlotId } from './ids';
+import type {
+  AnimationEntity,
+  AttachmentEntity,
+  BoneChannel,
+  BoneEntity,
+  BoneTimelineSet,
+  KeyframeEntity,
+  RegionAttachmentEntity,
+  SlotEntity,
+  SlotTimelineSet,
+} from './doc-state';
+import type { AnimationId, BoneId, SlotId } from './ids';
 import type { DocumentModelInternal } from './internal';
 import type { DocumentReadModel } from './read-model';
 
@@ -28,6 +38,25 @@ export interface Mutator extends DocumentReadModel {
     name: string,
     patch: Partial<Omit<RegionAttachmentEntity, 'kind' | 'name'>>,
   ): void;
+  insertAnimation(entity: AnimationEntity): void;
+  removeAnimation(id: AnimationId): void;
+  patchAnimation(
+    id: AnimationId,
+    patch: { readonly name?: string; readonly duration?: number },
+  ): void;
+  setBoneChannel(
+    animId: AnimationId,
+    boneId: BoneId,
+    channel: BoneChannel,
+    keyframes: readonly KeyframeEntity[],
+  ): void;
+  setSlotColorChannel(
+    animId: AnimationId,
+    slotId: SlotId,
+    keyframes: readonly KeyframeEntity[],
+  ): void;
+  setBoneTimelines(animId: AnimationId, boneId: BoneId, set: BoneTimelineSet | null): void;
+  setSlotTimelines(animId: AnimationId, slotId: SlotId, set: SlotTimelineSet | null): void;
 }
 
 // The ONLY factory that can produce a Mutator. History receives the Mutator at construction; nothing
@@ -49,6 +78,8 @@ export function createMutator(model: DocumentModelInternal): Mutator {
     slots: () => model.slots(),
     attachments: (slotId) => model.attachments(slotId),
     getAttachment: (slotId, name) => model.getAttachment(slotId, name),
+    getAnimation: (id) => model.getAnimation(id),
+    animations: () => model.animations(),
     preserved: () => model.preserved(),
     snapshot: () => model.snapshot(),
     insertBone: (entity, index) => model.insertBone(entity, index),
@@ -63,5 +94,14 @@ export function createMutator(model: DocumentModelInternal): Mutator {
     addAttachment: (slotId, entity) => model.addAttachment(slotId, entity),
     removeAttachment: (slotId, name) => model.removeAttachment(slotId, name),
     patchAttachment: (slotId, name, patch) => model.patchAttachment(slotId, name, patch),
+    insertAnimation: (entity) => model.insertAnimation(entity),
+    removeAnimation: (id) => model.removeAnimation(id),
+    patchAnimation: (id, patch) => model.patchAnimation(id, patch),
+    setBoneChannel: (animId, boneId, channel, keyframes) =>
+      model.setBoneChannel(animId, boneId, channel, keyframes),
+    setSlotColorChannel: (animId, slotId, keyframes) =>
+      model.setSlotColorChannel(animId, slotId, keyframes),
+    setBoneTimelines: (animId, boneId, set) => model.setBoneTimelines(animId, boneId, set),
+    setSlotTimelines: (animId, slotId, set) => model.setSlotTimelines(animId, slotId, set),
   };
 }

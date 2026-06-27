@@ -1,8 +1,20 @@
 import { parseDocument } from '@marionette/format';
-import type { Skin, SkeletonDocument } from '@marionette/format/types';
+import type { CurveType, Skin, SkeletonDocument } from '@marionette/format/types';
 import { DocumentInvariantError } from '../command/errors';
-import type { AttachmentEntity, BoneEntity, DocState, SlotEntity } from '../model/doc-state';
-import type { BoneId, IdFactory, SlotId } from '../model/ids';
+import type {
+  AnimationEntity,
+  AttachmentEntity,
+  AttachmentFrameEntity,
+  BoneEntity,
+  BoneTimelineSet,
+  DocState,
+  KeyframeEntity,
+  KeyframeValue,
+  SlotEntity,
+  SlotTimelineSet,
+} from '../model/doc-state';
+import { makeAttachmentFrame, makeKeyframe } from '../model/doc-state';
+import type { AnimationId, BoneId, IdFactory, SlotId } from '../model/ids';
 import { buildLoadedDocument, type Document } from './document';
 import type { DocumentEnvironment } from './environment';
 
@@ -106,6 +118,32 @@ function formatToDocState(document: SkeletonDocument, ids: IdFactory): DocState 
     }
   }
 
+  // Animations (WP-1.5) become first-class: mint an AnimationId per animation and a KeyframeId per
+  // keyframe/frame, and resolve bone/slot NAME keys to ids. The validator already guaranteed every
+  // timeline key resolves (ANIM_BONE_UNKNOWN / ANIM_SLOT_UNKNOWN), so resolveId is total here; a failure
+  // is corrupt input and throws (symmetry with export).
+  const animations = new Map<AnimationId, AnimationEntity>();
+  for (const [animName, animation] of Object.entries(document.animations)) {
+    const id = ids.mint('animation');
+    const bonesTracks = new Map<BoneId, BoneTimelineSet>();
+    for (const [boneName, timelines] of Object.entries(animation.bones)) {
+      const boneId = resolveId(boneName, boneNameToId, 'animation bone');
+      bonesTracks.set(boneId, loadBoneTimelines(timelines, ids));
+    }
+    const slotTracks = new Map<SlotId, SlotTimelineSet>();
+    for (const [slotName, timelines] of Object.entries(animation.slots)) {
+      const slotId = resolveId(slotName, slotNameToId, 'animation slot');
+      slotTracks.set(slotId, loadSlotTimelines(timelines, ids));
+    }
+    animations.set(id, {
+      id,
+      name: animName,
+      duration: animation.duration,
+      bones: bonesTracks,
+      slots: slotTracks,
+    });
+  }
+
   return {
     formatVersion: document.formatVersion,
     name: document.name,
@@ -114,11 +152,53 @@ function formatToDocState(document: SkeletonDocument, ids: IdFactory): DocState 
     slots,
     slotOrder,
     attachments,
+    animations,
     preserved: {
-      animations: document.animations,
       atlas: document.atlas,
       extraSkins,
     },
+  };
+}
+
+// Mint a KeyframeId per format keyframe (the format value already matches the internal KeyframeValue
+// shape by channel; makeKeyframe deep-copies it so the model never aliases the parsed document).
+function loadKeyframes(
+  frames: ReadonlyArray<{ time: number; value: KeyframeValue; curve: CurveType }> | undefined,
+  ids: IdFactory,
+): KeyframeEntity[] {
+  if (frames === undefined) return [];
+  return frames.map((frame) =>
+    makeKeyframe(ids.mint('keyframe'), frame.time, frame.value, frame.curve),
+  );
+}
+
+function loadAttachmentFrames(
+  frames: ReadonlyArray<{ time: number; name: string | null }> | undefined,
+  ids: IdFactory,
+): AttachmentFrameEntity[] {
+  if (frames === undefined) return [];
+  return frames.map((frame) => makeAttachmentFrame(ids.mint('keyframe'), frame.time, frame.name));
+}
+
+function loadBoneTimelines(
+  timelines: SkeletonDocument['animations'][string]['bones'][string],
+  ids: IdFactory,
+): BoneTimelineSet {
+  return {
+    rotate: loadKeyframes(timelines.rotate, ids),
+    translate: loadKeyframes(timelines.translate, ids),
+    scale: loadKeyframes(timelines.scale, ids),
+    shear: loadKeyframes(timelines.shear, ids),
+  };
+}
+
+function loadSlotTimelines(
+  timelines: SkeletonDocument['animations'][string]['slots'][string],
+  ids: IdFactory,
+): SlotTimelineSet {
+  return {
+    color: loadKeyframes(timelines.color, ids),
+    attachment: loadAttachmentFrames(timelines.attachment, ids),
   };
 }
 

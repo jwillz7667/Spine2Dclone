@@ -24,7 +24,15 @@ export default defineConfig(({ command }) => {
   const mode: BuildMode = command === 'serve' ? 'dev' : 'prod';
   return {
     main: {
-      plugins: [externalizeDepsPlugin()],
+      // Externalize real npm deps, but BUNDLE the workspace @marionette/* packages. They are consumed as
+      // TypeScript source (their package exports point at ./src/index.ts so Vite/Vitest compile them on the
+      // fly); the Electron main process runs under Node, which cannot load a .ts file, so an externalized
+      // import would throw ERR_UNKNOWN_FILE_EXTENSION at startup. Bundling lets Vite compile them in. Only
+      // packages the main process actually imports are listed; runtime-web (PixiJS) is renderer-only and
+      // must never be pulled into main. Add a workspace package here when the main process starts importing
+      // it. The transitive @noble/hashes is not a listed editor dependency, so it bundles automatically; zod
+      // is a direct editor dependency and stays external (Node resolves it).
+      plugins: [externalizeDepsPlugin({ exclude: ['@marionette/format'] })],
       build: {
         rollupOptions: {
           input: { main: resolve(dir, 'src/main/main.ts') },

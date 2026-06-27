@@ -1,6 +1,8 @@
 import type { SkeletonDocument } from '../schema/document';
+import { checkConstraints } from './constraints';
 import { formatError } from './errors';
 import type { FormatError } from './errors';
+import { checkMeshes } from './mesh';
 import { jsonPointer } from './structural';
 
 // Semantic (graph) layer: referential integrity and the invariants Zod cannot express
@@ -225,12 +227,117 @@ function checkAtlas(doc: SkeletonDocument): FormatError[] {
   return errors;
 }
 
-// ANIM family (Phase-0 subset): bone/slot timeline keys resolve, frame times strictly ascend and
+// Resolve the mesh logical-vertex count (uvs.length / 2) for a deform attachment, or null when the
+// attachment does not exist or is not a mesh (the caller emits DEFORM_ATTACHMENT_UNKNOWN /
+// DEFORM_NOT_MESH). Deform offsets must be exactly 2 * V per keyframe (format-contract section 4.9).
+function meshVertexCount(
+  doc: SkeletonDocument,
+  skinName: string,
+  slotName: string,
+  attachmentName: string,
+): number | null {
+  const skin = doc.skins.find((s) => s.name === skinName);
+  const attachment = skin?.attachments[slotName]?.[attachmentName];
+  if (attachment === undefined || attachment.type !== 'mesh') return null;
+  return attachment.uvs.length / 2;
+}
+
+// DEFORM family (format-contract section 4.9): every skin/slot/attachment key resolves, the attachment
+// is a mesh, each keyframe's offsets are 2 * V long, and frame times ascend in range.
+function checkDeform(
+  doc: SkeletonDocument,
+  animName: string,
+  deform: SkeletonDocument['animations'][string]['deform'],
+  duration: number,
+  recordFrames: (frames: ReadonlyArray<{ readonly time: number }>) => void,
+  errors: FormatError[],
+): number {
+  let maxTime = 0;
+  const slotNames = new Set(doc.slots.map((slot) => slot.name));
+  for (const [skinName, bySlot] of Object.entries(deform)) {
+    const skinExists = doc.skins.some((s) => s.name === skinName);
+    const skinPath = ['animations', animName, 'deform', skinName];
+    if (!skinExists) {
+      errors.push(
+        formatError(
+          'DEFORM_SKIN_UNKNOWN',
+          jsonPointer(skinPath),
+          `animation "${animName}" deforms skin "${skinName}", which does not exist`,
+          { skin: skinName, animation: animName },
+        ),
+      );
+    }
+    for (const [slotName, byAttachment] of Object.entries(bySlot)) {
+      const slotPath = [...skinPath, slotName];
+      if (!slotNames.has(slotName)) {
+        errors.push(
+          formatError(
+            'DEFORM_SLOT_UNKNOWN',
+            jsonPointer(slotPath),
+            `animation "${animName}" deforms slot "${slotName}", which does not exist`,
+            { slot: slotName, animation: animName },
+          ),
+        );
+      }
+      for (const [attachmentName, frames] of Object.entries(byAttachment)) {
+        const attachmentPath = [...slotPath, attachmentName];
+        const vertexCount = skinExists
+          ? meshVertexCount(doc, skinName, slotName, attachmentName)
+          : null;
+        const skin = doc.skins.find((s) => s.name === skinName);
+        const attachment = skin?.attachments[slotName]?.[attachmentName];
+        if (skinExists && attachment === undefined) {
+          errors.push(
+            formatError(
+              'DEFORM_ATTACHMENT_UNKNOWN',
+              jsonPointer(attachmentPath),
+              `animation "${animName}" deforms attachment "${attachmentName}", which the skin does not define on that slot`,
+              { attachment: attachmentName, animation: animName },
+            ),
+          );
+        } else if (skinExists && attachment !== undefined && attachment.type !== 'mesh') {
+          errors.push(
+            formatError(
+              'DEFORM_NOT_MESH',
+              jsonPointer(attachmentPath),
+              `animation "${animName}" deforms attachment "${attachmentName}", which is a ${attachment.type}, not a mesh`,
+              { attachment: attachmentName, type: attachment.type },
+            ),
+          );
+        }
+        recordFrames(frames);
+        maxTime = Math.max(
+          maxTime,
+          checkFrameTimes(frames, attachmentPath, duration, true, errors),
+        );
+        if (vertexCount !== null) {
+          for (const [frameIndex, frame] of frames.entries()) {
+            if (frame.value.offsets.length !== 2 * vertexCount) {
+              errors.push(
+                formatError(
+                  'DEFORM_OFFSET_LENGTH',
+                  jsonPointer([...attachmentPath, frameIndex, 'value', 'offsets']),
+                  `deform offsets length ${frame.value.offsets.length} must equal 2 * V (${2 * vertexCount})`,
+                  { length: frame.value.offsets.length, expected: 2 * vertexCount },
+                ),
+              );
+            }
+          }
+        }
+      }
+    }
+  }
+  return maxTime;
+}
+
+// ANIM family: bone/slot/ik/transform/deform timeline keys resolve, frame times strictly ascend and
 // stay in range, and duration is at least the maximum keyframe time across all timelines.
 function checkAnimations(doc: SkeletonDocument): FormatError[] {
   const errors: FormatError[] = [];
   const boneNames = new Set(doc.bones.map((bone) => bone.name));
   const slotNames = new Set(doc.slots.map((slot) => slot.name));
+  const ikNames = new Set(doc.ikConstraints.map((c) => c.name));
+  const transformNames = new Set(doc.transformConstraints.map((c) => c.name));
   for (const [animName, animation] of Object.entries(doc.animations)) {
     const duration = animation.duration;
     let maxTime = 0;
@@ -294,6 +401,41 @@ function checkAnimations(doc: SkeletonDocument): FormatError[] {
         );
       }
     }
+    for (const [constraintName, frames] of Object.entries(animation.ik)) {
+      const basePath = ['animations', animName, 'ik', constraintName];
+      if (!ikNames.has(constraintName)) {
+        errors.push(
+          formatError(
+            'ANIM_IK_UNKNOWN',
+            jsonPointer(basePath),
+            `animation "${animName}" keys an ik timeline on constraint "${constraintName}", which does not exist`,
+            { constraint: constraintName, animation: animName },
+          ),
+        );
+      }
+      recordFrames(frames);
+      maxTime = Math.max(maxTime, checkFrameTimes(frames, basePath, duration, true, errors));
+    }
+    for (const [constraintName, frames] of Object.entries(animation.transform)) {
+      const basePath = ['animations', animName, 'transform', constraintName];
+      if (!transformNames.has(constraintName)) {
+        errors.push(
+          formatError(
+            'ANIM_TRANSFORM_UNKNOWN',
+            jsonPointer(basePath),
+            `animation "${animName}" keys a transform timeline on constraint "${constraintName}", which does not exist`,
+            { constraint: constraintName, animation: animName },
+          ),
+        );
+      }
+      recordFrames(frames);
+      maxTime = Math.max(maxTime, checkFrameTimes(frames, basePath, duration, true, errors));
+    }
+    maxTime = Math.max(
+      maxTime,
+      checkDeform(doc, animName, animation.deform, duration, recordFrames, errors),
+    );
+
     // ANIM_DURATION (format-contract section 4.8): duration must be >= the maximum keyframe time and
     // strictly positive when the animation has any keyframes. Both faults are one code in one family.
     const tooShort = duration < maxTime;
@@ -315,13 +457,16 @@ function checkAnimations(doc: SkeletonDocument): FormatError[] {
   return errors;
 }
 
-// Run every Phase-0 semantic family over a structurally valid document and collect all errors.
+// Run every semantic family over a structurally valid document and collect all errors. Phase 2
+// (ADR-0004) adds the MESH and CONSTRAINT families and extends ANIM with ik/transform/deform.
 export function validateSemantic(doc: SkeletonDocument): FormatError[] {
   return [
     ...checkBones(doc),
     ...checkSlots(doc),
     ...checkSkins(doc),
     ...checkAtlas(doc),
+    ...checkMeshes(doc),
+    ...checkConstraints(doc),
     ...checkAnimations(doc),
   ];
 }

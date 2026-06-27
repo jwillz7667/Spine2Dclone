@@ -57,6 +57,8 @@
       }
     }
   ],
+  "ikConstraints": [],
+  "transformConstraints": [],
   "animations": {
     "idle": {
       "duration": 1,
@@ -80,7 +82,10 @@
           ]
         }
       },
-      "slots": {}
+      "slots": {},
+      "ik": {},
+      "transform": {},
+      "deform": {}
     }
   },
   "atlas": {

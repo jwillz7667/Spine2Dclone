@@ -17,5 +17,23 @@ export type {
 export { computeContentHash, verifyContentHash } from './hash/hash';
 export { CURRENT_FORMAT_VERSION, SUPPORTED_FORMAT_MAJOR } from './version/constants';
 
+// Weighted mesh vertex codec and the pinned influence cap (ADR-0002). The single producer/consumer of
+// the on-disk weighted layout; runtime-core and runtimes decode through this to feed skinning.
+export {
+  encodeWeightedVertices,
+  decodeWeightedVertices,
+  isWeightedMesh,
+  MAX_BONE_INFLUENCES,
+  WEIGHT_SUM_EPSILON,
+} from './mesh/weighted';
+export type { WeightedInfluence, PerVertexBindings } from './mesh/weighted';
+
+// Versioning and migration framework (format-contract section 10.4, ADR-0004). The load path runs
+// migrations inside validateDocument; these are exposed for tooling and the document-core load seam.
+export { migrateToCurrent, runMigrations } from './version/migrate';
+export type { MigrationResult } from './version/migrate';
+export { MIGRATIONS } from './version/migrations';
+export type { MigrationStep } from './version/migrations';
+
 // The type-only contract surface (zero runtime); also available directly at @marionette/format/types.
 export type * from './types';

@@ -53,7 +53,9 @@ const invalidDir = fileURLToPath(new URL('./fixtures/invalid/', import.meta.url)
 const fixtureFiles = readdirSync(invalidDir).filter((name) => name.endsWith('.json'));
 
 function loadFixture(fileName: string): unknown {
-  return JSON.parse(readFileSync(new URL(`./fixtures/invalid/${fileName}`, import.meta.url), 'utf8'));
+  return JSON.parse(
+    readFileSync(new URL(`./fixtures/invalid/${fileName}`, import.meta.url), 'utf8'),
+  );
 }
 
 // WP-0.3: the table-driven invalid corpus. Each fixture is invalid by exactly one fault, so its

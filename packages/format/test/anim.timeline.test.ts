@@ -46,7 +46,9 @@ describe('animation timelines', () => {
       },
     };
 
-    expect(errorCodes(validateDocument(doc, { verifyHash: false }))).not.toContain('ANIM_TIME_ORDER');
+    expect(errorCodes(validateDocument(doc, { verifyHash: false }))).not.toContain(
+      'ANIM_TIME_ORDER',
+    );
   });
 
   it('reports ANIM_TIME_RANGE for a keyframe time outside [0, duration]', () => {
@@ -71,7 +73,9 @@ describe('animation timelines', () => {
   it('reports ANIM_DURATION when duration is zero but the animation has keyframes', () => {
     const doc = cloneMinimal();
     doc.animations['idle']!.duration = 0;
-    doc.animations['idle']!.bones['root']!.rotate = [{ time: 0, value: { angle: 0 }, curve: 'linear' }];
+    doc.animations['idle']!.bones['root']!.rotate = [
+      { time: 0, value: { angle: 0 }, curve: 'linear' },
+    ];
 
     const codes = errorCodes(validateDocument(doc, { verifyHash: false }));
     expect(codes).toContain('ANIM_DURATION');

@@ -33,8 +33,7 @@ export function findForbiddenPackages(root) {
   return violations;
 }
 
-const invokedDirectly =
-  process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+const invokedDirectly = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
 
 if (invokedDirectly) {
   const root = process.argv[2] ?? join(fileURLToPath(import.meta.url), '..', '..');
@@ -42,7 +41,9 @@ if (invokedDirectly) {
   if (violations.length > 0) {
     console.error('package-guard FAILED: directories outside the Phase-0 allowed set:');
     for (const v of violations) console.error(`  ${v}`);
-    console.error('\nPhase 0 allows only packages/{format,runtime-core,runtime-web} and apps/editor (LAW 5).');
+    console.error(
+      '\nPhase 0 allows only packages/{format,runtime-core,runtime-web} and apps/editor (LAW 5).',
+    );
     process.exit(1);
   }
   console.log('package-guard OK: only Phase-0 packages are present.');

@@ -17,7 +17,9 @@ describe('schema reject', () => {
   it('rejects an unknown attachment type as SCHEMA_SHAPE (closed union)', () => {
     const report = validateDocument({
       ...cloneMinimal(),
-      skins: [{ name: 'default', attachments: { body: { body: { type: 'sprite', path: 'body' } } } }],
+      skins: [
+        { name: 'default', attachments: { body: { body: { type: 'sprite', path: 'body' } } } },
+      ],
     });
 
     expect(report.ok).toBe(false);
@@ -59,7 +61,9 @@ describe('schema reject', () => {
 
     const report = validateDocument(doc);
     expect(errorCodes(report)).toContain('COLOR_RANGE');
-    expect(report.errors.find((error) => error.code === 'COLOR_RANGE')?.path).toBe('/slots/0/color/r');
+    expect(report.errors.find((error) => error.code === 'COLOR_RANGE')?.path).toBe(
+      '/slots/0/color/r',
+    );
   });
 
   it('rejects a bezier control x outside [0, 1] as CURVE_BEZIER_X_RANGE', () => {

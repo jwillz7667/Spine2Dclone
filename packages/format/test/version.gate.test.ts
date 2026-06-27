@@ -23,27 +23,27 @@ describe('version gate', () => {
     expect(newerMajor.errors[0]?.path).toBe('/formatVersion');
 
     // A newer patch within the same minor is still strictly newer than 0.1.0, so it is unsupported.
-    expect(errorCodes(validateDocument({ ...cloneMinimal(), hash: '', formatVersion: '0.1.1' }))).toContain(
-      'UNSUPPORTED_FORMAT_VERSION',
-    );
+    expect(
+      errorCodes(validateDocument({ ...cloneMinimal(), hash: '', formatVersion: '0.1.1' })),
+    ).toContain('UNSUPPORTED_FORMAT_VERSION');
   });
 
   it('rejects an unparseable version as UNSUPPORTED_FORMAT_VERSION', () => {
-    expect(errorCodes(validateDocument({ ...cloneMinimal(), hash: '', formatVersion: 'abc' }))).toContain(
-      'UNSUPPORTED_FORMAT_VERSION',
-    );
+    expect(
+      errorCodes(validateDocument({ ...cloneMinimal(), hash: '', formatVersion: 'abc' })),
+    ).toContain('UNSUPPORTED_FORMAT_VERSION');
   });
 
   it('rejects a leading-zero (non-canonical) version as UNSUPPORTED_FORMAT_VERSION', () => {
-    expect(errorCodes(validateDocument({ ...cloneMinimal(), hash: '', formatVersion: '00.1.0' }))).toContain(
-      'UNSUPPORTED_FORMAT_VERSION',
-    );
+    expect(
+      errorCodes(validateDocument({ ...cloneMinimal(), hash: '', formatVersion: '00.1.0' })),
+    ).toContain('UNSUPPORTED_FORMAT_VERSION');
   });
 
   it('routes a below-current pre-1.0 version to UNSUPPORTED (no migration chain in Phase 0)', () => {
-    expect(errorCodes(validateDocument({ ...cloneMinimal(), hash: '', formatVersion: '0.0.9' }))).toContain(
-      'UNSUPPORTED_FORMAT_VERSION',
-    );
+    expect(
+      errorCodes(validateDocument({ ...cloneMinimal(), hash: '', formatVersion: '0.0.9' })),
+    ).toContain('UNSUPPORTED_FORMAT_VERSION');
   });
 
   it('treats a missing formatVersion as SCHEMA_SHAPE at /formatVersion, not a version error', () => {

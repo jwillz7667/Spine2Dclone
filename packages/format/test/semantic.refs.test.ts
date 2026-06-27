@@ -11,21 +11,27 @@ describe('semantic references', () => {
 
     const report = validateDocument(doc, { verifyHash: false });
     expect(errorCodes(report)).toContain('SLOT_BONE_MISSING');
-    expect(report.errors.find((error) => error.code === 'SLOT_BONE_MISSING')?.path).toBe('/slots/0/bone');
+    expect(report.errors.find((error) => error.code === 'SLOT_BONE_MISSING')?.path).toBe(
+      '/slots/0/bone',
+    );
   });
 
   it('reports SLOT_ATTACHMENT_MISSING when the setup attachment is not in the default skin', () => {
     const doc = cloneMinimal();
     doc.slots[0]!.attachment = 'missing';
 
-    expect(errorCodes(validateDocument(doc, { verifyHash: false }))).toContain('SLOT_ATTACHMENT_MISSING');
+    expect(errorCodes(validateDocument(doc, { verifyHash: false }))).toContain(
+      'SLOT_ATTACHMENT_MISSING',
+    );
   });
 
   it('reports SLOT_NAME_DUPLICATE for a repeated slot name', () => {
     const doc = cloneMinimal();
     doc.slots.push({ ...doc.slots[0]!, attachment: null });
 
-    expect(errorCodes(validateDocument(doc, { verifyHash: false }))).toContain('SLOT_NAME_DUPLICATE');
+    expect(errorCodes(validateDocument(doc, { verifyHash: false }))).toContain(
+      'SLOT_NAME_DUPLICATE',
+    );
   });
 
   it('reports SKIN_DEFAULT_MISSING when no skin is named default', () => {
@@ -50,13 +56,17 @@ describe('semantic references', () => {
     const attachment = doc.skins[0]!.attachments['body']!['body']!;
     if (attachment.type === 'region') attachment.path = 'ghostRegion';
 
-    expect(errorCodes(validateDocument(doc, { verifyHash: false }))).toContain('ATTACHMENT_REGION_MISSING');
+    expect(errorCodes(validateDocument(doc, { verifyHash: false }))).toContain(
+      'ATTACHMENT_REGION_MISSING',
+    );
   });
 
   it('reports ATLAS_REGION_DUPLICATE for a region name repeated across pages', () => {
     const doc = cloneMinimal();
     doc.atlas.pages[0]!.regions.push({ ...doc.atlas.pages[0]!.regions[0]! });
 
-    expect(errorCodes(validateDocument(doc, { verifyHash: false }))).toContain('ATLAS_REGION_DUPLICATE');
+    expect(errorCodes(validateDocument(doc, { verifyHash: false }))).toContain(
+      'ATLAS_REGION_DUPLICATE',
+    );
   });
 });

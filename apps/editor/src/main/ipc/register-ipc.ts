@@ -18,7 +18,11 @@ export function registerIpc(): void {
     async (_event, payload: unknown): Promise<IpcResult<GetVersionResponse>> => {
       const request = validateWith(getVersionRequestSchema, payload, 'IPC_BAD_REQUEST');
       if (!request.ok) return request;
-      return validateWith(getVersionResponseSchema, { version: app.getVersion() }, 'IPC_BAD_RESPONSE');
+      return validateWith(
+        getVersionResponseSchema,
+        { version: app.getVersion() },
+        'IPC_BAD_RESPONSE',
+      );
     },
   );
 }

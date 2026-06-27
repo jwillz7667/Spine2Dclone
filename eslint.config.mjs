@@ -27,15 +27,55 @@ import prettier from 'eslint-config-prettier';
 import localRules from './tools/eslint-rules/index.mjs';
 
 const NODE_BUILTINS = [
-  'assert', 'async_hooks', 'buffer', 'child_process', 'cluster', 'console', 'crypto',
-  'dgram', 'dns', 'events', 'fs', 'http', 'http2', 'https', 'inspector', 'module', 'net',
-  'os', 'path', 'perf_hooks', 'process', 'querystring', 'readline', 'repl', 'stream',
-  'string_decoder', 'timers', 'tls', 'tty', 'url', 'util', 'v8', 'vm', 'worker_threads', 'zlib',
+  'assert',
+  'async_hooks',
+  'buffer',
+  'child_process',
+  'cluster',
+  'console',
+  'crypto',
+  'dgram',
+  'dns',
+  'events',
+  'fs',
+  'http',
+  'http2',
+  'https',
+  'inspector',
+  'module',
+  'net',
+  'os',
+  'path',
+  'perf_hooks',
+  'process',
+  'querystring',
+  'readline',
+  'repl',
+  'stream',
+  'string_decoder',
+  'timers',
+  'tls',
+  'tty',
+  'url',
+  'util',
+  'v8',
+  'vm',
+  'worker_threads',
+  'zlib',
 ];
 
 const DOM_GLOBALS = [
-  'window', 'document', 'navigator', 'localStorage', 'sessionStorage', 'location',
-  'requestAnimationFrame', 'cancelAnimationFrame', 'performance', 'fetch', 'XMLHttpRequest',
+  'window',
+  'document',
+  'navigator',
+  'localStorage',
+  'sessionStorage',
+  'location',
+  'requestAnimationFrame',
+  'cancelAnimationFrame',
+  'performance',
+  'fetch',
+  'XMLHttpRequest',
 ];
 
 const DETERMINISM_SYNTAX = [
@@ -49,7 +89,8 @@ const DETERMINISM_SYNTAX = [
   },
   {
     selector: "MemberExpression[object.name='Math'][property.name='random']",
-    message: 'Math.random() is banned in platform-agnostic core (INV-1, determinism). Inject a seed.',
+    message:
+      'Math.random() is banned in platform-agnostic core (INV-1, determinism). Inject a seed.',
   },
 ];
 
@@ -178,7 +219,8 @@ export default tseslint.config(
             },
             {
               name: '@marionette/runtime-web',
-              message: 'runtime-core must not import runtime-web; the dependency direction is format <- runtime-core <- runtime-web.',
+              message:
+                'runtime-core must not import runtime-web; the dependency direction is format <- runtime-core <- runtime-web.',
             },
           ],
           patterns: [
@@ -193,8 +235,13 @@ export default tseslint.config(
                 'runtime-core may import only @marionette/format/types from the format package (INV-1, format WP-F.9).',
             },
             {
-              group: ['@marionette/runtime-web/*', '@marionette/runtime-core', '@marionette/runtime-core/*'],
-              message: 'runtime-core must not import runtime-web, and imports format types only (INV-1).',
+              group: [
+                '@marionette/runtime-web/*',
+                '@marionette/runtime-core',
+                '@marionette/runtime-core/*',
+              ],
+              message:
+                'runtime-core must not import runtime-web, and imports format types only (INV-1).',
             },
           ],
         },
@@ -253,7 +300,8 @@ export default tseslint.config(
           paths: [
             {
               name: 'electron',
-              message: 'The renderer is sandboxed; reach the main process only through the preload bridge.',
+              message:
+                'The renderer is sandboxed; reach the main process only through the preload bridge.',
             },
           ],
           patterns: [
@@ -280,7 +328,8 @@ export default tseslint.config(
           paths: [
             {
               name: '@marionette/format',
-              message: 'The preload stays isomorphic; import format types only via @marionette/format/types.',
+              message:
+                'The preload stays isomorphic; import format types only via @marionette/format/types.',
             },
           ],
           patterns: [
@@ -312,7 +361,8 @@ export default tseslint.config(
             ELECTRON_PATH,
             {
               name: '@marionette/format',
-              message: 'editor-shared imports format types only, via @marionette/format/types (zero runtime).',
+              message:
+                'editor-shared imports format types only, via @marionette/format/types (zero runtime).',
             },
           ],
           patterns: [

@@ -261,7 +261,9 @@ const invalidCases: readonly InvalidCase[] = [
     build: () => {
       const doc = draft();
       doc.animations.idle!.slots = {
-        ghostSlot: { color: [{ time: 0, value: { color: { r: 1, g: 1, b: 1, a: 1 } }, curve: 'linear' }] },
+        ghostSlot: {
+          color: [{ time: 0, value: { color: { r: 1, g: 1, b: 1, a: 1 } }, curve: 'linear' }],
+        },
       };
       return doc;
     },
@@ -332,7 +334,9 @@ function main(): void {
     const report = validateDocument(document);
     const codes = report.errors.map((error) => error.code);
     if (!codes.includes(testCase.code as (typeof codes)[number])) {
-      throw new Error(`fixture ${testCase.code}.json expected code ${testCase.code}, got [${codes.join(', ')}]`);
+      throw new Error(
+        `fixture ${testCase.code}.json expected code ${testCase.code}, got [${codes.join(', ')}]`,
+      );
     }
   }
 

@@ -10,14 +10,18 @@ describe('semantic bones', () => {
     const doc = cloneMinimal();
     doc.bones.push({ ...doc.bones[0]!, parent: null });
 
-    expect(errorCodes(validateDocument(doc, { verifyHash: false }))).toContain('BONE_NAME_DUPLICATE');
+    expect(errorCodes(validateDocument(doc, { verifyHash: false }))).toContain(
+      'BONE_NAME_DUPLICATE',
+    );
   });
 
   it('reports BONE_PARENT_MISSING when a parent does not exist', () => {
     const doc = cloneMinimal();
     doc.bones.push({ ...doc.bones[0]!, name: 'child', parent: 'ghost' });
 
-    expect(errorCodes(validateDocument(doc, { verifyHash: false }))).toContain('BONE_PARENT_MISSING');
+    expect(errorCodes(validateDocument(doc, { verifyHash: false }))).toContain(
+      'BONE_PARENT_MISSING',
+    );
   });
 
   it('reports BONE_ORDER_VIOLATION (at the child parent pointer) when a child precedes its parent', () => {
@@ -27,7 +31,9 @@ describe('semantic bones', () => {
 
     const report = validateDocument(doc, { verifyHash: false });
     expect(errorCodes(report)).toContain('BONE_ORDER_VIOLATION');
-    expect(report.errors.find((error) => error.code === 'BONE_ORDER_VIOLATION')?.path).toBe('/bones/0/parent');
+    expect(report.errors.find((error) => error.code === 'BONE_ORDER_VIOLATION')?.path).toBe(
+      '/bones/0/parent',
+    );
   });
 
   it('reports BONE_ORDER_VIOLATION (not a separate code) for a two-bone cycle, with no cross-family code', () => {

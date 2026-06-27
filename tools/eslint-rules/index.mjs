@@ -9,11 +9,13 @@ const noUnicodeDashes = {
   meta: {
     type: 'problem',
     docs: {
-      description: 'Disallow the em-dash (U+2014) and en-dash (U+2013) in code, strings, and comments.',
+      description:
+        'Disallow the em-dash (U+2014) and en-dash (U+2013) in code, strings, and comments.',
     },
     schema: [],
     messages: {
-      found: 'Em-dash or en-dash is banned (INV-6). Use commas, parentheses, or separate sentences.',
+      found:
+        'Em-dash or en-dash is banned (INV-6). Use commas, parentheses, or separate sentences.',
     },
   },
   create(context) {

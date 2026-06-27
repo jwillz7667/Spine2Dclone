@@ -64,10 +64,14 @@ function versionGate(input: unknown): VersionGateResult {
     return unsupported(`formatVersion "${formatVersion}" is not a valid semver`);
   }
   if (compareFormatVersion(parsed, CURRENT_SEMVER) > 0) {
-    return unsupported(`formatVersion "${formatVersion}" is newer than supported ${CURRENT_FORMAT_VERSION}`);
+    return unsupported(
+      `formatVersion "${formatVersion}" is newer than supported ${CURRENT_FORMAT_VERSION}`,
+    );
   }
   if (migrationKeyOf(parsed) < migrationKeyOf(CURRENT_SEMVER)) {
-    return unsupported(`formatVersion "${formatVersion}" predates ${CURRENT_FORMAT_VERSION} and has no migration path`);
+    return unsupported(
+      `formatVersion "${formatVersion}" predates ${CURRENT_FORMAT_VERSION} and has no migration path`,
+    );
   }
   return { stop: false, errors: [] };
 }
@@ -88,7 +92,8 @@ function hashLayer(doc: SkeletonDocument): HashLayerResult {
         {
           code: 'HASH_ABSENT',
           path: '/hash',
-          message: 'document hash is empty (unhashed draft); content-addressed caches cannot key on it',
+          message:
+            'document hash is empty (unhashed draft); content-addressed caches cannot key on it',
         },
       ],
     };
@@ -97,10 +102,15 @@ function hashLayer(doc: SkeletonDocument): HashLayerResult {
   if (doc.hash !== expected) {
     return {
       errors: [
-        formatError('HASH_MISMATCH', '/hash', 'stored hash does not match the recomputed content hash', {
-          stored: doc.hash,
-          expected,
-        }),
+        formatError(
+          'HASH_MISMATCH',
+          '/hash',
+          'stored hash does not match the recomputed content hash',
+          {
+            stored: doc.hash,
+            expected,
+          },
+        ),
       ],
       warnings: [],
     };

@@ -10,8 +10,20 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const DASH = /[\u2014\u2013]/;
 const TEXT_EXT = new Set([
-  '.ts', '.tsx', '.mts', '.cts', '.js', '.mjs', '.cjs', '.json', '.jsonc',
-  '.md', '.yml', '.yaml', '.html', '.css',
+  '.ts',
+  '.tsx',
+  '.mts',
+  '.cts',
+  '.js',
+  '.mjs',
+  '.cjs',
+  '.json',
+  '.jsonc',
+  '.md',
+  '.yml',
+  '.yaml',
+  '.html',
+  '.css',
 ]);
 const SCAN_DIRS = ['docs', 'packages', 'apps', 'tools', '.github'];
 const SCAN_ROOT_FILES = ['README.md'];
@@ -50,8 +62,7 @@ export function findDashes(root) {
   return hits;
 }
 
-const invokedDirectly =
-  process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+const invokedDirectly = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
 
 if (invokedDirectly) {
   const root = process.argv[2] ?? join(fileURLToPath(import.meta.url), '..', '..');

@@ -8,7 +8,9 @@ export type BuildMode = 'dev' | 'prod';
 const BASE_DIRECTIVES = (mode: BuildMode): readonly string[] => {
   const scriptSrc = mode === 'dev' ? "script-src 'self' 'unsafe-eval'" : "script-src 'self'";
   const connectSrc =
-    mode === 'dev' ? "connect-src 'self' ws://localhost:* http://localhost:*" : "connect-src 'self'";
+    mode === 'dev'
+      ? "connect-src 'self' ws://localhost:* http://localhost:*"
+      : "connect-src 'self'";
   return [
     "default-src 'self'",
     scriptSrc,

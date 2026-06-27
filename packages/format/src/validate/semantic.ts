@@ -254,7 +254,10 @@ function checkAnimations(doc: SkeletonDocument): FormatError[] {
         const frames = timelines[channel];
         if (frames !== undefined) {
           recordFrames(frames);
-          maxTime = Math.max(maxTime, checkFrameTimes(frames, [...basePath, channel], duration, true, errors));
+          maxTime = Math.max(
+            maxTime,
+            checkFrameTimes(frames, [...basePath, channel], duration, true, errors),
+          );
         }
       }
     }
@@ -274,7 +277,13 @@ function checkAnimations(doc: SkeletonDocument): FormatError[] {
         recordFrames(timelines.attachment);
         maxTime = Math.max(
           maxTime,
-          checkFrameTimes(timelines.attachment, [...basePath, 'attachment'], duration, false, errors),
+          checkFrameTimes(
+            timelines.attachment,
+            [...basePath, 'attachment'],
+            duration,
+            false,
+            errors,
+          ),
         );
       }
       if (timelines.color !== undefined) {

@@ -54,7 +54,9 @@ if (changed.length === 0) {
 
 const versionBumped = changed.some((f) => f.includes('version/constants.ts'));
 if (!versionBumped) {
-  console.error('format-semver FAILED: packages/format/src changed without a CURRENT_FORMAT_VERSION bump.');
+  console.error(
+    'format-semver FAILED: packages/format/src changed without a CURRENT_FORMAT_VERSION bump.',
+  );
   console.error('Changed files:');
   for (const f of changed) console.error(`  ${f}`);
   console.error('\nClassify the change MAJOR/MINOR/PATCH (format-contract.md section 10), bump');

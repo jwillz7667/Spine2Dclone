@@ -21,28 +21,39 @@ export function isAllowedChannel(channel: string): channel is IpcChannel {
 
 // app:getVersion. No request payload; responds with the application version.
 export const getVersionRequestSchema = z.undefined();
-export const getVersionResponseSchema = z
-  .object({ version: z.string().min(1) })
-  .strict();
+export const getVersionResponseSchema = z.object({ version: z.string().min(1) }).strict();
 
 export type GetVersionResponse = z.infer<typeof getVersionResponseSchema>;
 
 // Typed IPC error model. The main boundary never throws a bare string across the wire; it returns
 // a discriminated result so the renderer can branch on success without try/catch over IPC.
-export type IpcErrorCode = 'IPC_BAD_REQUEST' | 'IPC_BAD_RESPONSE' | 'IPC_UNKNOWN_CHANNEL' | 'IPC_HANDLER_ERROR';
+export type IpcErrorCode =
+  | 'IPC_BAD_REQUEST'
+  | 'IPC_BAD_RESPONSE'
+  | 'IPC_UNKNOWN_CHANNEL'
+  | 'IPC_HANDLER_ERROR';
 
 export interface IpcError {
   readonly code: IpcErrorCode;
   readonly message: string;
 }
 
-export type IpcResult<T> = { readonly ok: true; readonly data: T } | { readonly ok: false; readonly error: IpcError };
+export type IpcResult<T> =
+  | { readonly ok: true; readonly data: T }
+  | { readonly ok: false; readonly error: IpcError };
 
 // Boundary validation helper: parse with a schema and return a typed result, never throwing.
-export function validateWith<T>(schema: z.ZodType<T>, input: unknown, code: IpcErrorCode): IpcResult<T> {
+export function validateWith<T>(
+  schema: z.ZodType<T>,
+  input: unknown,
+  code: IpcErrorCode,
+): IpcResult<T> {
   const parsed = schema.safeParse(input);
   if (parsed.success) return { ok: true, data: parsed.data };
-  return { ok: false, error: { code, message: parsed.error.issues.map((i) => i.message).join('; ') } };
+  return {
+    ok: false,
+    error: { code, message: parsed.error.issues.map((i) => i.message).join('; ') },
+  };
 }
 
 // The typed surface exposed on window.marionette by the preload. The renderer depends on THIS

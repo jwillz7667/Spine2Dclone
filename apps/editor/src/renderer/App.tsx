@@ -30,5 +30,7 @@ function onReady(event: DockviewReadyEvent): void {
 }
 
 export function App(): ReactElement {
-  return <DockviewReact components={components} onReady={onReady} className="dockview-theme-abyss" />;
+  return (
+    <DockviewReact components={components} onReady={onReady} className="dockview-theme-abyss" />
+  );
 }

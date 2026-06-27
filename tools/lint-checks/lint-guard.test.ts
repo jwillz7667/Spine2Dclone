@@ -54,12 +54,18 @@ describe('platform-agnostic core bans (INV-1)', () => {
   });
 
   it('bans DOM/browser globals in runtime-core', async () => {
-    expect(ruleIds(await lint(CORE, 'export const w = window;\n'))).toContain('no-restricted-globals');
+    expect(ruleIds(await lint(CORE, 'export const w = window;\n'))).toContain(
+      'no-restricted-globals',
+    );
   });
 
   it('bans nondeterministic calls (Math.random, Date.now) in runtime-core', async () => {
-    expect(ruleIds(await lint(CORE, 'export const r = Math.random();\n'))).toContain('no-restricted-syntax');
-    expect(ruleIds(await lint(CORE, 'export const t = Date.now();\n'))).toContain('no-restricted-syntax');
+    expect(ruleIds(await lint(CORE, 'export const r = Math.random();\n'))).toContain(
+      'no-restricted-syntax',
+    );
+    expect(ruleIds(await lint(CORE, 'export const t = Date.now();\n'))).toContain(
+      'no-restricted-syntax',
+    );
   });
 });
 
@@ -98,7 +104,9 @@ describe('no any / no unjustified as in format + runtime-core (INV-4)', () => {
 describe('editor process split (phase-0 WP-0.1 matrix)', () => {
   it('bans the renderer importing main-process code', async () => {
     const ids = ruleIds(await lint(RENDERER, "import '../main/index';\n"));
-    expect(ids.some((r) => r === 'no-restricted-imports' || r === 'boundaries/element-types')).toBe(true);
+    expect(ids.some((r) => r === 'no-restricted-imports' || r === 'boundaries/element-types')).toBe(
+      true,
+    );
   });
 
   it('bans the sandboxed preload importing Node built-ins', async () => {

@@ -8,6 +8,8 @@ import { IpcChannel, type MarionetteApi } from '../shared';
 
 const api: MarionetteApi = {
   getVersion: () => ipcRenderer.invoke(IpcChannel.getVersion),
+  saveDocument: (document) => ipcRenderer.invoke(IpcChannel.fileSave, { document }),
+  openDocument: () => ipcRenderer.invoke(IpcChannel.fileOpen, undefined),
 };
 
 contextBridge.exposeInMainWorld('marionette', api);

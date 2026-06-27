@@ -1,6 +1,7 @@
 import { DockviewReact, type DockviewReadyEvent } from 'dockview';
-import type { ReactElement } from 'react';
+import { useEffect, type ReactElement } from 'react';
 import { HierarchyPanel, InspectorPanel, ViewportPanel } from './panels';
+import { attachKeybindings } from './viewport/keybindings';
 import 'dockview/dist/styles/dockview.css';
 
 const components = {
@@ -30,6 +31,10 @@ function onReady(event: DockviewReadyEvent): void {
 }
 
 export function App(): ReactElement {
+  // Undo/redo and tool-switch keybindings are global (handoff 8.1): bound at the renderer root so they
+  // work regardless of which panel has focus, routed to the live document's History.
+  useEffect(() => attachKeybindings(), []);
+
   return (
     <DockviewReact components={components} onReady={onReady} className="dockview-theme-abyss" />
   );

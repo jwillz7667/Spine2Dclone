@@ -12,6 +12,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@marionette/document-core": "workspace:*",
     "@marionette/format": "workspace:*",
     "@marionette/runtime-core": "workspace:*",
     "@marionette/runtime-web": "workspace:*",

@@ -15,6 +15,7 @@
   "references": [
     { "path": "../../packages/format" },
     { "path": "../../packages/runtime-core" },
-    { "path": "../../packages/runtime-web" }
+    { "path": "../../packages/runtime-web" },
+    { "path": "../../packages/document-core" }
   ]
 }

@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+  atlasImportRequestSchema,
+  atlasImportResponseSchema,
   fileOpenResponseSchema,
   fileSaveRequestSchema,
   fileSaveResponseSchema,
@@ -41,6 +43,8 @@ describe('ipc-contract validation', () => {
     expect(isAllowedChannel(IpcChannel.getVersion)).toBe(true);
     expect(isAllowedChannel(IpcChannel.fileSave)).toBe(true);
     expect(isAllowedChannel(IpcChannel.fileOpen)).toBe(true);
+    expect(isAllowedChannel(IpcChannel.atlasImport)).toBe(true);
+    expect(isAllowedChannel('atlas:import')).toBe(true);
     expect(isAllowedChannel('app:malicious')).toBe(false);
   });
 
@@ -82,5 +86,34 @@ describe('ipc-contract validation', () => {
     expect(validateWith(fileOpenResponseSchema, { status: 'opened' }, 'IPC_BAD_RESPONSE').ok).toBe(
       false,
     );
+  });
+
+  it('accepts the empty (undefined) atlas:import request and rejects any payload', () => {
+    expect(validateWith(atlasImportRequestSchema, undefined, 'IPC_BAD_REQUEST').ok).toBe(true);
+    expect(validateWith(atlasImportRequestSchema, {}, 'IPC_BAD_REQUEST').ok).toBe(false);
+    expect(validateWith(atlasImportRequestSchema, '/etc/passwd', 'IPC_BAD_REQUEST').ok).toBe(false);
+  });
+
+  it('accepts imported and canceled atlas:import responses, rejects an unknown status', () => {
+    expect(
+      validateWith(
+        atlasImportResponseSchema,
+        { status: 'imported', atlas: { pages: [] } },
+        'IPC_BAD_RESPONSE',
+      ).ok,
+    ).toBe(true);
+    expect(
+      validateWith(atlasImportResponseSchema, { status: 'canceled' }, 'IPC_BAD_RESPONSE').ok,
+    ).toBe(true);
+    expect(
+      validateWith(atlasImportResponseSchema, { status: 'bogus' }, 'IPC_BAD_RESPONSE').ok,
+    ).toBe(false);
+    expect(
+      validateWith(
+        atlasImportResponseSchema,
+        { status: 'imported', atlas: { pages: [] }, extra: true },
+        'IPC_BAD_RESPONSE',
+      ).ok,
+    ).toBe(false);
   });
 });

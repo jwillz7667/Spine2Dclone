@@ -10,6 +10,7 @@ const api: MarionetteApi = {
   getVersion: () => ipcRenderer.invoke(IpcChannel.getVersion),
   saveDocument: (document) => ipcRenderer.invoke(IpcChannel.fileSave, { document }),
   openDocument: () => ipcRenderer.invoke(IpcChannel.fileOpen, undefined),
+  importAtlas: () => ipcRenderer.invoke(IpcChannel.atlasImport, undefined),
 };
 
 contextBridge.exposeInMainWorld('marionette', api);

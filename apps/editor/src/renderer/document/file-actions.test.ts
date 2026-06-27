@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type {
+  AtlasImportResponse,
   FileOpenResponse,
   FileSaveResponse,
   GetVersionResponse,
@@ -38,6 +39,12 @@ function installApi(behavior: Behavior): { savedDocument: () => unknown } {
     },
     openDocument: async (): Promise<IpcResult<FileOpenResponse>> =>
       behavior.open?.() ?? { ok: true, data: { status: 'canceled' } },
+    // These file-action tests never import an atlas; a canceled default keeps the bridge complete after
+    // the MarionetteApi contract gained importAtlas (atlas:import, WP-1.3).
+    importAtlas: async (): Promise<IpcResult<AtlasImportResponse>> => ({
+      ok: true,
+      data: { status: 'canceled' },
+    }),
   };
   vi.stubGlobal('window', { marionette: api });
   return { savedDocument: () => saved };

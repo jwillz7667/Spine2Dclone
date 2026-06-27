@@ -3,7 +3,11 @@
   "compilerOptions": {
     "rootDir": "src",
     "outDir": "dist",
-    "composite": true
+    "composite": true,
+    // Keep the incremental build cache inside dist so it is reset whenever dist is cleaned and is
+    // captured by turbo's dist/** output cache. Left at the default (next to tsconfig) it survives a
+    // `rm -rf dist`, leaving tsc convinced it is up to date and silently skipping emit.
+    "tsBuildInfoFile": "./dist/tsconfig.tsbuildinfo"
   },
   "include": ["src/**/*.ts"]
 }

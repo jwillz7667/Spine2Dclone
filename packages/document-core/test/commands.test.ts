@@ -111,6 +111,35 @@ describe('Phase 0 command behaviors', () => {
     );
   });
 
+  it('DeleteBone selects the parent on execute/redo and reselects the restored bone on undo', () => {
+    const { env } = makeTestEnv();
+    const doc = loadDocument(seeds.rig, env); // root + child
+    const [root, child] = doc.model.bones();
+
+    // Delete the non-root child: execute selects the parent, undo reselects the restored child.
+    const exec = doc.history.execute(new DeleteBoneCommand(child!.id));
+    expect(exec?.selectionHint).toEqual({
+      kind: 'select',
+      entities: [{ type: 'bone', id: root!.id }],
+    });
+    const undo = doc.history.undo();
+    expect(undo?.selectionHint).toEqual({
+      kind: 'select',
+      entities: [{ type: 'bone', id: child!.id }],
+    });
+
+    // Deleting a root clears the selection on execute and reselects the restored root on undo.
+    const rootDoc = loadDocument(seeds.minimal, makeTestEnv().env);
+    const onlyBone = rootDoc.model.bones()[0]!;
+    const execRoot = rootDoc.history.execute(new DeleteBoneCommand(onlyBone.id));
+    expect(execRoot?.selectionHint).toEqual({ kind: 'clear' });
+    const undoRoot = rootDoc.history.undo();
+    expect(undoRoot?.selectionHint).toEqual({
+      kind: 'select',
+      entities: [{ type: 'bone', id: onlyBone.id }],
+    });
+  });
+
   it('DeleteBone restores the full subtree exactly on undo', () => {
     const { env } = makeTestEnv();
     const doc = loadDocument(seeds.rig, env);

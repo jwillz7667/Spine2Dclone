@@ -15,7 +15,7 @@ describe.each(commandRegistry.map((spec) => [spec.kind, spec] as const))(
       (_seedId, seed) => {
         const { env } = makeTestEnv();
         const doc = loadDocument(seed.json, env);
-        const made = spec.fixture(doc.model, doc.model.ids);
+        const made = spec.fixture(doc.model, doc.ids);
         if (!made) return; // not applicable to this seed; the discovery guard proves applicability elsewhere
 
         const pre = doc.model.snapshot();
@@ -50,7 +50,7 @@ describe('representative-seed applicability', () => {
 
       const { env } = makeTestEnv();
       const doc = loadDocument(seed.json, env);
-      const made = spec.fixture(doc.model, doc.model.ids);
+      const made = spec.fixture(doc.model, doc.ids);
       expect(
         made,
         `${spec.kind} must be applicable on ${spec.representativeSeedId}`,

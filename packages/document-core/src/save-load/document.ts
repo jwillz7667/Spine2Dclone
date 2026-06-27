@@ -1,7 +1,7 @@
 import { History, type HistoryDeps } from '../command/history';
 import type { DocState } from '../model/doc-state';
 import type { IdFactory } from '../model/ids';
-import { DocumentModelInternal } from '../model/internal';
+import { createReadModel, DocumentModelInternal } from '../model/internal';
 import type { DocumentReadModel } from '../model/read-model';
 import type { DocumentEnvironment } from './environment';
 
@@ -22,14 +22,16 @@ export interface Document {
 // second factory would restart the counter and collide ids). exactOptionalPropertyTypes forbids
 // passing an explicit `undefined` for an optional field, so overrides are spread only when present.
 function buildDocument(state: DocState, ids: IdFactory, env: DocumentEnvironment): Document {
-  const model = new DocumentModelInternal(state, ids);
+  const internal = new DocumentModelInternal(state, ids);
   const deps: HistoryDeps = {
-    model,
+    model: internal,
     now: env.now,
     ...(env.maxDepth !== undefined ? { maxDepth: env.maxDepth } : {}),
     ...(env.coalesceWindowMs !== undefined ? { coalesceWindowMs: env.coalesceWindowMs } : {}),
   };
-  return { model, history: new History(deps), ids };
+  // History keeps the write-capable internal model (it alone can mint a Mutator from it); the Document
+  // exposes only a read-only facade, so no holder of doc.model can reach a write method.
+  return { model: createReadModel(internal), history: new History(deps), ids };
 }
 
 // Create a Document from an already-resolved DocState (a new document, or a test). Mints a fresh id

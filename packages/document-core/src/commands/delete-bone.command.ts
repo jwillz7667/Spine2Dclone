@@ -81,11 +81,21 @@ export const deleteBoneSpec: CommandSpec = {
     return { command: new DeleteBoneCommand(target.id) };
   },
   assertApplied: (before, after) => {
+    const targetId = before.boneOrder[0];
+    if (targetId === undefined) throw new Error('bone.delete fixture seed had no bones');
+    if (after.bones.some((bone) => bone.id === targetId)) {
+      throw new Error('bone.delete did not remove the target bone');
+    }
     if (after.bones.length >= before.bones.length) {
       throw new Error('bone.delete expected fewer bones');
     }
     if (after.boneOrder.length >= before.boneOrder.length) {
       throw new Error('bone.delete expected boneOrder to shrink');
+    }
+    // Every surviving bone must have existed before: delete removes, never adds or mutates ids.
+    const beforeIds = new Set(before.bones.map((bone) => bone.id));
+    for (const bone of after.bones) {
+      if (!beforeIds.has(bone.id)) throw new Error('bone.delete produced an unexpected bone');
     }
   },
 };

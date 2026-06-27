@@ -29,4 +29,17 @@ export function assertInvariants(model: DocumentReadModel): void {
       );
     }
   }
+
+  // Slot bone references must resolve (command-history Section 3.5). Phase 0 holds slots as opaque
+  // preserved content keyed by bone NAME, so a Phase-0 DeleteBone/RenameBone of a slot-referenced bone
+  // leaves a dangling reference: this surfaces it in dev/test before it reaches the export boundary
+  // (the rider-aware DeleteBoneAndRiders that keeps slots consistent is Phase 1).
+  const boneNames = new Set(bones.map((bone) => bone.name));
+  for (const slot of model.preserved().slots) {
+    if (!boneNames.has(slot.bone)) {
+      throw new DocumentInvariantError(
+        `slot "${slot.name}" rides bone "${slot.bone}", which does not exist`,
+      );
+    }
+  }
 }

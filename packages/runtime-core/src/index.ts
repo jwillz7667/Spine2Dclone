@@ -4,12 +4,13 @@
 // @marionette/format TYPES only, so the solve logic ports unchanged to C#/Godot. Steps 2, 3, 5, 6
 // (timelines, constraints, skinning, blend) arrive in Phase 1 and later.
 
-export type { Mat2x3 } from './math/affine';
+export type { Mat2x3, DecomposedTransform } from './math/affine';
 export {
   MAT2X3_STRIDE,
   identity,
   multiply,
   compose,
+  decompose,
   transformPoint,
   invert,
   getRotationDeg,

@@ -31,6 +31,7 @@ export function buildPose(document: SkeletonDocument): Pose {
   for (let i = 0; i < boneCount; i += 1) {
     const bone = bones[i]!;
     pose.parentIndices[i] = bone.parent === null ? -1 : (indexByName.get(bone.parent) ?? -1);
+    pose.boneLength[i] = bone.length;
     const base = i * SETUP_STRIDE;
     pose.setup[base] = bone.x;
     pose.setup[base + 1] = bone.y;

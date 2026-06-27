@@ -27,3 +27,22 @@ export { sampleSkeleton, AnimationNotFoundError } from './skeleton/sample';
 // preview samples through these exact functions so what the animator sees equals what sampleSkeleton
 // plays. BEZIER_SEGMENTS pins the parameterization; buildBezierTable/evalBezierY are the eval.
 export { BEZIER_SEGMENTS, buildBezierTable, evalBezierY } from './skeleton/curve';
+
+// Phase-2 pure solve primitives (ADR-0003): on-demand world resolution, the canonical affine world-
+// channel decompose/recompose, one/two-bone IK, the transform constraint, skinning, and deform. These
+// are standalone math (not yet wired into the per-frame sample order); the behavioral source of truth
+// that Unity/Godot mirror and the conformance fixtures lock.
+export type { WorldChannels } from './solve';
+export {
+  decomposeWorld,
+  composeWorld,
+  resolveWorld,
+  resolveWorldMat,
+  solveIkOneBone,
+  solveIkTwoBone,
+  solveTransformConstraint,
+  solveSkin,
+  solveSkinUnweighted,
+  applyDeform,
+} from './solve';
+export type { TransformMix, TransformOffset } from './solve';

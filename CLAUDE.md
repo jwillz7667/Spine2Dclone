@@ -64,16 +64,21 @@ packages/
   format/                        # Zod-sourced types + derived JSON Schema + validators (SHARED CONTRACT)
   runtime-core/                  # platform-agnostic solve (TS). NO PixiJS. Behavioral source of truth.
   runtime-web/                   # TS + PixiJS playback; also powers the editor viewport
+  document-core/                 # renderer-agnostic DocumentModel + commands + History (ADR-0001). NO React/PixiJS/DOM. Shared by the editor AND the headless MCP server.
+  mcp-server/                    # MCP tools so an AI fully controls/builds via the same commands (WP-M.1). Imports document-core/format/runtime-core.
   math-bridge/                   # SpinResult types + adapter to the existing engine (+ mock)
   conformance/                   # reference rigs + expected-output fixtures + harness
 runtimes/{unity,godot}/          # reimplement runtime-core logic; validated by conformance
 docs/plan/                       # plan of record: phase-*.md + cross-cutting/*.md
 ```
 
-**Dependency direction (machine-enforced; see DoD):** `format` <- `runtime-core` <- `runtime-web` <- `apps/editor`.
+**Dependency direction (machine-enforced; see DoD):** `format` <- `runtime-core` <- `runtime-web` <- `apps/editor`,
+and `format` <- `document-core` <- (`apps/editor` renderer AND `mcp-server` <- `apps/editor/src/main/mcp`).
 `format` imports nothing project-internal. `runtime-core` imports only `format` and has **NO PixiJS** (solving is
-core's job, rendering is the renderer's job; this is what lets the logic move to C#/Godot). Runtimes only READ the
-format; only `apps/editor/export` WRITES it. Unity/Godot mirror `runtime-core` and validate against the same fixtures.
+core's job, rendering is the renderer's job; this is what lets the logic move to C#/Godot). `document-core` is the
+renderer-agnostic command/History spine (ADR-0001): it imports `format` (and `runtime-core` for transform commands),
+never React/PixiJS/DOM/Electron, so the GUI and a headless MCP server drive the SAME commands (user + AI control).
+Runtimes only READ the format; only `apps/editor/export` WRITES it. Unity/Godot mirror `runtime-core` and validate against the same fixtures.
 No deep cross-feature imports: each module/package exposes one barrel (`index.ts`); consume only the barrel. These
 rules are enforced by ESLint (`eslint-plugin-boundaries` + `no-restricted-imports`) with CI guard tests, not by
 reviewer trust (WP-0.1).

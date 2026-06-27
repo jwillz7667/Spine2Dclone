@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist",
+    "composite": true,
+    // Renderer-agnostic command/history spine: no DOM, no PixiJS, no React, no Node. It imports only
+    // @marionette/format, so it runs identically in the editor renderer, the Electron main process
+    // (for the headless MCP server), and plain Vitest. tsBuildInfo in dist (see format/tsconfig).
+    "tsBuildInfoFile": "./dist/tsconfig.tsbuildinfo"
+  },
+  "include": ["src/**/*.ts"],
+  "references": [{ "path": "../format" }]
+}

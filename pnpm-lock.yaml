@@ -97,6 +97,16 @@ importers:
         specifier: ^2.1.8
         version: 2.1.9(@types/node@20.19.43)
 
+  packages/document-core:
+    dependencies:
+      '@marionette/format':
+        specifier: workspace:*
+        version: link:../format
+    devDependencies:
+      vitest:
+        specifier: ^2.1.8
+        version: 2.1.9(@types/node@22.20.0)
+
   packages/format:
     dependencies:
       '@noble/hashes':

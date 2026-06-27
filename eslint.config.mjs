@@ -249,6 +249,34 @@ export default tseslint.config(
     },
   },
 
+  // document-core: renderer-agnostic command/history spine (ADR-0001). It must run identically in the
+  // editor renderer, the Electron main process (headless MCP server), and Vitest, so it bans PixiJS,
+  // Node built-ins, Electron, React, runtime-web, and DOM/browser globals (including `performance`, so
+  // `performance.now` cannot leak in: History takes an injected clock, command-history Section 5/7.2).
+  // Nondeterministic globals are banned too (IDs come from an injected counter, time from the clock).
+  {
+    files: ['packages/document-core/src/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [ELECTRON_PATH],
+          patterns: [
+            PIXI_PATTERN,
+            NODE_BUILTIN_PATTERN,
+            {
+              group: ['react', 'react-dom', '@marionette/runtime-web', '@marionette/runtime-web/*'],
+              message:
+                'document-core is renderer-agnostic: no React, no PixiJS, no runtime-web (ADR-0001).',
+            },
+          ],
+        },
+      ],
+      'no-restricted-globals': ['error', ...PURE_CORE_RESTRICTED_GLOBALS],
+      'no-restricted-syntax': ['error', ...DETERMINISM_SYNTAX],
+    },
+  },
+
   // Editor process split (phase-0-foundations.md WP-0.1 matrix). eslint-plugin-boundaries
   // enforces the element-to-element edges; the per-element no-restricted-imports below add the
   // package-name and Node-built-in bans that boundaries (which classifies by file path) cannot.
@@ -261,6 +289,7 @@ export default tseslint.config(
         { type: 'format', pattern: 'packages/format/src/**' },
         { type: 'runtime-core', pattern: 'packages/runtime-core/src/**' },
         { type: 'runtime-web', pattern: 'packages/runtime-web/src/**' },
+        { type: 'document-core', pattern: 'packages/document-core/src/**' },
         { type: 'editor-main', pattern: 'apps/editor/src/main/**' },
         { type: 'editor-preload', pattern: 'apps/editor/src/preload/**' },
         { type: 'editor-shared', pattern: 'apps/editor/src/shared/**' },
@@ -276,12 +305,27 @@ export default tseslint.config(
             { from: ['format'], allow: ['format'] },
             { from: ['runtime-core'], allow: ['runtime-core', 'format'] },
             { from: ['runtime-web'], allow: ['runtime-web', 'runtime-core', 'format'] },
-            { from: ['editor-main'], allow: ['editor-main', 'editor-shared'] },
+            // document-core is the renderer-agnostic command/history spine (ADR-0001). It consumes
+            // only format (validate/hash/types) and, where a transform command needs it, runtime-core.
+            { from: ['document-core'], allow: ['document-core', 'format', 'runtime-core'] },
+            // editor-main hosts the headless MCP server (WP-M.1), which drives document-core commands
+            // and reads runtime-core solves; it stays off the renderer/UI packages.
+            {
+              from: ['editor-main'],
+              allow: ['editor-main', 'editor-shared', 'document-core', 'format', 'runtime-core'],
+            },
             { from: ['editor-preload'], allow: ['editor-preload', 'editor-shared'] },
             { from: ['editor-shared'], allow: ['editor-shared'] },
             {
               from: ['editor-renderer'],
-              allow: ['editor-renderer', 'editor-shared', 'runtime-web', 'runtime-core', 'format'],
+              allow: [
+                'editor-renderer',
+                'editor-shared',
+                'runtime-web',
+                'runtime-core',
+                'document-core',
+                'format',
+              ],
             },
           ],
         },

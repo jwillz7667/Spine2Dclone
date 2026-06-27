@@ -145,6 +145,40 @@ describe('MCP tools', () => {
     );
   });
 
+  it('reparents a bone (world-stable) and rejects a cycle through the AI surface', async () => {
+    const deps = makeDeps();
+    const { documentId } = asRecord(await call(deps, 'document.new', { name: 'rp' }));
+    const { boneId: rootId } = asRecord(
+      await call(deps, 'bone.create', { documentId, name: 'root', length: 100 }),
+    );
+    const { boneId: midId } = asRecord(
+      await call(deps, 'bone.create', { documentId, parentId: rootId, name: 'mid', x: 50 }),
+    );
+    const { boneId: tipId } = asRecord(
+      await call(deps, 'bone.create', { documentId, parentId: midId, name: 'tip', x: 40 }),
+    );
+
+    // tip under root (skip mid): valid.
+    await call(deps, 'bone.reparent', { documentId, boneId: tipId, newParentId: rootId });
+    const tip = asRecord(
+      asRecord(await call(deps, 'bone.get', { documentId, boneId: tipId })).bone,
+    );
+    expect(tip.parent).toBe(rootId);
+
+    // root under tip would be a cycle.
+    await expectToolError(
+      call(deps, 'bone.reparent', { documentId, boneId: rootId, newParentId: tipId }),
+      'REPARENT_CYCLE',
+    );
+
+    // transform mode flows through too.
+    await call(deps, 'bone.transformMode', { documentId, boneId: rootId, mode: 'noScale' });
+    const root = asRecord(
+      asRecord(await call(deps, 'bone.get', { documentId, boneId: rootId })).bone,
+    );
+    expect(root.transformMode).toBe('noScale');
+  });
+
   it('rejects opening malformed JSON and invalid documents', async () => {
     const files = inMemoryFiles();
     files.map.set('/bad.json', '{ not json');

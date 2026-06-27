@@ -5,9 +5,12 @@ import {
   ExportValidationError,
   MoveBoneCommand,
   RenameBoneCommand,
+  ReparentBoneCommand,
+  ReparentCycleError,
   RotateBoneCommand,
   ScaleBoneCommand,
   SetBoneLengthCommand,
+  SetBoneTransformModeCommand,
   exportDocument,
   type BoneEntity,
   type BoneId,
@@ -382,6 +385,49 @@ export const TOOLS: readonly ToolDefinition[] = [
       const session = deps.sessions.get(input.documentId);
       requireBone(session, input.boneId);
       session.document.history.execute(new DeleteBoneCommand(asBoneId(input.boneId)));
+      return { revision: session.document.model.revision };
+    },
+  ),
+  defineTool(
+    {
+      name: 'bone.reparent',
+      title: 'Reparent bone',
+      description:
+        'Move a bone under a new parent (null for a root), holding its world transform fixed. ' +
+        'Rejects a cycle (reparenting under itself or a descendant) as REPARENT_CYCLE.',
+      input: z.object({ documentId, boneId, newParentId: z.string().nullable() }).strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireBone(session, input.boneId);
+      const newParent =
+        input.newParentId === null ? null : requireBone(session, input.newParentId).id;
+      try {
+        session.document.history.execute(
+          new ReparentBoneCommand(asBoneId(input.boneId), newParent),
+        );
+      } catch (error) {
+        if (error instanceof ReparentCycleError) {
+          throw new McpToolError('REPARENT_CYCLE', error.message);
+        }
+        throw error;
+      }
+      return { revision: session.document.model.revision };
+    },
+  ),
+  defineTool(
+    {
+      name: 'bone.transformMode',
+      title: 'Set bone transform mode',
+      description: 'Set how a bone inherits its parent transform (the format TransformMode enum).',
+      input: z.object({ documentId, boneId, mode: transformModeSchema }).strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireBone(session, input.boneId);
+      session.document.history.execute(
+        new SetBoneTransformModeCommand(asBoneId(input.boneId), input.mode),
+      );
       return { revision: session.document.model.revision };
     },
   ),

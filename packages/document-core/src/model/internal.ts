@@ -1,3 +1,4 @@
+import type { AtlasRef } from '@marionette/format/types';
 import type {
   AnimationEntity,
   AttachmentEntity,
@@ -676,6 +677,18 @@ export class DocumentModelInternal implements DocumentReadModel {
       next.set(id, clone);
       this.animationsMap = next;
     }
+    this.revisionValue += 1;
+  }
+
+  // ----- preserved-content write surface (reached only through the Mutator) -----
+
+  // Replace the preserved atlas wholesale (WP-1.3, command-history catalog SetAtlasRef). preservedContent
+  // is a single immutable value, replaced with a fresh deeply-frozen object (the same way the constructor
+  // builds it), so there is no in-place/copy-on-write distinction and no batch branch: an atlas import is
+  // a discrete edit, never part of a drag. extraSkins is carried through untouched. NO content hash is
+  // computed here (the exporter is the sole hash owner, LAW 3).
+  setAtlas(atlas: AtlasRef): void {
+    this.preservedContent = deepFreeze({ atlas, extraSkins: this.preservedContent.extraSkins });
     this.revisionValue += 1;
   }
 

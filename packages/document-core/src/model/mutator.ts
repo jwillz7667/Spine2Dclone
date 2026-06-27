@@ -1,3 +1,4 @@
+import type { AtlasRef } from '@marionette/format/types';
 import type {
   AnimationEntity,
   AttachmentEntity,
@@ -57,6 +58,7 @@ export interface Mutator extends DocumentReadModel {
   ): void;
   setBoneTimelines(animId: AnimationId, boneId: BoneId, set: BoneTimelineSet | null): void;
   setSlotTimelines(animId: AnimationId, slotId: SlotId, set: SlotTimelineSet | null): void;
+  setAtlas(atlas: AtlasRef): void;
 }
 
 // The ONLY factory that can produce a Mutator. History receives the Mutator at construction; nothing
@@ -103,5 +105,6 @@ export function createMutator(model: DocumentModelInternal): Mutator {
       model.setSlotColorChannel(animId, slotId, keyframes),
     setBoneTimelines: (animId, boneId, set) => model.setBoneTimelines(animId, boneId, set),
     setSlotTimelines: (animId, slotId, set) => model.setSlotTimelines(animId, slotId, set),
+    setAtlas: (atlas) => model.setAtlas(atlas),
   };
 }

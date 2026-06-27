@@ -86,6 +86,7 @@ export {
   AddRegionAttachmentCommand,
   RemoveAttachmentCommand,
   SetActiveAttachmentCommand,
+  SetAtlasRefCommand,
   SetRegionAttachmentTransformCommand,
   CreateAnimationCommand,
   DeleteAnimationCommand,

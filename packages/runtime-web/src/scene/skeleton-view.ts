@@ -1,4 +1,4 @@
-import { Container, Graphics, Sprite } from 'pixi.js';
+import { Container, Graphics, Sprite, Texture } from 'pixi.js';
 import { parseDocument, type ValidateOptions } from '@marionette/format';
 import type { RegionAttachment, SkeletonDocument, Skin } from '@marionette/format/types';
 import {
@@ -14,8 +14,9 @@ import {
 } from '@marionette/runtime-core';
 import { applyWorldToTarget, mapWorldToDisplay, type DisplayTransform } from './map-transform';
 import { drawBone } from './bone-graphics';
-import { createAttachmentSprite, packTint } from './attachment-sprites';
+import { createAttachmentSprite, packTint, sizeForTexture } from './attachment-sprites';
 import { computeRegionSized, placeRegion } from './region-placement';
+import type { RegionTextureResolver } from './region-textures';
 import { loopTime } from '../transport';
 
 // The headless description of a built scene. SkeletonView records this alongside the live PixiJS
@@ -54,10 +55,16 @@ interface BoneRecord {
   readonly graphics: Graphics;
 }
 
-// A region attachment resolved to its geometry and its constant sized-local matrix (computed once).
+// A region attachment resolved to the texture that fills it and its constant sprite-sizing matrix.
+// `texture` is the host-resolved atlas Texture, or null when none is available (the sprite then shows
+// Texture.WHITE as a placeholder). `sizedForSprite` is computeRegionSized normalized by the texture's
+// pixel size (handoff 8.9, sizeForTexture), so the sprite draws its texture into the authored width x
+// height world quad regardless of the texture's dimensions. Both are constant per scene, so they are
+// computed ONCE at scene build; the per-frame loop only multiplies the bone world by `sizedForSprite`.
 interface RegionEntry {
   readonly region: RegionAttachment;
-  readonly sized: Mat2x3;
+  readonly texture: Texture | null;
+  readonly sizedForSprite: Mat2x3;
 }
 
 // One slot's render binding. A slot gets a record (and a pooled sprite) when its SETUP attachment
@@ -108,6 +115,10 @@ export class SkeletonView {
   // The document-keyed solve + render bindings, or null when nothing is mounted.
   private cached: CachedScene | null = null;
 
+  // The host-injected region -> Texture resolver, or null for the placeholder (Texture.WHITE) behavior.
+  // Region textures are bound at scene build, so changing the resolver invalidates the cached scene.
+  private resolver: RegionTextureResolver | null = null;
+
   // Reused scratch for reading a bone's world matrix out of the pose buffer to feed placeRegion, so the
   // per-frame attachment loop allocates only the region product (runtime-core's multiply), nothing else.
   private readonly boneWorldScratch: [number, number, number, number, number, number] = [
@@ -119,6 +130,17 @@ export class SkeletonView {
     this.attachmentsLayer = new Container();
     this.bonesLayer = new Container();
     this.root.addChild(this.attachmentsLayer, this.bonesLayer);
+  }
+
+  // Inject (or clear) the host's region -> Texture resolver. Region textures are resolved once when the
+  // scene is built, so this invalidates the cached scene: the next sync / syncAnimated rebuilds the
+  // attachment bindings against the new resolver (re-slicing nothing, just re-binding textures and
+  // recomputing each region's size normalization). Passing null restores the placeholder (Texture.WHITE)
+  // behavior. The view does NOT auto-re-render; the host re-syncs to repaint, matching how a document
+  // change repaints. This never destroys host textures (the host owns the atlas page sources).
+  setTextureResolver(resolver: RegionTextureResolver | null): void {
+    this.resolver = resolver;
+    this.cached = null;
   }
 
   // Validate, solve, and render a document at its SETUP pose. The document is validated via
@@ -279,7 +301,17 @@ export class SkeletonView {
       const regionsByName = new Map<string, RegionEntry>();
       for (const [name, attachment] of Object.entries(bySlot)) {
         if (attachment.type !== 'region') continue;
-        regionsByName.set(name, { region: attachment, sized: computeRegionSized(attachment) });
+        // Resolve the region's texture now (constant per scene). Normalize the unit-quad sizing by the
+        // ACTUAL texture dimensions, using Texture.WHITE's dimensions when there is no resolved texture,
+        // so the placeholder and a real texture land the quad in the same world place (handoff 8.9).
+        const texture = this.resolver?.(attachment.path) ?? null;
+        const source = texture ?? Texture.WHITE;
+        const sizedForSprite = sizeForTexture(
+          computeRegionSized(attachment),
+          source.width,
+          source.height,
+        );
+        regionsByName.set(name, { region: attachment, texture, sizedForSprite });
       }
 
       drafts.push({
@@ -354,10 +386,17 @@ export class SkeletonView {
       scratch[3] = world[boneBase + 3]!;
       scratch[4] = world[boneBase + 4]!;
       scratch[5] = world[boneBase + 5]!;
-      const spriteWorld = placeRegion(scratch, entry.sized);
+      // sizedForSprite is sized * scale(1/texW, 1/texH), so this single multiply (the only per-frame
+      // allocation, unchanged from the placeholder path) lands the texture in the same world quad the
+      // unit-quad placeholder occupied. The size normalization was precomputed at scene build.
+      const spriteWorld = placeRegion(scratch, entry.sizedForSprite);
 
       const sprite = record.sprite;
       sprite.visible = true;
+      // Bind the resolved texture, or Texture.WHITE when the region has none (resolver null / not loaded).
+      // Pixi's texture setter early-returns when the value is unchanged, so a steady-state frame (the same
+      // active attachment) does no work and allocates nothing here.
+      sprite.texture = entry.texture ?? Texture.WHITE;
       applyWorldToTarget(
         sprite,
         spriteWorld[0],

@@ -1,20 +1,32 @@
 import {
+  AddRegionAttachmentCommand,
   CreateBoneCommand,
+  CreateSlotCommand,
   DeleteBoneCommand,
+  DeleteSlotCommand,
   DocumentInvariantError,
   ExportValidationError,
   MoveBoneCommand,
+  RemoveAttachmentCommand,
   RenameBoneCommand,
+  RenameSlotCommand,
+  ReorderSlotCommand,
   ReparentBoneCommand,
   ReparentCycleError,
   RotateBoneCommand,
   ScaleBoneCommand,
+  SetActiveAttachmentCommand,
   SetBoneLengthCommand,
   SetBoneTransformModeCommand,
+  SetRegionAttachmentTransformCommand,
+  SetSlotBlendModeCommand,
+  SetSlotColorCommand,
   exportDocument,
   type BoneEntity,
   type BoneId,
   type DocumentReadModel,
+  type SlotEntity,
+  type SlotId,
 } from '@marionette/document-core';
 import { FormatValidationError } from '@marionette/format';
 import type { SkeletonDocument } from '@marionette/format/types';
@@ -82,6 +94,18 @@ function requireBone(session: Session, boneId: string): BoneEntity {
   return bone;
 }
 
+function asSlotId(id: string): SlotId {
+  return id as SlotId;
+}
+
+function requireSlot(session: Session, slotId: string): SlotEntity {
+  const slot = session.document.model.getSlot(asSlotId(slotId));
+  if (slot === undefined) {
+    throw new McpToolError('SLOT_NOT_FOUND', `no slot with id "${slotId}"`);
+  }
+  return slot;
+}
+
 // Export the model to format, converting the document-core failure modes into typed tool errors (an
 // empty document, a dangling reference, or a name collision is INVALID_DOCUMENT, never an uncaught
 // throw). This is the LAW 3 fail-loud boundary surfaced to the MCP client.
@@ -120,6 +144,18 @@ function boneView(bone: BoneEntity): Record<string, unknown> {
   };
 }
 
+function slotView(slot: SlotEntity): Record<string, unknown> {
+  return {
+    id: slot.id,
+    name: slot.name,
+    bone: slot.bone,
+    color: slot.color,
+    darkColor: slot.darkColor,
+    attachment: slot.attachment,
+    blendMode: slot.blendMode,
+  };
+}
+
 const transformModeSchema = z.enum([
   'normal',
   'onlyTranslation',
@@ -128,8 +164,14 @@ const transformModeSchema = z.enum([
   'noScaleOrReflection',
 ]);
 
+const blendModeSchema = z.enum(['normal', 'additive', 'multiply', 'screen']);
+
+const channel = z.number().finite().min(0).max(1);
+const rgbaSchema = z.object({ r: channel, g: channel, b: channel, a: channel }).strict();
+
 const documentId = z.string().min(1);
 const boneId = z.string().min(1);
+const slotId = z.string().min(1);
 
 export const TOOLS: readonly ToolDefinition[] = [
   // ----- document lifecycle -----
@@ -452,6 +494,274 @@ export const TOOLS: readonly ToolDefinition[] = [
     (deps, input) => ({
       bone: boneView(requireBone(deps.sessions.get(input.documentId), input.boneId)),
     }),
+  ),
+
+  // ----- slot + region-attachment operations (same command + History as the GUI, LAW 2) -----
+  defineTool(
+    {
+      name: 'slot.create',
+      title: 'Create slot',
+      description: 'Create a slot riding a bone and return its id.',
+      input: z
+        .object({
+          documentId,
+          boneId,
+          name: z.string().min(1),
+          color: rgbaSchema.default({ r: 1, g: 1, b: 1, a: 1 }),
+          darkColor: rgbaSchema.nullable().default(null),
+          attachment: z.string().min(1).nullable().default(null),
+          blendMode: blendModeSchema.default('normal'),
+        })
+        .strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      const bone = requireBone(session, input.boneId);
+      const newId = session.document.ids.mint('slot');
+      session.document.history.execute(
+        new CreateSlotCommand(newId, {
+          name: input.name,
+          bone: bone.id,
+          color: input.color,
+          darkColor: input.darkColor,
+          attachment: input.attachment,
+          blendMode: input.blendMode,
+        }),
+      );
+      return { slotId: newId };
+    },
+  ),
+  defineTool(
+    {
+      name: 'slot.delete',
+      title: 'Delete slot',
+      description: 'Delete a slot and its attachments (one undo step).',
+      input: z.object({ documentId, slotId }).strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireSlot(session, input.slotId);
+      session.document.history.execute(new DeleteSlotCommand(asSlotId(input.slotId)));
+      return { revision: session.document.model.revision };
+    },
+  ),
+  defineTool(
+    {
+      name: 'slot.rename',
+      title: 'Rename slot',
+      description: 'Rename a slot (identity is the id, so references are unaffected).',
+      input: z.object({ documentId, slotId, name: z.string().min(1) }).strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireSlot(session, input.slotId);
+      session.document.history.execute(new RenameSlotCommand(asSlotId(input.slotId), input.name));
+      return { revision: session.document.model.revision };
+    },
+  ),
+  defineTool(
+    {
+      name: 'slot.blend',
+      title: 'Set slot blend mode',
+      description: 'Set a slot blend mode (the format BlendMode enum).',
+      input: z.object({ documentId, slotId, blendMode: blendModeSchema }).strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireSlot(session, input.slotId);
+      session.document.history.execute(
+        new SetSlotBlendModeCommand(asSlotId(input.slotId), input.blendMode),
+      );
+      return { revision: session.document.model.revision };
+    },
+  ),
+  defineTool(
+    {
+      name: 'slot.color',
+      title: 'Set slot color',
+      description: 'Set a slot tint color (RGBA, each channel 0..1).',
+      input: z.object({ documentId, slotId, color: rgbaSchema }).strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireSlot(session, input.slotId);
+      session.document.history.execute(
+        new SetSlotColorCommand(asSlotId(input.slotId), input.color),
+      );
+      return { revision: session.document.model.revision };
+    },
+  ),
+  defineTool(
+    {
+      name: 'slot.reorder',
+      title: 'Reorder slot',
+      description: 'Move a slot to a new index in the setup-pose draw order.',
+      input: z.object({ documentId, slotId, toIndex: z.number().int().nonnegative() }).strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireSlot(session, input.slotId);
+      session.document.history.execute(
+        new ReorderSlotCommand(asSlotId(input.slotId), input.toIndex),
+      );
+      return { revision: session.document.model.revision };
+    },
+  ),
+  defineTool(
+    {
+      name: 'slot.activeAttachment',
+      title: 'Set active attachment',
+      description: 'Set the slot setup-pose active attachment name (null clears it).',
+      input: z.object({ documentId, slotId, attachment: z.string().min(1).nullable() }).strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireSlot(session, input.slotId);
+      session.document.history.execute(
+        new SetActiveAttachmentCommand(asSlotId(input.slotId), input.attachment),
+      );
+      return { revision: session.document.model.revision };
+    },
+  ),
+  defineTool(
+    {
+      name: 'attach.region.add',
+      title: 'Add region attachment',
+      description:
+        'Add a region attachment to a slot. `path` references an atlas region; ' +
+        'width/height/offset are caller-supplied (derived from the region by the editor).',
+      input: z
+        .object({
+          documentId,
+          slotId,
+          name: z.string().min(1),
+          path: z.string().min(1),
+          x: z.number().finite().default(0),
+          y: z.number().finite().default(0),
+          rotation: z.number().finite().default(0),
+          scaleX: z.number().finite().default(1),
+          scaleY: z.number().finite().default(1),
+          width: z.number().finite().default(0),
+          height: z.number().finite().default(0),
+          color: rgbaSchema.default({ r: 1, g: 1, b: 1, a: 1 }),
+        })
+        .strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireSlot(session, input.slotId);
+      session.document.history.execute(
+        new AddRegionAttachmentCommand(asSlotId(input.slotId), {
+          name: input.name,
+          path: input.path,
+          x: input.x,
+          y: input.y,
+          rotation: input.rotation,
+          scaleX: input.scaleX,
+          scaleY: input.scaleY,
+          width: input.width,
+          height: input.height,
+          color: input.color,
+        }),
+      );
+      return { revision: session.document.model.revision };
+    },
+  ),
+  defineTool(
+    {
+      name: 'attach.remove',
+      title: 'Remove attachment',
+      description:
+        'Remove an attachment from a slot (clears the slot active attachment if it was it).',
+      input: z.object({ documentId, slotId, name: z.string().min(1) }).strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireSlot(session, input.slotId);
+      if (session.document.model.getAttachment(asSlotId(input.slotId), input.name) === undefined) {
+        throw new McpToolError(
+          'ATTACHMENT_NOT_FOUND',
+          `slot "${input.slotId}" has no attachment "${input.name}"`,
+        );
+      }
+      session.document.history.execute(
+        new RemoveAttachmentCommand(asSlotId(input.slotId), input.name),
+      );
+      return { revision: session.document.model.revision };
+    },
+  ),
+  defineTool(
+    {
+      name: 'attach.region.transform',
+      title: 'Set region attachment transform',
+      description:
+        'Set a region attachment placement/size. Omitted fields keep their current value.',
+      input: z
+        .object({
+          documentId,
+          slotId,
+          name: z.string().min(1),
+          x: z.number().finite().optional(),
+          y: z.number().finite().optional(),
+          rotation: z.number().finite().optional(),
+          scaleX: z.number().finite().optional(),
+          scaleY: z.number().finite().optional(),
+          width: z.number().finite().optional(),
+          height: z.number().finite().optional(),
+        })
+        .strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireSlot(session, input.slotId);
+      const current = session.document.model.getAttachment(asSlotId(input.slotId), input.name);
+      if (current === undefined || current.kind !== 'region') {
+        throw new McpToolError(
+          'ATTACHMENT_NOT_FOUND',
+          `slot "${input.slotId}" has no region attachment "${input.name}"`,
+        );
+      }
+      // Merge the provided fields over the current transform (absolute target the command stores).
+      session.document.history.execute(
+        new SetRegionAttachmentTransformCommand(asSlotId(input.slotId), input.name, {
+          x: input.x ?? current.x,
+          y: input.y ?? current.y,
+          rotation: input.rotation ?? current.rotation,
+          scaleX: input.scaleX ?? current.scaleX,
+          scaleY: input.scaleY ?? current.scaleY,
+          width: input.width ?? current.width,
+          height: input.height ?? current.height,
+        }),
+      );
+      return { revision: session.document.model.revision };
+    },
+  ),
+  defineTool(
+    {
+      name: 'slot.list',
+      title: 'List slots',
+      description: 'List the slots in setup-pose draw order.',
+      input: z.object({ documentId }).strict(),
+    },
+    (deps, input) => ({
+      slots: deps.sessions.get(input.documentId).document.model.slots().map(slotView),
+    }),
+  ),
+  defineTool(
+    {
+      name: 'slot.get',
+      title: 'Get slot',
+      description: 'Get one slot (and its attachment names) by id.',
+      input: z.object({ documentId, slotId }).strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      const slot = requireSlot(session, input.slotId);
+      const attachments = session.document.model
+        .attachments(asSlotId(input.slotId))
+        .map((att) => ({ name: att.name, kind: att.kind }));
+      return { slot: slotView(slot), attachments };
+    },
   ),
 
   // ----- history -----

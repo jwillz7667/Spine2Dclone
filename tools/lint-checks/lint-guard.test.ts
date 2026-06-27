@@ -32,6 +32,7 @@ const CORE = 'packages/runtime-core/src/__guard__.ts';
 const FORMAT = 'packages/format/src/__guard__.ts';
 const RENDERER = 'apps/editor/src/renderer/__guard__.ts';
 const PRELOAD = 'apps/editor/src/preload/__guard__.ts';
+const CONFORMANCE = 'packages/conformance/src/__guard__.ts';
 const EM_DASH = '\u2014';
 const EN_DASH = '\u2013';
 
@@ -123,6 +124,36 @@ describe('INV-6 dash ban (local rule)', () => {
   it('flags an en-dash in a comment', async () => {
     const messages = await lint(CORE, `// range 0${EN_DASH}1\nexport const ok = 1;\n`);
     expect(ruleIds(messages)).toContain('local/no-unicode-dashes');
+  });
+});
+
+describe('conformance boundary (conformance-and-ci.md A.1, WP-V.0)', () => {
+  it('bans PixiJS in conformance', async () => {
+    expect(ruleIds(await lint(CONFORMANCE, "import 'pixi.js';\n"))).toContain(
+      'no-restricted-imports',
+    );
+  });
+
+  it('bans document-core in conformance', async () => {
+    const ids = ruleIds(await lint(CONFORMANCE, "import '@marionette/document-core';\n"));
+    expect(ids.some((r) => r === 'no-restricted-imports' || r === 'boundaries/element-types')).toBe(
+      true,
+    );
+  });
+
+  it('bans runtime-web in conformance', async () => {
+    const ids = ruleIds(await lint(CONFORMANCE, "import '@marionette/runtime-web';\n"));
+    expect(ids.some((r) => r === 'no-restricted-imports' || r === 'boundaries/element-types')).toBe(
+      true,
+    );
+  });
+
+  it('allows format + runtime-core in conformance', async () => {
+    const code =
+      "import { validateDocument } from '@marionette/format';\n" +
+      "import { buildPose } from '@marionette/runtime-core';\n" +
+      'export const ok = typeof validateDocument === typeof buildPose;\n';
+    expect(ruleIds(await lint(CONFORMANCE, code))).not.toContain('no-restricted-imports');
   });
 });
 

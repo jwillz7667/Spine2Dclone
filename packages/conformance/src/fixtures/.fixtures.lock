@@ -1,0 +1,8 @@
+{
+  "toolchain": "node-22.13.1-v8",
+  "files": {
+    "fixtures/rig-2bone.fixture.json": "d0da09c51ea05e294c5dc32890f8e83f9c01f1329baaaa4552997ca9b00b1643",
+    "rigs/rig-2bone.json": "5f0b733ce30c977dc07429bc2aca7e99518b108f06d296a306f9f3d0f6204cff",
+    "sample-spec/rig-2bone.sample-spec.json": "b91325173dd5d3c3226ba78702ff623270477207c77d840b8974842f7e27d617"
+  }
+}

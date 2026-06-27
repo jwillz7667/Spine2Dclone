@@ -28,11 +28,18 @@ describe('findForbiddenPackages (LAW 5)', () => {
     expect(violations).not.toContain('packages/format');
   });
 
-  it('passes for a clean Phase-0 layout', () => {
+  it('passes for a clean allowed layout', () => {
     root = mkdtempSync(join(tmpdir(), 'mc-package-guard-'));
-    // document-core and mcp-server are Phase-0 allowed per ADR-0001 (renderer-agnostic command spine
-    // plus the headless MCP control surface).
-    for (const pkg of ['format', 'runtime-core', 'runtime-web', 'document-core', 'mcp-server']) {
+    // document-core and mcp-server are allowed per ADR-0001 (renderer-agnostic command spine plus the
+    // headless MCP control surface); conformance is the Phase-1 conformance suite (WP-V.0).
+    for (const pkg of [
+      'format',
+      'runtime-core',
+      'runtime-web',
+      'document-core',
+      'mcp-server',
+      'conformance',
+    ]) {
       mkdirSync(join(root, 'packages', pkg), { recursive: true });
     }
     mkdirSync(join(root, 'apps', 'editor'), { recursive: true });

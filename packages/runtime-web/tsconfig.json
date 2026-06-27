@@ -8,7 +8,11 @@
     // d.ts issue, not our source). Skip lib checking for this package ONLY; the contract packages
     // (format, runtime-core) keep skipLibCheck:false so their own strictness is unaffected. This
     // relaxes checking of .d.ts files only, never the strictness applied to our own code.
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    // Composite so apps/editor can reference runtime-web by its built declarations instead of pulling
+    // its source into the editor program (TS6059). tsBuildInfo lives in dist (see format/tsconfig).
+    "composite": true,
+    "tsBuildInfoFile": "./dist/tsconfig.tsbuildinfo"
   },
   "include": ["src/**/*.ts"],
   "references": [{ "path": "../format" }, { "path": "../runtime-core" }]

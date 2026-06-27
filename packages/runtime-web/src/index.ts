@@ -10,3 +10,7 @@ export { mapWorldToDisplay, applyWorldToTarget } from './scene/map-transform';
 export type { DisplayTransform, DisplayTarget } from './scene/map-transform';
 export { computeRegionSized, placeRegion } from './scene/region-placement';
 export { loopTime } from './transport';
+// Headless sampling harness (TASK-1.10.4): samples the SAME runtime-core path the player renders,
+// with no GL/render context, so WP-1.13 can check editor-vs-runtime parity in plain Node/Vitest.
+export { samplePlaybackWorlds } from './headless/sample-playback';
+export type { SampledFrame } from './headless/sample-playback';

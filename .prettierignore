@@ -5,3 +5,7 @@ coverage
 .turbo
 pnpm-lock.yaml
 *.tsbuildinfo
+
+# Generated, byte-asserted golden fixture (serialized via JSON.stringify and compared
+# byte-for-byte in golden.test.ts; reformatting it would break that drift guard).
+packages/runtime-core/test/golden/

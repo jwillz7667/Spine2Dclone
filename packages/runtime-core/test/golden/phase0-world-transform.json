@@ -1,0 +1,29 @@
+{
+  "rigId": "phase0-root-child",
+  "generatedBy": "packages/runtime-core gen-golden.mts (WP-0.4, solve steps 1 and 4, setup pose)",
+  "note": "Phase-0 frozen seed: reset to setup pose plus world transforms only. No animation, skinning, or draw order. Regenerate with pnpm gen:golden; a compose/multiply order change alters these values.",
+  "samples": [
+    {
+      "time": 0,
+      "animation": "setup",
+      "bones": {
+        "root": [
+          6.123233995736766e-17,
+          1,
+          -1,
+          6.123233995736766e-17,
+          0,
+          0
+        ],
+        "child": [
+          6.123233995736766e-17,
+          1,
+          -1,
+          6.123233995736766e-17,
+          6.123233995736766e-15,
+          100
+        ]
+      }
+    }
+  ]
+}

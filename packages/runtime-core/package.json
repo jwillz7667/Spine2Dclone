@@ -11,9 +11,15 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "gen:golden": "tsx scripts/gen-golden.mts"
   },
   "dependencies": {
     "@marionette/format": "workspace:*"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.2",
+    "vitest": "^2.1.8"
   }
 }

@@ -1,0 +1,109 @@
+{
+  "formatVersion": "1.0.0",
+  "name": "minimal",
+  "hash": "",
+  "bones": [
+    {
+      "name": "root",
+      "parent": null,
+      "length": 100,
+      "x": 0,
+      "y": 0,
+      "rotation": 0,
+      "scaleX": 1,
+      "scaleY": 1,
+      "shearX": 0,
+      "shearY": 0,
+      "transformMode": "normal"
+    }
+  ],
+  "slots": [
+    {
+      "name": "body",
+      "bone": "root",
+      "color": {
+        "r": 1,
+        "g": 1,
+        "b": 1,
+        "a": 1
+      },
+      "attachment": "body",
+      "blendMode": "normal"
+    }
+  ],
+  "skins": [
+    {
+      "name": "default",
+      "attachments": {
+        "body": {
+          "body": {
+            "type": "region",
+            "path": "body",
+            "x": 0,
+            "y": 0,
+            "rotation": 0,
+            "scaleX": 1,
+            "scaleY": 1,
+            "width": 64,
+            "height": 64,
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            }
+          }
+        }
+      }
+    }
+  ],
+  "animations": {
+    "idle": {
+      "duration": 1,
+      "bones": {
+        "root": {
+          "rotate": [
+            {
+              "time": 0,
+              "value": {
+                "angle": 0
+              },
+              "curve": "linear"
+            },
+            {
+              "time": 1,
+              "value": {
+                "angle": 30
+              },
+              "curve": "linear"
+            }
+          ]
+        }
+      },
+      "slots": {}
+    }
+  },
+  "atlas": {
+    "pages": [
+      {
+        "file": "atlas.png",
+        "width": 128,
+        "height": 128,
+        "regions": [
+          {
+            "name": "body",
+            "x": 0,
+            "y": 0,
+            "w": 64,
+            "h": 64,
+            "rotated": false,
+            "offsetX": 0,
+            "offsetY": 0,
+            "originalW": 64,
+            "originalH": 64
+          }
+        ]
+      }
+    ]
+  }
+}

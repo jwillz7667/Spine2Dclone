@@ -428,10 +428,12 @@ Design notes:
   ```
   The full `FormatErrorCode` union is owned by the format contract; Phase 0 implements and
   exercises at least: `SCHEMA_SHAPE`, `UNSUPPORTED_FORMAT_VERSION`, `BONE_NAME_DUPLICATE`,
-  `BONE_PARENT_MISSING`, `BONE_ORDER_VIOLATION`, `BONE_NO_ROOT`, `SLOT_NAME_DUPLICATE`,
+  `BONE_PARENT_MISSING`, `BONE_ORDER_VIOLATION`, `SLOT_NAME_DUPLICATE`,
   `SLOT_BONE_MISSING`, `SLOT_ATTACHMENT_MISSING`, `SKIN_DEFAULT_MISSING`, `SKIN_SLOT_UNKNOWN`,
   `ATLAS_REGION_DUPLICATE`, `ATTACHMENT_REGION_MISSING`, `COLOR_RANGE`, `CURVE_BEZIER_X_RANGE`,
-  and `HASH_MISMATCH`.
+  and `HASH_MISMATCH`. (There is NO separate `BONE_NO_ROOT` code: a rootless or cyclic bone set
+  surfaces as `BONE_ORDER_VIOLATION` per format-contract section 5.4 and Open Decision 8, which the
+  contract governs over this summary.)
 - Validation layers run in order, all errors collected (format contract section 8.3):
   (1) version gate, (2) structural Zod layer, (3) semantic graph layer, (6) hash layer. The
   mesh layer (4) and the full animation layer (5) are deferred; the Phase-0 semantic layer
@@ -491,7 +493,8 @@ Acceptance criteria:
 - [ ] Removing `formatVersion` from a copy yields a `SCHEMA_SHAPE` error with the correct
       JSON Pointer path; a `formatVersion` of `'1.0.0'` yields `UNSUPPORTED_FORMAT_VERSION`.
 - [ ] Reordering bones so a child precedes its parent yields `BONE_ORDER_VIOLATION`; a
-      missing parent yields `BONE_PARENT_MISSING`; no root yields `BONE_NO_ROOT`.
+      missing parent yields `BONE_PARENT_MISSING`; a rootless or cyclic set yields
+      `BONE_ORDER_VIOLATION` (no separate `BONE_NO_ROOT` code, per format-contract section 5.4).
 - [ ] A slot referencing a missing bone yields `SLOT_BONE_MISSING`; an unknown attachment
       `type` yields `SCHEMA_SHAPE` (closed unions).
 - [ ] A document with three independent shape faults reports three errors (collect-all), not

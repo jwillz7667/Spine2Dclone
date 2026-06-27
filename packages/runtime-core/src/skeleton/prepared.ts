@@ -31,6 +31,15 @@ export interface PreparedAttachmentTrack {
   readonly names: readonly (string | null)[];
 }
 
+// A boolean channel sampled STEPPED regardless of the keyframe's curve (ADR-0003 section 7): used for
+// IkFrame.bendPositive, which is non-interpolatable. `values[i]` is 0 or 1 for keyframe i; sampling
+// holds the segment-start value until the next key (the same clamp/step rule as the attachment track).
+export interface PreparedStepBoolTrack {
+  readonly keyCount: number;
+  readonly times: Float64Array;
+  readonly values: Uint8Array;
+}
+
 // The transform channels of one animated bone, resolved to the pose's bone index at build time.
 // `boneIndex` is -1 when the animation names a bone the pose does not contain (the channel is then
 // skipped); a validated document keyed to the pose it was built from never hits that.
@@ -49,9 +58,44 @@ export interface PreparedSlotChannels {
   readonly attachment: PreparedAttachmentTrack | null;
 }
 
+// The timelines of one animated IK constraint, resolved to the pose's ik-constraint index at build
+// time. `constraintIndex` is -1 when the animation names a constraint the pose does not contain (the
+// channel is then skipped). `mix` interpolates by its curve; `bendPositive` is stepped (ADR-0003 s7).
+export interface PreparedIkChannel {
+  readonly constraintIndex: number;
+  readonly mix: PreparedTrack | null;
+  readonly bendPositive: PreparedStepBoolTrack | null;
+}
+
+// The timelines of one animated transform constraint, resolved to the pose's transform-constraint
+// index. Each of the six mix channels is prepared from ONLY the keyframes that key it (chosen absent-
+// channel semantics, see sample.ts): a channel no keyframe keys is null and keeps the constraint base.
+export interface PreparedTransformChannel {
+  readonly constraintIndex: number;
+  readonly mixRotate: PreparedTrack | null;
+  readonly mixX: PreparedTrack | null;
+  readonly mixY: PreparedTrack | null;
+  readonly mixScaleX: PreparedTrack | null;
+  readonly mixScaleY: PreparedTrack | null;
+  readonly mixShearY: PreparedTrack | null;
+}
+
+// One deform timeline: per-logical-vertex (dx, dy) offsets for a (skin, slot, attachment) triple,
+// flattened so `track.componentCount` == 2 * vertexCount lanes interpolate together. Looked up by the
+// three names in sampleMeshVertices and sampled into the pose's deform scratch.
+export interface PreparedDeformChannel {
+  readonly skin: string;
+  readonly slot: string;
+  readonly attachment: string;
+  readonly track: PreparedTrack;
+}
+
 // A whole animation prepared for one pose. Built once and cached on the pose (keyed by Animation
 // identity), so steady-state sampling allocates nothing.
 export interface PreparedAnimation {
   readonly boneChannels: readonly PreparedBoneChannels[];
   readonly slotChannels: readonly PreparedSlotChannels[];
+  readonly ikChannels: readonly PreparedIkChannel[];
+  readonly transformChannels: readonly PreparedTransformChannel[];
+  readonly deformChannels: readonly PreparedDeformChannel[];
 }

@@ -96,14 +96,29 @@ export function makeDocument(parts: DocumentParts): SkeletonDocument {
     originalH: 64,
   }));
 
+  // Normalize each animation to the 0.2.0 shape (ADR-0004): the required ik/transform/deform timelines
+  // default to empty so a caller that keys only bone/slot channels still produces a valid current
+  // document (no migration on sync), which is what lets the hash-verification tests detect a tamper.
+  const animations: Record<string, Animation> = {};
+  for (const [name, anim] of Object.entries(parts.animations ?? {})) {
+    animations[name] = {
+      ...anim,
+      ik: anim.ik ?? {},
+      transform: anim.transform ?? {},
+      deform: anim.deform ?? {},
+    };
+  }
+
   return {
-    formatVersion: '0.1.0',
+    formatVersion: '0.2.0',
     name: parts.name ?? 'rig',
     hash: '',
     bones: parts.bones,
     slots,
     skins: [{ name: 'default', attachments: skin }],
-    animations: parts.animations ?? {},
+    ikConstraints: [],
+    transformConstraints: [],
+    animations,
     atlas: {
       pages: regions.length > 0 ? [{ file: 'atlas.png', width: 128, height: 128, regions }] : [],
     },

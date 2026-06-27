@@ -1,19 +1,38 @@
 import type { Animation, SkeletonDocument } from '@marionette/format/types';
 import { composeInto, MAT2X3_STRIDE } from '../math/affine';
+import { resolveWorld, solveIkOneBone, solveIkTwoBone, solveTransformConstraint } from '../solve';
 import { SETUP_STRIDE, SLOT_COLOR_STRIDE } from './pose';
-import type { Pose } from './pose';
-import type { PreparedAnimation, PreparedBoneChannels, PreparedSlotChannels } from './prepared';
+import type { Pose, ResolvedTransformConstraint } from './pose';
+import type {
+  PreparedAnimation,
+  PreparedBoneChannels,
+  PreparedDeformChannel,
+  PreparedIkChannel,
+  PreparedSlotChannels,
+  PreparedTrack,
+  PreparedTransformChannel,
+} from './prepared';
 import {
   buildAttachmentTrack,
+  buildBendTrack,
   buildColorTrack,
+  buildDeformTrack,
+  buildIkMixTrack,
   buildScalarTrack,
+  buildTransformMixTrack,
   buildVec2Track,
   findSegmentIndex,
   sampleAttachmentName,
+  sampleStepBool,
   segmentComponent,
   segmentFraction,
 } from './curve';
 import { computeWorldTransforms, resetToSetupPose } from './world-transform';
+
+// Solver-owned scratch for an on-demand target world matrix (step 3 reads the target's world origin).
+// Module-level and reused so the constraint solve adds no per-frame allocation; the solve is single-
+// threaded and never re-entrant, matching resolve-world.ts's scratch convention.
+const targetWorldScratch = new Float64Array(MAT2X3_STRIDE);
 
 // Thrown when sampleSkeleton is asked for an animation id the document does not define. A typed error
 // (not a bare string) so callers can distinguish it; it carries the offending id for diagnostics.
@@ -49,27 +68,159 @@ export function sampleSkeleton(
 
   const prepared = getPreparedAnimation(outPose, animation);
 
-  // Step 1: reset to setup pose (bones write their local matrices; slots reset color + attachment).
+  // Step 1: reset to setup pose (bones write their local matrices; slots reset color + attachment;
+  // constraints reset their sampled mix/bendPositive to the constraint definition's base values).
   resetToSetupPose(outPose);
   resetSlotsToSetup(outPose);
+  resetConstraintsToBase(outPose);
 
-  // Step 2: apply animation timelines onto the reset setup pose.
+  // Step 2: apply animation timelines onto the reset setup pose, including the ik/transform constraint
+  // mix channels (the values step 3 reads).
   applyBoneChannels(prepared, outPose, t);
   applySlotChannels(prepared, outPose, t);
+  applyConstraintChannels(prepared, outPose, t);
 
-  // Step 3: solve constraints. No-op in Phase 1; the named stage is kept so Phase 2 inserts IK then
-  // transform constraints exactly here without reordering the locked solve.
+  // Step 3: solve constraints: ALL IK constraints first, then ALL transform constraints, each in
+  // document array order (ADR-0003 section 3). Constraints write LOCAL only.
   solveConstraints(outPose);
 
-  // Step 4: world transforms (single forward pass, parents before children).
+  // Step 4: world transforms (single forward pass, parents before children). Because step 3 wrote only
+  // local transforms, this pass is unconditional and reproduces every constraint's intended world.
   computeWorldTransforms(outPose);
 }
 
-// Phase 1 constraint stage: intentionally empty. Phase 2 inserts the IK solve then the transform
-// constraint solve here (CLAUDE.md solve order step 3), operating on outPose.local before the world
-// pass. Kept as a named pipeline step so that insertion needs no reordering.
-function solveConstraints(_pose: Pose): void {
-  // Phase 2: solve IK constraints, then transform constraints, in order.
+// Solve step 3 (ADR-0003 section 3): IK constraints first (document array order), then transform
+// constraints (document array order). IK reads the target world position (origin of resolveWorld) and
+// writes LOCAL rotation; transform reads/blends in world and writes LOCAL. A constraint with an
+// unresolved bone/target index (-1) is skipped rather than crashing (build-pose captures -1 for a name
+// the rig does not contain). Allocation-free: target world goes into the module scratch, and the
+// per-constraint sampled mix/bendPositive were written into pose-owned scratch in step 2.
+function solveConstraints(pose: Pose): void {
+  const { ikConstraints, transformConstraints } = pose;
+
+  for (let i = 0; i < ikConstraints.length; i += 1) {
+    const constraint = ikConstraints[i]!;
+    const targetIndex = constraint.targetIndex;
+    if (targetIndex < 0) continue;
+    const boneIndices = constraint.boneIndices;
+    const sampled = constraint.sampled;
+    if (sampled.mix <= 0) continue;
+
+    resolveWorld(pose, targetIndex, targetWorldScratch, 0);
+    const targetX = targetWorldScratch[4]!;
+    const targetY = targetWorldScratch[5]!;
+
+    if (boneIndices.length === 1) {
+      const boneIndex = boneIndices[0]!;
+      if (boneIndex < 0) continue;
+      solveIkOneBone(pose, boneIndex, targetX, targetY, sampled.mix);
+    } else {
+      const parentIndex = boneIndices[0]!;
+      const childIndex = boneIndices[1]!;
+      if (parentIndex < 0 || childIndex < 0) continue;
+      solveIkTwoBone(
+        pose,
+        parentIndex,
+        childIndex,
+        targetX,
+        targetY,
+        sampled.bendPositive,
+        sampled.mix,
+      );
+    }
+  }
+
+  for (let i = 0; i < transformConstraints.length; i += 1) {
+    const constraint = transformConstraints[i]!;
+    const targetIndex = constraint.targetIndex;
+    if (targetIndex < 0) continue;
+    const boneIndices = constraint.boneIndices;
+    for (let b = 0; b < boneIndices.length; b += 1) {
+      const boneIndex = boneIndices[b]!;
+      if (boneIndex < 0) continue;
+      solveTransformConstraint(
+        pose,
+        boneIndex,
+        targetIndex,
+        constraint.sampledMix,
+        constraint.offset,
+      );
+    }
+  }
+}
+
+// Reset every constraint's per-frame sampled scratch to the constraint definition's base values, the
+// constraint analogue of resetSlotsToSetup. Step 2 then overlays the keyed channels; a constraint or
+// channel an animation does not key keeps its base. Allocation-free: it mutates the pose-owned scratch
+// objects in place (no array or object is created), so a constraint-free rig does nothing here.
+function resetConstraintsToBase(pose: Pose): void {
+  const { ikConstraints, transformConstraints } = pose;
+  for (let i = 0; i < ikConstraints.length; i += 1) {
+    const constraint = ikConstraints[i]!;
+    constraint.sampled.mix = constraint.baseMix;
+    constraint.sampled.bendPositive = constraint.baseBendPositive;
+  }
+  for (let i = 0; i < transformConstraints.length; i += 1) {
+    const constraint = transformConstraints[i]!;
+    copyTransformMix(constraint.baseMix, constraint.sampledMix);
+  }
+}
+
+// Step 2 for constraints: overlay the keyed ik/transform mix channels onto the base values reset above.
+// IK mix interpolates by its curve; bendPositive is stepped (ADR-0003 section 7). For a transform
+// constraint, each present mix channel overrides the base; an absent channel keeps the (already-reset)
+// base value. A channel resolved to a constraint the pose lacks (constraintIndex -1) is ignored.
+function applyConstraintChannels(prepared: PreparedAnimation, pose: Pose, t: number): void {
+  const { ikChannels, transformChannels } = prepared;
+  const { ikConstraints, transformConstraints } = pose;
+
+  for (let c = 0; c < ikChannels.length; c += 1) {
+    const channel: PreparedIkChannel = ikChannels[c]!;
+    const index = channel.constraintIndex;
+    if (index < 0) continue;
+    const sampled = ikConstraints[index]!.sampled;
+    if (channel.mix !== null) {
+      sampled.mix = sampleScalar(channel.mix, t, sampled.mix);
+    }
+    if (channel.bendPositive !== null) {
+      sampled.bendPositive = sampleStepBool(channel.bendPositive, t);
+    }
+  }
+
+  for (let c = 0; c < transformChannels.length; c += 1) {
+    const channel: PreparedTransformChannel = transformChannels[c]!;
+    const index = channel.constraintIndex;
+    if (index < 0) continue;
+    const mix = transformConstraints[index]!.sampledMix;
+    mix.rotate = sampleScalar(channel.mixRotate, t, mix.rotate);
+    mix.x = sampleScalar(channel.mixX, t, mix.x);
+    mix.y = sampleScalar(channel.mixY, t, mix.y);
+    mix.scaleX = sampleScalar(channel.mixScaleX, t, mix.scaleX);
+    mix.scaleY = sampleScalar(channel.mixScaleY, t, mix.scaleY);
+    mix.shearY = sampleScalar(channel.mixShearY, t, mix.shearY);
+  }
+}
+
+// Sample a single-component track at t, or return the fallback when there is no track for the channel
+// (the absent-channel / base-value path). Reuses the shared segment lookup so the curve handling
+// (linear/stepped/bezier and the single-period clamp) matches every other channel.
+function sampleScalar(track: PreparedTrack | null, t: number, fallback: number): number {
+  if (track === null) return fallback;
+  const i = findSegmentIndex(track.times, track.keyCount, t);
+  const f = segmentFraction(track, i, t);
+  return segmentComponent(track, i, f, 0);
+}
+
+function copyTransformMix(
+  src: ResolvedTransformConstraint['baseMix'],
+  dst: ResolvedTransformConstraint['sampledMix'],
+): void {
+  dst.rotate = src.rotate;
+  dst.x = src.x;
+  dst.y = src.y;
+  dst.scaleX = src.scaleX;
+  dst.scaleY = src.scaleY;
+  dst.shearY = src.shearY;
 }
 
 // Reset every slot's resolved color to its setup color and its active attachment to its setup name.
@@ -170,8 +321,9 @@ function applySlotChannels(prepared: PreparedAnimation, pose: Pose, t: number): 
 // Fetch (building and caching on first use) the prepared form of an animation for this pose. The cache
 // is keyed by Animation identity so a re-sample of the same animation reuses the flattened tracks and
 // bezier tables with zero allocation; a different Animation object (a different document) builds its
-// own entry.
-function getPreparedAnimation(pose: Pose, animation: Animation): PreparedAnimation {
+// own entry. Exported package-internally so mesh-vertex sampling reuses the same cache for deform
+// timelines (it is not part of the runtime-core public barrel).
+export function getPreparedAnimation(pose: Pose, animation: Animation): PreparedAnimation {
   const cached = pose.preparedAnimations.get(animation);
   if (cached !== undefined) return cached;
   const prepared = prepareAnimation(pose, animation);
@@ -216,11 +368,71 @@ function prepareAnimation(pose: Pose, animation: Animation): PreparedAnimation {
     });
   }
 
-  return { boneChannels, slotChannels };
+  // ik/transform/deform records are REQUIRED on a validated Animation (ADR-0004), but a hand-built
+  // draft (a test fixture, an unmigrated doc) may omit them; tolerate that with an empty default rather
+  // than throwing while reading the document.
+  const ikIndexByName = nameIndexOf(pose.ikConstraints);
+  const ikChannels: PreparedIkChannel[] = [];
+  const ik = animation.ik ?? {};
+  for (const constraintName of Object.keys(ik)) {
+    const frames = ik[constraintName]!;
+    if (frames.length === 0) continue;
+    ikChannels.push({
+      constraintIndex: ikIndexByName.get(constraintName) ?? -1,
+      mix: buildIkMixTrack(frames),
+      bendPositive: buildBendTrack(frames),
+    });
+  }
+
+  const transformIndexByName = nameIndexOf(pose.transformConstraints);
+  const transformChannels: PreparedTransformChannel[] = [];
+  const transform = animation.transform ?? {};
+  for (const constraintName of Object.keys(transform)) {
+    const frames = transform[constraintName]!;
+    if (frames.length === 0) continue;
+    transformChannels.push({
+      constraintIndex: transformIndexByName.get(constraintName) ?? -1,
+      mixRotate: buildTransformMixTrack(frames, 'mixRotate'),
+      mixX: buildTransformMixTrack(frames, 'mixX'),
+      mixY: buildTransformMixTrack(frames, 'mixY'),
+      mixScaleX: buildTransformMixTrack(frames, 'mixScaleX'),
+      mixScaleY: buildTransformMixTrack(frames, 'mixScaleY'),
+      mixShearY: buildTransformMixTrack(frames, 'mixShearY'),
+    });
+  }
+
+  const deformChannels: PreparedDeformChannel[] = [];
+  const deform = animation.deform ?? {};
+  for (const skinName of Object.keys(deform)) {
+    const bySlot = deform[skinName]!;
+    for (const slotName of Object.keys(bySlot)) {
+      const byAttachment = bySlot[slotName]!;
+      for (const attachmentName of Object.keys(byAttachment)) {
+        const frames = byAttachment[attachmentName]!;
+        if (frames.length === 0) continue;
+        deformChannels.push({
+          skin: skinName,
+          slot: slotName,
+          attachment: attachmentName,
+          track: buildDeformTrack(frames),
+        });
+      }
+    }
+  }
+
+  return { boneChannels, slotChannels, ikChannels, transformChannels, deformChannels };
 }
 
 function nameIndex(names: readonly string[]): Map<string, number> {
   const index = new Map<string, number>();
   for (let i = 0; i < names.length; i += 1) index.set(names[i]!, i);
+  return index;
+}
+
+// The name -> array-index map for the pose's resolved constraints, so a timeline keyed by constraint
+// name resolves to the constraint's slot in pose.ikConstraints / pose.transformConstraints.
+function nameIndexOf(items: readonly { readonly name: string }[]): Map<string, number> {
+  const index = new Map<string, number>();
+  for (let i = 0; i < items.length; i += 1) index.set(items[i]!.name, i);
   return index;
 }

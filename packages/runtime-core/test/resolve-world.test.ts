@@ -65,7 +65,10 @@ describe('resolveWorld', () => {
     resolveWorld(pose, 0, out, 6);
 
     expect(Array.from(out.subarray(0, 6))).toEqual([0, 0, 0, 0, 0, 0]);
-    matCloseTo([out[6]!, out[7]!, out[8]!, out[9]!, out[10]!, out[11]!], compose(1, 2, 90, 1, 1, 0, 0));
+    matCloseTo(
+      [out[6]!, out[7]!, out[8]!, out[9]!, out[10]!, out[11]!],
+      compose(1, 2, 90, 1, 1, 0, 0),
+    );
   });
 
   it('returns the local matrix for a root bone', () => {

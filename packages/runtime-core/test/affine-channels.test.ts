@@ -32,7 +32,14 @@ describe('world-channel decompose/compose', () => {
   });
 
   it('round-trips a non-uniform scale (channels -> matrix -> channels)', () => {
-    const channels: WorldChannels = { rotation: 20, x: 11, y: -7, scaleX: 2.5, scaleY: 0.4, shearY: 0 };
+    const channels: WorldChannels = {
+      rotation: 20,
+      x: 11,
+      y: -7,
+      scaleX: 2.5,
+      scaleY: 0.4,
+      shearY: 0,
+    };
 
     const result = decomposeWorld(composeWorld(channels));
 
@@ -41,7 +48,14 @@ describe('world-channel decompose/compose', () => {
 
   it('represents a Y-shear of gamma degrees as shearY = gamma', () => {
     const gamma = 22;
-    const channels: WorldChannels = { rotation: 0, x: 0, y: 0, scaleX: 1, scaleY: 1, shearY: gamma };
+    const channels: WorldChannels = {
+      rotation: 0,
+      x: 0,
+      y: 0,
+      scaleX: 1,
+      scaleY: 1,
+      shearY: gamma,
+    };
 
     const result = decomposeWorld(composeWorld(channels));
 

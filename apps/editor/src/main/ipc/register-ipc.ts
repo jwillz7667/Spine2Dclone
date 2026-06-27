@@ -5,12 +5,17 @@
 import { app, ipcMain } from 'electron';
 import {
   IpcChannel,
+  fileOpenRequestSchema,
+  fileSaveRequestSchema,
   getVersionRequestSchema,
   getVersionResponseSchema,
   validateWith,
+  type FileOpenResponse,
+  type FileSaveResponse,
   type GetVersionResponse,
   type IpcResult,
 } from '../../shared';
+import { openDocumentFromFile, saveDocumentToFile } from '../file-io';
 
 export function registerIpc(): void {
   ipcMain.handle(
@@ -25,8 +30,28 @@ export function registerIpc(): void {
       );
     },
   );
+
+  ipcMain.handle(
+    IpcChannel.fileSave,
+    async (_event, payload: unknown): Promise<IpcResult<FileSaveResponse>> => {
+      const request = validateWith(fileSaveRequestSchema, payload, 'IPC_BAD_REQUEST');
+      if (!request.ok) return request;
+      return saveDocumentToFile(request.data.document);
+    },
+  );
+
+  ipcMain.handle(
+    IpcChannel.fileOpen,
+    async (_event, payload: unknown): Promise<IpcResult<FileOpenResponse>> => {
+      const request = validateWith(fileOpenRequestSchema, payload, 'IPC_BAD_REQUEST');
+      if (!request.ok) return request;
+      return openDocumentFromFile();
+    },
+  );
 }
 
 export function disposeIpc(): void {
   ipcMain.removeHandler(IpcChannel.getVersion);
+  ipcMain.removeHandler(IpcChannel.fileSave);
+  ipcMain.removeHandler(IpcChannel.fileOpen);
 }

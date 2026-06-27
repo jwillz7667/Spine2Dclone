@@ -38,13 +38,17 @@ section of THIS plan; cross-document references are always named ("handoff secti
 This Phase 1 plan cannot land without conflicts being resolved in the OWNING docs in the same PR. They are not
 re-decided here; they are amendments to the owning docs, listed so the reviewer approves them together with this plan.
 
-- AMEND-CH-1 (command-history section 11 and WP-C.10 / WP-C.11). Three docs currently give three answers for the bone
-  commands `RotateBone`, `ScaleBone`, `SetBoneLength`, `RenameBone`, `DeleteBone`: section 11 tags them Phase 0,
-  WP-C.10 lists only a subset, and `phase-0-foundations.md` WP-0.7 ships only `CreateBone` + `MoveBone`. DECISION:
-  Phase 0 ships exactly `CreateBone` + `MoveBone` (its actual artifact and milestone: create by drag, move by gizmo,
-  undo/redo, save/reload). All other bone commands are Phase 1, owned by WP-1.1. The amendment retags those five rows
-  from Phase 0 to Phase 1 in section 11, reduces WP-C.10's set to `CreateBone` + `MoveBone`, and folds the five into
-  WP-C.11. `phase-0-foundations.md` already ships only the two, so it needs no change.
+- AMEND-CH-1 (command-history section 11 and WP-C.10 / WP-C.11). VACATED by the as-built implementation. The amendment
+  originally proposed retagging `RotateBone`, `ScaleBone`, `SetBoneLength`, `RenameBone`, `DeleteBone` from Phase 0 to
+  Phase 1 on the premise that Phase 0 ships only `CreateBone` + `MoveBone`. In the actual build, the renderer-agnostic
+  command spine `packages/document-core` (ADR-0001) shipped the FULL Phase-0 bone set in Phase 0: `CreateBone`,
+  `MoveBone`, `RotateBone`, `ScaleBone`, `SetBoneLength`, `NormalizeBoneRotation` (the computed-result reference),
+  `RenameBone`, and `DeleteBone` (with the child-bone cascade), all registered and harness-covered. command-history
+  section 11 already tags those rows Phase 0 and WP-C.10 already lists all eight, so both already match the shipped code
+  and need NO retag; applying the original retag would make the catalog contradict the merged implementation. WP-1.1
+  therefore adds only the genuinely-new Phase-1 bone commands `ReparentBone` (`bone.reparent`, world-stable + cycle-safe)
+  and `SetBoneTransformMode` (`bone.transformMode`), and GROWS the `DeleteBone` cascade in later WPs (slots/attachments
+  in WP-1.2, animation tracks in WP-1.5), exactly as the catalog's Phase-1 rows already describe.
 - AMEND-CH-2 (command-history section 11). Retag `CreateSkin`, `SetDrawOrderKeyframe`, `SetEventKeyframe`,
   `DefineEvent` from Phase 1 to Phase 2 (move from WP-C.11 to WP-C.12). Rationale: the idle-loop milestone needs none
   of them, and the conformance rig that exercises events and draw-order timelines (`rig-events-draworder`) is a
@@ -280,11 +284,14 @@ WP-C.7 TASK-C7.2).
 
 - Goal: Full bone lifecycle as commands, including cycle-safe, world-stable reparenting.
 - Laws touched: LAW 2, LAW 5.
-- Depends on: Phase 0 (`CreateBone`, `MoveBone`, `DocumentModel`, `History`). Carries AMEND-CH-1.
+- Depends on: Phase 0 (`CreateBone`, `MoveBone`, and the already-shipped `RotateBone`/`ScaleBone`/`SetBoneLength`/
+  `RenameBone`/`DeleteBone`, `DocumentModel`, `History`). AMEND-CH-1 is VACATED (section 0.2): the Phase-0 document-core
+  already shipped the full bone set, so WP-1.1 adds only the two new commands below.
 - Tasks:
-  - TASK-1.1.1 Implement and register the catalog commands `RotateBone` (`bone.rotate`), `ScaleBone` (`bone.scale`),
-    `SetBoneLength` (`bone.length`), `RenameBone` (`bone.rename`), `DeleteBone` (`bone.delete`), `ReparentBone`
-    (`bone.reparent`), `SetBoneTransformMode` (`bone.transformMode`). All target bones by `BoneId`.
+  - TASK-1.1.1 Implement and register the genuinely-new catalog commands `ReparentBone` (`bone.reparent`) and
+    `SetBoneTransformMode` (`bone.transformMode`), both targeting bones by `BoneId`. `RotateBone` (`bone.rotate`),
+    `ScaleBone` (`bone.scale`), `SetBoneLength` (`bone.length`), `RenameBone` (`bone.rename`), and `DeleteBone`
+    (`bone.delete`, with the child-bone cascade) already shipped in Phase 0 and are registered and harness-covered.
   - TASK-1.1.2 `DeleteBone` cascade memento, built INCREMENTALLY as dependent entity types come to exist: deleting a
     bone deletes its child bones (ALWAYS, available now), the slots riding deleted bones and their attachments (once
     WP-1.2 lands), and the animation tracks targeting deleted bones/slots (once WP-1.5 lands). The whole cascade is ONE
@@ -804,11 +811,11 @@ WP-C.10.4 property tests. Names and `kind` strings are the catalog's. Coalescing
 
 | Command | kind | Source | Coalescing | Notes / typed-error guards |
 |---|---|---|---|---|
-| `RotateBone` | `bone.rotate` | catalog, retag P0 -> P1 (AMEND-CH-1) | Session | Setup-pose channel edit. |
-| `ScaleBone` | `bone.scale` | catalog, retag (AMEND-CH-1) | Session | Setup-pose channel edit. |
-| `SetBoneLength` | `bone.length` | catalog, retag (AMEND-CH-1) | Session | Bone tip render only; no child cascade. |
-| `RenameBone` | `bone.rename` | catalog, retag (AMEND-CH-1) | None | Single field; uniqueness at validator (`BONE_NAME_DUPLICATE`), not the command. |
-| `DeleteBone` | `bone.delete` | catalog, retag (AMEND-CH-1) | None | Cascade memento, grown incrementally (children now, slots/attachments WP-1.2, tracks WP-1.5); single undo. |
+| `RotateBone` | `bone.rotate` | catalog P0 (shipped; AMEND-CH-1 vacated) | Session | Setup-pose channel edit. |
+| `ScaleBone` | `bone.scale` | catalog P0 (shipped) | Session | Setup-pose channel edit. |
+| `SetBoneLength` | `bone.length` | catalog P0 (shipped) | Session | Bone tip render only; no child cascade. |
+| `RenameBone` | `bone.rename` | catalog P0 (shipped) | None | Single field; uniqueness at validator (`BONE_NAME_DUPLICATE`), not the command. |
+| `DeleteBone` | `bone.delete` | catalog P0 (shipped) | None | Cascade memento, grown incrementally (children now, slots/attachments WP-1.2, tracks WP-1.5); single undo. |
 | `ReparentBone` | `bone.reparent` | catalog P1 | None | Cycle rejection is a typed editor command error (not a `FormatErrorCode`); world-stable local recompute. |
 | `SetBoneTransformMode` | `bone.transformMode` | catalog P1 | None | Enum from handoff section 6. |
 | `CreateSlot` | `slot.create` | catalog P1 | None | Appends to `slots[]` (draw order). |

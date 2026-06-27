@@ -1,6 +1,7 @@
-import { Application } from 'pixi.js';
+import { Application, type Ticker } from 'pixi.js';
 import { useEffect, useRef, type CSSProperties, type ReactElement } from 'react';
 import { SkeletonView } from '@marionette/runtime-web';
+import type { SkeletonDocument } from '@marionette/format/types';
 import { documentHost, exportDocument } from '../document';
 import { useCameraStore } from '../editor-state/camera-store';
 import { useSelectionStore } from '../editor-state/selection-store';
@@ -12,6 +13,7 @@ import { MoveRotateGizmo } from './gizmo/move-rotate-gizmo';
 import { attachToolInput } from './tool-input';
 import { CreateBoneTool } from './tools/create-bone-tool';
 import { SelectMoveTool } from './tools/select-move-tool';
+import { renderTargetsEqual, resolveRenderTarget, type RenderTarget } from './render-target';
 import type { ViewportTool } from './tools/tool';
 import type { Camera } from './camera';
 
@@ -20,11 +22,16 @@ const BACKGROUND = 0x1e1e1e;
 // Mounts a PixiJS v8 Application into the dockview viewport panel and renders the LIVE document from
 // the DocumentHost (handoff 8.3): the content layer is exactly what the web runtime renders, the
 // overlay layer carries editor chrome (the move/rotate gizmo). The document is the single source of
-// truth (never Zustand); the render loop polls model.revision each frame and re-syncs the SkeletonView
-// (or clears it when the document has no bones yet). The camera lives in Zustand (ephemeral, never
-// serialized): the render path writes the camera transform onto the world container and the input
-// controller writes user pan/zoom back into the store. Pointer events route to the active tool unless
-// Space is held, in which case the camera controller pans.
+// truth (never Zustand); the render loop polls model.revision each frame, re-exports the validated
+// SkeletonDocument ONLY when the revision changes (caching it by identity so SkeletonView's per-document
+// pose cache holds, WP-1.10), and renders either the setup pose or the animated pose sampled at the
+// playhead through the SAME shared SkeletonView the web runtime uses (the editor cannot drift from the
+// player, TASK-1.10.3). The transport clock (playhead, play/pause, mode) is ephemeral editor state in
+// Zustand, never the document and never History (LAW 1, the document/editor wall): while playing, the
+// loop advances it from the real frame delta and the store loops or auto-stops at the tail. The camera
+// lives in Zustand (ephemeral, never serialized): the render path writes the camera transform onto the
+// world container and the input controller writes user pan/zoom back into the store. Pointer events
+// route to the active tool unless Space is held, in which case the camera controller pans.
 export function ViewportPanelContent(): ReactElement {
   const hostRef = useRef<HTMLDivElement | null>(null);
 
@@ -100,23 +107,83 @@ export function ViewportPanelContent(): ReactElement {
         gizmoDirty = true;
       });
 
+      // The last successfully exported document, cached by model.revision. SkeletonView keys its prepared
+      // pose on document IDENTITY (a WeakMap), so this reference MUST stay stable while the document is
+      // unchanged: re-exporting every frame would defeat that cache and re-pay full validation per frame
+      // (TASK-1.10.5). A transiently invalid mid-gesture revision keeps the last good doc and skips, so the
+      // loop never crashes and never drops the last good scene.
+      let cachedDoc: SkeletonDocument | null = null;
+      // The render target last pushed to the view. The loop re-renders only when this changes (mode, active
+      // animation, or playhead) or the revision changed; null forces the first render after a (re)export.
+      let lastTarget: RenderTarget | null = null;
       let lastRevision = -1;
-      const tick = (): void => {
+
+      const tick = (ticker: Ticker): void => {
         const model = documentHost.current().model;
-        if (model.revision !== lastRevision) {
+
+        const revisionChanged = model.revision !== lastRevision;
+        if (revisionChanged) {
           lastRevision = model.revision;
           if (model.bones().length === 0) {
-            view.clear();
+            cachedDoc = null;
           } else {
             try {
-              view.sync(exportDocument(model));
+              cachedDoc = exportDocument(model);
             } catch {
-              // A transiently invalid in-progress document (mid-gesture) must not crash the render
-              // loop; the next valid revision re-syncs. exportDocument fails loudly elsewhere (save).
+              // A transiently invalid in-progress document (mid-gesture) must not crash the loop or drop the
+              // last good scene: keep cachedDoc and re-export on the next valid revision. exportDocument
+              // fails loudly where it matters (save).
             }
           }
           gizmoDirty = true;
         }
+
+        // Read the ephemeral transport imperatively (the ticker lives outside React, so it must not couple
+        // to a re-render). Resolve the active animation from the SAME revision the cached doc came from, so
+        // its NAME is a live key of cachedDoc.animations: a rename bumps the revision, re-exporting the doc
+        // and re-resolving the name together, and one lookup serves both the name and the duration.
+        const playback = usePlaybackStore.getState();
+        const activeAnimation =
+          playback.activeAnimation === null
+            ? null
+            : (model.getAnimation(playback.activeAnimation) ?? null);
+        const animationName = activeAnimation?.name ?? null;
+
+        // Advance the transport from the real frame delta (LAW 1: the playhead is editor state, this never
+        // touches the document or History). The store loops or auto-stops at the tail; with no active
+        // animation or a zero-length one there is no clock to advance.
+        if (playback.isPlaying && activeAnimation !== null && activeAnimation.duration > 0) {
+          playback.tick(ticker.deltaMS / 1000, activeAnimation.duration);
+        }
+
+        // Decide the frame from the POST-advance playhead, so it shows the time the transport just produced.
+        const target = resolveRenderTarget(
+          playback.mode,
+          animationName,
+          usePlaybackStore.getState().playhead,
+        );
+
+        if (cachedDoc === null) {
+          // Zero-bone (or never-exported) document: show nothing, clearing once on the transition.
+          if (revisionChanged) {
+            view.clear();
+            lastTarget = null;
+          }
+        } else if (
+          revisionChanged ||
+          lastTarget === null ||
+          !renderTargetsEqual(target, lastTarget)
+        ) {
+          if (target.kind === 'animated') {
+            view.syncAnimated(cachedDoc, target.animation, target.time);
+          } else {
+            // cachedDoc is already validated, but sync() is the setup render path; it is gated by the
+            // change detector so this re-validates only on a real change, not every frame.
+            view.sync(cachedDoc);
+          }
+          lastTarget = target;
+        }
+
         if (gizmoDirty) {
           gizmo.refresh(model);
           gizmoDirty = false;

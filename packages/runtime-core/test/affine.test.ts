@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   compose,
   composeInto,
+  decompose,
   getRotationDeg,
   getTranslation,
   identity,
@@ -84,5 +85,45 @@ describe('affine math', () => {
     composeInto(out, 0, 9, -4, 63, 1.1, 0.9, 0, 0);
 
     expectClose(Array.from(out), compose(9, -4, 63, 1.1, 0.9, 0, 0), 0);
+  });
+});
+
+describe('decompose (inverse of compose)', () => {
+  // compose(decompose(m)) must reproduce m for any non-degenerate m. These cases span rotation,
+  // non-uniform scale, shear (input via compose), translation, a reflection (negative determinant),
+  // and an over-180 rotation, which together exercise every branch of the decomposition.
+  const cases: ReadonlyArray<{ label: string; m: Mat2x3 }> = [
+    { label: 'identity', m: identity() },
+    { label: 'pure rotation', m: compose(0, 0, 37, 1, 1, 0, 0) },
+    { label: 'rotation + translation', m: compose(12, -8, 145, 1, 1, 0, 0) },
+    { label: 'non-uniform scale', m: compose(3, 4, 50, 2, 0.5, 0, 0) },
+    { label: 'shearX present', m: compose(1, 2, 20, 1.3, 0.7, 25, 0) },
+    { label: 'shearY present', m: compose(5, 5, -40, 1.1, 1.4, 0, 18) },
+    { label: 'both shears', m: compose(0, 0, 60, 0.9, 1.2, 15, -22) },
+    { label: 'over 180 rotation', m: compose(0, 0, 200, 1, 1, 0, 0) },
+    { label: 'reflection (negative det)', m: [1, 0, 0, -1, 7, -3] },
+  ];
+
+  it.each(cases)('round-trips $label through compose', ({ m }) => {
+    const t = decompose(m);
+    const rebuilt = compose(t.x, t.y, t.rotationDeg, t.scaleX, t.scaleY, t.shearXDeg, t.shearYDeg);
+    expectClose(rebuilt, m, 1e-9);
+  });
+
+  it('recovers the exact authored params when shearY is zero', () => {
+    const t = decompose(compose(11, -6, 73, 1.7, 0.4, 31, 0));
+    expect(t.x).toBeCloseTo(11, 9);
+    expect(t.y).toBeCloseTo(-6, 9);
+    expect(t.rotationDeg).toBeCloseTo(73, 9);
+    expect(t.scaleX).toBeCloseTo(1.7, 9);
+    expect(t.scaleY).toBeCloseTo(0.4, 9);
+    expect(t.shearXDeg).toBeCloseTo(31, 9);
+    expect(t.shearYDeg).toBe(0);
+  });
+
+  it('translation maps straight through', () => {
+    const t = decompose([1, 0, 0, 1, 42, -17]);
+    expect(t.x).toBe(42);
+    expect(t.y).toBe(-17);
   });
 });

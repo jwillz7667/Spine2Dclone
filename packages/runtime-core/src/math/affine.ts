@@ -95,6 +95,47 @@ export function getTranslation(m: Mat2x3): readonly [number, number] {
   return [m[4], m[5]];
 }
 
+// A bone's local transform decomposed back into the format's authored fields (degrees for rotation and
+// shear), the exact inverse of compose().
+export interface DecomposedTransform {
+  readonly x: number;
+  readonly y: number;
+  readonly rotationDeg: number;
+  readonly scaleX: number;
+  readonly scaleY: number;
+  readonly shearXDeg: number;
+  readonly shearYDeg: number;
+}
+
+// Decompose a 2x3 affine into the bone transform that compose() rebuilds EXACTLY: for any
+// non-degenerate m, compose(decompose(m)) reproduces m to f64 round-off. The TRS+shear parameterization
+// has one redundant degree of freedom (five local params, four linear matrix entries), resolved by the
+// convention shearY = 0. The X-axis column (a, b) fixes rotation (its angle) and scaleX (its length);
+// the Y-axis column's deviation from perpendicular is absorbed entirely into shearX, and scaleY is the
+// Y-axis length projected back through that shear. ReparentBone uses this to recompute a bone's local
+// transform under a new parent while holding its world transform fixed. Tooling math, not the per-frame
+// solve, so allocation here is fine. Degenerate input (zero-scale column) yields a zero scale on that
+// axis; callers (reparent under a non-singular parent) never hit that.
+export function decompose(m: Mat2x3): DecomposedTransform {
+  const [a, b, c, d, tx, ty] = m;
+  const scaleX = Math.hypot(a, b);
+  const xAxisAngle = Math.atan2(b, a); // == rotation, since shearY is fixed to 0
+  const yAxisAngle = Math.atan2(d, c); // == rotation - shearX + 90deg
+  const shearX = xAxisAngle + Math.PI / 2 - yAxisAngle;
+  // scaleY carries the sign of the determinant (a reflected matrix yields a negative scaleY), so the
+  // recompose is exact even for det < 0; scaleX stays the non-negative column length.
+  const scaleY = Math.hypot(c, d) * Math.cos(shearX);
+  return {
+    x: tx,
+    y: ty,
+    rotationDeg: xAxisAngle * RAD_TO_DEG,
+    scaleX,
+    scaleY,
+    shearXDeg: shearX * RAD_TO_DEG,
+    shearYDeg: 0,
+  };
+}
+
 // Allocation-free hot-path operations on packed Float64Array storage. Offsets address the first lane
 // of a matrix; callers pass in-bounds offsets (the buffers are sized to boneCount * MAT2X3_STRIDE),
 // so the reads are non-null by construction. These never allocate, which is what lets

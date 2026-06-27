@@ -23,4 +23,7 @@ export { SETUP_STRIDE, SLOT_COLOR_STRIDE } from './skeleton/pose';
 export { buildPose } from './skeleton/build-pose';
 export { resetToSetupPose, computeWorldTransforms } from './skeleton/world-transform';
 export { sampleSkeleton, AnimationNotFoundError } from './skeleton/sample';
-export { BEZIER_SEGMENTS } from './skeleton/curve';
+// The bezier easing sampler is the single shared function (R1.2, LAW 4): the editor curve-editor
+// preview samples through these exact functions so what the animator sees equals what sampleSkeleton
+// plays. BEZIER_SEGMENTS pins the parameterization; buildBezierTable/evalBezierY are the eval.
+export { BEZIER_SEGMENTS, buildBezierTable, evalBezierY } from './skeleton/curve';

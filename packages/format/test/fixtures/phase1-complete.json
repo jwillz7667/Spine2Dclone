@@ -1,0 +1,220 @@
+{
+  "formatVersion": "0.1.0",
+  "name": "phase1-complete",
+  "hash": "a28e525a7c95a05335836cc152671616361e6f7d599dc6f9de0a35a93a263970",
+  "bones": [
+    {
+      "name": "root",
+      "parent": null,
+      "length": 100,
+      "x": 0,
+      "y": 0,
+      "rotation": 0,
+      "scaleX": 1,
+      "scaleY": 1,
+      "shearX": 0,
+      "shearY": 0,
+      "transformMode": "normal"
+    },
+    {
+      "name": "child",
+      "parent": "root",
+      "length": 80,
+      "x": 100,
+      "y": 0,
+      "rotation": 0,
+      "scaleX": 1,
+      "scaleY": 1,
+      "shearX": 0,
+      "shearY": 0,
+      "transformMode": "normal"
+    }
+  ],
+  "slots": [
+    {
+      "name": "body",
+      "bone": "root",
+      "color": {
+        "r": 1,
+        "g": 1,
+        "b": 1,
+        "a": 1
+      },
+      "attachment": "body",
+      "blendMode": "normal"
+    }
+  ],
+  "skins": [
+    {
+      "name": "default",
+      "attachments": {
+        "body": {
+          "body": {
+            "type": "region",
+            "path": "body",
+            "x": 0,
+            "y": 0,
+            "rotation": 0,
+            "scaleX": 1,
+            "scaleY": 1,
+            "width": 64,
+            "height": 64,
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            }
+          }
+        }
+      }
+    }
+  ],
+  "animations": {
+    "idle": {
+      "duration": 1,
+      "bones": {
+        "root": {
+          "rotate": [
+            {
+              "time": 0,
+              "value": {
+                "angle": 0
+              },
+              "curve": "linear"
+            },
+            {
+              "time": 0.5,
+              "value": {
+                "angle": 12
+              },
+              "curve": {
+                "type": "bezier",
+                "cx1": 0.25,
+                "cy1": 0.1,
+                "cx2": 0.75,
+                "cy2": 0.9
+              }
+            },
+            {
+              "time": 1,
+              "value": {
+                "angle": 0
+              },
+              "curve": "linear"
+            }
+          ],
+          "translate": [
+            {
+              "time": 0,
+              "value": {
+                "x": 0,
+                "y": 0
+              },
+              "curve": "linear"
+            },
+            {
+              "time": 1,
+              "value": {
+                "x": 6,
+                "y": 0
+              },
+              "curve": "linear"
+            }
+          ]
+        },
+        "child": {
+          "scale": [
+            {
+              "time": 0,
+              "value": {
+                "x": 1,
+                "y": 1
+              },
+              "curve": "stepped"
+            },
+            {
+              "time": 1,
+              "value": {
+                "x": 1.1,
+                "y": 1.1
+              },
+              "curve": "linear"
+            }
+          ],
+          "shear": [
+            {
+              "time": 0,
+              "value": {
+                "x": 0,
+                "y": 0
+              },
+              "curve": "linear"
+            },
+            {
+              "time": 1,
+              "value": {
+                "x": 4,
+                "y": 0
+              },
+              "curve": "linear"
+            }
+          ]
+        }
+      },
+      "slots": {
+        "body": {
+          "color": [
+            {
+              "time": 0,
+              "value": {
+                "color": {
+                  "r": 1,
+                  "g": 1,
+                  "b": 1,
+                  "a": 1
+                }
+              },
+              "curve": "linear"
+            },
+            {
+              "time": 1,
+              "value": {
+                "color": {
+                  "r": 1,
+                  "g": 0.85,
+                  "b": 0.7,
+                  "a": 1
+                }
+              },
+              "curve": "linear"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "atlas": {
+    "pages": [
+      {
+        "file": "atlas.png",
+        "width": 128,
+        "height": 128,
+        "regions": [
+          {
+            "name": "body",
+            "x": 0,
+            "y": 0,
+            "w": 64,
+            "h": 64,
+            "rotated": false,
+            "offsetX": 0,
+            "offsetY": 0,
+            "originalW": 64,
+            "originalH": 64
+          }
+        ]
+      }
+    ]
+  }
+}

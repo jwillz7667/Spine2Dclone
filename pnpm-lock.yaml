@@ -105,6 +105,9 @@ importers:
       '@marionette/format':
         specifier: workspace:*
         version: link:../format
+      '@marionette/runtime-core':
+        specifier: workspace:*
+        version: link:../runtime-core
     devDependencies:
       vitest:
         specifier: ^2.1.8

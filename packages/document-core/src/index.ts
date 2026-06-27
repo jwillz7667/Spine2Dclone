@@ -23,6 +23,7 @@ export {
   DocumentInvariantError,
   HistoryReentrancyError,
   ExportValidationError,
+  ReparentCycleError,
 } from './command/errors';
 export type { DocumentError } from './command/errors';
 
@@ -40,8 +41,10 @@ export {
   RotateBoneCommand,
   ScaleBoneCommand,
   SetBoneLengthCommand,
+  SetBoneTransformModeCommand,
   NormalizeBoneRotationCommand,
   RenameBoneCommand,
+  ReparentBoneCommand,
   DeleteBoneCommand,
   wrapDegrees,
   commandRegistry,

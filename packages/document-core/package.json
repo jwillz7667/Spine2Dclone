@@ -15,7 +15,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@marionette/format": "workspace:*"
+    "@marionette/format": "workspace:*",
+    "@marionette/runtime-core": "workspace:*"
   },
   "devDependencies": {
     "vitest": "^2.1.8"

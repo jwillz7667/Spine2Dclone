@@ -35,8 +35,11 @@ Honoring LAW 5 (build in order, do not scaffold everything at once):
   (WP-F.6), no migration framework (WP-F.8). Per the format contract (section 13), these
   are scheduled in the Phase 0 to Phase 1 transition, before the first `formatVersion`
   bump. Phase 0 ships the format-contract subset listed in WP-0.3.
-- Only four packages exist after Phase 0: `packages/format`, `packages/runtime-core`,
-  `packages/runtime-web`, and `apps/editor`.
+- Only the sanctioned packages exist after Phase 0: `packages/format`, `packages/runtime-core`,
+  `packages/runtime-web`, and `apps/editor`, plus `packages/document-core` and
+  `packages/mcp-server` per ADR-0001 (the renderer-agnostic command/history spine and the headless
+  MCP control surface, so a user and an AI drive the same commands). The forbidden-package CI guard
+  (`tools/check-packages.mjs`, section 7) enforces exactly this set; nothing else may appear.
 
 ## 3. Cross-cutting documents (referenced, not duplicated)
 
@@ -71,7 +74,7 @@ one, the cited contract governs and wins over any summary in this file.
 | LAW 2 round-trip test is automated | WP-0.7 | A command file that exports a `Command` without a registered `CommandSpec` and a passing round-trip test fails the build (cross-cutting WP-V.6, WP-V.10; command-history Section 10.2 discovery guard). |
 | LAW 3 format is the contract | WP-0.3, WP-0.8 | `validateDocument` returns a collect-all `ValidationReport` of `code`-keyed `FormatError`s on import; `CURRENT_FORMAT_VERSION` plus the `SUPPORTED_FORMAT_MAJOR` major gate; `HASH_MISMATCH` verification; malformed-fails-loudly tests. Format semver gate is cross-cutting WP-V.12. |
 | LAW 4 Spine legal boundary | WP-0.3, WP-0.4 | First-principles types and solve; no vendored Spine source; our own format string. Review checklist item. |
-| LAW 5 build in order | WP-0.1 | Only the four Phase-0 packages exist; the Phase-0 forbidden-package CI guard (section 7) fails if any package outside the allowed set appears. |
+| LAW 5 build in order | WP-0.1 | Only the sanctioned Phase-0 packages exist (format, runtime-core, runtime-web, apps/editor, plus document-core and mcp-server per ADR-0001); the Phase-0 forbidden-package CI guard (section 7) fails if any package outside the allowed set appears. |
 | INV runtime-core no PixiJS | WP-0.1, WP-0.4 | `no-restricted-imports` on `pixi.js` / `@pixi/*` inside `runtime-core` plus the CI grep guard (cross-cutting WP-V.10). |
 | INV runtime-core imports format types only, `import type` only | WP-0.1, WP-0.4 | `runtime-core` imports `@marionette/format/types` with `import type` exclusively; lint bans the value barrel `@marionette/format` and any deep path from `runtime-core` (format WP-F.9, cross-cutting WP-V.10). `verbatimModuleSyntax` makes a non-type import of a type a compile error. |
 | INV per-frame solve order | WP-0.4 | World pass is a single forward iteration relying on the validated parent-precedes-child ordering; affine layout and local compose order follow the canonical solve spec (cross-cutting appendix A.3). |
@@ -1179,8 +1182,10 @@ conformance-and-ci.md and wired up by WP-0.1):
       and the golden-fixture drift check (WP-0.4), the minimal-fixture validation test (WP-0.3),
       the format-projection round-trip test (WP-0.8), and the window-security plus CSP
       regression tests (WP-0.2).
-- [ ] `pnpm -w build` produces `dist/` for all four packages and the editor bundle.
-- [ ] The Phase-0 forbidden-package guard confirms only the four Phase-0 packages exist (LAW 5).
+- [ ] `pnpm -w build` produces `dist/` for all sanctioned packages and the editor bundle.
+- [ ] The Phase-0 forbidden-package guard confirms only the sanctioned Phase-0 packages exist
+      (format, runtime-core, runtime-web, apps/editor, plus document-core and mcp-server per
+      ADR-0001) (LAW 5).
 - [ ] The em-dash grep guard finds none in `docs/`, comments, or UI copy (backs the cross-cutting
       em-dash lint, WP-V.9 / WP-V.10).
 - [ ] The format semver gate (cross-cutting WP-V.12) is wired and green on a no-op PR.

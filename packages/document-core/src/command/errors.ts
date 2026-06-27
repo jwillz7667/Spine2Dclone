@@ -50,9 +50,26 @@ export class ExportValidationError extends Error {
   }
 }
 
+// An author-time reparent that would create a cycle (a bone reparented under itself or one of its
+// descendants). It is a command-level guard surfaced to the UI, NOT a FormatErrorCode: the command
+// throws this BEFORE any mutation, so no document change and no history entry result. The import-time
+// equivalent for a hand-edited document is the format validator's BONE_ORDER_VIOLATION /
+// BONE_PARENT_MISSING (a cycle cannot be topologically ordered).
+export class ReparentCycleError extends Error {
+  override readonly name = 'ReparentCycleError';
+  readonly code = 'REPARENT_CYCLE' as const;
+  constructor(
+    readonly boneId: string,
+    readonly newParentId: string,
+  ) {
+    super(`reparenting bone "${boneId}" under "${newParentId}" would create a cycle`);
+  }
+}
+
 export type DocumentError =
   | CommandTargetMissingError
   | CommandNotAppliedError
   | DocumentInvariantError
   | HistoryReentrancyError
-  | ExportValidationError;
+  | ExportValidationError
+  | ReparentCycleError;

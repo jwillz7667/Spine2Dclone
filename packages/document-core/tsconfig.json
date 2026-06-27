@@ -5,10 +5,11 @@
     "outDir": "dist",
     "composite": true,
     // Renderer-agnostic command/history spine: no DOM, no PixiJS, no React, no Node. It imports only
-    // @marionette/format, so it runs identically in the editor renderer, the Electron main process
-    // (for the headless MCP server), and plain Vitest. tsBuildInfo in dist (see format/tsconfig).
+    // @marionette/format and @marionette/runtime-core (the affine math for transform commands such as
+    // ReparentBone), so it runs identically in the editor renderer, the Electron main process (for the
+    // headless MCP server), and plain Vitest. tsBuildInfo in dist (see format/tsconfig).
     "tsBuildInfoFile": "./dist/tsconfig.tsbuildinfo"
   },
   "include": ["src/**/*.ts"],
-  "references": [{ "path": "../format" }]
+  "references": [{ "path": "../format" }, { "path": "../runtime-core" }]
 }

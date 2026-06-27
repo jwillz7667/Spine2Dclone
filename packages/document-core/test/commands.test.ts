@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { compose, identity, multiply, type Mat2x3 } from '@marionette/runtime-core';
+import type { Bone, SkeletonDocument } from '@marionette/format/types';
 import {
   CommandTargetMissingError,
   CompositeCommand,
@@ -6,12 +8,16 @@ import {
   DeleteBoneCommand,
   MoveBoneCommand,
   NormalizeBoneRotationCommand,
+  ReparentBoneCommand,
+  ReparentCycleError,
   RotateBoneCommand,
+  SetBoneTransformModeCommand,
   loadDocument,
   wrapDegrees,
   type BoneId,
   type Command,
   type CommandContext,
+  type Document,
 } from '../src';
 import { makeTestEnv, seeds } from './seeds';
 
@@ -152,5 +158,135 @@ describe('Phase 0 command behaviors', () => {
 
     doc.history.undo();
     expect(doc.model.snapshot()).toEqual(before); // exact restore, order included
+  });
+});
+
+// WP-1.1: ReparentBone (world-stable + cycle-safe) and SetBoneTransformMode. The round-trip harness
+// already covers do/undo/redo on the 'rig' seed; these target the behaviors a trivial seed cannot show:
+// world preservation under a TRANSFORMED parent (the R1.3 risk) and cycle rejection without mutation.
+function mkBone(name: string, parent: string | null, overrides: Partial<Bone> = {}): Bone {
+  return {
+    name,
+    parent,
+    length: 100,
+    x: 0,
+    y: 0,
+    rotation: 0,
+    scaleX: 1,
+    scaleY: 1,
+    shearX: 0,
+    shearY: 0,
+    transformMode: 'normal',
+    ...overrides,
+  };
+}
+
+// A root with a non-identity transform, then a two-link chain, so reparenting tip skips a transformed
+// link and must recompute a non-trivial local to hold the world fixed.
+function chainDoc(): SkeletonDocument {
+  return {
+    formatVersion: '0.1.0',
+    name: 'chain',
+    hash: '',
+    bones: [
+      mkBone('root', null, { x: 10, y: 20, rotation: 30, scaleX: 1.25, scaleY: 0.8 }),
+      mkBone('mid', 'root', { x: 50, y: 5, rotation: 15 }),
+      mkBone('tip', 'mid', { x: 40, y: 0, rotation: 10, scaleX: 1.1, scaleY: 1.3 }),
+    ],
+    slots: [],
+    skins: [{ name: 'default', attachments: {} }],
+    animations: {},
+    atlas: { pages: [] },
+  };
+}
+
+// The world matrix of a named bone, computed by walking its parent chain (the same math the command
+// uses), so the test is an independent check of world preservation.
+function worldOf(doc: Document, name: string): Mat2x3 {
+  const chain: Bone[] = [];
+  let cursor = doc.model.findBoneByName(name);
+  while (cursor) {
+    chain.push(cursor);
+    cursor = cursor.parent === null ? undefined : doc.model.getBone(cursor.parent);
+  }
+  let world = identity();
+  for (let i = chain.length - 1; i >= 0; i -= 1) {
+    const b = chain[i]!;
+    world = multiply(world, compose(b.x, b.y, b.rotation, b.scaleX, b.scaleY, b.shearX, b.shearY));
+  }
+  return world;
+}
+
+describe('WP-1.1 ReparentBone and SetBoneTransformMode', () => {
+  it('holds the world transform fixed when reparenting under a transformed grandparent', () => {
+    const { env } = makeTestEnv();
+    const doc = loadDocument(chainDoc(), env);
+    const tipId = doc.model.findBoneByName('tip')!.id;
+    const rootId = doc.model.findBoneByName('root')!.id;
+
+    const worldBefore = worldOf(doc, 'tip');
+    doc.history.execute(new ReparentBoneCommand(tipId, rootId));
+
+    expect(doc.model.getBone(tipId)!.parent).toBe(rootId);
+    const worldAfter = worldOf(doc, 'tip');
+    // decompose is the exact inverse of compose, so the world is preserved to f64 round-off, far
+    // tighter than the A.5 basis (1e-6) and translation (1e-4) tolerances the milestone requires.
+    for (let i = 0; i < 6; i += 1) {
+      expect(Math.abs(worldAfter[i]! - worldBefore[i]!)).toBeLessThan(1e-9);
+    }
+  });
+
+  it('keeps boneOrder parent-before-child and round-trips on undo', () => {
+    const { env } = makeTestEnv();
+    const doc = loadDocument(chainDoc(), env);
+    const before = doc.model.snapshot();
+    const tipId = doc.model.findBoneByName('tip')!.id;
+    const rootId = doc.model.findBoneByName('root')!.id;
+
+    doc.history.execute(new ReparentBoneCommand(tipId, rootId));
+    // tip now sits directly under root; the order still lists each parent before its children.
+    const order = doc.model.bones().map((b) => b.id);
+    const indexOf = (id: BoneId): number => order.indexOf(id);
+    expect(indexOf(rootId)).toBeLessThan(indexOf(tipId));
+
+    doc.history.undo();
+    expect(doc.model.snapshot()).toEqual(before);
+  });
+
+  it('rejects a cycle (reparent under a descendant) with no mutation and no history entry', () => {
+    const { env } = makeTestEnv();
+    const doc = loadDocument(chainDoc(), env);
+    const before = doc.model.snapshot();
+    const rootId = doc.model.findBoneByName('root')!.id;
+    const tipId = doc.model.findBoneByName('tip')!.id;
+
+    // root under tip would create a cycle (tip is root's descendant).
+    expect(() => doc.history.execute(new ReparentBoneCommand(rootId, tipId))).toThrow(
+      ReparentCycleError,
+    );
+    expect(doc.model.snapshot()).toEqual(before); // no partial mutation
+    expect(doc.history.canUndo).toBe(false); // no empty history entry
+  });
+
+  it('rejects reparenting a bone under itself', () => {
+    const { env } = makeTestEnv();
+    const doc = loadDocument(chainDoc(), env);
+    const midId = doc.model.findBoneByName('mid')!.id;
+    expect(() => doc.history.execute(new ReparentBoneCommand(midId, midId))).toThrow(
+      ReparentCycleError,
+    );
+  });
+
+  it('SetBoneTransformMode changes only the mode and round-trips', () => {
+    const { env } = makeTestEnv();
+    const doc = loadDocument(seeds.minimal, env);
+    const id = doc.model.bones()[0]!.id;
+    const before = doc.model.snapshot();
+
+    doc.history.execute(new SetBoneTransformModeCommand(id, 'noScale'));
+    expect(doc.model.getBone(id)!.transformMode).toBe('noScale');
+
+    doc.history.undo();
+    expect(doc.model.snapshot()).toEqual(before);
   });
 });

@@ -12,6 +12,11 @@ export {
   wrapDegrees,
 } from './normalize-bone-rotation.command';
 export { RenameBoneCommand, renameBoneSpec } from './rename-bone.command';
+export {
+  SetBoneTransformModeCommand,
+  setBoneTransformModeSpec,
+} from './set-bone-transform-mode.command';
+export { ReparentBoneCommand, reparentBoneSpec } from './reparent-bone.command';
 export { DeleteBoneCommand, deleteBoneSpec } from './delete-bone.command';
 export { commandRegistry } from './registry';
 export type { CommandSpec, CommandFixture } from './spec';

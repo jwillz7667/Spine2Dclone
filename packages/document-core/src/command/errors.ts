@@ -66,10 +66,48 @@ export class ReparentCycleError extends Error {
   }
 }
 
+// An author-time SetAnimationDuration that would shrink an animation below its last keyframe time. A
+// command-level guard surfaced to the UI, thrown BEFORE any mutation, so no document change and no
+// history entry result. The import-time equivalent for a hand-edited document is the format validator's
+// ANIM_DURATION (the duration must be >= the maximum keyframe time).
+export class AnimationDurationError extends Error {
+  override readonly name = 'AnimationDurationError';
+  readonly code = 'ANIMATION_DURATION' as const;
+  constructor(
+    readonly animationId: string,
+    readonly requestedDuration: number,
+    readonly lastKeyframeTime: number,
+  ) {
+    super(
+      `cannot set animation "${animationId}" duration to ${requestedDuration}; ` +
+        `it is below the last keyframe time ${lastKeyframeTime}`,
+    );
+  }
+}
+
+// An author-time MoveKeyframe that would land a keyframe on a time another keyframe already occupies on
+// the same channel. A command-level guard thrown BEFORE any mutation (channel times stay strictly
+// ascending), so no document change and no history entry result. The UI/auto-key prevents collisions;
+// this is the fail-loud backstop.
+export class KeyframeCollisionError extends Error {
+  override readonly name = 'KeyframeCollisionError';
+  readonly code = 'KEYFRAME_COLLISION' as const;
+  constructor(
+    readonly keyframeId: string,
+    readonly time: number,
+  ) {
+    super(
+      `cannot move keyframe "${keyframeId}" to time ${time}; another keyframe already occupies it`,
+    );
+  }
+}
+
 export type DocumentError =
   | CommandTargetMissingError
   | CommandNotAppliedError
   | DocumentInvariantError
   | HistoryReentrancyError
   | ExportValidationError
-  | ReparentCycleError;
+  | ReparentCycleError
+  | AnimationDurationError
+  | KeyframeCollisionError;

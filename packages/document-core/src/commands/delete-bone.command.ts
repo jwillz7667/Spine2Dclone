@@ -1,7 +1,13 @@
 import type { Command, CommandContext, HistoryPhase, SelectionHint } from '../command/command';
 import { CommandNotAppliedError, CommandTargetMissingError } from '../command/errors';
 import type { AttachmentEntity, BoneEntity, SlotEntity } from '../model/doc-state';
-import type { BoneId } from '../model/ids';
+import type { BoneId, SlotId } from '../model/ids';
+import {
+  collectRemovedTracks,
+  pruneRemovedTracks,
+  restoreRemovedTracks,
+  type RemovedTracks,
+} from './track-cascade';
 import type { CommandSpec } from './spec';
 
 interface RemovedBone {
@@ -25,24 +31,25 @@ function collectSubtree(ordered: readonly BoneEntity[], target: BoneId): Set<Bon
   return subtree;
 }
 
-// Delete a bone and its descendant BONES, cascading the slots riding any deleted bone and those slots'
-// attachments (command-history catalog DeleteBone, decision D8: cascade, not reparent-to-grandparent;
-// TASK-1.1.2). A SINGLE command with a SET memento (the removed bones with their boneOrder indices,
-// plus the removed slots with their slotOrder indices and attachments), NOT a CompositeCommand, so the
-// whole cascade is ONE undo step. The slot timelines targeting deleted bones/slots cascade later once
-// WP-1.5 lands. Never coalesces. selectionHint selects the parent (or clears) on execute/redo and
-// reselects the restored bone on undo.
+// Delete a bone and its descendant BONES, cascading the slots riding any deleted bone, those slots'
+// attachments, and every animation track targeting a deleted bone or cascaded slot (command-history
+// catalog DeleteBone, decision D8: cascade, not reparent-to-grandparent; TASK-1.1.2, TASK-1.5.7). A
+// SINGLE command with a SET memento (the removed bones with their boneOrder indices, the removed slots
+// with their slotOrder indices and attachments, and the removed animation tracks), NOT a
+// CompositeCommand, so the whole cascade is ONE undo step. Never coalesces. selectionHint selects the
+// parent (or clears) on execute/redo and reselects the restored bone on undo.
 export class DeleteBoneCommand implements Command {
   readonly kind = 'bone.delete';
   readonly label = 'Delete Bone';
   private removedBones: readonly RemovedBone[] | undefined;
   private removedSlots: readonly RemovedSlot[] | undefined;
+  private removedTracks: RemovedTracks | undefined;
   private parentId: BoneId | null = null;
 
   constructor(private readonly target: BoneId) {}
 
   do(ctx: CommandContext): void {
-    if (!this.removedBones || !this.removedSlots) {
+    if (!this.removedBones || !this.removedSlots || !this.removedTracks) {
       const ordered = ctx.mutate.bones(); // in boneOrder
       const targetBone = ordered.find((bone) => bone.id === this.target);
       if (!targetBone) throw new CommandTargetMissingError(this.kind, this.target);
@@ -55,16 +62,22 @@ export class DeleteBoneCommand implements Command {
       // Slots riding any deleted bone cascade with it, capturing their draw-order index and attachments
       // (in slotOrder order, so re-inserting ascending reconstructs the exact prior draw order).
       const removedSlots: RemovedSlot[] = [];
+      const removedSlotIds = new Set<SlotId>();
       ctx.mutate.slots().forEach((slot, index) => {
         if (subtree.has(slot.bone)) {
           removedSlots.push({ slot, index, attachments: ctx.mutate.attachments(slot.id) });
+          removedSlotIds.add(slot.id);
         }
       });
+      // Animation tracks targeting any deleted bone or cascaded slot prune with them (TASK-1.5.7), so the
+      // model never holds a track for a bone/slot that no longer exists.
+      this.removedTracks = collectRemovedTracks(ctx.mutate, subtree, removedSlotIds);
       this.removedBones = removedBones;
       this.removedSlots = removedSlots;
     }
-    // Remove slots (and their attachments) first, then bones children-first (reverse capture order) so
-    // each removal is independent of the others.
+    // Prune animation tracks, then remove slots (and their attachments), then bones children-first
+    // (reverse capture order) so each removal is independent of the others.
+    pruneRemovedTracks(ctx.mutate, this.removedTracks);
     for (const item of this.removedSlots) {
       for (const att of item.attachments) ctx.mutate.removeAttachment(item.slot.id, att.name);
       ctx.mutate.removeSlot(item.slot.id);
@@ -76,14 +89,18 @@ export class DeleteBoneCommand implements Command {
   }
 
   undo(ctx: CommandContext): void {
-    if (!this.removedBones || !this.removedSlots) throw new CommandNotAppliedError(this.kind);
-    // Re-insert bones in original boneOrder order (parents before children) at original indices, then
-    // restore the slots and their attachments at their original draw-order indices.
+    if (!this.removedBones || !this.removedSlots || !this.removedTracks) {
+      throw new CommandNotAppliedError(this.kind);
+    }
+    // Re-insert bones in original boneOrder order (parents before children) at original indices, restore
+    // the slots and their attachments at their original draw-order indices, then restore the animation
+    // tracks (the bones/slots they target are live again).
     for (const item of this.removedBones) ctx.mutate.insertBone(item.entity, item.index);
     for (const item of this.removedSlots) {
       ctx.mutate.insertSlot(item.slot, item.index);
       for (const att of item.attachments) ctx.mutate.addAttachment(item.slot.id, att);
     }
+    restoreRemovedTracks(ctx.mutate, this.removedTracks);
   }
 
   selectionHint(phase: HistoryPhase): SelectionHint {

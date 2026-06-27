@@ -1,16 +1,25 @@
 import type {
+  AnimationEntity,
   AttachmentEntity,
+  AttachmentFrameEntity,
+  BoneChannel,
   BoneEntity,
+  BoneTimelineSet,
   DocState,
+  KeyframeEntity,
   PreservedContent,
   RegionAttachmentEntity,
   SlotEntity,
+  SlotTimelineSet,
 } from './doc-state';
-import type { BoneId, IdFactory, SlotId } from './ids';
+import { isBoneTimelineSetEmpty, isSlotTimelineSetEmpty } from './doc-state';
+import type { AnimationId, BoneId, IdFactory, SlotId } from './ids';
 import {
+  animationToSnapshot,
   attachmentToSnapshot,
   boneToSnapshot,
   slotToSnapshot,
+  type AnimationSnapshot,
   type AttachmentSnapshot,
   type DocSnapshot,
   type DocumentReadModel,
@@ -98,6 +107,106 @@ function cloneAttachments(
   return out;
 }
 
+// Internal mutable bone timeline set: same channels as BoneTimelineSet but with writable arrays so the
+// mutator can replace a channel wholesale. Keyframe OBJECTS are immutable (replaced, never patched), so
+// the arrays carry shared frozen refs safely.
+interface MutableBoneTimelineSet {
+  rotate: KeyframeEntity[];
+  translate: KeyframeEntity[];
+  scale: KeyframeEntity[];
+  shear: KeyframeEntity[];
+}
+
+interface MutableSlotTimelineSet {
+  color: KeyframeEntity[];
+  attachment: AttachmentFrameEntity[];
+}
+
+// Internal mutable animation: timelines keyed by branded id, with writable maps/arrays for batch mode.
+interface MutableAnimation {
+  id: AnimationId;
+  name: string;
+  duration: number;
+  bones: Map<BoneId, MutableBoneTimelineSet>;
+  slots: Map<SlotId, MutableSlotTimelineSet>;
+}
+
+function toMutableBoneSet(set: BoneTimelineSet): MutableBoneTimelineSet {
+  return {
+    rotate: set.rotate.slice(),
+    translate: set.translate.slice(),
+    scale: set.scale.slice(),
+    shear: set.shear.slice(),
+  };
+}
+
+function toMutableSlotSet(set: SlotTimelineSet): MutableSlotTimelineSet {
+  return { color: set.color.slice(), attachment: set.attachment.slice() };
+}
+
+function toMutableAnimation(animation: AnimationEntity): MutableAnimation {
+  const bones = new Map<BoneId, MutableBoneTimelineSet>();
+  for (const [id, set] of animation.bones) bones.set(id, toMutableBoneSet(set));
+  const slots = new Map<SlotId, MutableSlotTimelineSet>();
+  for (const [id, set] of animation.slots) slots.set(id, toMutableSlotSet(set));
+  return { id: animation.id, name: animation.name, duration: animation.duration, bones, slots };
+}
+
+// Clone a mutable animation (deep enough that an in-place edit to the clone never touches the original):
+// fresh maps and fresh channel arrays. Keyframe objects are shared by reference (immutable).
+function cloneMutableAnimation(a: MutableAnimation): MutableAnimation {
+  const bones = new Map<BoneId, MutableBoneTimelineSet>();
+  for (const [id, set] of a.bones) {
+    bones.set(id, {
+      rotate: set.rotate.slice(),
+      translate: set.translate.slice(),
+      scale: set.scale.slice(),
+      shear: set.shear.slice(),
+    });
+  }
+  const slots = new Map<SlotId, MutableSlotTimelineSet>();
+  for (const [id, set] of a.slots) {
+    slots.set(id, { color: set.color.slice(), attachment: set.attachment.slice() });
+  }
+  return { id: a.id, name: a.name, duration: a.duration, bones, slots };
+}
+
+// Freeze a mutable animation for hand-out: a fresh readonly entity with fresh maps and frozen channel
+// arrays (keyframe objects are already deep-frozen at construction).
+function freezeAnimation(a: MutableAnimation): AnimationEntity {
+  const bones = new Map<BoneId, BoneTimelineSet>();
+  for (const [id, set] of a.bones) {
+    bones.set(
+      id,
+      Object.freeze({
+        rotate: Object.freeze(set.rotate.slice()),
+        translate: Object.freeze(set.translate.slice()),
+        scale: Object.freeze(set.scale.slice()),
+        shear: Object.freeze(set.shear.slice()),
+      }),
+    );
+  }
+  const slots = new Map<SlotId, SlotTimelineSet>();
+  for (const [id, set] of a.slots) {
+    slots.set(
+      id,
+      Object.freeze({
+        color: Object.freeze(set.color.slice()),
+        attachment: Object.freeze(set.attachment.slice()),
+      }),
+    );
+  }
+  return Object.freeze({ id: a.id, name: a.name, duration: a.duration, bones, slots });
+}
+
+function cloneAnimations(
+  source: ReadonlyMap<AnimationId, MutableAnimation>,
+): Map<AnimationId, MutableAnimation> {
+  const out = new Map<AnimationId, MutableAnimation>();
+  for (const [id, animation] of source) out.set(id, cloneMutableAnimation(animation));
+  return out;
+}
+
 // The write-capable model (command-history Section 3.1). NEVER exported through the package barrel:
 // only createMutator (history-internal) and History reach it, which is the structural half of LAW 2.
 // Change detection is revision-based. Two mutation modes share observable results and differ only in
@@ -113,6 +222,7 @@ export class DocumentModelInternal implements DocumentReadModel {
   private slotsMap: Map<SlotId, MutableSlot>;
   private slotOrderArr: SlotId[];
   private attachmentsMap: Map<SlotId, Map<string, AttachmentEntity>>;
+  private animationsMap: Map<AnimationId, MutableAnimation>;
   private preservedContent: PreservedContent;
   private batching = false;
   private revisionValue = 0;
@@ -128,8 +238,11 @@ export class DocumentModelInternal implements DocumentReadModel {
     for (const [id, slot] of state.slots) this.slotsMap.set(id, toMutableSlot(slot));
     this.slotOrderArr = state.slotOrder.slice();
     this.attachmentsMap = cloneAttachments(state.attachments);
+    this.animationsMap = new Map();
+    for (const [id, animation] of state.animations) {
+      this.animationsMap.set(id, toMutableAnimation(animation));
+    }
     this.preservedContent = deepFreeze({
-      animations: state.preserved.animations,
       atlas: state.preserved.atlas,
       extraSkins: state.preserved.extraSkins,
     });
@@ -196,6 +309,17 @@ export class DocumentModelInternal implements DocumentReadModel {
     return att ? freezeAttachment(att) : undefined;
   }
 
+  getAnimation(id: AnimationId): AnimationEntity | undefined {
+    const animation = this.animationsMap.get(id);
+    return animation ? freezeAnimation(animation) : undefined;
+  }
+
+  animations(): readonly AnimationEntity[] {
+    return [...this.animationsMap.values()]
+      .map(freezeAnimation)
+      .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  }
+
   preserved(): PreservedContent {
     return this.preservedContent;
   }
@@ -222,6 +346,9 @@ export class DocumentModelInternal implements DocumentReadModel {
               ? 1
               : 0,
     );
+    const animations: AnimationSnapshot[] = [...this.animationsMap.values()]
+      .map((animation) => animationToSnapshot(freezeAnimation(animation)))
+      .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
     return {
       formatVersion: this.formatVersionValue,
       name: this.nameValue,
@@ -230,6 +357,7 @@ export class DocumentModelInternal implements DocumentReadModel {
       slots,
       slotOrder: this.slotOrderArr.slice(),
       attachments,
+      animations,
       preserved: this.preservedContent,
     };
   }
@@ -419,6 +547,138 @@ export class DocumentModelInternal implements DocumentReadModel {
     this.revisionValue += 1;
   }
 
+  // ----- animation + keyframe write surface (reached only through the Mutator) -----
+
+  insertAnimation(entity: AnimationEntity): void {
+    const animation = toMutableAnimation(entity);
+    if (this.batching) {
+      this.animationsMap.set(animation.id, animation);
+    } else {
+      const next = new Map(this.animationsMap);
+      next.set(animation.id, animation);
+      this.animationsMap = next;
+    }
+    this.revisionValue += 1;
+  }
+
+  removeAnimation(id: AnimationId): void {
+    if (this.batching) {
+      this.animationsMap.delete(id);
+    } else {
+      const next = new Map(this.animationsMap);
+      next.delete(id);
+      this.animationsMap = next;
+    }
+    this.revisionValue += 1;
+  }
+
+  patchAnimation(
+    id: AnimationId,
+    patch: { readonly name?: string; readonly duration?: number },
+  ): void {
+    this.writeAnimation(id, (animation) => {
+      if (patch.name !== undefined) animation.name = patch.name;
+      if (patch.duration !== undefined) animation.duration = patch.duration;
+    });
+  }
+
+  // Replace one bone channel's keyframes. Creates the bone's timeline set on first write and prunes the
+  // whole entry when the set returns to all-empty, so a channel set back to [] exactly reverses a prior
+  // insert (the symmetry the do/undo round-trip relies on). The caller passes an already-sorted array.
+  setBoneChannel(
+    animId: AnimationId,
+    boneId: BoneId,
+    channel: BoneChannel,
+    keyframes: readonly KeyframeEntity[],
+  ): void {
+    this.writeAnimation(animId, (animation) => {
+      let set = animation.bones.get(boneId);
+      if (keyframes.length === 0) {
+        if (!set) return;
+        set[channel] = [];
+        if (
+          set.rotate.length === 0 &&
+          set.translate.length === 0 &&
+          set.scale.length === 0 &&
+          set.shear.length === 0
+        ) {
+          animation.bones.delete(boneId);
+        }
+        return;
+      }
+      if (!set) {
+        set = { rotate: [], translate: [], scale: [], shear: [] };
+        animation.bones.set(boneId, set);
+      }
+      set[channel] = keyframes.slice();
+    });
+  }
+
+  // Replace a slot's color-timeline keyframes (the only authored slot value channel in Phase 1). Same
+  // create-on-write / prune-on-empty contract as setBoneChannel; an existing attachment timeline on the
+  // slot keeps the entry alive even when color goes empty.
+  setSlotColorChannel(
+    animId: AnimationId,
+    slotId: SlotId,
+    keyframes: readonly KeyframeEntity[],
+  ): void {
+    this.writeAnimation(animId, (animation) => {
+      let set = animation.slots.get(slotId);
+      if (keyframes.length === 0) {
+        if (!set) return;
+        set.color = [];
+        if (set.attachment.length === 0) animation.slots.delete(slotId);
+        return;
+      }
+      if (!set) {
+        set = { color: [], attachment: [] };
+        animation.slots.set(slotId, set);
+      }
+      set.color = keyframes.slice();
+    });
+  }
+
+  // Replace (or remove) a bone's WHOLE timeline set in one step. Used by the delete-bone/slot cascade to
+  // prune all of a bone's tracks atomically and to restore them on undo. A null or all-empty set removes
+  // the entry.
+  setBoneTimelines(animId: AnimationId, boneId: BoneId, set: BoneTimelineSet | null): void {
+    this.writeAnimation(animId, (animation) => {
+      if (set === null || isBoneTimelineSetEmpty(set)) {
+        animation.bones.delete(boneId);
+        return;
+      }
+      animation.bones.set(boneId, toMutableBoneSet(set));
+    });
+  }
+
+  setSlotTimelines(animId: AnimationId, slotId: SlotId, set: SlotTimelineSet | null): void {
+    this.writeAnimation(animId, (animation) => {
+      if (set === null || isSlotTimelineSetEmpty(set)) {
+        animation.slots.delete(slotId);
+        return;
+      }
+      animation.slots.set(slotId, toMutableSlotSet(set));
+    });
+  }
+
+  // The single copy-on-write boundary for an animation edit: DISCRETE clones the target animation (so a
+  // reference-equality selector sees exactly one change and siblings stay shared), BATCH mutates it in
+  // place. A missing id is a no-op (commands assert existence before writing).
+  private writeAnimation(id: AnimationId, mutate: (animation: MutableAnimation) => void): void {
+    const current = this.animationsMap.get(id);
+    if (!current) return;
+    if (this.batching) {
+      mutate(current);
+    } else {
+      const clone = cloneMutableAnimation(current);
+      mutate(clone);
+      const next = new Map(this.animationsMap);
+      next.set(id, clone);
+      this.animationsMap = next;
+    }
+    this.revisionValue += 1;
+  }
+
   beginBatch(): void {
     this.batching = true;
   }
@@ -431,6 +691,7 @@ export class DocumentModelInternal implements DocumentReadModel {
     this.slotsMap = new Map(this.slotsMap);
     this.slotOrderArr = this.slotOrderArr.slice();
     this.attachmentsMap = cloneAttachments(this.attachmentsMap);
+    this.animationsMap = cloneAnimations(this.animationsMap);
     this.batching = false;
   }
 }
@@ -455,6 +716,8 @@ export function createReadModel(model: DocumentModelInternal): DocumentReadModel
     slots: () => model.slots(),
     attachments: (slotId) => model.attachments(slotId),
     getAttachment: (slotId, name) => model.getAttachment(slotId, name),
+    getAnimation: (id) => model.getAnimation(id),
+    animations: () => model.animations(),
     preserved: () => model.preserved(),
     snapshot: () => model.snapshot(),
   };

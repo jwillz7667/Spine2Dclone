@@ -1,13 +1,22 @@
 import {
   AddRegionAttachmentCommand,
+  AnimationDurationError,
+  CreateAnimationCommand,
   CreateBoneCommand,
   CreateSlotCommand,
+  DeleteAnimationCommand,
   DeleteBoneCommand,
+  DeleteKeyframeCommand,
   DeleteSlotCommand,
   DocumentInvariantError,
+  DuplicateAnimationCommand,
   ExportValidationError,
+  KeyframeCollisionError,
   MoveBoneCommand,
+  MoveKeyframeCommand,
+  PasteKeyframesCommand,
   RemoveAttachmentCommand,
+  RenameAnimationCommand,
   RenameBoneCommand,
   RenameSlotCommand,
   ReorderSlotCommand,
@@ -16,15 +25,26 @@ import {
   RotateBoneCommand,
   ScaleBoneCommand,
   SetActiveAttachmentCommand,
+  SetAnimationDurationCommand,
   SetBoneLengthCommand,
   SetBoneTransformModeCommand,
+  SetCurveCommand,
+  SetKeyframeCommand,
   SetRegionAttachmentTransformCommand,
   SetSlotBlendModeCommand,
   SetSlotColorCommand,
   exportDocument,
+  type AnimationEntity,
+  type AnimationId,
+  type BoneChannel,
   type BoneEntity,
   type BoneId,
   type DocumentReadModel,
+  type KeyframeEntity,
+  type KeyframeId,
+  type KeyframeTarget,
+  type KeyframeValue,
+  type PastedKeyframe,
   type SlotEntity,
   type SlotId,
 } from '@marionette/document-core';
@@ -106,6 +126,83 @@ function requireSlot(session: Session, slotId: string): SlotEntity {
   return slot;
 }
 
+function asAnimationId(id: string): AnimationId {
+  return id as AnimationId;
+}
+
+function asKeyframeId(id: string): KeyframeId {
+  return id as KeyframeId;
+}
+
+function requireAnimation(session: Session, animationId: string): AnimationEntity {
+  const animation = session.document.model.getAnimation(asAnimationId(animationId));
+  if (animation === undefined) {
+    throw new McpToolError('ANIMATION_NOT_FOUND', `no animation with id "${animationId}"`);
+  }
+  return animation;
+}
+
+// Read the keyframes currently on a target channel (or [] when the bone/slot has no timeline set).
+function channelKeyframes(
+  animation: AnimationEntity,
+  target: KeyframeTarget,
+): readonly KeyframeEntity[] {
+  if (target.kind === 'bone') {
+    return animation.bones.get(target.boneId)?.[target.channel] ?? [];
+  }
+  return animation.slots.get(target.slotId)?.color ?? [];
+}
+
+// Resolve a channel + bone/slot id into a KeyframeTarget, validating that the channel/id pair is
+// consistent and the referenced bone/slot exists (a typed boundary check, not a silent no-op).
+function resolveTarget(
+  session: Session,
+  channel: BoneChannel | 'color',
+  boneId: string | undefined,
+  slotId: string | undefined,
+): KeyframeTarget {
+  if (channel === 'color') {
+    if (slotId === undefined) {
+      throw new McpToolError('INVALID_INPUT', 'the color channel requires slotId');
+    }
+    requireSlot(session, slotId);
+    return { kind: 'slot', slotId: asSlotId(slotId), channel: 'color' };
+  }
+  if (boneId === undefined) {
+    throw new McpToolError('INVALID_INPUT', `the ${channel} channel requires boneId`);
+  }
+  requireBone(session, boneId);
+  return { kind: 'bone', boneId: asBoneId(boneId), channel };
+}
+
+// Validate that a keyframe value's shape matches its channel (the model stores it as given, so the
+// boundary is where a mismatch must be rejected before it reaches the document).
+function checkValueShape(channel: BoneChannel | 'color', value: KeyframeValue): KeyframeValue {
+  const ok =
+    channel === 'rotate'
+      ? 'angle' in value
+      : channel === 'color'
+        ? 'color' in value
+        : 'x' in value && 'y' in value;
+  if (!ok) {
+    throw new McpToolError('INVALID_INPUT', `value shape does not match channel "${channel}"`);
+  }
+  return value;
+}
+
+function requireKeyframe(
+  animation: AnimationEntity,
+  target: KeyframeTarget,
+  keyframeId: string,
+): void {
+  if (!channelKeyframes(animation, target).some((kf) => kf.id === keyframeId)) {
+    throw new McpToolError(
+      'KEYFRAME_NOT_FOUND',
+      `no keyframe "${keyframeId}" on the target channel`,
+    );
+  }
+}
+
 // Export the model to format, converting the document-core failure modes into typed tool errors (an
 // empty document, a dangling reference, or a name collision is INVALID_DOCUMENT, never an uncaught
 // throw). This is the LAW 3 fail-loud boundary surfaced to the MCP client.
@@ -156,6 +253,47 @@ function slotView(slot: SlotEntity): Record<string, unknown> {
   };
 }
 
+function keyframeView(kf: KeyframeEntity): Record<string, unknown> {
+  return { id: kf.id, time: kf.time, value: kf.value, curve: kf.curve };
+}
+
+// A summary of an animation (ids, name, duration, and per-bone/slot track counts); the keyframe detail
+// lives in animationView for `anim.get`.
+function animationSummary(animation: AnimationEntity): Record<string, unknown> {
+  return {
+    id: animation.id,
+    name: animation.name,
+    duration: animation.duration,
+    boneTracks: animation.bones.size,
+    slotTracks: animation.slots.size,
+  };
+}
+
+// The full animation projection (every track and keyframe) for `anim.get`, keyed by branded bone/slot id.
+function animationView(animation: AnimationEntity): Record<string, unknown> {
+  return {
+    id: animation.id,
+    name: animation.name,
+    duration: animation.duration,
+    bones: [...animation.bones.entries()].map(([boneIdKey, set]) => ({
+      boneId: boneIdKey,
+      rotate: set.rotate.map(keyframeView),
+      translate: set.translate.map(keyframeView),
+      scale: set.scale.map(keyframeView),
+      shear: set.shear.map(keyframeView),
+    })),
+    slots: [...animation.slots.entries()].map(([slotIdKey, set]) => ({
+      slotId: slotIdKey,
+      color: set.color.map(keyframeView),
+      attachment: set.attachment.map((frame) => ({
+        id: frame.id,
+        time: frame.time,
+        name: frame.name,
+      })),
+    })),
+  };
+}
+
 const transformModeSchema = z.enum([
   'normal',
   'onlyTranslation',
@@ -166,12 +304,40 @@ const transformModeSchema = z.enum([
 
 const blendModeSchema = z.enum(['normal', 'additive', 'multiply', 'screen']);
 
-const channel = z.number().finite().min(0).max(1);
-const rgbaSchema = z.object({ r: channel, g: channel, b: channel, a: channel }).strict();
+const colorComponent = z.number().finite().min(0).max(1);
+const rgbaSchema = z
+  .object({ r: colorComponent, g: colorComponent, b: colorComponent, a: colorComponent })
+  .strict();
 
 const documentId = z.string().min(1);
 const boneId = z.string().min(1);
 const slotId = z.string().min(1);
+const animationId = z.string().min(1);
+const keyframeId = z.string().min(1);
+
+// A keyframe channel name (bone transform channels + the slot color channel). The handler resolves it
+// with boneId/slotId into a branded KeyframeTarget and validates the pairing (resolveTarget).
+const channelSchema = z.enum(['rotate', 'translate', 'scale', 'shear', 'color']);
+
+// A keyframe value: one of the three disjoint channel value shapes. The handler checks the value shape
+// matches the channel (checkValueShape); the union here keeps a malformed shape (e.g. extra keys) out.
+const rotateValueSchema = z.object({ angle: z.number().finite() }).strict();
+const vec2ValueSchema = z.object({ x: z.number().finite(), y: z.number().finite() }).strict();
+const colorValueSchema = z.object({ color: rgbaSchema }).strict();
+const keyframeValueSchema = z.union([rotateValueSchema, vec2ValueSchema, colorValueSchema]);
+
+// A curve: 'linear' / 'stepped' / a cubic bezier. The value is stored AS GIVEN (clamping bezier x into
+// [0, 1] is the WP-1.7 curve editor's job; the format validator rejects out-of-range x on export).
+const bezierCurveSchema = z
+  .object({
+    type: z.literal('bezier'),
+    cx1: z.number().finite(),
+    cy1: z.number().finite(),
+    cx2: z.number().finite(),
+    cy2: z.number().finite(),
+  })
+  .strict();
+const curveSchema = z.union([z.literal('linear'), z.literal('stepped'), bezierCurveSchema]);
 
 export const TOOLS: readonly ToolDefinition[] = [
   // ----- document lifecycle -----
@@ -843,6 +1009,323 @@ export const TOOLS: readonly ToolDefinition[] = [
         return { name, world: Array.from(pose.world.subarray(base, base + MAT2X3_STRIDE)) };
       });
       return { transforms };
+    },
+  ),
+
+  // ----- animation operations (same command + History as the GUI, LAW 2) -----
+  defineTool(
+    {
+      name: 'anim.create',
+      title: 'Create animation',
+      description: 'Create a new, empty animation with a duration and return its id.',
+      input: z
+        .object({
+          documentId,
+          name: z.string().min(1),
+          duration: z.number().finite().nonnegative(),
+        })
+        .strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      const newId = session.document.ids.mint('animation');
+      session.document.history.execute(
+        new CreateAnimationCommand(newId, input.name, input.duration),
+      );
+      return { animationId: newId };
+    },
+  ),
+  defineTool(
+    {
+      name: 'anim.delete',
+      title: 'Delete animation',
+      description: 'Delete an animation and all its timelines (one undo step).',
+      input: z.object({ documentId, animationId }).strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireAnimation(session, input.animationId);
+      session.document.history.execute(
+        new DeleteAnimationCommand(asAnimationId(input.animationId)),
+      );
+      return { revision: session.document.model.revision };
+    },
+  ),
+  defineTool(
+    {
+      name: 'anim.rename',
+      title: 'Rename animation',
+      description: 'Rename an animation (identity is the id, so timelines are unaffected).',
+      input: z.object({ documentId, animationId, name: z.string().min(1) }).strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireAnimation(session, input.animationId);
+      session.document.history.execute(
+        new RenameAnimationCommand(asAnimationId(input.animationId), input.name),
+      );
+      return { revision: session.document.model.revision };
+    },
+  ),
+  defineTool(
+    {
+      name: 'anim.duration',
+      title: 'Set animation duration',
+      description:
+        'Set an animation duration (seconds). Rejects shrinking below the last keyframe time as ' +
+        'ANIMATION_DURATION.',
+      input: z
+        .object({ documentId, animationId, duration: z.number().finite().nonnegative() })
+        .strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireAnimation(session, input.animationId);
+      try {
+        session.document.history.execute(
+          new SetAnimationDurationCommand(asAnimationId(input.animationId), input.duration),
+        );
+      } catch (error) {
+        if (error instanceof AnimationDurationError) {
+          throw new McpToolError('ANIMATION_DURATION', error.message);
+        }
+        throw error;
+      }
+      return { revision: session.document.model.revision };
+    },
+  ),
+  defineTool(
+    {
+      name: 'anim.duplicate',
+      title: 'Duplicate animation',
+      description: 'Duplicate an animation under a new name and return the new id (one undo step).',
+      input: z.object({ documentId, animationId, name: z.string().min(1) }).strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireAnimation(session, input.animationId);
+      const newId = session.document.ids.mint('animation');
+      session.document.history.execute(
+        new DuplicateAnimationCommand(asAnimationId(input.animationId), newId, input.name),
+      );
+      return { animationId: newId };
+    },
+  ),
+  defineTool(
+    {
+      name: 'anim.list',
+      title: 'List animations',
+      description: 'List the animations (id, name, duration, track counts).',
+      input: z.object({ documentId }).strict(),
+    },
+    (deps, input) => ({
+      animations: deps.sessions
+        .get(input.documentId)
+        .document.model.animations()
+        .map(animationSummary),
+    }),
+  ),
+  defineTool(
+    {
+      name: 'anim.get',
+      title: 'Get animation',
+      description: 'Get one animation with all its timelines and keyframes by id.',
+      input: z.object({ documentId, animationId }).strict(),
+    },
+    (deps, input) => ({
+      animation: animationView(
+        requireAnimation(deps.sessions.get(input.documentId), input.animationId),
+      ),
+    }),
+  ),
+
+  // ----- keyframe operations (same command + History as the GUI, LAW 2) -----
+  defineTool(
+    {
+      name: 'kf.set',
+      title: 'Set keyframe',
+      description:
+        'Insert or update a keyframe at a time on a channel. `channel` is rotate/translate/scale/' +
+        'shear (with boneId) or color (with slotId); `value` must match the channel shape. Updating an ' +
+        'existing time keeps its curve; a new keyframe takes the optional insert `curve` (default linear).',
+      input: z
+        .object({
+          documentId,
+          animationId,
+          channel: channelSchema,
+          boneId: boneId.optional(),
+          slotId: slotId.optional(),
+          time: z.number().finite().nonnegative(),
+          value: keyframeValueSchema,
+          curve: curveSchema.optional(),
+        })
+        .strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireAnimation(session, input.animationId);
+      const target = resolveTarget(session, input.channel, input.boneId, input.slotId);
+      const value = checkValueShape(input.channel, input.value);
+      session.document.history.execute(
+        input.curve === undefined
+          ? new SetKeyframeCommand(asAnimationId(input.animationId), target, input.time, value)
+          : new SetKeyframeCommand(
+              asAnimationId(input.animationId),
+              target,
+              input.time,
+              value,
+              input.curve,
+            ),
+      );
+      return { revision: session.document.model.revision };
+    },
+  ),
+  defineTool(
+    {
+      name: 'kf.move',
+      title: 'Move keyframe',
+      description:
+        'Move a keyframe (by id) to a new time on its channel. Rejects landing on an occupied time ' +
+        'as KEYFRAME_COLLISION.',
+      input: z
+        .object({
+          documentId,
+          animationId,
+          channel: channelSchema,
+          boneId: boneId.optional(),
+          slotId: slotId.optional(),
+          keyframeId,
+          time: z.number().finite().nonnegative(),
+        })
+        .strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      const animation = requireAnimation(session, input.animationId);
+      const target = resolveTarget(session, input.channel, input.boneId, input.slotId);
+      requireKeyframe(animation, target, input.keyframeId);
+      try {
+        session.document.history.execute(
+          new MoveKeyframeCommand(
+            asAnimationId(input.animationId),
+            target,
+            asKeyframeId(input.keyframeId),
+            input.time,
+          ),
+        );
+      } catch (error) {
+        if (error instanceof KeyframeCollisionError) {
+          throw new McpToolError('KEYFRAME_COLLISION', error.message);
+        }
+        throw error;
+      }
+      return { revision: session.document.model.revision };
+    },
+  ),
+  defineTool(
+    {
+      name: 'kf.delete',
+      title: 'Delete keyframe',
+      description: 'Delete a keyframe (by id) from its channel.',
+      input: z
+        .object({
+          documentId,
+          animationId,
+          channel: channelSchema,
+          boneId: boneId.optional(),
+          slotId: slotId.optional(),
+          keyframeId,
+        })
+        .strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      const animation = requireAnimation(session, input.animationId);
+      const target = resolveTarget(session, input.channel, input.boneId, input.slotId);
+      requireKeyframe(animation, target, input.keyframeId);
+      session.document.history.execute(
+        new DeleteKeyframeCommand(
+          asAnimationId(input.animationId),
+          target,
+          asKeyframeId(input.keyframeId),
+        ),
+      );
+      return { revision: session.document.model.revision };
+    },
+  ),
+  defineTool(
+    {
+      name: 'kf.curve',
+      title: 'Set keyframe curve',
+      description: 'Set a keyframe outgoing interpolation curve (linear / stepped / bezier).',
+      input: z
+        .object({
+          documentId,
+          animationId,
+          channel: channelSchema,
+          boneId: boneId.optional(),
+          slotId: slotId.optional(),
+          keyframeId,
+          curve: curveSchema,
+        })
+        .strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      const animation = requireAnimation(session, input.animationId);
+      const target = resolveTarget(session, input.channel, input.boneId, input.slotId);
+      requireKeyframe(animation, target, input.keyframeId);
+      session.document.history.execute(
+        new SetCurveCommand(
+          asAnimationId(input.animationId),
+          target,
+          asKeyframeId(input.keyframeId),
+          input.curve,
+        ),
+      );
+      return { revision: session.document.model.revision };
+    },
+  ),
+  defineTool(
+    {
+      name: 'kf.paste',
+      title: 'Paste keyframes',
+      description:
+        'Insert several keyframes at absolute times in one undo step. Each item names its channel ' +
+        '(with boneId/slotId), time, value (matching the channel), and curve.',
+      input: z
+        .object({
+          documentId,
+          animationId,
+          items: z
+            .array(
+              z
+                .object({
+                  channel: channelSchema,
+                  boneId: boneId.optional(),
+                  slotId: slotId.optional(),
+                  time: z.number().finite().nonnegative(),
+                  value: keyframeValueSchema,
+                  curve: curveSchema.default('linear'),
+                })
+                .strict(),
+            )
+            .min(1),
+        })
+        .strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireAnimation(session, input.animationId);
+      const items: PastedKeyframe[] = input.items.map((item) => {
+        const target = resolveTarget(session, item.channel, item.boneId, item.slotId);
+        const value = checkValueShape(item.channel, item.value);
+        return { target, time: item.time, value, curve: item.curve };
+      });
+      session.document.history.execute(
+        new PasteKeyframesCommand(asAnimationId(input.animationId), items),
+      );
+      return { revision: session.document.model.revision };
     },
   ),
 ];

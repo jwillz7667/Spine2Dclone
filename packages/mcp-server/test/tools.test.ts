@@ -1,3 +1,5 @@
+import type { SkeletonDocument } from '@marionette/format/types';
+import { buildPose, sampleSkeleton, SLOT_COLOR_STRIDE } from '@marionette/runtime-core';
 import { describe, expect, it } from 'vitest';
 import { McpToolError, SessionRegistry, TOOLS, type FileStore, type ToolDeps } from '../src';
 
@@ -278,6 +280,197 @@ describe('MCP tools', () => {
     await expectToolError(
       call(deps, 'slot.color', { documentId, slotId, color: { r: 2, g: 0, b: 0, a: 1 } }),
       'INVALID_INPUT',
+    );
+  });
+});
+
+// A document with a bone, a slot, and an animation built entirely through the MCP tools, so the WP-1.5
+// animation surface is exercised end to end (build, query, edit, export, sample).
+async function buildAnimatedDoc(deps: ToolDeps): Promise<{
+  documentId: string;
+  rootId: string;
+  bodyId: string;
+  animationId: string;
+}> {
+  const { documentId } = asRecord(await call(deps, 'document.new', { name: 'anim' }));
+  const { boneId: rootId } = asRecord(
+    await call(deps, 'bone.create', { documentId, name: 'root', length: 100 }),
+  );
+  const { slotId: bodyId } = asRecord(
+    await call(deps, 'slot.create', { documentId, boneId: rootId, name: 'body' }),
+  );
+  const { animationId } = asRecord(
+    await call(deps, 'anim.create', { documentId, name: 'idle', duration: 1 }),
+  );
+  await call(deps, 'kf.set', {
+    documentId,
+    animationId,
+    channel: 'rotate',
+    boneId: rootId,
+    time: 0,
+    value: { angle: 0 },
+  });
+  await call(deps, 'kf.set', {
+    documentId,
+    animationId,
+    channel: 'rotate',
+    boneId: rootId,
+    time: 1,
+    value: { angle: 90 },
+  });
+  await call(deps, 'kf.set', {
+    documentId,
+    animationId,
+    channel: 'color',
+    slotId: bodyId,
+    time: 0,
+    value: { color: { r: 1, g: 1, b: 1, a: 1 } },
+  });
+  await call(deps, 'kf.set', {
+    documentId,
+    animationId,
+    channel: 'color',
+    slotId: bodyId,
+    time: 1,
+    value: { color: { r: 1, g: 0, b: 0, a: 1 } },
+  });
+  return {
+    documentId: String(documentId),
+    rootId: String(rootId),
+    bodyId: String(bodyId),
+    animationId: String(animationId),
+  };
+}
+
+describe('MCP animation + keyframe tools', () => {
+  it('builds an animation, edits a curve, exports, and the WP-1.4 sampler reads it to a sane pose', async () => {
+    const deps = makeDeps();
+    const { documentId, rootId, animationId } = await buildAnimatedDoc(deps);
+
+    const animGet = asRecord(await call(deps, 'anim.get', { documentId, animationId }));
+    const animation = asRecord(animGet.animation);
+    const bones = animation.bones as Array<{ boneId: string; rotate: Array<{ id: string }> }>;
+    expect(bones[0]!.rotate).toHaveLength(2);
+    const firstKeyId = bones[0]!.rotate[0]!.id;
+
+    // Edit the curve of an existing keyframe.
+    await call(deps, 'kf.curve', {
+      documentId,
+      animationId,
+      channel: 'rotate',
+      boneId: rootId,
+      keyframeId: firstKeyId,
+      curve: { type: 'bezier', cx1: 0.25, cy1: 0.1, cx2: 0.75, cy2: 0.9 },
+    });
+
+    // Export and SAMPLE: proves the editable model projects to exactly what runtime-core consumes.
+    const exported = asRecord(await call(deps, 'document.export', { documentId }));
+    const doc = exported.document as SkeletonDocument;
+    const pose = buildPose(doc);
+    expect(() => sampleSkeleton(doc, 'idle', 1, pose)).not.toThrow();
+    for (const value of pose.world) expect(Number.isFinite(value)).toBe(true);
+    const bodyIndex = pose.slotNames.indexOf('body');
+    const base = bodyIndex * SLOT_COLOR_STRIDE;
+    expect(pose.slotColor[base]).toBeCloseTo(1); // r at t=1 is red
+    expect(pose.slotColor[base + 1]).toBeCloseTo(0); // g
+  });
+
+  it('lists, duplicates, and pastes keyframes through the AI surface', async () => {
+    const deps = makeDeps();
+    const { documentId, rootId, animationId } = await buildAnimatedDoc(deps);
+
+    const dup = asRecord(
+      await call(deps, 'anim.duplicate', { documentId, animationId, name: 'idle2' }),
+    );
+    expect(typeof dup.animationId).toBe('string');
+    const list = asRecord(await call(deps, 'anim.list', { documentId }));
+    expect((list.animations as unknown[]).length).toBe(2);
+
+    // Paste a keyframe at a free time on the rotate channel.
+    await call(deps, 'kf.paste', {
+      documentId,
+      animationId,
+      items: [{ channel: 'rotate', boneId: rootId, time: 0.5, value: { angle: 45 } }],
+    });
+    const animGet = asRecord(await call(deps, 'anim.get', { documentId, animationId }));
+    const bones = asRecord(animGet.animation).bones as Array<{ rotate: unknown[] }>;
+    expect(bones[0]!.rotate).toHaveLength(3); // 2 original + 1 pasted
+  });
+
+  it('cascades the animation tracks when a bone is deleted and undo restores them', async () => {
+    const deps = makeDeps();
+    const { documentId, rootId, animationId } = await buildAnimatedDoc(deps);
+
+    await call(deps, 'bone.delete', { documentId, boneId: rootId });
+    const afterDelete = asRecord(
+      asRecord(await call(deps, 'anim.get', { documentId, animationId })).animation,
+    );
+    expect((afterDelete.bones as unknown[]).length).toBe(0); // root's track pruned
+    expect((afterDelete.slots as unknown[]).length).toBe(0); // the riding slot's track pruned too
+
+    await call(deps, 'history.undo', { documentId }); // one undo restores bone, slot, and both tracks
+    const afterUndo = asRecord(
+      asRecord(await call(deps, 'anim.get', { documentId, animationId })).animation,
+    );
+    expect((afterUndo.bones as unknown[]).length).toBe(1);
+    expect((afterUndo.slots as unknown[]).length).toBe(1);
+  });
+
+  it('surfaces typed errors for a duration shrink, a collision, a value mismatch, and bad targets', async () => {
+    const deps = makeDeps();
+    const { documentId, rootId, animationId } = await buildAnimatedDoc(deps);
+
+    // Shrinking below the last keyframe time (t=1) is rejected.
+    await expectToolError(
+      call(deps, 'anim.duration', { documentId, animationId, duration: 0.4 }),
+      'ANIMATION_DURATION',
+    );
+
+    // A value whose shape does not match the channel is rejected at the boundary.
+    await expectToolError(
+      call(deps, 'kf.set', {
+        documentId,
+        animationId,
+        channel: 'rotate',
+        boneId: rootId,
+        time: 0.5,
+        value: { x: 1, y: 2 },
+      }),
+      'INVALID_INPUT',
+    );
+
+    // A bone channel without a boneId is rejected.
+    await expectToolError(
+      call(deps, 'kf.set', {
+        documentId,
+        animationId,
+        channel: 'rotate',
+        time: 0.5,
+        value: { angle: 1 },
+      }),
+      'INVALID_INPUT',
+    );
+
+    // Moving a keyframe onto an occupied time is rejected.
+    const animGet = asRecord(await call(deps, 'anim.get', { documentId, animationId }));
+    const bones = asRecord(animGet.animation).bones as Array<{ rotate: Array<{ id: string }> }>;
+    const firstKeyId = bones[0]!.rotate[0]!.id; // at t=0
+    await expectToolError(
+      call(deps, 'kf.move', {
+        documentId,
+        animationId,
+        channel: 'rotate',
+        boneId: rootId,
+        keyframeId: firstKeyId,
+        time: 1, // occupied by the t=1 key
+      }),
+      'KEYFRAME_COLLISION',
+    );
+
+    // An unknown animation id is a typed error.
+    await expectToolError(
+      call(deps, 'anim.get', { documentId, animationId: 'nope' }),
+      'ANIMATION_NOT_FOUND',
     );
   });
 });

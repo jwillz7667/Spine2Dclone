@@ -1,14 +1,23 @@
 import { computeContentHash, CURRENT_FORMAT_VERSION, validateDocument } from '@marionette/format';
 import type {
+  Animation,
   Attachment,
   Bone,
+  BoneTimelines,
   RegionAttachment,
   Skin,
   SkeletonDocument,
   Slot,
+  SlotTimelines,
 } from '@marionette/format/types';
 import { DocumentInvariantError, ExportValidationError } from '../command/errors';
-import type { AttachmentEntity } from '../model/doc-state';
+import type {
+  AnimationEntity,
+  AttachmentEntity,
+  BoneTimelineSet,
+  KeyframeEntity,
+  SlotTimelineSet,
+} from '../model/doc-state';
 import type { DocumentReadModel } from '../model/read-model';
 
 // Project the internal model to the format (command-history Section 7.1): resolve BoneId references to
@@ -46,6 +55,85 @@ function attachmentToFormat(att: AttachmentEntity): Attachment {
   return att.value;
 }
 
+// Project a rotate keyframe to the format shape `{ time, value: { angle }, curve }`. The `in` narrowing
+// is the export-boundary fail-loud check: a mis-shaped value is corrupt internal state (a command bug).
+function rotateKeyframes(channel: readonly KeyframeEntity[]): NonNullable<BoneTimelines['rotate']> {
+  return channel.map((kf) => {
+    if (!('angle' in kf.value)) {
+      throw new DocumentInvariantError('a rotate keyframe carries a non-rotate value');
+    }
+    return { time: kf.time, value: { angle: kf.value.angle }, curve: kf.curve };
+  });
+}
+
+// Project a vec2 channel (translate/scale/shear) to `{ time, value: { x, y }, curve }`.
+function vec2Keyframes(
+  channel: readonly KeyframeEntity[],
+): NonNullable<BoneTimelines['translate']> {
+  return channel.map((kf) => {
+    if (!('x' in kf.value)) {
+      throw new DocumentInvariantError('a translate/scale/shear keyframe carries a non-vec2 value');
+    }
+    return { time: kf.time, value: { x: kf.value.x, y: kf.value.y }, curve: kf.curve };
+  });
+}
+
+// Project a slot color channel to `{ time, value: { color }, curve }`.
+function colorKeyframes(channel: readonly KeyframeEntity[]): NonNullable<SlotTimelines['color']> {
+  return channel.map((kf) => {
+    if (!('color' in kf.value)) {
+      throw new DocumentInvariantError('a color keyframe carries a non-color value');
+    }
+    const { r, g, b, a } = kf.value.color;
+    return { time: kf.time, value: { color: { r, g, b, a } }, curve: kf.curve };
+  });
+}
+
+// Project a bone timeline set, emitting only the non-empty channels (the format channels are optional;
+// an empty channel is OMITTED rather than emitted as undefined or [], per exactOptionalPropertyTypes and
+// the slot/bone export style).
+function boneTimelinesToFormat(set: BoneTimelineSet): BoneTimelines {
+  return {
+    ...(set.rotate.length > 0 ? { rotate: rotateKeyframes(set.rotate) } : {}),
+    ...(set.translate.length > 0 ? { translate: vec2Keyframes(set.translate) } : {}),
+    ...(set.scale.length > 0 ? { scale: vec2Keyframes(set.scale) } : {}),
+    ...(set.shear.length > 0 ? { shear: vec2Keyframes(set.shear) } : {}),
+  };
+}
+
+function slotTimelinesToFormat(set: SlotTimelineSet): SlotTimelines {
+  return {
+    ...(set.attachment.length > 0
+      ? { attachment: set.attachment.map((frame) => ({ time: frame.time, name: frame.name })) }
+      : {}),
+    ...(set.color.length > 0 ? { color: colorKeyframes(set.color) } : {}),
+  };
+}
+
+// Project one animation entity to the format Animation, resolving BoneId/SlotId to current names and
+// dropping bone/slot entries whose every channel is empty. The implemented format Animation is EXACTLY
+// `{ duration, bones, slots }` (a strict object); it has NO ik/transform/deform/drawOrder/events fields,
+// so none are emitted (emitting them would fail the structural layer with SCHEMA_SHAPE).
+function animationToFormat(
+  animation: AnimationEntity,
+  boneIdToName: ReadonlyMap<string, string>,
+  slotIdToName: ReadonlyMap<string, string>,
+): Animation {
+  const bones: Record<string, BoneTimelines> = {};
+  for (const [boneId, set] of animation.bones) {
+    const timelines = boneTimelinesToFormat(set);
+    if (Object.keys(timelines).length === 0) continue;
+    bones[resolveName(boneId, boneIdToName, 'animation bone')] = timelines;
+  }
+  const slots: Record<string, SlotTimelines> = {};
+  for (const [slotId, set] of animation.slots) {
+    const timelines = slotTimelinesToFormat(set);
+    if (Object.keys(timelines).length === 0) continue;
+    slots[resolveName(slotId, slotIdToName, 'animation slot')] = timelines;
+  }
+  return { duration: animation.duration, bones, slots };
+}
+
 export function exportDocument(model: DocumentReadModel): SkeletonDocument {
   const orderedBones = model.bones(); // in boneOrder
   const boneIdToName = new Map<string, string>();
@@ -70,6 +158,8 @@ export function exportDocument(model: DocumentReadModel): SkeletonDocument {
   // Slots emit in slotOrder (the setup-pose draw order). `bone` resolves the BoneId to the bone's
   // current name; darkColor is omitted when null (single-color tint), per exactOptionalPropertyTypes.
   const orderedSlots = model.slots(); // in slotOrder
+  const slotIdToName = new Map<string, string>();
+  for (const slot of orderedSlots) slotIdToName.set(slot.id, slot.name);
   const slots: Slot[] = orderedSlots.map((slot) => ({
     name: slot.name,
     bone: resolveName(slot.bone, boneIdToName, 'slot bone'),
@@ -95,6 +185,17 @@ export function exportDocument(model: DocumentReadModel): SkeletonDocument {
     ...preserved.extraSkins,
   ];
 
+  // Animations are name-keyed on disk (the record key is the animation name) and order-insignificant.
+  // model.animations() is id-sorted (deterministic); a duplicate name cannot be represented in the
+  // record, so it is corrupt internal state surfaced here (fail loud), matching bone/slot name uniqueness.
+  const animations: Record<string, Animation> = {};
+  for (const animation of model.animations()) {
+    if (animation.name in animations) {
+      throw new DocumentInvariantError(`animation name "${animation.name}" is not unique`);
+    }
+    animations[animation.name] = animationToFormat(animation, boneIdToName, slotIdToName);
+  }
+
   const draft: SkeletonDocument = {
     formatVersion: CURRENT_FORMAT_VERSION,
     name: model.name,
@@ -102,7 +203,7 @@ export function exportDocument(model: DocumentReadModel): SkeletonDocument {
     bones,
     slots,
     skins,
-    animations: { ...preserved.animations },
+    animations,
     atlas: preserved.atlas,
   };
   const withHash: SkeletonDocument = { ...draft, hash: computeContentHash(draft) };

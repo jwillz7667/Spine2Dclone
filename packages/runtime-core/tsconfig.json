@@ -3,7 +3,10 @@
   "compilerOptions": {
     "rootDir": "src",
     "outDir": "dist",
-    "composite": true
+    "composite": true,
+    // Keep the incremental build cache inside dist so it is reset whenever dist is cleaned and is
+    // captured by turbo's dist/** output cache (see packages/format/tsconfig.json).
+    "tsBuildInfoFile": "./dist/tsconfig.tsbuildinfo"
   },
   "include": ["src/**/*.ts"],
   "references": [

@@ -1,0 +1,107 @@
+import { describe, expect, it } from 'vitest';
+import { compareFixtures } from '../src/compare/compare';
+import type { Fixture } from '../src/schema/fixture';
+
+// The compare engine and tolerance policy (WP-V.0 / WP-V.3, A.5 / B.5): a sub-bug-magnitude
+// perturbation (1e-7) passes, a real-bug-magnitude perturbation (1e-2) fails with a localized report,
+// and discrete identity (rigId, sample time) is exact (no epsilon).
+
+function makeFixture(): Fixture {
+  return {
+    rigId: 'rig-2bone',
+    rigHash: 'sha256:rig',
+    specHash: 'sha256:spec',
+    coreVersion: 'runtime-core@0.0.0',
+    toolchain: 'node-22.13.1-v8',
+    generatedBy: 'compare.test.ts',
+    samples: [
+      {
+        time: 0,
+        animation: 'default',
+        loop: false,
+        bones: { root: [1, 0, 0, 1, 0, 0], child: [1, 0, 0, 1, 100, 0] },
+      },
+      {
+        time: 0.5,
+        animation: 'default',
+        loop: false,
+        bones: { root: [0, 1, -1, 0, 0, 0], child: [0, 1, -1, 0, 0, 100] },
+      },
+    ],
+  };
+}
+
+describe('compareFixtures (A.5 tolerance, B.5 report)', () => {
+  it('passes when the fixtures are identical', () => {
+    const report = compareFixtures(makeFixture(), makeFixture());
+
+    expect(report.ok).toBe(true);
+    expect(report.failures).toEqual([]);
+  });
+
+  it('passes a 1e-7 basis perturbation (under the 1e-6 basis atol)', () => {
+    const expected = makeFixture();
+    const actual = structuredClone(expected);
+    actual.samples[1]!.bones['root']![0] = 1e-7; // was 0
+
+    expect(compareFixtures(expected, actual).ok).toBe(true);
+  });
+
+  it('fails a 1e-2 basis perturbation with a localized failure', () => {
+    const expected = makeFixture();
+    const actual = structuredClone(expected);
+    actual.samples[1]!.bones['root']![0] = 1e-2; // was 0
+
+    const report = compareFixtures(expected, actual);
+
+    expect(report.ok).toBe(false);
+    expect(report.failures).toHaveLength(1);
+    const failure = report.failures[0]!;
+    expect(failure.quantity).toBe('worldBasis');
+    expect(failure.bone).toBe('root');
+    expect(failure.time).toBe(0.5);
+    expect(failure.lane).toBe(0);
+    expect(failure.expected).toBe(0);
+    expect(failure.actual).toBe(1e-2);
+    expect(failure.absDelta).toBeCloseTo(1e-2, 12);
+    expect(failure.atol).toBe(1e-6);
+    expect(failure.rtol).toBe(1e-6);
+  });
+
+  it('passes a 1e-5 translation perturbation but fails 1e-3 (atol 1e-4, rtol 1e-6 at coord 100)', () => {
+    const expected = makeFixture();
+
+    const small = structuredClone(expected);
+    small.samples[0]!.bones['child']![4] = 100 + 1e-5; // tx, within 2e-4 band
+    expect(compareFixtures(expected, small).ok).toBe(true);
+
+    const large = structuredClone(expected);
+    large.samples[0]!.bones['child']![4] = 100 + 1e-3; // tx, outside 2e-4 band
+    const report = compareFixtures(expected, large);
+    expect(report.ok).toBe(false);
+    expect(report.failures[0]!.quantity).toBe('worldTranslation');
+    expect(report.failures[0]!.lane).toBe(4);
+  });
+
+  it('fails exactly (no epsilon) on a discrete sample-time difference', () => {
+    const expected = makeFixture();
+    const actual = structuredClone(expected);
+    actual.samples[0]!.time = 1e-9; // any nonzero difference is a real bug
+
+    const report = compareFixtures(expected, actual);
+
+    expect(report.ok).toBe(false);
+    expect(report.failures[0]!.quantity).toBe('structural');
+  });
+
+  it('fails on a rigId mismatch (discrete identity)', () => {
+    const expected = makeFixture();
+    const actual = structuredClone(expected);
+    actual.rigId = 'rig-other';
+
+    const report = compareFixtures(expected, actual);
+
+    expect(report.ok).toBe(false);
+    expect(report.failures[0]!.quantity).toBe('structural');
+  });
+});

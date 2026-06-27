@@ -15,3 +15,9 @@ docs/
 # Generated, byte-asserted golden fixture (serialized via JSON.stringify and compared
 # byte-for-byte in golden.test.ts; reformatting it would break that drift guard).
 packages/runtime-core/test/golden/
+
+# Generated conformance fixtures + lock manifest. generate.ts owns their exact bytes (compact raw
+# affines, shortest round-trippable floats), and the fixtures-lock drift gate is a byte-exact git diff
+# (conformance-and-ci.md A.6); reformatting them would break that gate. The hand-authored rig and
+# sample-spec under packages/conformance/src are prettier-owned and intentionally NOT excluded.
+packages/conformance/src/fixtures/

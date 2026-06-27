@@ -299,6 +299,42 @@ export default tseslint.config(
     },
   },
 
+  // conformance: the cross-runtime behavioral-truth suite (conformance-and-ci.md A.1, WP-V.0). It may
+  // import @marionette/format and @marionette/runtime-core (the behavioral source of truth), plus zod
+  // and Node built-ins (the generator and the loaders touch the filesystem). It must NOT import
+  // PixiJS, Electron, React, runtime-web, document-core, or mcp-server: it is renderer-free and depends
+  // only on the format contract and the pure solve core, so the generator stays a pure function of
+  // (rig, sample-spec, runtime-core). Node built-ins are intentionally NOT banned here (unlike the pure
+  // core packages): the generator must read rigs/specs and write fixtures + the lock manifest.
+  {
+    files: ['packages/conformance/src/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [ELECTRON_PATH],
+          patterns: [
+            PIXI_PATTERN,
+            {
+              group: [
+                'react',
+                'react-dom',
+                '@marionette/runtime-web',
+                '@marionette/runtime-web/*',
+                '@marionette/document-core',
+                '@marionette/document-core/*',
+                '@marionette/mcp-server',
+                '@marionette/mcp-server/*',
+              ],
+              message:
+                'conformance is renderer-free and depends only on format + runtime-core: no PixiJS, React, runtime-web, document-core, or mcp-server (conformance-and-ci.md A.1).',
+            },
+          ],
+        },
+      ],
+    },
+  },
+
   // Editor process split (phase-0-foundations.md WP-0.1 matrix). eslint-plugin-boundaries
   // enforces the element-to-element edges; the per-element no-restricted-imports below add the
   // package-name and Node-built-in bans that boundaries (which classifies by file path) cannot.
@@ -313,6 +349,7 @@ export default tseslint.config(
         { type: 'runtime-web', pattern: 'packages/runtime-web/src/**' },
         { type: 'document-core', pattern: 'packages/document-core/src/**' },
         { type: 'mcp-server', pattern: 'packages/mcp-server/src/**' },
+        { type: 'conformance', pattern: 'packages/conformance/src/**' },
         { type: 'editor-main', pattern: 'apps/editor/src/main/**' },
         { type: 'editor-preload', pattern: 'apps/editor/src/preload/**' },
         { type: 'editor-shared', pattern: 'apps/editor/src/shared/**' },
@@ -337,6 +374,10 @@ export default tseslint.config(
               from: ['mcp-server'],
               allow: ['mcp-server', 'document-core', 'format', 'runtime-core'],
             },
+            // conformance is the cross-runtime behavioral-truth suite (conformance-and-ci.md A.1). It
+            // consumes the format contract and the pure solve core (runtime-core) only, so the fixtures
+            // stay a pure function of (rig, sample-spec, core); never the renderer/UI packages.
+            { from: ['conformance'], allow: ['conformance', 'format', 'runtime-core'] },
             // editor-main hosts the headless MCP server (WP-M.1), which drives document-core commands
             // and reads runtime-core solves; it stays off the renderer/UI packages.
             {

@@ -11,7 +11,16 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const ALLOWED = {
   // document-core hosts the renderer-agnostic command/history spine so both the editor and the
   // headless MCP server (WP-M.1) drive the same commands (ADR-0001). mcp-server lands in WP-M.1.
-  packages: new Set(['format', 'runtime-core', 'runtime-web', 'document-core', 'mcp-server']),
+  // conformance is the Phase-1 cross-runtime conformance suite (conformance-and-ci.md WP-V.0): the
+  // committed rigs, sample-specs, fixtures generated from runtime-core, and the compare engine.
+  packages: new Set([
+    'format',
+    'runtime-core',
+    'runtime-web',
+    'document-core',
+    'mcp-server',
+    'conformance',
+  ]),
   apps: new Set(['editor']),
   runtimes: new Set(), // Unity and Godot are Phase 5; none may exist yet.
 };
@@ -44,10 +53,11 @@ if (invokedDirectly) {
     console.error('package-guard FAILED: directories outside the Phase-0 allowed set:');
     for (const v of violations) console.error(`  ${v}`);
     console.error(
-      '\nPhase 0 allows only packages/{format,runtime-core,runtime-web,document-core,mcp-server} ' +
-        'and apps/editor (LAW 5; document-core/mcp-server per ADR-0001).',
+      '\nThe allowed set is packages/{format,runtime-core,runtime-web,document-core,mcp-server,' +
+        'conformance} and apps/editor (LAW 5; document-core/mcp-server per ADR-0001; ' +
+        'conformance per conformance-and-ci.md WP-V.0).',
     );
     process.exit(1);
   }
-  console.log('package-guard OK: only Phase-0 packages are present.');
+  console.log('package-guard OK: only allowed packages are present.');
 }

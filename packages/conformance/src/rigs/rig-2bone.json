@@ -1,0 +1,74 @@
+{
+  "formatVersion": "0.1.0",
+  "name": "rig-2bone",
+  "hash": "",
+  "bones": [
+    {
+      "name": "root",
+      "parent": null,
+      "length": 100,
+      "x": 0,
+      "y": 0,
+      "rotation": 0,
+      "scaleX": 1,
+      "scaleY": 1,
+      "shearX": 0,
+      "shearY": 0,
+      "transformMode": "normal"
+    },
+    {
+      "name": "child",
+      "parent": "root",
+      "length": 100,
+      "x": 100,
+      "y": 0,
+      "rotation": 0,
+      "scaleX": 1,
+      "scaleY": 1,
+      "shearX": 0,
+      "shearY": 0,
+      "transformMode": "normal"
+    }
+  ],
+  "slots": [],
+  "skins": [{ "name": "default", "attachments": {} }],
+  "animations": {
+    "default": {
+      "duration": 1.0,
+      "bones": {
+        "root": {
+          "rotate": [
+            { "time": 0.0, "value": { "angle": 0 }, "curve": "linear" },
+            { "time": 0.5, "value": { "angle": 90 }, "curve": "linear" },
+            { "time": 1.0, "value": { "angle": 90 }, "curve": "linear" }
+          ],
+          "translate": [
+            {
+              "time": 0.0,
+              "value": { "x": 0, "y": 0 },
+              "curve": { "type": "bezier", "cx1": 0.7, "cy1": 0.0, "cx2": 0.9, "cy2": 0.15 }
+            },
+            { "time": 0.25, "value": { "x": 40, "y": 20 }, "curve": "linear" },
+            { "time": 0.5, "value": { "x": 0, "y": 0 }, "curve": "linear" },
+            { "time": 1.0, "value": { "x": 0, "y": 0 }, "curve": "linear" }
+          ]
+        },
+        "child": {
+          "rotate": [
+            { "time": 0.0, "value": { "angle": 0 }, "curve": "linear" },
+            { "time": 0.5, "value": { "angle": 0 }, "curve": "linear" },
+            { "time": 1.0, "value": { "angle": 90 }, "curve": "linear" }
+          ],
+          "scale": [
+            { "time": 0.0, "value": { "x": 1, "y": 1 }, "curve": "linear" },
+            { "time": 0.25, "value": { "x": 2, "y": 0.5 }, "curve": "stepped" },
+            { "time": 0.5, "value": { "x": 1, "y": 1 }, "curve": "linear" },
+            { "time": 1.0, "value": { "x": 1, "y": 1 }, "curve": "linear" }
+          ]
+        }
+      },
+      "slots": {}
+    }
+  },
+  "atlas": { "pages": [] }
+}

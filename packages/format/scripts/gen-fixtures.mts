@@ -24,7 +24,7 @@ const invalidDir = join(fixturesDir, 'invalid');
 // computed and embedded below.
 function minimalDraft(): SkeletonDocument {
   return {
-    formatVersion: '0.1.0',
+    formatVersion: '0.2.0',
     name: 'minimal',
     hash: '',
     bones: [
@@ -72,6 +72,8 @@ function minimalDraft(): SkeletonDocument {
         },
       },
     ],
+    ikConstraints: [],
+    transformConstraints: [],
     animations: {
       idle: {
         duration: 1,
@@ -84,6 +86,9 @@ function minimalDraft(): SkeletonDocument {
           },
         },
         slots: {},
+        ik: {},
+        transform: {},
+        deform: {},
       },
     },
     atlas: {
@@ -129,7 +134,7 @@ function minimalValid(): SkeletonDocument {
 // so the fixture validates with zero errors and zero warnings.
 function phase1CompleteDraft(): SkeletonDocument {
   return {
-    formatVersion: '0.1.0',
+    formatVersion: '0.2.0',
     name: 'phase1-complete',
     hash: '',
     bones: [
@@ -190,6 +195,8 @@ function phase1CompleteDraft(): SkeletonDocument {
         },
       },
     ],
+    ikConstraints: [],
+    transformConstraints: [],
     animations: {
       idle: {
         duration: 1,
@@ -228,6 +235,9 @@ function phase1CompleteDraft(): SkeletonDocument {
             ],
           },
         },
+        ik: {},
+        transform: {},
+        deform: {},
       },
     },
     atlas: {

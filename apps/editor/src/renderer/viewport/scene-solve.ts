@@ -54,6 +54,8 @@ function projectForSolve(model: DocumentReadModel): SkeletonDocument {
     bones: projected,
     slots: [],
     skins: [{ name: 'default', attachments: {} }],
+    ikConstraints: [],
+    transformConstraints: [],
     animations: {},
     atlas: { pages: [] },
   };

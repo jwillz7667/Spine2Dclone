@@ -2,6 +2,8 @@ import type { SkeletonDocument } from '../schema/document';
 import { isRecord } from '../internal/guards';
 import { computeContentHash } from '../hash/hash';
 import { CURRENT_FORMAT_VERSION } from '../version/constants';
+import { runMigrations } from '../version/migrate';
+import { MIGRATIONS } from '../version/migrations';
 import { compareFormatVersion, migrationKeyOf, parseSemVer } from '../version/semver';
 import type { SemVer } from '../version/semver';
 import { formatError, FormatValidationError } from './errors';
@@ -40,11 +42,16 @@ const CURRENT_SEMVER: SemVer = requireCurrentSemVer();
 interface VersionGateResult {
   readonly stop: boolean;
   readonly errors: readonly FormatError[];
+  // The migrated input when a below-current document was forward-migrated; the rest of the pipeline
+  // validates THIS, not the raw input (format-contract section 8.3 step 1, section 10.4).
+  readonly migrated?: unknown;
 }
 
-// Version gate (format-contract section 8.3 step 1). A formatVersion that is present and a string
-// but unparseable, strictly newer than current, or below the current migration key (Phase 0 has no
-// migration chain, so any older key is unsupported) stops the pipeline with UNSUPPORTED_FORMAT_VERSION.
+// Version gate (format-contract section 8.3 step 1, section 10.4). An unparseable or strictly-newer
+// version stops the pipeline with UNSUPPORTED_FORMAT_VERSION. A document below the current migration
+// key is run through the migration chain: a successful migration flows the upgraded document onward; a
+// missing chain link is UNSUPPORTED_FORMAT_VERSION; a step that yields a structurally invalid
+// intermediate is MIGRATION_REQUIRED.
 function versionGate(input: unknown): VersionGateResult {
   const formatVersion = readFormatVersion(input);
   if (formatVersion === undefined) return { stop: false, errors: [] };
@@ -69,9 +76,29 @@ function versionGate(input: unknown): VersionGateResult {
     );
   }
   if (migrationKeyOf(parsed) < migrationKeyOf(CURRENT_SEMVER)) {
-    return unsupported(
-      `formatVersion "${formatVersion}" predates ${CURRENT_FORMAT_VERSION} and has no migration path`,
-    );
+    const result = runMigrations(input, MIGRATIONS, CURRENT_FORMAT_VERSION);
+    switch (result.kind) {
+      case 'migrated':
+        return { stop: false, errors: [], migrated: result.doc };
+      case 'unsupported':
+        return unsupported(
+          `formatVersion "${formatVersion}" predates ${CURRENT_FORMAT_VERSION} and has no migration path`,
+        );
+      case 'failed':
+        return {
+          stop: true,
+          errors: [
+            formatError(
+              'MIGRATION_REQUIRED',
+              '/formatVersion',
+              `migration step ${result.step} produced a structurally invalid document`,
+              { step: result.step, version: formatVersion },
+            ),
+          ],
+        };
+      case 'unchanged':
+        return { stop: false, errors: [] };
+    }
   }
   return { stop: false, errors: [] };
 }
@@ -130,8 +157,11 @@ export function validateDocument(input: unknown, options?: ValidateOptions): Val
   if (gate.stop) {
     return makeReport([...gate.errors], warnings, null);
   }
+  // A below-current document is forward-migrated by the gate; everything downstream validates the
+  // upgraded document (its formatVersion, content, and recomputed hash are the 0.2.0 ones).
+  const effective = gate.migrated ?? input;
 
-  const structural = validateStructure(input);
+  const structural = validateStructure(effective);
   if (!structural.ok || structural.document === null) {
     return makeReport(structural.errors, warnings, null);
   }

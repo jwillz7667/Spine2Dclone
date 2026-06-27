@@ -1,7 +1,7 @@
 {
-  "formatVersion": "0.1.0",
+  "formatVersion": "0.2.0",
   "name": "minimal",
-  "hash": "046444d484b07e454afc89296eb18a15510f9a5ba8a55b2d763908af6a0dacd5",
+  "hash": "05ccd741e2da8d777aaae9de8ecb4664679a8d03281e4b17dd5fbececc1fc52e",
   "bones": [
     {
       "name": "root",
@@ -57,6 +57,8 @@
       }
     }
   ],
+  "ikConstraints": [],
+  "transformConstraints": [],
   "animations": {
     "idle": {
       "duration": 1,
@@ -80,7 +82,10 @@
           ]
         }
       },
-      "slots": {}
+      "slots": {},
+      "ik": {},
+      "transform": {},
+      "deform": {}
     }
   },
   "atlas": {

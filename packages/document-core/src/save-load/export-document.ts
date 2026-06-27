@@ -111,9 +111,10 @@ function slotTimelinesToFormat(set: SlotTimelineSet): SlotTimelines {
 }
 
 // Project one animation entity to the format Animation, resolving BoneId/SlotId to current names and
-// dropping bone/slot entries whose every channel is empty. The implemented format Animation is EXACTLY
-// `{ duration, bones, slots }` (a strict object); it has NO ik/transform/deform/drawOrder/events fields,
-// so none are emitted (emitting them would fail the structural layer with SCHEMA_SHAPE).
+// dropping bone/slot entries whose every channel is empty. Phase 2 (ADR-0004) made the format Animation
+// `{ duration, bones, slots, ik, transform, deform }`; the document-core model does not yet author
+// ik/transform/deform timelines (they land with WP-2.6/2.7/2.9), so empty records are emitted to satisfy
+// the now-required keys. When those WPs add the model entities, this projects them here.
 function animationToFormat(
   animation: AnimationEntity,
   boneIdToName: ReadonlyMap<string, string>,
@@ -131,7 +132,7 @@ function animationToFormat(
     if (Object.keys(timelines).length === 0) continue;
     slots[resolveName(slotId, slotIdToName, 'animation slot')] = timelines;
   }
-  return { duration: animation.duration, bones, slots };
+  return { duration: animation.duration, bones, slots, ik: {}, transform: {}, deform: {} };
 }
 
 export function exportDocument(model: DocumentReadModel): SkeletonDocument {
@@ -203,6 +204,11 @@ export function exportDocument(model: DocumentReadModel): SkeletonDocument {
     bones,
     slots,
     skins,
+    // Phase 2 (ADR-0004): the format requires these arrays. The model does not yet author constraints
+    // (WP-2.6/2.7 add the entities); empty arrays satisfy the contract and round-trip losslessly until
+    // then. extraSkins already round-trips non-default skins verbatim.
+    ikConstraints: [],
+    transformConstraints: [],
     animations,
     atlas: preserved.atlas,
   };

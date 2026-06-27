@@ -83,6 +83,8 @@ function richDocument(): SkeletonDocument {
         },
       },
     ],
+    ikConstraints: [],
+    transformConstraints: [],
     animations: {},
     atlas: {
       pages: [
@@ -125,7 +127,18 @@ describe('save / load seam', () => {
     expect(verifyContentHash(json1)).toBe(true);
     // Only format keys are present: no camera/selection/tool (editor state never serializes).
     expect(Object.keys(json1).sort()).toEqual(
-      ['atlas', 'bones', 'formatVersion', 'hash', 'name', 'skins', 'slots', 'animations'].sort(),
+      [
+        'atlas',
+        'bones',
+        'formatVersion',
+        'hash',
+        'ikConstraints',
+        'name',
+        'skins',
+        'slots',
+        'transformConstraints',
+        'animations',
+      ].sort(),
     );
 
     const reloaded = loadDocument(json1, makeTestEnv().env);
@@ -164,10 +177,17 @@ describe('save / load seam', () => {
     const doc = loadDocument(seeds.animated, makeTestEnv().env);
     const json1 = exportDocument(doc.model);
 
-    // The exported animation is EXACTLY the 3-field format shape: no empty ik/transform/deform/
-    // drawOrder/events collections (the implemented Animation type would reject them with SCHEMA_SHAPE).
+    // Phase 2 (ADR-0004): the format Animation is now { duration, bones, slots, ik, transform, deform }.
+    // The model authors only bone/slot timelines today, so ik/transform/deform export as empty records.
     expect(Object.keys(json1.animations)).toEqual(['idle']);
-    expect(Object.keys(json1.animations.idle!).sort()).toEqual(['bones', 'duration', 'slots']);
+    expect(Object.keys(json1.animations.idle!).sort()).toEqual([
+      'bones',
+      'deform',
+      'duration',
+      'ik',
+      'slots',
+      'transform',
+    ]);
     expect(json1.animations.idle!.bones.root!.rotate).toHaveLength(3);
     expect(json1.animations.idle!.bones.root!.translate).toHaveLength(2);
     expect(json1.animations.idle!.slots.body!.color).toHaveLength(2);

@@ -79,6 +79,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm check:format-semver
+      - run: pnpm check:format-version-stable
 
   package-guard:
     runs-on: ubuntu-latest

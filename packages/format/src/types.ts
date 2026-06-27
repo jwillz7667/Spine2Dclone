@@ -15,6 +15,15 @@ export type {
   BoundingBoxAttachment,
 } from './schema/attachment';
 export type { Skin } from './schema/skin';
-export type { Animation, BoneTimelines, SlotTimelines, Keyframe } from './schema/animation';
+export type { IkConstraint, TransformConstraint } from './schema/constraint';
+export type {
+  Animation,
+  BoneTimelines,
+  SlotTimelines,
+  Keyframe,
+  IkFrame,
+  TransformFrame,
+  DeformTimelines,
+} from './schema/animation';
 export type { AtlasRef, AtlasPage, AtlasRegion } from './schema/atlas';
 export type { SkeletonDocument } from './schema/document';

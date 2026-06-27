@@ -8,9 +8,17 @@ import * as typesModule from '../src/types';
 const ALLOWED_VALUE_EXPORTS = [
   'CURRENT_FORMAT_VERSION',
   'FormatValidationError',
+  'MAX_BONE_INFLUENCES',
+  'MIGRATIONS',
   'SUPPORTED_FORMAT_MAJOR',
+  'WEIGHT_SUM_EPSILON',
   'computeContentHash',
+  'decodeWeightedVertices',
+  'encodeWeightedVertices',
+  'isWeightedMesh',
+  'migrateToCurrent',
   'parseDocument',
+  'runMigrations',
   'validateDocument',
   'verifyContentHash',
 ].sort();
@@ -20,8 +28,8 @@ describe('public barrel surface', () => {
     expect(Object.keys(barrel).sort()).toEqual(ALLOWED_VALUE_EXPORTS);
   });
 
-  it('exposes the version constants with their Phase-0 values', () => {
-    expect(barrel.CURRENT_FORMAT_VERSION).toBe('0.1.0');
+  it('exposes the version constants with their current values', () => {
+    expect(barrel.CURRENT_FORMAT_VERSION).toBe('0.2.0');
     expect(barrel.SUPPORTED_FORMAT_MAJOR).toBe(0);
   });
 

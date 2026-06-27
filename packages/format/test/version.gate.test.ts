@@ -8,8 +8,8 @@ import { cloneMinimal, errorCodes } from './helpers';
 // UNSUPPORTED_FORMAT_VERSION and stops the pipeline. A MISSING or non-string formatVersion is NOT the
 // gate's concern; it falls through to the structural layer as SCHEMA_SHAPE.
 describe('version gate', () => {
-  it('exposes the Phase-0 constants', () => {
-    expect(CURRENT_FORMAT_VERSION).toBe('0.1.0');
+  it('exposes the current constants', () => {
+    expect(CURRENT_FORMAT_VERSION).toBe('0.2.0');
     expect(SUPPORTED_FORMAT_MAJOR).toBe(0);
   });
 
@@ -22,10 +22,19 @@ describe('version gate', () => {
     expect(errorCodes(newerMajor)).toContain('UNSUPPORTED_FORMAT_VERSION');
     expect(newerMajor.errors[0]?.path).toBe('/formatVersion');
 
-    // A newer patch within the same minor is still strictly newer than 0.1.0, so it is unsupported.
+    // A newer patch within the same minor is still strictly newer than 0.2.0, so it is unsupported.
     expect(
-      errorCodes(validateDocument({ ...cloneMinimal(), hash: '', formatVersion: '0.1.1' })),
+      errorCodes(validateDocument({ ...cloneMinimal(), hash: '', formatVersion: '0.2.1' })),
     ).toContain('UNSUPPORTED_FORMAT_VERSION');
+  });
+
+  it('forward-migrates a below-current 0.1.x document instead of rejecting it (ADR-0004)', () => {
+    // A 0.1.x document is below the current migration key; the gate runs the chain and the upgraded
+    // document validates. cloneMinimal() is already 0.2.0-shaped, so labelling it 0.1.0 with an empty
+    // hash exercises the migration path (empties already present, formatVersion stamped, draft hash).
+    const report = validateDocument({ ...cloneMinimal(), hash: '', formatVersion: '0.1.0' });
+    expect(report.ok).toBe(true);
+    expect(report.document?.formatVersion).toBe('0.2.0');
   });
 
   it('rejects an unparseable version as UNSUPPORTED_FORMAT_VERSION', () => {

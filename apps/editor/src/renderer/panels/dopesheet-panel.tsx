@@ -13,6 +13,7 @@ import {
 } from 'react';
 import { documentHost, type AnimationEntity, type AnimationId, type KeyframeId } from '../document';
 import { usePlaybackStore } from '../editor-state/playback-store';
+import { useDocumentRevision } from '../editor-state/use-document-revision';
 import {
   beginKeyframeDrag,
   copySelectionToClipboard,
@@ -489,28 +490,6 @@ const PlayheadLine = memo(function PlayheadLine({
   const playhead = usePlaybackStore((state) => state.playhead);
   return <div style={playheadStyle(timeToX(view, playhead), height)} />;
 });
-
-// Poll the live document's revision once per frame (the editor/document wall keeps the document out of
-// Zustand). Re-renders only when the revision actually changes, so an idle document costs no churn.
-function useDocumentRevision(): number {
-  const [revision, setRevision] = useState(() => documentHost.current().model.revision);
-  useEffect(() => {
-    let raf = 0;
-    let disposed = false;
-    const poll = (): void => {
-      if (disposed) return;
-      const current = documentHost.current().model.revision;
-      setRevision((prev) => (prev === current ? prev : current));
-      raf = requestAnimationFrame(poll);
-    };
-    raf = requestAnimationFrame(poll);
-    return () => {
-      disposed = true;
-      cancelAnimationFrame(raf);
-    };
-  }, []);
-  return revision;
-}
 
 function unique(ids: readonly KeyframeId[]): KeyframeId[] {
   return [...new Set(ids)];

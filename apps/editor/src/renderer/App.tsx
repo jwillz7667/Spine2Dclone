@@ -1,6 +1,12 @@
 import { DockviewReact, type DockviewReadyEvent } from 'dockview';
 import { useEffect, type ReactElement } from 'react';
-import { DopesheetPanel, HierarchyPanel, InspectorPanel, ViewportPanel } from './panels';
+import {
+  CurveEditorPanel,
+  DopesheetPanel,
+  HierarchyPanel,
+  InspectorPanel,
+  ViewportPanel,
+} from './panels';
 import { attachKeybindings } from './viewport/keybindings';
 import 'dockview/dist/styles/dockview.css';
 
@@ -9,6 +15,7 @@ const components = {
   viewport: ViewportPanel,
   inspector: InspectorPanel,
   dopesheet: DopesheetPanel,
+  curveeditor: CurveEditorPanel,
 };
 
 // Default layout: hierarchy left, viewport center, inspector right, dopesheet docked across the bottom.
@@ -30,12 +37,19 @@ function onReady(event: DockviewReadyEvent): void {
     position: { referencePanel: viewport, direction: 'right' },
     initialWidth: 320,
   });
-  event.api.addPanel({
+  const dopesheet = event.api.addPanel({
     id: 'dopesheet',
     component: 'dopesheet',
     title: 'Dopesheet',
     position: { referencePanel: viewport, direction: 'below' },
     initialHeight: 240,
+  });
+  event.api.addPanel({
+    id: 'curveeditor',
+    component: 'curveeditor',
+    title: 'Curve Editor',
+    position: { referencePanel: dopesheet, direction: 'right' },
+    initialWidth: 280,
   });
 }
 

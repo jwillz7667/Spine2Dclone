@@ -37,6 +37,8 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
+      - name: Prettier formatting check (code and config; markdown is excluded)
+        run: pnpm format:check
       - name: Em-dash / en-dash guard (INV-6)
         run: pnpm check:dashes
 

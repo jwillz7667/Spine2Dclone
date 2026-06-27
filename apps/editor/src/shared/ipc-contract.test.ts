@@ -98,7 +98,7 @@ describe('ipc-contract validation', () => {
     expect(
       validateWith(
         atlasImportResponseSchema,
-        { status: 'imported', atlas: { pages: [] } },
+        { status: 'imported', atlas: { pages: [] }, pages: [] },
         'IPC_BAD_RESPONSE',
       ).ok,
     ).toBe(true);
@@ -111,7 +111,40 @@ describe('ipc-contract validation', () => {
     expect(
       validateWith(
         atlasImportResponseSchema,
-        { status: 'imported', atlas: { pages: [] }, extra: true },
+        { status: 'imported', atlas: { pages: [] }, pages: [], extra: true },
+        'IPC_BAD_RESPONSE',
+      ).ok,
+    ).toBe(false);
+  });
+
+  it('accepts an imported response carrying page bytes as a Uint8Array', () => {
+    const result = validateWith(
+      atlasImportResponseSchema,
+      {
+        status: 'imported',
+        atlas: { pages: [{ file: 'atlas-0.png', regions: [] }] },
+        pages: [{ file: 'atlas-0.png', data: new Uint8Array([137, 80, 78, 71]) }],
+      },
+      'IPC_BAD_RESPONSE',
+    );
+    expect(result.ok).toBe(true);
+    if (result.ok && result.data.status === 'imported') {
+      expect(result.data.pages[0]?.data).toBeInstanceOf(Uint8Array);
+    }
+  });
+
+  it('rejects an imported response missing pages or with non-byte page data', () => {
+    expect(
+      validateWith(
+        atlasImportResponseSchema,
+        { status: 'imported', atlas: { pages: [] } },
+        'IPC_BAD_RESPONSE',
+      ).ok,
+    ).toBe(false);
+    expect(
+      validateWith(
+        atlasImportResponseSchema,
+        { status: 'imported', atlas: { pages: [] }, pages: [{ file: 'a.png', data: 'not-bytes' }] },
         'IPC_BAD_RESPONSE',
       ).ok,
     ).toBe(false);

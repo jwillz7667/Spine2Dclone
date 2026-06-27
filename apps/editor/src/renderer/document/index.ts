@@ -8,6 +8,7 @@ export * from '@marionette/document-core';
 
 import { exportDocument, loadDocument, type Document } from '@marionette/document-core';
 import { createInitialDocument, createProductionEnvironment } from '../composition-root';
+import { atlasTextureStore } from '../editor-state/atlas-texture-store';
 import { useSelectionStore } from '../editor-state/selection-store';
 
 // The renderer's single owner of the live Document. It holds the current Document (created at startup
@@ -39,13 +40,18 @@ class DocumentHost {
   // (this method lets that throw propagate to the caller, which surfaces it). On success the old
   // History subscription is detached and the reconciler is re-attached to the new History; selection is
   // cleared because loaded entities carry freshly minted BoneIds that no prior selection can reference.
-  // Load is not a command and resets undo/redo: the new Document starts with empty history.
+  // Load is not a command and resets undo/redo: the new Document starts with empty history. The atlas
+  // page textures are ephemeral editor state belonging to the previous import session, so they are cleared
+  // too: this piece does NOT restore textures for a loaded document (the pages live in userData keyed by
+  // the import session, so doc-relative atlas loading is a later packaging concern). The viewport renders
+  // the 1x1 placeholder until sprites are re-imported.
   load(json: unknown): void {
     const next = loadDocument(json, createProductionEnvironment());
     this.detachReconciler();
     this.document = next;
     this.detachReconciler = this.attachReconciler(next);
     useSelectionStore.getState().clear();
+    atlasTextureStore.clear();
   }
 
   private attachReconciler(document: Document): () => void {

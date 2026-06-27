@@ -17,13 +17,16 @@
     "@marionette/runtime-core": "workspace:*",
     "@marionette/runtime-web": "workspace:*",
     "dockview": "^1.17.0",
+    "maxrects-packer": "^2.7.3",
     "pixi.js": "8.19.0",
+    "pngjs": "^7.0.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "zod": "^3.23.8",
     "zustand": "^5.0.14"
   },
   "devDependencies": {
+    "@types/pngjs": "^6.0.5",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.4",

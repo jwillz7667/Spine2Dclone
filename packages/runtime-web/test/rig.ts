@@ -1,4 +1,5 @@
 import type {
+  Animation,
   Bone,
   RegionAttachment,
   RGBA,
@@ -69,6 +70,7 @@ export interface DocumentParts {
   readonly bones: Bone[];
   readonly slots?: Slot[];
   readonly skin?: SkinMap;
+  readonly animations?: Record<string, Animation>;
   readonly name?: string;
 }
 
@@ -101,7 +103,7 @@ export function makeDocument(parts: DocumentParts): SkeletonDocument {
     bones: parts.bones,
     slots,
     skins: [{ name: 'default', attachments: skin }],
-    animations: {},
+    animations: parts.animations ?? {},
     atlas: {
       pages: regions.length > 0 ? [{ file: 'atlas.png', width: 128, height: 128, regions }] : [],
     },

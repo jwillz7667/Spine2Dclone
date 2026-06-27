@@ -18,11 +18,21 @@ export {
   getTranslation,
 } from './math/affine';
 
-export type { Pose } from './skeleton/pose';
+export type {
+  Pose,
+  ResolvedIkConstraint,
+  ResolvedTransformConstraint,
+  DeformScratch,
+} from './skeleton/pose';
 export { SETUP_STRIDE, SLOT_COLOR_STRIDE } from './skeleton/pose';
 export { buildPose } from './skeleton/build-pose';
 export { resetToSetupPose, computeWorldTransforms } from './skeleton/world-transform';
 export { sampleSkeleton, AnimationNotFoundError } from './skeleton/sample';
+// Mesh-vertex sampling (solve-order step 5): skin + deform a mesh attachment into world space, reusing
+// a pose already solved by sampleSkeleton. The behavioral source of truth the conformance harness and
+// runtime-web mesh rendering build on.
+export { sampleMeshVertices, skinMeshInto, MeshAttachmentError } from './skeleton/mesh-sample';
+export type { MeshAttachmentErrorReason } from './skeleton/mesh-sample';
 // The bezier easing sampler is the single shared function (R1.2, LAW 4): the editor curve-editor
 // preview samples through these exact functions so what the animator sees equals what sampleSkeleton
 // plays. BEZIER_SEGMENTS pins the parameterization; buildBezierTable/evalBezierY are the eval.

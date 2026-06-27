@@ -73,7 +73,7 @@ describe('MCP tools', () => {
 
     const exported = asRecord(await call(deps, 'document.export', { documentId }));
     const doc = asRecord(exported.document);
-    expect(doc.formatVersion).toBe('0.1.0');
+    expect(doc.formatVersion).toBe('0.2.0');
     expect((doc.bones as unknown[]).length).toBe(2);
 
     const validation = asRecord(await call(deps, 'document.validate', { documentId }));

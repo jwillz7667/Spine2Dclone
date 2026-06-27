@@ -59,7 +59,10 @@ describe('solveTransformConstraint', () => {
 
     solveTransformConstraint(pose, 0, 1, { ...noMix, x: 0.5 }, noOffset);
 
-    expect(decomposeWorld(resolveWorldMat(pose, 0)).x).toBeCloseTo(boneX + 0.5 * (targetX - boneX), 9);
+    expect(decomposeWorld(resolveWorldMat(pose, 0)).x).toBeCloseTo(
+      boneX + 0.5 * (targetX - boneX),
+      9,
+    );
   });
 
   it('applies offsets additively in world space', () => {

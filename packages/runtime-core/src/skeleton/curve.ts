@@ -1,5 +1,12 @@
-import type { BoneTimelines, Keyframe, RGBA, SlotTimelines } from '@marionette/format/types';
-import type { PreparedAttachmentTrack, PreparedTrack } from './prepared';
+import type {
+  BoneTimelines,
+  IkFrame,
+  Keyframe,
+  RGBA,
+  SlotTimelines,
+  TransformFrame,
+} from '@marionette/format/types';
+import type { PreparedAttachmentTrack, PreparedStepBoolTrack, PreparedTrack } from './prepared';
 
 // Timeline curve evaluation and the solve-side track representation (WP-1.4, section 8.3, LAW 4).
 // This is OUR first-principles bezier easing: no Spine source, no iterative root finding. The cubic
@@ -163,6 +170,58 @@ export function buildColorTrack(keys: ColorKeys): PreparedTrack {
   });
 }
 
+// The scalar `mix` channel of an IK timeline: one interpolated lane read from each IkFrame.mix.
+export function buildIkMixTrack(frames: readonly Keyframe<IkFrame>[]): PreparedTrack {
+  return buildTrack(frames, 1, (key, out, base) => {
+    out[base] = key.value.mix;
+  });
+}
+
+// The `bendPositive` channel of an IK timeline: stepped (ADR-0003 section 7), so it carries no curve
+// and no eased value, only the 0/1 flag held until the next key.
+export function buildBendTrack(frames: readonly Keyframe<IkFrame>[]): PreparedStepBoolTrack {
+  const keyCount = frames.length;
+  const times = new Float64Array(keyCount);
+  const values = new Uint8Array(keyCount);
+  for (let i = 0; i < keyCount; i += 1) {
+    const frame = frames[i]!;
+    times[i] = frame.time;
+    values[i] = frame.value.bendPositive ? 1 : 0;
+  }
+  return { keyCount, times, values };
+}
+
+// One mix channel of a transform-constraint timeline. The channel is built from ONLY the keyframes
+// that key it (the chosen absent-channel semantics, documented in sample.ts): each kept keyframe's
+// outgoing curve drives the segment to the next kept keyframe. A channel no keyframe keys yields null,
+// and step 2 then holds the constraint's base value for it. Returns null for an all-absent channel.
+export function buildTransformMixTrack(
+  frames: readonly Keyframe<TransformFrame>[],
+  channel: keyof TransformFrame,
+): PreparedTrack | null {
+  const present = frames.filter((frame) => frame.value[channel] !== undefined);
+  if (present.length === 0) return null;
+  return buildTrack(present, 1, (key, out, base) => {
+    out[base] = key.value[channel] ?? 0;
+  });
+}
+
+// A deform timeline flattened to one track: `componentCount` == 2 * vertexCount lanes (the flat
+// [dx0, dy0, dx1, dy1, ...] offsets) interpolated together by the keyframe curve. All keyframes share
+// the same offsets length (the validated DEFORM_OFFSET_LENGTH invariant); the first key sizes the
+// track. An empty timeline never reaches here (the caller drops zero-key channels).
+export function buildDeformTrack(
+  frames: readonly Keyframe<{ offsets: number[] }>[],
+): PreparedTrack {
+  const componentCount = frames[0]?.value.offsets.length ?? 0;
+  return buildTrack(frames, componentCount, (key, out, base) => {
+    const offsets = key.value.offsets;
+    for (let c = 0; c < componentCount; c += 1) {
+      out[base + c] = offsets[c]!;
+    }
+  });
+}
+
 export function buildAttachmentTrack(frames: AttachmentFrames): PreparedAttachmentTrack {
   const keyCount = frames.length;
   const times = new Float64Array(keyCount);
@@ -227,4 +286,11 @@ export function segmentComponent(track: PreparedTrack, i: number, f: number, c: 
 export function sampleAttachmentName(track: PreparedAttachmentTrack, t: number): string | null {
   const i = findSegmentIndex(track.times, track.keyCount, t);
   return track.names[i] ?? null;
+}
+
+// The boolean value at time t (stepped: hold the segment-start flag until the next key, clamped within
+// the period), used for IkFrame.bendPositive (ADR-0003 section 7).
+export function sampleStepBool(track: PreparedStepBoolTrack, t: number): boolean {
+  const i = findSegmentIndex(track.times, track.keyCount, t);
+  return track.values[i] === 1;
 }

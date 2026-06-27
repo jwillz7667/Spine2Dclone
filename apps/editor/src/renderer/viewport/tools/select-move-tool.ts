@@ -5,8 +5,10 @@ import {
   transformPoint,
   type Mat2x3,
 } from '@marionette/runtime-core';
-import { MoveBoneCommand, RotateBoneCommand, documentHost, type BoneId } from '../../document';
+import { documentHost, type BoneId } from '../../document';
 import { useSelectionStore } from '../../editor-state/selection-store';
+import { usePlaybackStore } from '../../editor-state/playback-store';
+import { dispatchBoneTransform, type EditDispatchContext } from '../edit-dispatcher';
 import type { GizmoHandle, MoveRotateGizmo } from '../gizmo/move-rotate-gizmo';
 import { hitTestBone, solveWorldById } from '../scene-solve';
 import type { ViewportPointer, ViewportTool } from './tool';
@@ -23,6 +25,9 @@ interface MoveSession {
   readonly parentInverse: Mat2x3;
   readonly originWorld: readonly [number, number]; // bone world origin at pointerdown (axis constraint)
   readonly grabWorld: readonly [number, number]; // boneOrigin - cursor at pointerdown (no-jump grab)
+  // The editor mode/auto-key context captured at pointerdown, reused for every move in this gesture so a
+  // drag is consistently setup-pose or keyframe (the user cannot flip mode or scrub mid-drag).
+  readonly ctx: EditDispatchContext;
 }
 
 interface RotateSession {
@@ -32,6 +37,7 @@ interface RotateSession {
   readonly startRotation: number; // bone local rotation (deg) at pointerdown
   lastAngle: number; // last cursor angle (rad) about the center
   total: number; // accumulated signed angle (rad), continuous across the +/-pi seam
+  readonly ctx: EditDispatchContext; // see MoveSession.ctx
 }
 
 type Session = MoveSession | RotateSession;
@@ -39,10 +45,14 @@ type Session = MoveSession | RotateSession;
 // Select-and-move tool (handoff 8.3, 8.4). Click selects the bone under the cursor, a non-undoable
 // selection-store change that is NEVER a command (the editor/document wall). With a bone selected,
 // dragging a gizmo handle drives a command SESSION: pointerdown opens a History interaction (BATCH
-// mode), each pointermove issues an absolute MoveBone or RotateBone that coalesces into the session,
-// and pointerup closes it as exactly ONE undo step with ONE memento per target (sessions are primary,
-// not the time window). Move (local x/y) and rotate (local rotation) are distinct one-channel
-// primitives, so a move drag never coalesces with a rotate drag.
+// mode), each pointermove routes the desired local value through the SINGLE edit dispatcher
+// (dispatchBoneTransform, WP-1.8) instead of constructing a bone command directly, and pointerup closes
+// it as exactly ONE undo step with ONE memento per target (sessions are primary, not the time window).
+// The dispatcher decides, from the captured editor context, whether the edit writes the setup pose
+// (setup mode) or auto-keys a setup-relative delta at the playhead (animation mode), so this tool never
+// reaches for MoveBone/RotateBone/ScaleBone itself: that keeps the dispatcher the provable sole caller of
+// the bone setup-transform commands (R1.4). Move (local x/y) and rotate (local rotation) are distinct
+// one-channel primitives, so a move drag never coalesces with a rotate drag.
 export class SelectMoveTool implements ViewportTool {
   private session: Session | null = null;
 
@@ -75,8 +85,7 @@ export class SelectMoveTool implements ViewportTool {
     const session = this.session;
     if (session === null) return;
     this.session = null;
-    const label = session.kind === 'move' ? 'Move Bone' : 'Rotate Bone';
-    documentHost.current().history.endInteraction(label);
+    documentHost.current().history.endInteraction(interactionLabel(session));
   }
 
   private beginSession(
@@ -90,6 +99,7 @@ export class SelectMoveTool implements ViewportTool {
 
     const worldById = solveWorldById(model);
     const origin = getTranslation(worldById.get(bone) ?? identity());
+    const ctx = editorContext();
 
     documentHost.current().history.beginInteraction();
 
@@ -101,6 +111,7 @@ export class SelectMoveTool implements ViewportTool {
         startRotation: entity.rotation,
         lastAngle: Math.atan2(pointer.worldY - origin[1], pointer.worldX - origin[0]),
         total: 0,
+        ctx,
       };
       return;
     }
@@ -114,6 +125,7 @@ export class SelectMoveTool implements ViewportTool {
       parentInverse: invert(parentWorld),
       originWorld: origin,
       grabWorld: [origin[0] - pointer.worldX, origin[1] - pointer.worldY],
+      ctx,
     };
   }
 
@@ -124,9 +136,14 @@ export class SelectMoveTool implements ViewportTool {
     const worldX = session.handle === 'move-y' ? session.originWorld[0] : targetX;
     const worldY = session.handle === 'move-x' ? session.originWorld[1] : targetY;
     const local = transformPoint(session.parentInverse, worldX, worldY);
-    documentHost
-      .current()
-      .history.execute(new MoveBoneCommand(session.bone, { x: local[0], y: local[1] }));
+    const host = documentHost.current();
+    dispatchBoneTransform(
+      host.history,
+      host.model,
+      session.bone,
+      { channel: 'translate', x: local[0], y: local[1] },
+      session.ctx,
+    );
   }
 
   private applyRotate(session: RotateSession, pointer: ViewportPointer): void {
@@ -139,13 +156,39 @@ export class SelectMoveTool implements ViewportTool {
     session.total += normalizeAngle(angle - session.lastAngle);
     session.lastAngle = angle;
     const rotation = session.startRotation + session.total * RAD_TO_DEG;
-    documentHost.current().history.execute(new RotateBoneCommand(session.bone, rotation));
+    const host = documentHost.current();
+    dispatchBoneTransform(
+      host.history,
+      host.model,
+      session.bone,
+      { channel: 'rotate', rotation },
+      session.ctx,
+    );
   }
 }
 
 function selectedBoneId(): BoneId | null {
   const ids = useSelectionStore.getState().selectedBoneIds;
   return ids.length > 0 ? ids[0]! : null;
+}
+
+// Snapshot the ephemeral edit context from the playback store at gesture start (read once, not per move).
+function editorContext(): EditDispatchContext {
+  const state = usePlaybackStore.getState();
+  return {
+    mode: state.mode,
+    autoKey: state.autoKey,
+    activeAnimation: state.activeAnimation,
+    playhead: state.playhead,
+  };
+}
+
+// The undo-step label, reflecting whether the gesture wrote the setup pose or keyed the playhead. An
+// autoKey-off animation gesture issues no command, so endInteraction discards this label (no undo entry).
+function interactionLabel(session: Session): string {
+  const keying = session.ctx.mode === 'animation';
+  if (session.kind === 'move') return keying ? 'Key Bone Position' : 'Move Bone';
+  return keying ? 'Key Bone Rotation' : 'Rotate Bone';
 }
 
 // Wrap a raw angle delta into (-pi, pi] so accumulated rotation stays continuous across the seam.

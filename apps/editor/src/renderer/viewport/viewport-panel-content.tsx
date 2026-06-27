@@ -4,6 +4,7 @@ import { SkeletonView } from '@marionette/runtime-web';
 import { documentHost, exportDocument } from '../document';
 import { useCameraStore } from '../editor-state/camera-store';
 import { useSelectionStore } from '../editor-state/selection-store';
+import { usePlaybackStore } from '../editor-state/playback-store';
 import { useToolStore, type ToolId } from '../editor-state/tool-store';
 import { attachCameraController, type CameraControls } from './camera-controller';
 import { createViewportLayers } from './layers';
@@ -140,18 +141,48 @@ export function ViewportPanelContent(): ReactElement {
   return (
     <div style={rootStyle}>
       <div ref={hostRef} className="viewport-host" />
+      <ViewportModeOverlay />
       <ViewportToolbar />
     </div>
   );
 }
 
-// A minimal tool switcher overlaid on the viewport (keyboard equivalents: V select, B create bone). It
-// reads and writes the ephemeral tool store only; it never touches the document.
+// Makes the editor mode unmistakable (TASK-1.8.4). In animation mode the viewport gets an inset tinted
+// border plus a top banner; the banner shows whether a gizmo edit will auto-key or NOT key (autoKey off),
+// so the author always knows whether dragging a bone writes a keyframe. The overlay is pointer-transparent
+// (pointerEvents none) so it never intercepts gizmo or camera input, and it renders nothing in setup mode
+// (no tint, no banner), which keeps setup posing visually distinct. It reads the ephemeral playback store
+// only; mode/autoKey are editor state, never the document (the document/editor wall).
+function ViewportModeOverlay(): ReactElement | null {
+  const mode = usePlaybackStore((state) => state.mode);
+  const autoKey = usePlaybackStore((state) => state.autoKey);
+
+  if (mode !== 'animation') return null;
+  return (
+    <div style={animationTintStyle} aria-hidden>
+      <div style={animationBannerStyle}>
+        <span style={bannerModeStyle}>ANIMATION</span>
+        <span style={autoKey ? keyingBadgeStyle : notKeyingBadgeStyle}>
+          {autoKey ? 'AUTO-KEY' : 'NOT KEYING'}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+// A minimal tool switcher overlaid on the viewport (keyboard equivalents: V select, B create bone) plus
+// the WP-1.8 mode controls: a setup/animation toggle and an auto-key toggle. It reads and writes the
+// ephemeral tool and playback stores only; it never touches the document (the document/editor wall). The
+// auto-key toggle is disabled in setup mode, where it has no effect (keying only happens in animation).
 function ViewportToolbar(): ReactElement {
   const tool = useToolStore((state) => state.tool);
   const setTool = useToolStore((state) => state.setTool);
+  const mode = usePlaybackStore((state) => state.mode);
+  const setMode = usePlaybackStore((state) => state.setMode);
+  const autoKey = usePlaybackStore((state) => state.autoKey);
+  const setAutoKey = usePlaybackStore((state) => state.setAutoKey);
 
-  const button = (id: ToolId, label: string): ReactElement => (
+  const toolButton = (id: ToolId, label: string): ReactElement => (
     <button
       type="button"
       onClick={() => setTool(id)}
@@ -163,8 +194,35 @@ function ViewportToolbar(): ReactElement {
 
   return (
     <div style={toolbarStyle}>
-      {button('select', 'Select (V)')}
-      {button('createBone', 'Create Bone (B)')}
+      {toolButton('select', 'Select (V)')}
+      {toolButton('createBone', 'Create Bone (B)')}
+      <span style={dividerStyle} />
+      <button
+        type="button"
+        onClick={() => setMode('setup')}
+        style={{ ...buttonStyle, ...(mode === 'setup' ? buttonActiveStyle : null) }}
+      >
+        Setup
+      </button>
+      <button
+        type="button"
+        onClick={() => setMode('animation')}
+        style={{ ...buttonStyle, ...(mode === 'animation' ? buttonActiveStyle : null) }}
+      >
+        Animation
+      </button>
+      <button
+        type="button"
+        onClick={() => setAutoKey(!autoKey)}
+        disabled={mode === 'setup'}
+        style={{
+          ...buttonStyle,
+          ...(mode === 'animation' && autoKey ? buttonActiveStyle : null),
+          ...(mode === 'setup' ? buttonDisabledStyle : null),
+        }}
+      >
+        Auto-key
+      </button>
     </div>
   );
 }
@@ -193,4 +251,63 @@ const buttonActiveStyle: CSSProperties = {
   background: '#3a567a',
   borderColor: '#5aa0ff',
   color: '#ffffff',
+};
+
+const buttonDisabledStyle: CSSProperties = {
+  opacity: 0.45,
+  cursor: 'not-allowed',
+};
+
+const dividerStyle: CSSProperties = {
+  width: 1,
+  alignSelf: 'stretch',
+  background: '#444444',
+  margin: '0 2px',
+};
+
+// Animation-mode chrome: an inset tinted border framing the whole viewport so the mode is unmistakable at
+// a glance, with a small banner top-center. pointerEvents none so it never steals gizmo/camera input.
+const animationTintStyle: CSSProperties = {
+  position: 'absolute',
+  inset: 0,
+  pointerEvents: 'none',
+  boxSizing: 'border-box',
+  border: '2px solid rgba(214, 132, 46, 0.85)',
+};
+
+const animationBannerStyle: CSSProperties = {
+  position: 'absolute',
+  top: 8,
+  left: '50%',
+  transform: 'translateX(-50%)',
+  display: 'flex',
+  alignItems: 'center',
+  gap: 8,
+  padding: '3px 10px',
+  borderRadius: 4,
+  background: 'rgba(40, 30, 18, 0.85)',
+  border: '1px solid rgba(214, 132, 46, 0.85)',
+  fontSize: 11,
+  letterSpacing: 0.5,
+};
+
+const bannerModeStyle: CSSProperties = {
+  color: '#e0a861',
+  fontWeight: 600,
+};
+
+const keyingBadgeStyle: CSSProperties = {
+  color: '#0f1a0f',
+  background: '#7ad07a',
+  padding: '1px 6px',
+  borderRadius: 3,
+  fontWeight: 600,
+};
+
+const notKeyingBadgeStyle: CSSProperties = {
+  color: '#1a1a1a',
+  background: '#cccccc',
+  padding: '1px 6px',
+  borderRadius: 3,
+  fontWeight: 600,
 };

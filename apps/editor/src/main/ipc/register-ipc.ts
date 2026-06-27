@@ -5,16 +5,19 @@
 import { app, ipcMain } from 'electron';
 import {
   IpcChannel,
+  atlasImportRequestSchema,
   fileOpenRequestSchema,
   fileSaveRequestSchema,
   getVersionRequestSchema,
   getVersionResponseSchema,
   validateWith,
+  type AtlasImportResponse,
   type FileOpenResponse,
   type FileSaveResponse,
   type GetVersionResponse,
   type IpcResult,
 } from '../../shared';
+import { importAtlasFromDirectory } from '../atlas-import';
 import { openDocumentFromFile, saveDocumentToFile } from '../file-io';
 
 export function registerIpc(): void {
@@ -48,10 +51,20 @@ export function registerIpc(): void {
       return openDocumentFromFile();
     },
   );
+
+  ipcMain.handle(
+    IpcChannel.atlasImport,
+    async (_event, payload: unknown): Promise<IpcResult<AtlasImportResponse>> => {
+      const request = validateWith(atlasImportRequestSchema, payload, 'IPC_BAD_REQUEST');
+      if (!request.ok) return request;
+      return importAtlasFromDirectory();
+    },
+  );
 }
 
 export function disposeIpc(): void {
   ipcMain.removeHandler(IpcChannel.getVersion);
   ipcMain.removeHandler(IpcChannel.fileSave);
   ipcMain.removeHandler(IpcChannel.fileOpen);
+  ipcMain.removeHandler(IpcChannel.atlasImport);
 }

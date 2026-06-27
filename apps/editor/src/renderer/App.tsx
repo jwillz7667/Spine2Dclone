@@ -2,6 +2,7 @@ import { DockviewReact, type DockviewReadyEvent } from 'dockview';
 import { useEffect, type ReactElement } from 'react';
 import {
   AnimationPanel,
+  AssetsPanel,
   CurveEditorPanel,
   DopesheetPanel,
   HierarchyPanel,
@@ -13,6 +14,7 @@ import 'dockview/dist/styles/dockview.css';
 
 const components = {
   hierarchy: HierarchyPanel,
+  assets: AssetsPanel,
   viewport: ViewportPanel,
   inspector: InspectorPanel,
   animations: AnimationPanel,
@@ -25,12 +27,20 @@ const components = {
 // anchor; the side panels dock against it and the bottom strip docks below it (WP-1.6, WP-1.9).
 function onReady(event: DockviewReadyEvent): void {
   const viewport = event.api.addPanel({ id: 'viewport', component: 'viewport', title: 'Viewport' });
-  event.api.addPanel({
+  const hierarchy = event.api.addPanel({
     id: 'hierarchy',
     component: 'hierarchy',
     title: 'Hierarchy',
     position: { referencePanel: viewport, direction: 'left' },
     initialWidth: 280,
+  });
+  // The Assets panel (atlas import + region list, WP-1.3) tabs alongside the hierarchy in the left group:
+  // both are document-structure browsers, and the inspector reads the imported regions to attach them.
+  event.api.addPanel({
+    id: 'assets',
+    component: 'assets',
+    title: 'Assets',
+    position: { referencePanel: hierarchy, direction: 'within' },
   });
   event.api.addPanel({
     id: 'inspector',

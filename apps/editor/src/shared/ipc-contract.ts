@@ -11,6 +11,7 @@ export const IpcChannel = {
   getVersion: 'app:getVersion',
   fileSave: 'file:save',
   fileOpen: 'file:open',
+  atlasImport: 'atlas:import',
 } as const;
 
 export type IpcChannel = (typeof IpcChannel)[keyof typeof IpcChannel];
@@ -51,6 +52,19 @@ export const fileOpenResponseSchema = z.discriminatedUnion('status', [
 ]);
 
 export type FileOpenResponse = z.infer<typeof fileOpenResponseSchema>;
+
+// atlas:import. No request payload (the renderer supplies NO filesystem path, the path-injection
+// defense): the main process shows the directory dialog, runs the deterministic pack pipeline, and
+// returns the packed AtlasRef, or a canceled status if the user dismissed the dialog. The atlas is opaque
+// at the transport layer (z.unknown), exactly like file:open's document: the main-process pipeline is the
+// trusted producer of a typed AtlasRef, and the format validator re-checks it at export (LAW 3).
+export const atlasImportRequestSchema = z.undefined();
+export const atlasImportResponseSchema = z.discriminatedUnion('status', [
+  z.object({ status: z.literal('imported'), atlas: z.unknown() }).strict(),
+  z.object({ status: z.literal('canceled') }).strict(),
+]);
+
+export type AtlasImportResponse = z.infer<typeof atlasImportResponseSchema>;
 
 // Typed IPC error model. The main boundary never throws a bare string across the wire; it returns
 // a discriminated result so the renderer can branch on success without try/catch over IPC.
@@ -93,4 +107,7 @@ export interface MarionetteApi {
   // Open a document; main shows the dialog, reads and validates the file. Returns the parsed document
   // or a canceled status.
   openDocument(): Promise<IpcResult<FileOpenResponse>>;
+  // Import a directory of source sprites; main owns the directory dialog (no renderer path), packs the
+  // atlas, and returns the packed AtlasRef or a canceled status.
+  importAtlas(): Promise<IpcResult<AtlasImportResponse>>;
 }

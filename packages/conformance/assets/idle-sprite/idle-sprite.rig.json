@@ -1,0 +1,254 @@
+{
+  "formatVersion": "0.1.0",
+  "name": "idle-sprite",
+  "hash": "cb881a44e60071ceff208736962bab0a953b0a6fb736e8f7ff6e2077dbdd8d37",
+  "bones": [
+    {
+      "name": "torso",
+      "parent": null,
+      "length": 120,
+      "x": 0,
+      "y": 0,
+      "rotation": 90,
+      "scaleX": 1,
+      "scaleY": 1,
+      "shearX": 0,
+      "shearY": 0,
+      "transformMode": "normal"
+    },
+    {
+      "name": "armL",
+      "parent": "torso",
+      "length": 70,
+      "x": 120,
+      "y": 0,
+      "rotation": 35,
+      "scaleX": 1,
+      "scaleY": 1,
+      "shearX": 0,
+      "shearY": 0,
+      "transformMode": "normal"
+    },
+    {
+      "name": "armR",
+      "parent": "torso",
+      "length": 70,
+      "x": 120,
+      "y": 0,
+      "rotation": -35,
+      "scaleX": 1,
+      "scaleY": 1,
+      "shearX": 0,
+      "shearY": 0,
+      "transformMode": "normal"
+    }
+  ],
+  "slots": [
+    {
+      "name": "armR",
+      "bone": "armR",
+      "color": { "r": 1, "g": 1, "b": 1, "a": 1 },
+      "attachment": "armR",
+      "blendMode": "normal"
+    },
+    {
+      "name": "torso",
+      "bone": "torso",
+      "color": { "r": 1, "g": 1, "b": 1, "a": 1 },
+      "attachment": "torso",
+      "blendMode": "normal"
+    },
+    {
+      "name": "armL",
+      "bone": "armL",
+      "color": { "r": 1, "g": 1, "b": 1, "a": 1 },
+      "attachment": "armL",
+      "blendMode": "normal"
+    }
+  ],
+  "skins": [
+    {
+      "name": "default",
+      "attachments": {
+        "torso": {
+          "torso": {
+            "type": "region",
+            "path": "torso",
+            "x": 0,
+            "y": 0,
+            "rotation": 0,
+            "scaleX": 1,
+            "scaleY": 1,
+            "width": 64,
+            "height": 128,
+            "color": { "r": 1, "g": 1, "b": 1, "a": 1 }
+          }
+        },
+        "armL": {
+          "armL": {
+            "type": "region",
+            "path": "armL",
+            "x": 0,
+            "y": 0,
+            "rotation": 0,
+            "scaleX": 1,
+            "scaleY": 1,
+            "width": 48,
+            "height": 96,
+            "color": { "r": 1, "g": 1, "b": 1, "a": 1 }
+          }
+        },
+        "armR": {
+          "armR": {
+            "type": "region",
+            "path": "armR",
+            "x": 0,
+            "y": 0,
+            "rotation": 0,
+            "scaleX": 1,
+            "scaleY": 1,
+            "width": 48,
+            "height": 96,
+            "color": { "r": 1, "g": 1, "b": 1, "a": 1 }
+          }
+        }
+      }
+    }
+  ],
+  "animations": {
+    "idle": {
+      "duration": 1.2,
+      "bones": {
+        "torso": {
+          "rotate": [
+            {
+              "time": 0,
+              "value": { "angle": 0 },
+              "curve": { "type": "bezier", "cx1": 0.25, "cy1": 0, "cx2": 0.75, "cy2": 1 }
+            },
+            {
+              "time": 0.6,
+              "value": { "angle": 8 },
+              "curve": { "type": "bezier", "cx1": 0.25, "cy1": 0, "cx2": 0.75, "cy2": 1 }
+            },
+            {
+              "time": 1.2,
+              "value": { "angle": 0 },
+              "curve": "linear"
+            }
+          ],
+          "translate": [
+            {
+              "time": 0,
+              "value": { "x": 0, "y": 0 },
+              "curve": "linear"
+            },
+            {
+              "time": 0.6,
+              "value": { "x": 0, "y": 6 },
+              "curve": "linear"
+            },
+            {
+              "time": 1.2,
+              "value": { "x": 0, "y": 0 },
+              "curve": "linear"
+            }
+          ]
+        },
+        "armL": {
+          "rotate": [
+            {
+              "time": 0,
+              "value": { "angle": 0 },
+              "curve": "stepped"
+            },
+            {
+              "time": 0.6,
+              "value": { "angle": 20 },
+              "curve": "linear"
+            },
+            {
+              "time": 1.2,
+              "value": { "angle": 0 },
+              "curve": "linear"
+            }
+          ]
+        },
+        "armR": {
+          "rotate": [
+            {
+              "time": 0,
+              "value": { "angle": 0 },
+              "curve": "linear"
+            },
+            {
+              "time": 0.6,
+              "value": { "angle": -20 },
+              "curve": { "type": "bezier", "cx1": 0.42, "cy1": 0, "cx2": 0.58, "cy2": 1 }
+            },
+            {
+              "time": 1.2,
+              "value": { "angle": 0 },
+              "curve": "linear"
+            }
+          ]
+        }
+      },
+      "slots": {}
+    }
+  },
+  "atlas": {
+    "pages": [
+      {
+        "file": "idle-sprite-page0.png",
+        "width": 128,
+        "height": 128,
+        "regions": [
+          {
+            "name": "torso",
+            "x": 2,
+            "y": 2,
+            "w": 60,
+            "h": 120,
+            "rotated": false,
+            "offsetX": 2,
+            "offsetY": 4,
+            "originalW": 64,
+            "originalH": 128
+          }
+        ]
+      },
+      {
+        "file": "idle-sprite-page1.png",
+        "width": 128,
+        "height": 128,
+        "regions": [
+          {
+            "name": "armL",
+            "x": 2,
+            "y": 2,
+            "w": 44,
+            "h": 90,
+            "rotated": false,
+            "offsetX": 2,
+            "offsetY": 3,
+            "originalW": 48,
+            "originalH": 96
+          },
+          {
+            "name": "armR",
+            "x": 48,
+            "y": 2,
+            "w": 44,
+            "h": 90,
+            "rotated": false,
+            "offsetX": 2,
+            "offsetY": 3,
+            "originalW": 48,
+            "originalH": 96
+          }
+        ]
+      }
+    ]
+  }
+}

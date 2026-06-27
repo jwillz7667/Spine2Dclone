@@ -40,7 +40,7 @@ Dependency direction is machine-enforced: `format` <- `runtime-core` <- `runtime
 
 ## Prerequisites
 
-- Node 20 LTS (pinned in `.node-version` to the exact patch used to generate fixtures).
+- Node 22 LTS (pinned in `.node-version` to the exact patch used to generate fixtures).
 - pnpm (pinned via the root `package.json` `packageManager` field; enable with `corepack enable`).
 
 ## Quickstart

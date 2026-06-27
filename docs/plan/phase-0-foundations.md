@@ -113,7 +113,7 @@ Creates:
   .editorconfig
   .gitignore
   .npmrc                       # pnpm settings (strict-peer-dependencies, etc.)
-  .node-version                # pinned Node 20 LTS
+  .node-version                # pinned Node 22 LTS
   .github/workflows/ci.yml
   docs/plan/phase-0-foundations.md   # this file
   packages/format/package.json       # placeholder scaffolds (no logic yet)
@@ -125,7 +125,7 @@ Creates:
 Design notes:
 
 - Package manager pinned via root `package.json` `"packageManager": "pnpm@<x.y.z>"`.
-  Node pinned via `.node-version` (Node 20 LTS). CI uses the same.
+  Node pinned via `.node-version` (Node 22 LTS). CI uses the same.
 - `tsconfig.base.json` enables, at minimum: `strict: true`, `noUncheckedIndexedAccess`,
   `exactOptionalPropertyTypes`, `noImplicitOverride`, `noFallthroughCasesInSwitch`,
   `useUnknownInCatchVariables`, `noUnusedLocals`, `noUnusedParameters`,

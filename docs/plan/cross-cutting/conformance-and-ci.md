@@ -178,7 +178,7 @@ contract every runtime must reproduce. One fixture file per rig.
   "rigHash": "sha256:...",            // hash of the rig file the fixture was generated from
   "specHash": "sha256:...",           // hash of the sample-spec used
   "coreVersion": "runtime-core@0.4.0",// provenance, not used in comparison
-  "toolchain": "node-20.18.1-v8",     // pinned generation toolchain id (A.7), recorded for provenance + the lock
+  "toolchain": "node-22.13.1-v8",     // pinned generation toolchain id (A.7), recorded for provenance + the lock
   "generatedBy": "generate.ts",
   "samples": [
     {
@@ -375,8 +375,8 @@ regenerating on a different Node than CI, can change the last ULP, change the JS
 with zero intended behavior change. Even `rig-2bone`'s basis is `cos`/`sin` of a rotation, so this affects every rig.
 The fix is to pin the generation toolchain, not to loosen the gate:
 
-- The exact Node version is pinned in `.node-version` (Phase 0 pins Node 20 LTS to an exact patch, for example
-  `20.18.1`). The conformance package records the same id as `node-<version>-v8` in the lock and fixture `toolchain`
+- The exact Node version is pinned in `.node-version` (Phase 0 pins Node 22 LTS to an exact patch, for example
+  `22.13.1`). The conformance package records the same id as `node-<version>-v8` in the lock and fixture `toolchain`
   field.
 - `generate.ts` and `generate-slot.ts` call `.node-version-check.ts` FIRST: it compares `process.version` to the
   pinned version and refuses to run (typed error, nonzero exit) on a mismatch, telling the developer to

@@ -100,6 +100,17 @@ export class SkeletonView {
     return { bones: [...this.boneRenders], attachments: [...this.attachmentRenders] };
   }
 
+  // Clear the scene to empty: release every bone graphic and attachment sprite (resize the pools to
+  // zero) and drop the description records, so the editor viewport can show an empty scene for a
+  // zero-bone document. Unlike destroy(), the container tree and the view stay reusable: a later
+  // sync() rebuilds the pools from scratch through the same resize path.
+  clear(): void {
+    this.resizeBones(0);
+    this.resizeAttachments(0);
+    this.boneRenders = [];
+    this.attachmentRenders = [];
+  }
+
   // Tear down the container tree and release every display object.
   destroy(): void {
     this.root.destroy({ children: true });

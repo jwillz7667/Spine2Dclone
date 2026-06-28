@@ -113,6 +113,124 @@ function richDocument(): SkeletonDocument {
   return { ...draft, hash: computeContentHash(draft) };
 }
 
+// A document carrying BOTH an unweighted mesh (with an `edges` wireframe) and a single-bone weighted
+// (rigid) mesh, so the WP-2.1 MeshAttachmentEntity must round-trip losslessly: load promotes each format
+// mesh to an editable entity, export projects it back, and the result is deep-equal to the original
+// (edges present on the unweighted mesh, `bones` present on the weighted one, neither leaking onto the
+// other).
+function meshDocument(): SkeletonDocument {
+  const draft: SkeletonDocument = {
+    formatVersion: CURRENT_FORMAT_VERSION,
+    name: 'meshes',
+    hash: '',
+    bones: [
+      {
+        name: 'root',
+        parent: null,
+        length: 100,
+        x: 0,
+        y: 0,
+        rotation: 0,
+        scaleX: 1,
+        scaleY: 1,
+        shearX: 0,
+        shearY: 0,
+        transformMode: 'normal',
+      },
+    ],
+    slots: [
+      {
+        name: 'plain',
+        bone: 'root',
+        color: { r: 1, g: 1, b: 1, a: 1 },
+        attachment: 'plainmesh',
+        blendMode: 'normal',
+      },
+      {
+        name: 'rigid',
+        bone: 'root',
+        color: { r: 1, g: 1, b: 1, a: 1 },
+        attachment: 'rigidmesh',
+        blendMode: 'normal',
+      },
+    ],
+    skins: [
+      {
+        name: 'default',
+        attachments: {
+          plain: {
+            plainmesh: {
+              type: 'mesh',
+              path: 'tex_plain',
+              uvs: [0, 0, 1, 0, 1, 1, 0, 1, 0.5, 0.5],
+              triangles: [0, 1, 4, 1, 2, 4, 2, 3, 4, 3, 0, 4],
+              hullLength: 4,
+              width: 64,
+              height: 64,
+              color: { r: 1, g: 1, b: 1, a: 1 },
+              edges: [0, 1, 1, 2, 2, 3, 3, 0],
+              vertices: [0, 0, 64, 0, 64, 64, 0, 64, 32, 32],
+            },
+          },
+          rigid: {
+            rigidmesh: {
+              type: 'mesh',
+              path: 'tex_rigid',
+              uvs: [0, 0, 1, 0, 1, 1, 0, 1],
+              triangles: [0, 1, 2, 0, 2, 3],
+              hullLength: 4,
+              width: 64,
+              height: 64,
+              color: { r: 1, g: 1, b: 1, a: 1 },
+              vertices: [1, 0, 0, 0, 1, 1, 0, 64, 0, 1, 1, 0, 64, 64, 1, 1, 0, 0, 64, 1],
+              bones: [0],
+            },
+          },
+        },
+      },
+    ],
+    ikConstraints: [],
+    transformConstraints: [],
+    animations: {},
+    atlas: {
+      pages: [
+        {
+          file: 'atlas.png',
+          width: 128,
+          height: 128,
+          regions: [
+            {
+              name: 'tex_plain',
+              x: 0,
+              y: 0,
+              w: 64,
+              h: 64,
+              rotated: false,
+              offsetX: 0,
+              offsetY: 0,
+              originalW: 64,
+              originalH: 64,
+            },
+            {
+              name: 'tex_rigid',
+              x: 64,
+              y: 0,
+              w: 64,
+              h: 64,
+              rotated: false,
+              offsetX: 0,
+              offsetY: 0,
+              originalW: 64,
+              originalH: 64,
+            },
+          ],
+        },
+      ],
+    },
+  };
+  return { ...draft, hash: computeContentHash(draft) };
+}
+
 describe('save / load seam', () => {
   it('round-trips a command-built document through the format projection', () => {
     const { env } = makeTestEnv();
@@ -151,6 +269,29 @@ describe('save / load seam', () => {
     const doc = loadDocument(original, makeTestEnv().env);
     const exported = exportDocument(doc.model);
     expect(exported).toEqual(original);
+  });
+
+  it('round-trips editable mesh attachments (unweighted with edges, and weighted) deep-equal', () => {
+    const original = meshDocument();
+    const doc = loadDocument(original, makeTestEnv().env);
+
+    // Loaded as first-class editable mesh entities (no longer preserved verbatim).
+    const plain = doc.model.slots().find((s) => s.name === 'plain')!;
+    const plainMesh = doc.model.getAttachment(plain.id, 'plainmesh');
+    expect(plainMesh?.kind).toBe('mesh');
+    if (plainMesh?.kind === 'mesh') {
+      expect(plainMesh.edges).toEqual([0, 1, 1, 2, 2, 3, 3, 0]); // unweighted carries its wireframe
+      expect(plainMesh.bones).toBeUndefined(); // and is unweighted
+    }
+    const rigid = doc.model.slots().find((s) => s.name === 'rigid')!;
+    const rigidMesh = doc.model.getAttachment(rigid.id, 'rigidmesh');
+    if (rigidMesh?.kind === 'mesh') {
+      expect(rigidMesh.bones).toEqual([0]); // weighted manifest present
+      expect(rigidMesh.edges).toBeUndefined(); // no wireframe leaked onto it
+    }
+
+    const exported = exportDocument(doc.model);
+    expect(exported).toEqual(original); // lossless, hash included
   });
 
   it('cascades the slot and attachment when its bone is deleted, restoring them on undo', () => {

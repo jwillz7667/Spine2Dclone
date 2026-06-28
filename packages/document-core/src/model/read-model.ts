@@ -76,8 +76,10 @@ export interface SlotSnapshot {
   readonly blendMode: BlendMode;
 }
 
-// A plain attachment projection for snapshots, keyed by its owning slot. The region variant carries
-// its editable fields; the preserved variant carries the verbatim format value, so both round-trip.
+// A plain attachment projection for snapshots, keyed by its owning slot. The region and mesh variants
+// carry their editable fields (the mesh variant includes the geometry arrays, so a do/undo round-trip
+// deep-equal covers a mesh edit); the preserved variant carries the verbatim format value. All three
+// round-trip.
 export type AttachmentSnapshot =
   | {
       readonly slotId: string;
@@ -92,6 +94,21 @@ export type AttachmentSnapshot =
       readonly width: number;
       readonly height: number;
       readonly color: RGBA;
+    }
+  | {
+      readonly slotId: string;
+      readonly kind: 'mesh';
+      readonly name: string;
+      readonly path: string;
+      readonly uvs: readonly number[];
+      readonly triangles: readonly number[];
+      readonly hullLength: number;
+      readonly width: number;
+      readonly height: number;
+      readonly color: RGBA;
+      readonly edges?: readonly number[];
+      readonly vertices: readonly number[];
+      readonly bones?: readonly number[];
     }
   | {
       readonly slotId: string;
@@ -207,6 +224,23 @@ export function attachmentToSnapshot(slotId: SlotId, att: AttachmentEntity): Att
       width: att.width,
       height: att.height,
       color: { ...att.color },
+    };
+  }
+  if (att.kind === 'mesh') {
+    return {
+      slotId,
+      kind: 'mesh',
+      name: att.name,
+      path: att.path,
+      uvs: att.uvs.slice(),
+      triangles: att.triangles.slice(),
+      hullLength: att.hullLength,
+      width: att.width,
+      height: att.height,
+      color: { ...att.color },
+      vertices: att.vertices.slice(),
+      ...(att.edges !== undefined ? { edges: att.edges.slice() } : {}),
+      ...(att.bones !== undefined ? { bones: att.bones.slice() } : {}),
     };
   }
   return { slotId, kind: 'preserved', name: att.name, value: att.value };

@@ -6,6 +6,7 @@ import type {
   BoneEntity,
   BoneTimelineSet,
   KeyframeEntity,
+  MeshGeometry,
   RegionAttachmentEntity,
   SlotEntity,
   SlotTimelineSet,
@@ -39,6 +40,7 @@ export interface Mutator extends DocumentReadModel {
     name: string,
     patch: Partial<Omit<RegionAttachmentEntity, 'kind' | 'name'>>,
   ): void;
+  setMeshGeometry(slotId: SlotId, name: string, geometry: MeshGeometry): void;
   insertAnimation(entity: AnimationEntity): void;
   removeAnimation(id: AnimationId): void;
   patchAnimation(
@@ -96,6 +98,7 @@ export function createMutator(model: DocumentModelInternal): Mutator {
     addAttachment: (slotId, entity) => model.addAttachment(slotId, entity),
     removeAttachment: (slotId, name) => model.removeAttachment(slotId, name),
     patchAttachment: (slotId, name, patch) => model.patchAttachment(slotId, name, patch),
+    setMeshGeometry: (slotId, name, geometry) => model.setMeshGeometry(slotId, name, geometry),
     insertAnimation: (entity) => model.insertAnimation(entity),
     removeAnimation: (id) => model.removeAnimation(id),
     patchAnimation: (id, patch) => model.patchAnimation(id, patch),

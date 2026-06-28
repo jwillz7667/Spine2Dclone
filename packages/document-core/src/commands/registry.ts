@@ -1,14 +1,20 @@
+import { addMeshVertexSpec } from './add-mesh-vertex.command';
 import { addRegionAttachmentSpec } from './add-region-attachment.command';
+import { autoGridFillMeshSpec } from './auto-grid-fill-mesh.command';
+import { autoPerimeterTraceMeshSpec } from './auto-perimeter-trace-mesh.command';
 import { createAnimationSpec } from './create-animation.command';
 import { createBoneSpec } from './create-bone.command';
 import { createSlotSpec } from './create-slot.command';
 import { deleteAnimationSpec } from './delete-animation.command';
 import { deleteBoneSpec } from './delete-bone.command';
 import { deleteKeyframeSpec } from './delete-keyframe.command';
+import { deleteMeshVertexSpec } from './delete-mesh-vertex.command';
 import { deleteSlotSpec } from './delete-slot.command';
 import { duplicateAnimationSpec } from './duplicate-animation.command';
+import { generateMeshFromRegionSpec } from './generate-mesh-from-region.command';
 import { moveBoneSpec } from './move-bone.command';
 import { moveKeyframeSpec } from './move-keyframe.command';
+import { moveMeshVertexSpec } from './move-mesh-vertex.command';
 import { normalizeBoneRotationSpec } from './normalize-bone-rotation.command';
 import { pasteKeyframesSpec } from './paste-keyframes.command';
 import { removeAttachmentSpec } from './remove-attachment.command';
@@ -26,6 +32,7 @@ import { setBoneLengthSpec } from './set-bone-length.command';
 import { setBoneTransformModeSpec } from './set-bone-transform-mode.command';
 import { setCurveSpec } from './set-curve.command';
 import { setKeyframeSpec } from './set-keyframe.command';
+import { setMeshEdgesSpec } from './set-mesh-edges.command';
 import { setRegionAttachmentTransformSpec } from './set-region-attachment-transform.command';
 import { setSlotBlendModeSpec } from './set-slot-blend-mode.command';
 import { setSlotColorSpec } from './set-slot-color.command';
@@ -66,4 +73,12 @@ export const commandRegistry: readonly CommandSpec[] = [
   setCurveSpec,
   duplicateAnimationSpec,
   pasteKeyframesSpec,
+  // WP-2.1 mesh creation/editing
+  generateMeshFromRegionSpec,
+  addMeshVertexSpec,
+  moveMeshVertexSpec,
+  deleteMeshVertexSpec,
+  setMeshEdgesSpec,
+  autoGridFillMeshSpec,
+  autoPerimeterTraceMeshSpec,
 ];

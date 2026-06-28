@@ -459,6 +459,17 @@ function AttachmentRow(props: AttachmentRowProps): ReactElement {
     );
   }
 
+  // Mesh attachments (WP-2.1) are listed read-only here: the document model and commands edit them, but
+  // their dedicated authoring surface is the viewport mesh tooling, not this region transform grid.
+  if (attachment.kind === 'mesh') {
+    return (
+      <div style={attachmentRowStyle}>
+        <span style={rowNameStyle}>{attachment.name}</span>
+        <span style={rowBoneStyle}>{attachment.path} (mesh)</span>
+      </div>
+    );
+  }
+
   function commitField(field: TransformField, raw: string): boolean {
     const live = documentHost.current().model.getAttachment(slotId, attachment.name);
     if (live === undefined || live.kind !== 'region') return false;

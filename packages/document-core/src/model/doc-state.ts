@@ -60,21 +60,79 @@ export interface RegionAttachmentEntity {
   readonly color: RGBA;
 }
 
-// A non-region attachment (mesh/clipping/point/boundingbox) held VERBATIM so a loaded document round-
-// trips losslessly: Phase 1 has no command that creates or edits one. It lives in the same per-slot
-// attachment map as region attachments (keyed by SlotId then name), so a slot rename keeps the linkage
-// and the delete cascade restores it uniformly. `value` is the exact format Attachment.
+// An editable mesh attachment in the default skin (WP-2.1), mirroring the format MeshAttachment BY VALUE
+// plus its own `name` (the attachment-map key) and a `kind` discriminant. `vertices` is the flat
+// [x,y,...] slot-bone-space stream when UNWEIGHTED (`bones` omitted) and the weighted
+// [boneCount, (boneIndex, vx, vy, weight) * boneCount] stream when WEIGHTED (`bones` present, the
+// ascending de-duplicated manifest), exactly the format encoding (the @marionette/format codec is the
+// single producer/consumer of the weighted layout; WP-2.1 authors only the unweighted form). `uvs`,
+// `triangles`, and `hullLength` describe the topology; `edges` is the optional editor wireframe.
+// Geometry (uvs/triangles/hullLength/vertices/edges/bones) is replaced wholesale through the
+// setMeshGeometry mutator, never patched in place, so a frozen copy is safe to share by reference.
+export interface MeshAttachmentEntity {
+  readonly kind: 'mesh';
+  readonly name: string;
+  readonly path: string;
+  readonly uvs: readonly number[];
+  readonly triangles: readonly number[];
+  readonly hullLength: number;
+  readonly width: number;
+  readonly height: number;
+  readonly color: RGBA;
+  readonly edges?: readonly number[];
+  readonly vertices: readonly number[];
+  readonly bones?: readonly number[];
+}
+
+// The six geometry fields a mesh edit overwrites WHOLESALE (the setMeshGeometry mutator replaces all of
+// them at once; name/path/width/height/color are stable through a geometry edit). `edges` and `bones`
+// are `| undefined` (not optional) so a caller MUST state intent: undefined clears the wireframe / marks
+// the mesh unweighted. Because the overwrite set is exactly these six, a mesh-edit command's before
+// memento is the full prior MeshGeometry, which keeps the do/undo round-trip bit-exact (command-history
+// D3: capture exactly what you overwrite).
+export interface MeshGeometry {
+  readonly uvs: readonly number[];
+  readonly triangles: readonly number[];
+  readonly hullLength: number;
+  readonly vertices: readonly number[];
+  readonly edges: readonly number[] | undefined;
+  readonly bones: readonly number[] | undefined;
+}
+
+// Project a mesh attachment's current geometry into a MeshGeometry value copy (the before memento source
+// and the base every mesh-edit command modifies). Arrays are sliced so the memento never aliases the
+// live entity.
+export function meshGeometryOf(mesh: MeshAttachmentEntity): MeshGeometry {
+  return {
+    uvs: mesh.uvs.slice(),
+    triangles: mesh.triangles.slice(),
+    hullLength: mesh.hullLength,
+    vertices: mesh.vertices.slice(),
+    edges: mesh.edges === undefined ? undefined : mesh.edges.slice(),
+    bones: mesh.bones === undefined ? undefined : mesh.bones.slice(),
+  };
+}
+
+// A non-region attachment (clipping/point/boundingbox) held VERBATIM so a loaded document round-trips
+// losslessly: WP-2.1 has no command that creates or edits one. It lives in the same per-slot attachment
+// map as region/mesh attachments (keyed by SlotId then name), so a slot rename keeps the linkage and the
+// delete cascade restores it uniformly. `value` is the exact format Attachment. Mesh attachments are NO
+// LONGER preserved verbatim (WP-2.1 promotes them to the editable MeshAttachmentEntity above).
 export interface PreservedAttachmentEntity {
   readonly kind: 'preserved';
   readonly name: string;
   readonly value: Attachment;
 }
 
-// The default skin's attachments are the only ones Phase 1 promotes to editable. The discriminated
-// union keeps the editable region path (RegionAttachmentEntity) clean while still carrying non-region
-// attachments losslessly (PreservedAttachmentEntity). RemoveAttachment and the delete cascade operate
-// on either kind uniformly; only the region-authoring commands construct or patch the region variant.
-export type AttachmentEntity = RegionAttachmentEntity | PreservedAttachmentEntity;
+// The default skin's attachments are the only ones promoted to editable. The discriminated union keeps
+// the editable region (RegionAttachmentEntity) and mesh (MeshAttachmentEntity) paths clean while still
+// carrying the remaining attachment kinds losslessly (PreservedAttachmentEntity). RemoveAttachment and
+// the delete cascade operate on every kind uniformly; only the authoring commands construct or edit the
+// region and mesh variants.
+export type AttachmentEntity =
+  | RegionAttachmentEntity
+  | MeshAttachmentEntity
+  | PreservedAttachmentEntity;
 
 // The four animatable bone transform channels (the format BoneTimelines keys). A keyframe on a bone
 // channel carries the channel-specific value shape below; the channel is the discriminant the model

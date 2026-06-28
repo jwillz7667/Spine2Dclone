@@ -26,6 +26,7 @@ export {
   ReparentCycleError,
   AnimationDurationError,
   KeyframeCollisionError,
+  MeshTopologyLockedError,
 } from './command/errors';
 export type { DocumentError } from './command/errors';
 
@@ -34,8 +35,10 @@ export type {
   BoneEntity,
   SlotEntity,
   RegionAttachmentEntity,
+  MeshAttachmentEntity,
   PreservedAttachmentEntity,
   AttachmentEntity,
+  MeshGeometry,
   AnimationEntity,
   BoneChannel,
   BoneTimelineSet,
@@ -49,7 +52,7 @@ export type {
   DocState,
   PreservedContent,
 } from './model/doc-state';
-export { emptyPreservedContent, newDocState } from './model/doc-state';
+export { emptyPreservedContent, meshGeometryOf, newDocState } from './model/doc-state';
 export type { Id, BoneId, SlotId, AnimationId, KeyframeId, IdFactory } from './model/ids';
 export { makeIdFactory } from './model/ids';
 export type {
@@ -98,6 +101,13 @@ export {
   SetCurveCommand,
   DuplicateAnimationCommand,
   PasteKeyframesCommand,
+  GenerateMeshFromRegionCommand,
+  AddMeshVertexCommand,
+  MoveMeshVertexCommand,
+  DeleteMeshVertexCommand,
+  SetMeshEdgesCommand,
+  AutoGridFillMeshCommand,
+  AutoPerimeterTraceMeshCommand,
   wrapDegrees,
   commandRegistry,
   findBoneSnapshot,
@@ -112,6 +122,8 @@ export type {
   RegionTransform,
   KeyframeTarget,
   PastedKeyframe,
+  MeshInit,
+  MeshAutoFill,
   CommandSpec,
   CommandFixture,
 } from './commands';

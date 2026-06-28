@@ -110,6 +110,25 @@ function formatToDocState(document: SkeletonDocument, ids: IdFactory): DocState 
             height: attachment.height,
             color: attachment.color,
           });
+        } else if (attachment.type === 'mesh') {
+          // WP-2.1: default-skin mesh attachments become first-class editable entities (no longer
+          // preserved verbatim). The format MeshAttachment is mirrored BY VALUE; edges/bones stay
+          // omitted when absent (exactOptionalPropertyTypes). Arrays are copied so the model never
+          // aliases the parsed document.
+          inner.set(attachmentName, {
+            kind: 'mesh',
+            name: attachmentName,
+            path: attachment.path,
+            uvs: attachment.uvs.slice(),
+            triangles: attachment.triangles.slice(),
+            hullLength: attachment.hullLength,
+            width: attachment.width,
+            height: attachment.height,
+            color: attachment.color,
+            vertices: attachment.vertices.slice(),
+            ...(attachment.edges !== undefined ? { edges: attachment.edges.slice() } : {}),
+            ...(attachment.bones !== undefined ? { bones: attachment.bones.slice() } : {}),
+          });
         } else {
           inner.set(attachmentName, { kind: 'preserved', name: attachmentName, value: attachment });
         }

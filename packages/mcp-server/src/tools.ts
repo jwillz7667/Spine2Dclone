@@ -1,9 +1,12 @@
 import {
+  AddBoneToMeshBindingCommand,
   AddMeshVertexCommand,
   AddRegionAttachmentCommand,
   AnimationDurationError,
   AutoGridFillMeshCommand,
   AutoPerimeterTraceMeshCommand,
+  AutoWeightFromProximityCommand,
+  BindMeshToBonesCommand,
   CreateAnimationCommand,
   CreateBoneCommand,
   CreateSlotCommand,
@@ -17,12 +20,16 @@ import {
   ExportValidationError,
   GenerateMeshFromRegionCommand,
   KeyframeCollisionError,
+  MeshBindingError,
   MeshTopologyLockedError,
   MoveBoneCommand,
   MoveKeyframeCommand,
   MoveMeshVertexCommand,
+  NormalizeMeshWeightsCommand,
+  PaintWeightStrokeCommand,
   PasteKeyframesCommand,
   RemoveAttachmentCommand,
+  RemoveBoneFromMeshBindingCommand,
   RenameAnimationCommand,
   RenameBoneCommand,
   RenameSlotCommand,
@@ -41,6 +48,7 @@ import {
   SetRegionAttachmentTransformCommand,
   SetSlotBlendModeCommand,
   SetSlotColorCommand,
+  UnbindMeshCommand,
   exportDocument,
   type AnimationEntity,
   type AnimationId,
@@ -53,9 +61,11 @@ import {
   type KeyframeId,
   type KeyframeTarget,
   type KeyframeValue,
+  type PaintMode,
   type PastedKeyframe,
   type SlotEntity,
   type SlotId,
+  type WeightDab,
 } from '@marionette/document-core';
 import { FormatValidationError } from '@marionette/format';
 import type { SkeletonDocument } from '@marionette/format/types';
@@ -161,6 +171,21 @@ function executeMeshTopologyEdit(session: Session, cmd: Command): number {
   } catch (error) {
     if (error instanceof MeshTopologyLockedError) {
       throw new McpToolError('MESH_TOPOLOGY_LOCKED', error.message);
+    }
+    throw error;
+  }
+  return session.document.model.revision;
+}
+
+// Execute a mesh-weight binding edit (WP-2.3 / WP-2.4), converting the binding guard into a typed
+// MESH_BINDING tool error carrying the reason. The guard throws before any mutation, so a rejected edit
+// changes nothing and pushes no history entry.
+function executeBindingEdit(session: Session, cmd: Command): number {
+  try {
+    session.document.history.execute(cmd);
+  } catch (error) {
+    if (error instanceof MeshBindingError) {
+      throw new McpToolError('MESH_BINDING', error.message, { reason: error.reason });
     }
     throw error;
   }
@@ -362,6 +387,18 @@ const attachmentName = z.string().min(1);
 // deep topology rules (even uv/vertex lengths, in-range indices, weighted encoding) on export.
 const numberArray = z.array(z.number().finite());
 const hullLength = z.number().int().nonnegative();
+
+// Mesh-weight binding (WP-2.3) and weight painting (WP-2.4) inputs. The initial bind weighting mode; the
+// brush paint mode; one brush dab (a per-vertex weight adjustment for the active bone). The editor
+// computes the dab set (radius / strength / falloff is editor-side); the command applies and normalizes.
+const weightModeSchema = z.enum(['rigidNearest', 'equalSplit']);
+const paintModeSchema = z.enum(['add', 'subtract', 'smooth']);
+const weightDabSchema = z
+  .object({
+    vertexIndex: z.number().int().nonnegative(),
+    deltaWeight: z.number().finite(),
+  })
+  .strict();
 
 // A keyframe channel name (bone transform channels + the slot color channel). The handler resolves it
 // with boneId/slotId into a branded KeyframeTarget and validates the pairing (resolveTarget).
@@ -1233,6 +1270,192 @@ export const TOOLS: readonly ToolDefinition[] = [
             input.name,
             input.edges === undefined ? fill : { ...fill, edges: input.edges },
           ),
+        ),
+      };
+    },
+  ),
+
+  // ----- mesh-to-bone binding (WP-2.3) + weight painting (WP-2.4), same command + History as the GUI -----
+  defineTool(
+    {
+      name: 'mesh.bindToBones',
+      title: 'Bind mesh to bones',
+      description:
+        'Convert an UNWEIGHTED mesh to the weighted encoding by binding it to a set of bones. ' +
+        'weightMode rigidNearest gives each vertex weight 1 to its nearest bone; equalSplit splits ' +
+        'equally across the (up to 4 nearest) bound bones. Skinning at setup pose reproduces the ' +
+        'original geometry. Rejected as MESH_BINDING when the mesh is already weighted, the bone set ' +
+        'is empty, or a bone is missing.',
+      input: z
+        .object({
+          documentId,
+          slotId,
+          name: attachmentName,
+          boneIds: z.array(boneId).min(1),
+          weightMode: weightModeSchema,
+        })
+        .strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireSlot(session, input.slotId);
+      requireAttachmentKind(session, input.slotId, input.name, 'mesh');
+      const boneIds = input.boneIds.map((id) => requireBone(session, id).id);
+      return {
+        revision: executeBindingEdit(
+          session,
+          new BindMeshToBonesCommand(asSlotId(input.slotId), input.name, boneIds, input.weightMode),
+        ),
+      };
+    },
+  ),
+  defineTool(
+    {
+      name: 'mesh.addBoneBinding',
+      title: 'Add bone to mesh binding',
+      description:
+        'Add one bone influence to an already-weighted mesh, seeded by proximity and re-normalized ' +
+        '(capped to 4). Rejected as MESH_BINDING when the mesh is unweighted, the bone is missing, or ' +
+        'the bone is already bound.',
+      input: z.object({ documentId, slotId, name: attachmentName, boneId }).strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireSlot(session, input.slotId);
+      requireAttachmentKind(session, input.slotId, input.name, 'mesh');
+      const bone = requireBone(session, input.boneId);
+      return {
+        revision: executeBindingEdit(
+          session,
+          new AddBoneToMeshBindingCommand(asSlotId(input.slotId), input.name, bone.id),
+        ),
+      };
+    },
+  ),
+  defineTool(
+    {
+      name: 'mesh.removeBoneBinding',
+      title: 'Remove bone from mesh binding',
+      description:
+        'Drop one bone influence from a weighted mesh and re-normalize (a vertex left with no ' +
+        'influence falls back to its nearest remaining bound bone). Rejected as MESH_BINDING when the ' +
+        'mesh is unweighted, the bone is not bound, or it is the only bound bone (use mesh.unbind).',
+      input: z.object({ documentId, slotId, name: attachmentName, boneId }).strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireSlot(session, input.slotId);
+      requireAttachmentKind(session, input.slotId, input.name, 'mesh');
+      const bone = requireBone(session, input.boneId);
+      return {
+        revision: executeBindingEdit(
+          session,
+          new RemoveBoneFromMeshBindingCommand(asSlotId(input.slotId), input.name, bone.id),
+        ),
+      };
+    },
+  ),
+  defineTool(
+    {
+      name: 'mesh.unbind',
+      title: 'Unbind mesh',
+      description:
+        'Clear all weights, returning a mesh to the unweighted flat encoding (re-derived from the ' +
+        'current setup pose so it renders identically). Required before changing a weighted mesh ' +
+        'topology. Rejected as MESH_BINDING when the mesh is unweighted or still has deform keyframes.',
+      input: z.object({ documentId, slotId, name: attachmentName }).strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireSlot(session, input.slotId);
+      requireAttachmentKind(session, input.slotId, input.name, 'mesh');
+      return {
+        revision: executeBindingEdit(
+          session,
+          new UnbindMeshCommand(asSlotId(input.slotId), input.name),
+        ),
+      };
+    },
+  ),
+  defineTool(
+    {
+      name: 'mesh.autoWeight',
+      title: 'Auto-weight mesh from proximity',
+      description:
+        'Re-seed a weighted mesh by inverse distance to each bound bone segment (capped to the 4 ' +
+        'nearest, normalized) as a starting point for manual paint. Rejected as MESH_BINDING when the ' +
+        'mesh is unweighted.',
+      input: z.object({ documentId, slotId, name: attachmentName }).strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireSlot(session, input.slotId);
+      requireAttachmentKind(session, input.slotId, input.name, 'mesh');
+      return {
+        revision: executeBindingEdit(
+          session,
+          new AutoWeightFromProximityCommand(asSlotId(input.slotId), input.name),
+        ),
+      };
+    },
+  ),
+  defineTool(
+    {
+      name: 'mesh.paintWeight',
+      title: 'Paint mesh weights',
+      description:
+        'Apply a weight-paint stroke to one active bone across a set of dabs (per-vertex weight ' +
+        'adjustments); each touched vertex is re-normalized (non-active proportions preserved) and ' +
+        'capped to 4. mode add raises, subtract lowers, smooth applies the supplied signed delta. ' +
+        'Wrap a stroke in beginInteraction/endInteraction to coalesce its dabs into one undo step. ' +
+        'Rejected as MESH_BINDING when the mesh is unweighted, the bone is missing, or a dab indexes a ' +
+        'vertex out of range.',
+      input: z
+        .object({
+          documentId,
+          slotId,
+          name: attachmentName,
+          activeBoneId: boneId,
+          dabs: z.array(weightDabSchema).min(1),
+          mode: paintModeSchema,
+        })
+        .strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireSlot(session, input.slotId);
+      requireAttachmentKind(session, input.slotId, input.name, 'mesh');
+      const active = requireBone(session, input.activeBoneId);
+      const mode: PaintMode = input.mode;
+      const dabs: WeightDab[] = input.dabs.map((dab) => ({
+        vertexIndex: dab.vertexIndex,
+        deltaWeight: dab.deltaWeight,
+      }));
+      return {
+        revision: executeBindingEdit(
+          session,
+          new PaintWeightStrokeCommand(asSlotId(input.slotId), input.name, active.id, dabs, mode),
+        ),
+      };
+    },
+  ),
+  defineTool(
+    {
+      name: 'mesh.normalizeWeights',
+      title: 'Normalize mesh weights',
+      description:
+        'Re-normalize every vertex of a weighted mesh to sum 1 and cap to 4 influences (idempotent). ' +
+        'Rejected as MESH_BINDING when the mesh is unweighted.',
+      input: z.object({ documentId, slotId, name: attachmentName }).strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireSlot(session, input.slotId);
+      requireAttachmentKind(session, input.slotId, input.name, 'mesh');
+      return {
+        revision: executeBindingEdit(
+          session,
+          new NormalizeMeshWeightsCommand(asSlotId(input.slotId), input.name),
         ),
       };
     },

@@ -27,8 +27,9 @@ export {
   AnimationDurationError,
   KeyframeCollisionError,
   MeshTopologyLockedError,
+  MeshBindingError,
 } from './command/errors';
-export type { DocumentError } from './command/errors';
+export type { DocumentError, MeshBindingErrorReason } from './command/errors';
 
 // Model (read surface + value types; the write surface stays private)
 export type {
@@ -108,6 +109,13 @@ export {
   SetMeshEdgesCommand,
   AutoGridFillMeshCommand,
   AutoPerimeterTraceMeshCommand,
+  BindMeshToBonesCommand,
+  AddBoneToMeshBindingCommand,
+  RemoveBoneFromMeshBindingCommand,
+  UnbindMeshCommand,
+  AutoWeightFromProximityCommand,
+  PaintWeightStrokeCommand,
+  NormalizeMeshWeightsCommand,
   wrapDegrees,
   commandRegistry,
   findBoneSnapshot,
@@ -124,9 +132,22 @@ export type {
   PastedKeyframe,
   MeshInit,
   MeshAutoFill,
+  BindWeightMode,
+  PaintMode,
+  WeightDab,
   CommandSpec,
   CommandFixture,
 } from './commands';
+
+// Pure weight-math helpers (WP-2.3 / WP-2.4): distance-to-segment plus influence normalize / cap /
+// finalize. Exposed so the editor weight tools and tests share the exact math the commands use.
+export {
+  distanceToSegment,
+  normalizeInfluences,
+  capInfluences,
+  finalizeVertexWeights,
+} from './weights';
+export type { BoneInfluence } from './weights';
 
 // Save / load seam
 export type { DocumentEnvironment, Document } from './save-load';

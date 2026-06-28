@@ -74,6 +74,29 @@ function mesh(path: string): MeshAttachment {
   };
 }
 
+// A valid WEIGHTED mesh attachment: a 4-corner quad bound to GLOBAL bones 0 (root, setup world identity)
+// and 1 (arm, setup world translate(50, 0)) at every vertex. Per-vertex weights are 0.5 / 0.49995, which
+// sum to 0.99995: DELIBERATELY within WEIGHT_SUM_EPSILON (1e-4) of 1 but not exactly 1, so
+// NormalizeMeshWeights produces a real delta while every other weighted command re-normalizes regardless.
+// The arm bind-local vx is (worldX - 50) because arm sits at x = 50. boneIndex is GLOBAL (ADR-0002).
+function weightedMesh(path: string): MeshAttachment {
+  return {
+    type: 'mesh',
+    path,
+    uvs: [0, 0, 1, 0, 1, 1, 0, 1],
+    triangles: [0, 1, 2, 0, 2, 3],
+    hullLength: 4,
+    width: 64,
+    height: 64,
+    color: { r: 1, g: 1, b: 1, a: 1 },
+    vertices: [
+      2, 0, 0, 0, 0.5, 1, -50, 0, 0.49995, 2, 0, 64, 0, 0.5, 1, 14, 0, 0.49995, 2, 0, 64, 64, 0.5,
+      1, 14, 64, 0.49995, 2, 0, 0, 64, 0.5, 1, -50, 64, 0.49995,
+    ],
+    bones: [0, 1],
+  };
+}
+
 function atlasRegion(name: string): AtlasRegion {
   return {
     name,
@@ -201,6 +224,32 @@ export const seeds = {
       ],
     },
   }),
+  // Three bones (root, arm under root at x=50, tip under arm at x=50) and a WEIGHTED mesh ('panel' on
+  // 'mesh_slot', riding root) bound to GLOBAL bones [root, arm]. 'tip' is in the document but unbound, so
+  // AddBoneToMeshBinding has a bone to add; the two bound bones let RemoveBoneFromMeshBinding drop one and
+  // keep the other. The WP-2.3/2.4 weighted-mesh commands all target this seed.
+  weighted: doc(
+    'weighted',
+    [bone('root', null), bone('arm', 'root', { x: 50 }), bone('tip', 'arm', { x: 50 })],
+    {
+      slots: [slot('mesh_slot', 'root', { attachment: 'panel' })],
+      skins: [
+        { name: 'default', attachments: { mesh_slot: { panel: weightedMesh('skin_panel') } } },
+      ],
+      // Two regions (one unused) so the atlas shape (1 page, 2 regions) differs from the atlas.set
+      // fixture's (1 page, 1 region), per the convention every seed's atlas is distinguishable from it.
+      atlas: {
+        pages: [
+          {
+            file: 'atlas.png',
+            width: 128,
+            height: 128,
+            regions: [atlasRegion('skin_panel'), atlasRegion('skin_extra')],
+          },
+        ],
+      },
+    },
+  ),
 } as const;
 
 export interface Seed {
@@ -215,6 +264,7 @@ export const seedList: readonly Seed[] = [
   { id: 'slotted', json: seeds.slotted },
   { id: 'animated', json: seeds.animated },
   { id: 'meshed', json: seeds.meshed },
+  { id: 'weighted', json: seeds.weighted },
 ];
 
 // A deterministic test environment: a controllable fake clock (so coalescing-window tests are

@@ -71,6 +71,29 @@ export {
   autoPerimeterTraceMeshSpec,
 } from './auto-perimeter-trace-mesh.command';
 export type { MeshInit, MeshAutoFill } from './mesh-support';
+// WP-2.3 mesh-to-bone binding
+export { BindMeshToBonesCommand, bindMeshToBonesSpec } from './bind-mesh-to-bones.command';
+export type { BindWeightMode } from './bind-mesh-to-bones.command';
+export {
+  AddBoneToMeshBindingCommand,
+  addBoneToMeshBindingSpec,
+} from './add-bone-to-mesh-binding.command';
+export {
+  RemoveBoneFromMeshBindingCommand,
+  removeBoneFromMeshBindingSpec,
+} from './remove-bone-from-mesh-binding.command';
+export { UnbindMeshCommand, unbindMeshSpec } from './unbind-mesh.command';
+// WP-2.4 weight painting
+export {
+  AutoWeightFromProximityCommand,
+  autoWeightFromProximitySpec,
+} from './auto-weight-from-proximity.command';
+export { PaintWeightStrokeCommand, paintWeightStrokeSpec } from './paint-weight-stroke.command';
+export type { PaintMode, WeightDab } from './paint-weight-stroke.command';
+export {
+  NormalizeMeshWeightsCommand,
+  normalizeMeshWeightsSpec,
+} from './normalize-mesh-weights.command';
 export { commandRegistry } from './registry';
 export type { CommandSpec, CommandFixture } from './spec';
 export {

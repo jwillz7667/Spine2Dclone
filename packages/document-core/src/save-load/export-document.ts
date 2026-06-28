@@ -4,6 +4,7 @@ import type {
   Attachment,
   Bone,
   BoneTimelines,
+  MeshAttachment,
   RegionAttachment,
   Skin,
   SkeletonDocument,
@@ -51,6 +52,25 @@ function attachmentToFormat(att: AttachmentEntity): Attachment {
       color: att.color,
     };
     return region;
+  }
+  if (att.kind === 'mesh') {
+    // Project the editable mesh BACK to the format MeshAttachment, copying the geometry arrays to fresh
+    // mutable arrays. `edges`/`bones` are emitted only when present (omitted for an unweighted mesh with
+    // no wireframe), per exactOptionalPropertyTypes, so a loaded mesh exports deep-equal.
+    const mesh: MeshAttachment = {
+      type: 'mesh',
+      path: att.path,
+      uvs: [...att.uvs],
+      triangles: [...att.triangles],
+      hullLength: att.hullLength,
+      width: att.width,
+      height: att.height,
+      color: att.color,
+      vertices: [...att.vertices],
+      ...(att.edges !== undefined ? { edges: [...att.edges] } : {}),
+      ...(att.bones !== undefined ? { bones: [...att.bones] } : {}),
+    };
+    return mesh;
   }
   return att.value;
 }

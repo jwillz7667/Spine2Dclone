@@ -2,6 +2,7 @@ import type {
   Animation,
   AtlasRegion,
   Bone,
+  MeshAttachment,
   RegionAttachment,
   SkeletonDocument,
   Slot,
@@ -52,6 +53,24 @@ function region(path: string): RegionAttachment {
     width: 64,
     height: 64,
     color: { r: 1, g: 1, b: 1, a: 1 },
+  };
+}
+
+// A valid UNWEIGHTED mesh attachment: a 4-corner quad hull (hullLength 4) plus one interior center
+// vertex (5 vertices total), fan-triangulated, with flat [x,y,...] vertices and no `bones` (unweighted)
+// and no `edges`. This is the WP-2.1 mesh-edit seed: every mesh command can target it (add/delete change
+// the interior vertex; delete returns it to the 4-corner quad).
+function mesh(path: string): MeshAttachment {
+  return {
+    type: 'mesh',
+    path,
+    uvs: [0, 0, 1, 0, 1, 1, 0, 1, 0.5, 0.5],
+    triangles: [0, 1, 4, 1, 2, 4, 2, 3, 4, 3, 0, 4],
+    hullLength: 4,
+    width: 64,
+    height: 64,
+    color: { r: 1, g: 1, b: 1, a: 1 },
+    vertices: [0, 0, 64, 0, 64, 64, 0, 64, 32, 32],
   };
 }
 
@@ -153,6 +172,35 @@ export const seeds = {
     slots: [slot('body', 'root')],
     animations: { idle: idleAnimation },
   }),
+  // Two bones, a region attachment ('body') for GenerateMeshFromRegion to target, and an UNWEIGHTED mesh
+  // attachment ('panel' on 'mesh_slot', its active setup attachment) for the WP-2.1 mesh-edit commands.
+  // The atlas carries both referenced regions (every region/mesh path must resolve, ATTACHMENT_REGION_
+  // MISSING). This makes every WP-2.1 command applicable here with a real delta.
+  meshed: doc('meshed', [bone('root', null), bone('arm', 'root', { x: 50 })], {
+    slots: [
+      slot('body', 'root', { attachment: 'body' }),
+      slot('mesh_slot', 'arm', { attachment: 'panel' }),
+    ],
+    skins: [
+      {
+        name: 'default',
+        attachments: {
+          body: { body: region('skin_body') },
+          mesh_slot: { panel: mesh('skin_panel') },
+        },
+      },
+    ],
+    atlas: {
+      pages: [
+        {
+          file: 'atlas.png',
+          width: 128,
+          height: 128,
+          regions: [atlasRegion('skin_body'), atlasRegion('skin_panel')],
+        },
+      ],
+    },
+  }),
 } as const;
 
 export interface Seed {
@@ -166,6 +214,7 @@ export const seedList: readonly Seed[] = [
   { id: 'rotated', json: seeds.rotated },
   { id: 'slotted', json: seeds.slotted },
   { id: 'animated', json: seeds.animated },
+  { id: 'meshed', json: seeds.meshed },
 ];
 
 // A deterministic test environment: a controllable fake clock (so coalescing-window tests are

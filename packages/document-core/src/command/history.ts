@@ -89,6 +89,26 @@ export class History {
     return this.commit('execute', entry);
   }
 
+  // Discard the open interaction group (command-history Section 5.7, TASK-2.1.0): on Escape mid-drag,
+  // undo every command applied during the session in REVERSE order, then exit batch mode and drop the
+  // session. Each command was applied in-place (batch mode), so undoing in-place restores the live model
+  // to the pre-interaction state deep-equal. NOTHING is pushed to the undo/redo stacks (a cancelled
+  // gesture is not an undo step), and the coalescing sentinel is reset (like endInteraction) so the next
+  // discrete execute starts a fresh step instead of window-merging into a pre-session command. A no-op
+  // when no session is open.
+  cancelInteraction(): void {
+    this.assertNotNotifying('cancelInteraction');
+    const batch = this.session;
+    if (batch === null) return;
+    this.session = null;
+    for (let i = batch.length - 1; i >= 0; i -= 1) {
+      const cmd = batch[i];
+      if (cmd) cmd.undo(this.ctx); // reverse order, still in batch mode (in-place undo)
+    }
+    this.deps.model.cancelBatch(); // exit batch mode; the live model now equals the pre-session state
+    this.lastAt = Number.NEGATIVE_INFINITY; // a cancelled gesture is a fresh boundary for the next edit
+  }
+
   undo(): HistoryEvent | null {
     this.assertNotNotifying('undo');
     const cmd = this.past.pop();

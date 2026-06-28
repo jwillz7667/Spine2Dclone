@@ -8,6 +8,8 @@ import type {
   BoneTimelineSet,
   DocState,
   KeyframeEntity,
+  MeshAttachmentEntity,
+  MeshGeometry,
   PreservedContent,
   RegionAttachmentEntity,
   SlotEntity,
@@ -77,11 +79,29 @@ function freezeSlot(slot: MutableSlot): SlotEntity {
   });
 }
 
-// Freeze an attachment for hand-out. The region variant's color is deep-frozen; the preserved variant
-// already wraps a deeply-frozen verbatim format value.
+// Freeze an attachment for hand-out. The region and mesh variants deep-freeze their color (and the mesh
+// variant deep-freezes copies of its geometry arrays, so a caller cannot mutate uvs/triangles/vertices/
+// edges/bones through a handed-out reference); the preserved variant already wraps a deeply-frozen
+// verbatim format value.
 function freezeAttachment(att: AttachmentEntity): AttachmentEntity {
   if (att.kind === 'region') {
     return Object.freeze({ ...att, color: Object.freeze({ ...att.color }) });
+  }
+  if (att.kind === 'mesh') {
+    return Object.freeze({
+      kind: 'mesh',
+      name: att.name,
+      path: att.path,
+      uvs: Object.freeze(att.uvs.slice()),
+      triangles: Object.freeze(att.triangles.slice()),
+      hullLength: att.hullLength,
+      width: att.width,
+      height: att.height,
+      color: Object.freeze({ ...att.color }),
+      vertices: Object.freeze(att.vertices.slice()),
+      ...(att.edges !== undefined ? { edges: Object.freeze(att.edges.slice()) } : {}),
+      ...(att.bones !== undefined ? { bones: Object.freeze(att.bones.slice()) } : {}),
+    });
   }
   return Object.freeze({ ...att });
 }
@@ -548,6 +568,42 @@ export class DocumentModelInternal implements DocumentReadModel {
     this.revisionValue += 1;
   }
 
+  // setMeshGeometry replaces a MESH attachment's six geometry fields (uvs/triangles/hullLength/vertices/
+  // edges/bones) WHOLESALE, preserving its identity fields (name/path/width/height/color). It is the one
+  // write path for every mesh-edit command (WP-2.1); the kind swap region<->mesh goes through
+  // addAttachment instead. A wrong or missing target is a no-op (commands assert kind 'mesh' before
+  // writing). Arrays are sliced so the stored entity never aliases the command's memento.
+  setMeshGeometry(slotId: SlotId, name: string, geometry: MeshGeometry): void {
+    const inner0 = this.attachmentsMap.get(slotId);
+    if (!inner0) return;
+    const current = inner0.get(name);
+    if (!current || current.kind !== 'mesh') return;
+    const updated: MeshAttachmentEntity = {
+      kind: 'mesh',
+      name: current.name,
+      path: current.path,
+      width: current.width,
+      height: current.height,
+      color: current.color,
+      uvs: geometry.uvs.slice(),
+      triangles: geometry.triangles.slice(),
+      hullLength: geometry.hullLength,
+      vertices: geometry.vertices.slice(),
+      ...(geometry.edges !== undefined ? { edges: geometry.edges.slice() } : {}),
+      ...(geometry.bones !== undefined ? { bones: geometry.bones.slice() } : {}),
+    };
+    if (this.batching) {
+      inner0.set(name, updated);
+    } else {
+      const next = new Map(this.attachmentsMap);
+      const inner = new Map(inner0);
+      inner.set(name, updated);
+      next.set(slotId, inner);
+      this.attachmentsMap = next;
+    }
+    this.revisionValue += 1;
+  }
+
   // ----- animation + keyframe write surface (reached only through the Mutator) -----
 
   insertAnimation(entity: AnimationEntity): void {
@@ -705,6 +761,14 @@ export class DocumentModelInternal implements DocumentReadModel {
     this.slotOrderArr = this.slotOrderArr.slice();
     this.attachmentsMap = cloneAttachments(this.attachmentsMap);
     this.animationsMap = cloneAnimations(this.animationsMap);
+    this.batching = false;
+  }
+
+  // Exit batch mode WITHOUT a copy-on-write boundary. History.cancelInteraction calls this AFTER it has
+  // undone every in-session command in reverse (each undo ran in-place, so the live maps already hold the
+  // pre-interaction values). A fresh boundary is unnecessary because the net document state is unchanged;
+  // revision still bumped per undo, so revision-based viewport selectors redraw back to the pre-drag pose.
+  cancelBatch(): void {
     this.batching = false;
   }
 }

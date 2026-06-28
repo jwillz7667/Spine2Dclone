@@ -102,6 +102,28 @@ export class KeyframeCollisionError extends Error {
   }
 }
 
+// A topology-changing mesh edit (add or delete vertex, auto grid-fill, auto perimeter-trace) attempted
+// on a mesh that is WEIGHTED or carries deform keyframes (TASK-2.1.8 topology-lock policy). Such edits
+// change the vertex count/order, which would silently misalign the weighted `vertices` encoding (WP-2.3)
+// and deform offset arrays (WP-2.9), both indexed by vertex position. A command-level guard thrown
+// BEFORE any mutation, so no document change and no history entry result; the editor surfaces it and the
+// artist must UnbindMesh (WP-2.3) / ClearAttachmentDeform (WP-2.9) first. The `reason` says which lock
+// fired. MOVE vertex is exempt (count/order stable) and never throws this.
+export class MeshTopologyLockedError extends Error {
+  override readonly name = 'MeshTopologyLockedError';
+  readonly code = 'MESH_TOPOLOGY_LOCKED' as const;
+  constructor(
+    readonly slotId: string,
+    readonly attachmentName: string,
+    readonly reason: 'weighted' | 'deformed',
+  ) {
+    super(
+      `cannot change the topology of mesh "${attachmentName}" on slot "${slotId}": ` +
+        `it is ${reason}. Unbind weights and clear deform keyframes before re-topologizing.`,
+    );
+  }
+}
+
 export type DocumentError =
   | CommandTargetMissingError
   | CommandNotAppliedError
@@ -110,4 +132,5 @@ export type DocumentError =
   | ExportValidationError
   | ReparentCycleError
   | AnimationDurationError
-  | KeyframeCollisionError;
+  | KeyframeCollisionError
+  | MeshTopologyLockedError;

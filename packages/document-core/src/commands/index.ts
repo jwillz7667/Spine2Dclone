@@ -56,6 +56,21 @@ export { DuplicateAnimationCommand, duplicateAnimationSpec } from './duplicate-a
 export { PasteKeyframesCommand, pasteKeyframesSpec } from './paste-keyframes.command';
 export type { PastedKeyframe } from './paste-keyframes.command';
 export type { KeyframeTarget } from './keyframe-support';
+// WP-2.1 mesh creation/editing
+export {
+  GenerateMeshFromRegionCommand,
+  generateMeshFromRegionSpec,
+} from './generate-mesh-from-region.command';
+export { AddMeshVertexCommand, addMeshVertexSpec } from './add-mesh-vertex.command';
+export { MoveMeshVertexCommand, moveMeshVertexSpec } from './move-mesh-vertex.command';
+export { DeleteMeshVertexCommand, deleteMeshVertexSpec } from './delete-mesh-vertex.command';
+export { SetMeshEdgesCommand, setMeshEdgesSpec } from './set-mesh-edges.command';
+export { AutoGridFillMeshCommand, autoGridFillMeshSpec } from './auto-grid-fill-mesh.command';
+export {
+  AutoPerimeterTraceMeshCommand,
+  autoPerimeterTraceMeshSpec,
+} from './auto-perimeter-trace-mesh.command';
+export type { MeshInit, MeshAutoFill } from './mesh-support';
 export { commandRegistry } from './registry';
 export type { CommandSpec, CommandFixture } from './spec';
 export {

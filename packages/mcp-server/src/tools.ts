@@ -1,19 +1,26 @@
 import {
+  AddMeshVertexCommand,
   AddRegionAttachmentCommand,
   AnimationDurationError,
+  AutoGridFillMeshCommand,
+  AutoPerimeterTraceMeshCommand,
   CreateAnimationCommand,
   CreateBoneCommand,
   CreateSlotCommand,
   DeleteAnimationCommand,
   DeleteBoneCommand,
   DeleteKeyframeCommand,
+  DeleteMeshVertexCommand,
   DeleteSlotCommand,
   DocumentInvariantError,
   DuplicateAnimationCommand,
   ExportValidationError,
+  GenerateMeshFromRegionCommand,
   KeyframeCollisionError,
+  MeshTopologyLockedError,
   MoveBoneCommand,
   MoveKeyframeCommand,
+  MoveMeshVertexCommand,
   PasteKeyframesCommand,
   RemoveAttachmentCommand,
   RenameAnimationCommand,
@@ -30,6 +37,7 @@ import {
   SetBoneTransformModeCommand,
   SetCurveCommand,
   SetKeyframeCommand,
+  SetMeshEdgesCommand,
   SetRegionAttachmentTransformCommand,
   SetSlotBlendModeCommand,
   SetSlotColorCommand,
@@ -39,6 +47,7 @@ import {
   type BoneChannel,
   type BoneEntity,
   type BoneId,
+  type Command,
   type DocumentReadModel,
   type KeyframeEntity,
   type KeyframeId,
@@ -124,6 +133,38 @@ function requireSlot(session: Session, slotId: string): SlotEntity {
     throw new McpToolError('SLOT_NOT_FOUND', `no slot with id "${slotId}"`);
   }
   return slot;
+}
+
+// Require an attachment of an exact kind at (slotId, name); else a typed ATTACHMENT_NOT_FOUND. Used by
+// the WP-2.1 mesh tools (mesh edits require a 'mesh'; GenerateMeshFromRegion requires a 'region').
+function requireAttachmentKind(
+  session: Session,
+  slotId: string,
+  name: string,
+  kind: 'mesh' | 'region',
+): void {
+  const att = session.document.model.getAttachment(asSlotId(slotId), name);
+  if (att === undefined || att.kind !== kind) {
+    throw new McpToolError(
+      'ATTACHMENT_NOT_FOUND',
+      `slot "${slotId}" has no ${kind} attachment "${name}"`,
+    );
+  }
+}
+
+// Execute a topology-changing mesh edit (add/delete vertex, auto grid-fill, auto perimeter-trace),
+// converting the topology-lock guard into a typed MESH_TOPOLOGY_LOCKED tool error. The guard throws
+// before any mutation, so a rejected edit changes nothing and pushes no history entry.
+function executeMeshTopologyEdit(session: Session, cmd: Command): number {
+  try {
+    session.document.history.execute(cmd);
+  } catch (error) {
+    if (error instanceof MeshTopologyLockedError) {
+      throw new McpToolError('MESH_TOPOLOGY_LOCKED', error.message);
+    }
+    throw error;
+  }
+  return session.document.model.revision;
 }
 
 function asAnimationId(id: string): AnimationId {
@@ -314,6 +355,13 @@ const boneId = z.string().min(1);
 const slotId = z.string().min(1);
 const animationId = z.string().min(1);
 const keyframeId = z.string().min(1);
+const attachmentName = z.string().min(1);
+
+// Mesh geometry arrays (WP-2.1). The editor computes triangulation/uv interpolation/silhouette tracing
+// and passes the arrays as data; the boundary checks finiteness, and the format validator enforces the
+// deep topology rules (even uv/vertex lengths, in-range indices, weighted encoding) on export.
+const numberArray = z.array(z.number().finite());
+const hullLength = z.number().int().nonnegative();
 
 // A keyframe channel name (bone transform channels + the slot color channel). The handler resolves it
 // with boneId/slotId into a branded KeyframeTarget and validates the pairing (resolveTarget).
@@ -927,6 +975,266 @@ export const TOOLS: readonly ToolDefinition[] = [
         .attachments(asSlotId(input.slotId))
         .map((att) => ({ name: att.name, kind: att.kind }));
       return { slot: slotView(slot), attachments };
+    },
+  ),
+
+  // ----- mesh creation + editing (WP-2.1, same command + History as the GUI, LAW 2) -----
+  defineTool(
+    {
+      name: 'mesh.generateFromRegion',
+      title: 'Generate mesh from region',
+      description:
+        'Replace a region attachment with a mesh under the same name. The editor computes the quad-' +
+        'from-region geometry (uvs/triangles/hullLength/flat unweighted vertices) and passes it; the ' +
+        'mesh keeps the region atlas path. Undo restores the exact region.',
+      input: z
+        .object({
+          documentId,
+          slotId,
+          name: attachmentName,
+          uvs: numberArray,
+          triangles: numberArray,
+          hullLength,
+          width: z.number().finite(),
+          height: z.number().finite(),
+          color: rgbaSchema.default({ r: 1, g: 1, b: 1, a: 1 }),
+          edges: numberArray.optional(),
+          vertices: numberArray,
+        })
+        .strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireSlot(session, input.slotId);
+      requireAttachmentKind(session, input.slotId, input.name, 'region');
+      const base = {
+        uvs: input.uvs,
+        triangles: input.triangles,
+        hullLength: input.hullLength,
+        width: input.width,
+        height: input.height,
+        color: input.color,
+        vertices: input.vertices,
+      };
+      session.document.history.execute(
+        new GenerateMeshFromRegionCommand(
+          asSlotId(input.slotId),
+          input.name,
+          input.edges === undefined ? base : { ...base, edges: input.edges },
+        ),
+      );
+      return { revision: session.document.model.revision };
+    },
+  ),
+  defineTool(
+    {
+      name: 'mesh.addVertex',
+      title: 'Add mesh vertex',
+      description:
+        'Add an interior vertex to a mesh. The editor re-triangulates and passes the recomputed ' +
+        'uvs/triangles/vertices. Rejected as MESH_TOPOLOGY_LOCKED on a weighted or deformed mesh.',
+      input: z
+        .object({
+          documentId,
+          slotId,
+          name: attachmentName,
+          uvs: numberArray,
+          triangles: numberArray,
+          vertices: numberArray,
+        })
+        .strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireSlot(session, input.slotId);
+      requireAttachmentKind(session, input.slotId, input.name, 'mesh');
+      return {
+        revision: executeMeshTopologyEdit(
+          session,
+          new AddMeshVertexCommand(
+            asSlotId(input.slotId),
+            input.name,
+            input.uvs,
+            input.triangles,
+            input.vertices,
+          ),
+        ),
+      };
+    },
+  ),
+  defineTool(
+    {
+      name: 'mesh.moveVertex',
+      title: 'Move mesh vertex',
+      description:
+        'Move one mesh vertex to (x, y). Never re-triangulates (indices stable); always allowed (not ' +
+        'topology-locked). Wrap a drag in beginInteraction/endInteraction to coalesce it into one undo step.',
+      input: z
+        .object({
+          documentId,
+          slotId,
+          name: attachmentName,
+          vertexIndex: z.number().int().nonnegative(),
+          x: z.number().finite(),
+          y: z.number().finite(),
+        })
+        .strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireSlot(session, input.slotId);
+      requireAttachmentKind(session, input.slotId, input.name, 'mesh');
+      session.document.history.execute(
+        new MoveMeshVertexCommand(
+          asSlotId(input.slotId),
+          input.name,
+          input.vertexIndex,
+          input.x,
+          input.y,
+        ),
+      );
+      return { revision: session.document.model.revision };
+    },
+  ),
+  defineTool(
+    {
+      name: 'mesh.deleteVertex',
+      title: 'Delete mesh vertex',
+      description:
+        'Delete a mesh vertex. The editor re-triangulates and passes the recomputed uvs/triangles/' +
+        'vertices. Rejected as MESH_TOPOLOGY_LOCKED on a weighted or deformed mesh.',
+      input: z
+        .object({
+          documentId,
+          slotId,
+          name: attachmentName,
+          uvs: numberArray,
+          triangles: numberArray,
+          vertices: numberArray,
+        })
+        .strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireSlot(session, input.slotId);
+      requireAttachmentKind(session, input.slotId, input.name, 'mesh');
+      return {
+        revision: executeMeshTopologyEdit(
+          session,
+          new DeleteMeshVertexCommand(
+            asSlotId(input.slotId),
+            input.name,
+            input.uvs,
+            input.triangles,
+            input.vertices,
+          ),
+        ),
+      };
+    },
+  ),
+  defineTool(
+    {
+      name: 'mesh.setEdges',
+      title: 'Set mesh edges',
+      description:
+        'Set or replace a mesh edges (wireframe) array, as vertex-index pairs. Does not change ' +
+        'topology; always allowed. An empty array clears the wireframe.',
+      input: z.object({ documentId, slotId, name: attachmentName, edges: numberArray }).strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireSlot(session, input.slotId);
+      requireAttachmentKind(session, input.slotId, input.name, 'mesh');
+      session.document.history.execute(
+        new SetMeshEdgesCommand(asSlotId(input.slotId), input.name, input.edges),
+      );
+      return { revision: session.document.model.revision };
+    },
+  ),
+  defineTool(
+    {
+      name: 'mesh.autoGridFill',
+      title: 'Auto grid-fill mesh',
+      description:
+        'Replace a mesh with an editor-computed regular interior grid (uvs/triangles/hullLength/' +
+        'vertices, optional edges) in one undoable step. Rejected as MESH_TOPOLOGY_LOCKED on a weighted ' +
+        'or deformed mesh.',
+      input: z
+        .object({
+          documentId,
+          slotId,
+          name: attachmentName,
+          uvs: numberArray,
+          triangles: numberArray,
+          hullLength,
+          vertices: numberArray,
+          edges: numberArray.optional(),
+        })
+        .strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireSlot(session, input.slotId);
+      requireAttachmentKind(session, input.slotId, input.name, 'mesh');
+      const fill = {
+        uvs: input.uvs,
+        triangles: input.triangles,
+        hullLength: input.hullLength,
+        vertices: input.vertices,
+      };
+      return {
+        revision: executeMeshTopologyEdit(
+          session,
+          new AutoGridFillMeshCommand(
+            asSlotId(input.slotId),
+            input.name,
+            input.edges === undefined ? fill : { ...fill, edges: input.edges },
+          ),
+        ),
+      };
+    },
+  ),
+  defineTool(
+    {
+      name: 'mesh.autoPerimeterTrace',
+      title: 'Auto perimeter-trace mesh',
+      description:
+        'Replace a mesh with an editor-computed silhouette-traced hull plus interior fill (uvs/' +
+        'triangles/hullLength/vertices, optional edges) in one undoable step. Rejected as ' +
+        'MESH_TOPOLOGY_LOCKED on a weighted or deformed mesh.',
+      input: z
+        .object({
+          documentId,
+          slotId,
+          name: attachmentName,
+          uvs: numberArray,
+          triangles: numberArray,
+          hullLength,
+          vertices: numberArray,
+          edges: numberArray.optional(),
+        })
+        .strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireSlot(session, input.slotId);
+      requireAttachmentKind(session, input.slotId, input.name, 'mesh');
+      const fill = {
+        uvs: input.uvs,
+        triangles: input.triangles,
+        hullLength: input.hullLength,
+        vertices: input.vertices,
+      };
+      return {
+        revision: executeMeshTopologyEdit(
+          session,
+          new AutoPerimeterTraceMeshCommand(
+            asSlotId(input.slotId),
+            input.name,
+            input.edges === undefined ? fill : { ...fill, edges: input.edges },
+          ),
+        ),
+      };
     },
   ),
 

@@ -284,6 +284,200 @@ describe('MCP tools', () => {
   });
 });
 
+// A valid single-bone WEIGHTED (rigid) mesh document (format 0.1.0; migration adds the 0.2.0 constraint
+// collections on open). Used to prove the topology-lock guard fires through the AI surface.
+const WEIGHTED_MESH_DOC = {
+  formatVersion: '0.1.0',
+  name: 'weighted',
+  hash: '',
+  bones: [
+    {
+      name: 'root',
+      parent: null,
+      length: 100,
+      x: 0,
+      y: 0,
+      rotation: 0,
+      scaleX: 1,
+      scaleY: 1,
+      shearX: 0,
+      shearY: 0,
+      transformMode: 'normal',
+    },
+  ],
+  slots: [
+    {
+      name: 'mesh_slot',
+      bone: 'root',
+      color: { r: 1, g: 1, b: 1, a: 1 },
+      attachment: 'panel',
+      blendMode: 'normal',
+    },
+  ],
+  skins: [
+    {
+      name: 'default',
+      attachments: {
+        mesh_slot: {
+          panel: {
+            type: 'mesh',
+            path: 'skin_panel',
+            uvs: [0, 0, 1, 0, 1, 1, 0, 1],
+            triangles: [0, 1, 2, 0, 2, 3],
+            hullLength: 4,
+            width: 64,
+            height: 64,
+            color: { r: 1, g: 1, b: 1, a: 1 },
+            vertices: [1, 0, 0, 0, 1, 1, 0, 64, 0, 1, 1, 0, 64, 64, 1, 1, 0, 0, 64, 1],
+            bones: [0],
+          },
+        },
+      },
+    },
+  ],
+  animations: {},
+  atlas: {
+    pages: [
+      {
+        file: 'atlas.png',
+        width: 128,
+        height: 128,
+        regions: [
+          {
+            name: 'skin_panel',
+            x: 0,
+            y: 0,
+            w: 64,
+            h: 64,
+            rotated: false,
+            offsetX: 0,
+            offsetY: 0,
+            originalW: 64,
+            originalH: 64,
+          },
+        ],
+      },
+    ],
+  },
+};
+
+describe('MCP mesh tools (WP-2.1)', () => {
+  it('generates a mesh from a region and undo restores the region', async () => {
+    const deps = makeDeps();
+    const { documentId } = asRecord(await call(deps, 'document.new', { name: 'm' }));
+    const { boneId } = asRecord(
+      await call(deps, 'bone.create', { documentId, name: 'root', length: 1 }),
+    );
+    const { slotId } = asRecord(
+      await call(deps, 'slot.create', { documentId, boneId, name: 'panel' }),
+    );
+    await call(deps, 'attach.region.add', {
+      documentId,
+      slotId,
+      name: 'panel',
+      path: 'tex',
+      width: 64,
+      height: 64,
+    });
+
+    await call(deps, 'mesh.generateFromRegion', {
+      documentId,
+      slotId,
+      name: 'panel',
+      uvs: [0, 0, 1, 0, 1, 1, 0, 1],
+      triangles: [0, 1, 2, 0, 2, 3],
+      hullLength: 4,
+      width: 64,
+      height: 64,
+      vertices: [0, 0, 64, 0, 64, 64, 0, 64],
+    });
+    const afterGen = asRecord(await call(deps, 'slot.get', { documentId, slotId }));
+    expect((afterGen.attachments as Array<{ name: string; kind: string }>)[0]!.kind).toBe('mesh');
+
+    await call(deps, 'history.undo', { documentId });
+    const afterUndo = asRecord(await call(deps, 'slot.get', { documentId, slotId }));
+    expect((afterUndo.attachments as Array<{ name: string; kind: string }>)[0]!.kind).toBe(
+      'region',
+    );
+  });
+
+  it('moves a mesh vertex through the AI surface', async () => {
+    const deps = makeDeps();
+    const { documentId } = asRecord(await call(deps, 'document.new', { name: 'mv' }));
+    const { boneId } = asRecord(
+      await call(deps, 'bone.create', { documentId, name: 'root', length: 1 }),
+    );
+    const { slotId } = asRecord(
+      await call(deps, 'slot.create', { documentId, boneId, name: 'panel' }),
+    );
+    await call(deps, 'attach.region.add', {
+      documentId,
+      slotId,
+      name: 'panel',
+      path: 'tex',
+      width: 64,
+      height: 64,
+    });
+    await call(deps, 'mesh.generateFromRegion', {
+      documentId,
+      slotId,
+      name: 'panel',
+      uvs: [0, 0, 1, 0, 1, 1, 0, 1],
+      triangles: [0, 1, 2, 0, 2, 3],
+      hullLength: 4,
+      width: 64,
+      height: 64,
+      vertices: [0, 0, 64, 0, 64, 64, 0, 64],
+    });
+
+    await call(deps, 'mesh.moveVertex', {
+      documentId,
+      slotId,
+      name: 'panel',
+      vertexIndex: 0,
+      x: 5,
+      y: 7,
+    });
+
+    const snap = asRecord(await call(deps, 'document.getSnapshot', { documentId }));
+    const attachments = asRecord(snap.snapshot).attachments as Array<{
+      kind: string;
+      name: string;
+      vertices?: number[];
+    }>;
+    const meshAtt = attachments.find((a) => a.kind === 'mesh' && a.name === 'panel')!;
+    expect(meshAtt.vertices!.slice(0, 2)).toEqual([5, 7]); // vertex 0 moved
+  });
+
+  it('rejects a topology edit on a weighted mesh as MESH_TOPOLOGY_LOCKED', async () => {
+    const files = inMemoryFiles();
+    files.map.set('/weighted.json', JSON.stringify(WEIGHTED_MESH_DOC));
+    const deps: ToolDeps = { sessions: new SessionRegistry(), files: files.store };
+
+    const { documentId } = asRecord(await call(deps, 'document.open', { path: '/weighted.json' }));
+    const slots = asRecord(await call(deps, 'slot.list', { documentId })).slots as Array<{
+      id: string;
+      name: string;
+    }>;
+    const slotId = slots.find((s) => s.name === 'mesh_slot')!.id;
+
+    await expectToolError(
+      call(deps, 'mesh.addVertex', {
+        documentId,
+        slotId,
+        name: 'panel',
+        uvs: [0, 0, 1, 0, 1, 1, 0, 1, 0.5, 0.5],
+        triangles: [0, 1, 4, 1, 2, 4, 2, 3, 4, 3, 0, 4],
+        vertices: [0, 0, 64, 0, 64, 64, 0, 64, 32, 32],
+      }),
+      'MESH_TOPOLOGY_LOCKED',
+    );
+    // The rejected edit mutated nothing: the mesh is still weighted and undo has nothing to revert.
+    const state = asRecord(await call(deps, 'history.getState', { documentId }));
+    expect(state.canUndo).toBe(false);
+  });
+});
+
 // A document with a bone, a slot, and an animation built entirely through the MCP tools, so the WP-1.5
 // animation surface is exercised end to end (build, query, edit, export, sample).
 async function buildAnimatedDoc(deps: ToolDeps): Promise<{

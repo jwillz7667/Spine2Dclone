@@ -124,6 +124,47 @@ export class MeshTopologyLockedError extends Error {
   }
 }
 
+// A mesh-weight binding edit (WP-2.3 / WP-2.4) rejected BEFORE any mutation, so it leaves no document
+// change and no history entry. The `reason` discriminant says which rule fired:
+//   - notWeighted: a weighted-only command (add/remove bone, auto-weight, paint, normalize, unbind) was
+//     run on an unweighted mesh.
+//   - alreadyWeighted: BindMeshToBones was run on a mesh that is already weighted.
+//   - boneMissing: a referenced bone is not in the document.
+//   - boneAlreadyBound: AddBoneToMeshBinding targeted a bone already in the mesh binding.
+//   - boneNotBound: RemoveBoneFromMeshBinding targeted a bone the mesh is not bound to.
+//   - lastBone: RemoveBoneFromMeshBinding would remove the mesh's only bound bone (use UnbindMesh).
+//   - noBones: BindMeshToBones was given an empty bone set.
+//   - deformPresent: UnbindMesh was blocked because the mesh still has deform keyframes (WP-2.9).
+//   - vertexOutOfRange: a paint dab indexed a vertex outside the mesh.
+// The editor / MCP client surfaces it and the artist resolves it (bind first, pick a valid bone, unbind
+// instead of removing the last bone, clear deform first).
+export type MeshBindingErrorReason =
+  | 'notWeighted'
+  | 'alreadyWeighted'
+  | 'boneMissing'
+  | 'boneAlreadyBound'
+  | 'boneNotBound'
+  | 'lastBone'
+  | 'noBones'
+  | 'deformPresent'
+  | 'vertexOutOfRange';
+
+export class MeshBindingError extends Error {
+  override readonly name = 'MeshBindingError';
+  readonly code = 'MESH_BINDING' as const;
+  constructor(
+    readonly slotId: string,
+    readonly attachmentName: string,
+    readonly reason: MeshBindingErrorReason,
+    readonly detail?: string,
+  ) {
+    super(
+      `mesh "${attachmentName}" on slot "${slotId}" binding error (${reason})` +
+        (detail === undefined ? '' : `: ${detail}`),
+    );
+  }
+}
+
 export type DocumentError =
   | CommandTargetMissingError
   | CommandNotAppliedError
@@ -133,4 +174,5 @@ export type DocumentError =
   | ReparentCycleError
   | AnimationDurationError
   | KeyframeCollisionError
-  | MeshTopologyLockedError;
+  | MeshTopologyLockedError
+  | MeshBindingError;

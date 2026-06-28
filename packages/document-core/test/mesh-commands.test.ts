@@ -8,6 +8,7 @@ import {
   MeshTopologyLockedError,
   MoveMeshVertexCommand,
   SetMeshEdgesCommand,
+  UnbindMeshCommand,
   loadDocument,
   type Document,
   type SlotId,
@@ -244,6 +245,35 @@ describe('topology-lock policy (TASK-2.1.8)', () => {
     expect(() =>
       doc.history.execute(new MoveMeshVertexCommand(slotId, name, 0, 1, 1)),
     ).not.toThrow();
+  });
+
+  it('is now LIVE end to end: UnbindMesh unlocks topology edits (TASK-2.1.8 round-trip)', () => {
+    const { env } = makeTestEnv();
+    const doc = loadDocument(seeds.weighted, env);
+    const { slotId, name } = weightedMeshTarget(doc);
+
+    const add = (): void =>
+      doc.history.execute(
+        new AddMeshVertexCommand(
+          slotId,
+          name,
+          [0, 0, 1, 0, 1, 1, 0, 1, 0.5, 0.5],
+          [0, 1, 4, 1, 2, 4, 2, 3, 4, 3, 0, 4],
+          [0, 0, 64, 0, 64, 64, 0, 64, 32, 32],
+        ),
+      );
+
+    // ADD is rejected while the mesh is weighted (the lock is LIVE)...
+    expect(add).toThrow(MeshTopologyLockedError);
+
+    // ...UnbindMesh clears the weights, returning it to the unweighted flat encoding...
+    doc.history.execute(new UnbindMeshCommand(slotId, name));
+    const unbound = doc.model.getAttachment(slotId, name);
+    expect(unbound?.kind).toBe('mesh');
+    if (unbound?.kind === 'mesh') expect(unbound.bones).toBeUndefined();
+
+    // ...and the same ADD now succeeds.
+    expect(add).not.toThrow();
   });
 
   it('is inert on an unweighted, non-deformed mesh: ADD and DELETE succeed', () => {

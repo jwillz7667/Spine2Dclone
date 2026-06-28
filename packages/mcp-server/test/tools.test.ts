@@ -668,3 +668,179 @@ describe('MCP animation + keyframe tools', () => {
     );
   });
 });
+
+// A two-bone rig with an UNWEIGHTED mesh, built through the MCP tools, so the WP-2.3/2.4 binding + weight
+// surface is exercised end to end (bind, auto-weight, paint, normalize, unbind).
+async function buildUnweightedMeshDoc(deps: ToolDeps): Promise<{
+  documentId: string;
+  slotId: string;
+  rootId: string;
+  childId: string;
+}> {
+  const { documentId } = asRecord(await call(deps, 'document.new', { name: 'weights' }));
+  const { boneId: rootId } = asRecord(
+    await call(deps, 'bone.create', { documentId, name: 'root', length: 50 }),
+  );
+  const { boneId: childId } = asRecord(
+    await call(deps, 'bone.create', {
+      documentId,
+      parentId: rootId,
+      name: 'arm',
+      x: 50,
+      length: 50,
+    }),
+  );
+  const { slotId } = asRecord(
+    await call(deps, 'slot.create', { documentId, boneId: rootId, name: 'panel' }),
+  );
+  await call(deps, 'attach.region.add', {
+    documentId,
+    slotId,
+    name: 'panel',
+    path: 'tex',
+    width: 64,
+    height: 64,
+  });
+  await call(deps, 'mesh.generateFromRegion', {
+    documentId,
+    slotId,
+    name: 'panel',
+    uvs: [0, 0, 1, 0, 1, 1, 0, 1],
+    triangles: [0, 1, 2, 0, 2, 3],
+    hullLength: 4,
+    width: 64,
+    height: 64,
+    vertices: [0, 0, 64, 0, 64, 64, 0, 64],
+  });
+  return {
+    documentId: String(documentId),
+    slotId: String(slotId),
+    rootId: String(rootId),
+    childId: String(childId),
+  };
+}
+
+describe('MCP mesh weight tools (WP-2.3 / WP-2.4)', () => {
+  async function panelMesh(
+    deps: ToolDeps,
+    documentId: string,
+  ): Promise<{ kind: string; name: string; bones?: number[] }> {
+    const snap = asRecord(await call(deps, 'document.getSnapshot', { documentId }));
+    const attachments = asRecord(snap.snapshot).attachments as Array<{
+      kind: string;
+      name: string;
+      bones?: number[];
+    }>;
+    return attachments.find((a) => a.kind === 'mesh' && a.name === 'panel')!;
+  }
+
+  it('binds, auto-weights, paints, normalizes, and unbinds a mesh', async () => {
+    const deps = makeDeps();
+    const { documentId, slotId, rootId, childId } = await buildUnweightedMeshDoc(deps);
+
+    await call(deps, 'mesh.bindToBones', {
+      documentId,
+      slotId,
+      name: 'panel',
+      boneIds: [rootId, childId],
+      weightMode: 'equalSplit',
+    });
+    expect((await panelMesh(deps, documentId)).bones).toBeDefined(); // weighted now
+
+    await call(deps, 'mesh.autoWeight', { documentId, slotId, name: 'panel' });
+    await call(deps, 'mesh.paintWeight', {
+      documentId,
+      slotId,
+      name: 'panel',
+      activeBoneId: rootId,
+      dabs: [{ vertexIndex: 0, deltaWeight: 0.3 }],
+      mode: 'add',
+    });
+    await call(deps, 'mesh.normalizeWeights', { documentId, slotId, name: 'panel' });
+
+    await call(deps, 'mesh.unbind', { documentId, slotId, name: 'panel' });
+    expect((await panelMesh(deps, documentId)).bones).toBeUndefined(); // unweighted again
+  });
+
+  it('adds then removes a bone from the binding', async () => {
+    const deps = makeDeps();
+    const { documentId, slotId, rootId, childId } = await buildUnweightedMeshDoc(deps);
+    await call(deps, 'mesh.bindToBones', {
+      documentId,
+      slotId,
+      name: 'panel',
+      boneIds: [rootId],
+      weightMode: 'rigidNearest',
+    });
+    await call(deps, 'mesh.addBoneBinding', { documentId, slotId, name: 'panel', boneId: childId });
+    expect((await panelMesh(deps, documentId)).bones).toHaveLength(2);
+    await call(deps, 'mesh.removeBoneBinding', {
+      documentId,
+      slotId,
+      name: 'panel',
+      boneId: childId,
+    });
+    expect((await panelMesh(deps, documentId)).bones).toHaveLength(1);
+  });
+
+  it('coalesces a paint stroke (beginInteraction/endInteraction) into one undo step', async () => {
+    const deps = makeDeps();
+    const { documentId, slotId, rootId, childId } = await buildUnweightedMeshDoc(deps);
+    await call(deps, 'mesh.bindToBones', {
+      documentId,
+      slotId,
+      name: 'panel',
+      boneIds: [rootId, childId],
+      weightMode: 'equalSplit',
+    });
+    const bound = asRecord(await call(deps, 'document.getSnapshot', { documentId })).snapshot;
+
+    await call(deps, 'history.beginInteraction', { documentId });
+    for (let i = 0; i < 6; i += 1) {
+      await call(deps, 'mesh.paintWeight', {
+        documentId,
+        slotId,
+        name: 'panel',
+        activeBoneId: rootId,
+        dabs: [{ vertexIndex: 0, deltaWeight: 0.05 }],
+        mode: 'add',
+      });
+    }
+    const ended = asRecord(
+      await call(deps, 'history.endInteraction', { documentId, label: 'Paint' }),
+    );
+    expect(asRecord(ended.event).kind).toBe('mesh.paintWeight'); // one merged command
+
+    await call(deps, 'history.undo', { documentId });
+    const afterUndo = asRecord(await call(deps, 'document.getSnapshot', { documentId })).snapshot;
+    expect(afterUndo).toEqual(bound); // one undo reverts the whole stroke
+  });
+
+  it('rejects unbinding an unweighted mesh and re-binding a weighted mesh as MESH_BINDING', async () => {
+    const deps = makeDeps();
+    const { documentId, slotId, rootId, childId } = await buildUnweightedMeshDoc(deps);
+
+    await expectToolError(
+      call(deps, 'mesh.unbind', { documentId, slotId, name: 'panel' }),
+      'MESH_BINDING',
+    );
+
+    await call(deps, 'mesh.bindToBones', {
+      documentId,
+      slotId,
+      name: 'panel',
+      boneIds: [rootId, childId],
+      weightMode: 'rigidNearest',
+    });
+    await expectToolError(
+      call(deps, 'mesh.bindToBones', {
+        documentId,
+        slotId,
+        name: 'panel',
+        boneIds: [rootId],
+        weightMode: 'rigidNearest',
+      }),
+      'MESH_BINDING',
+    );
+  });
+});

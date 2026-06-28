@@ -1,6 +1,10 @@
 import type { RGBA } from '@marionette/format/types';
 import type { CommandContext } from '../command/command';
-import { CommandTargetMissingError, MeshTopologyLockedError } from '../command/errors';
+import {
+  CommandTargetMissingError,
+  MeshBindingError,
+  MeshTopologyLockedError,
+} from '../command/errors';
 import type { MeshAttachmentEntity } from '../model/doc-state';
 import type { SlotId } from '../model/ids';
 
@@ -67,15 +71,48 @@ export function assertTopologyEditable(
   if (mesh.bones !== undefined) {
     throw new MeshTopologyLockedError(slotId, name, 'weighted');
   }
-  if (hasDeformKeyframes()) {
+  if (attachmentHasDeform(slotId, name)) {
     throw new MeshTopologyLockedError(slotId, name, 'deformed');
   }
   return mesh;
 }
 
+// Require an existing WEIGHTED mesh (its `bones` manifest present) for the WP-2.3/2.4 commands that edit
+// an existing binding (add/remove bone, auto-weight, paint, normalize, unbind). An unweighted mesh is
+// rejected with MeshBindingError('notWeighted') BEFORE any mutation. Returns the frozen mesh value copy.
+export function requireWeightedMesh(
+  ctx: CommandContext,
+  kind: string,
+  slotId: SlotId,
+  name: string,
+): MeshAttachmentEntity {
+  const mesh = requireMesh(ctx, kind, slotId, name);
+  if (mesh.bones === undefined) {
+    throw new MeshBindingError(slotId, name, 'notWeighted');
+  }
+  return mesh;
+}
+
+// Require an existing UNWEIGHTED mesh (no `bones` manifest) for BindMeshToBones, which converts the
+// unweighted flat encoding into the weighted encoding. An already-weighted mesh is rejected with
+// MeshBindingError('alreadyWeighted') BEFORE any mutation. Returns the frozen mesh value copy.
+export function requireUnweightedMesh(
+  ctx: CommandContext,
+  kind: string,
+  slotId: SlotId,
+  name: string,
+): MeshAttachmentEntity {
+  const mesh = requireMesh(ctx, kind, slotId, name);
+  if (mesh.bones !== undefined) {
+    throw new MeshBindingError(slotId, name, 'alreadyWeighted');
+  }
+  return mesh;
+}
+
 // Whether the model holds any deform keyframe for this attachment. WP-2.9 introduces deform timelines;
-// until then no deform state exists, so this is constant false. Kept as a seam so TASK-2.1.8's deform
-// half of the lock activates by editing ONLY this function once the deform model lands.
-function hasDeformKeyframes(): boolean {
+// until then no deform state exists, so this is constant false. The single seam for the deform half of
+// both the topology lock (TASK-2.1.8) and the UnbindMesh deform guard (TASK-2.3.5): both activate by
+// editing ONLY this function once the deform model lands.
+export function attachmentHasDeform(_slotId: SlotId, _name: string): boolean {
   return false;
 }

@@ -21,3 +21,9 @@ packages/runtime-core/test/golden/
 # (conformance-and-ci.md A.6); reformatting them would break that gate. The hand-authored rig and
 # sample-spec under packages/conformance/src are prettier-owned and intentionally NOT excluded.
 packages/conformance/src/fixtures/
+
+# Generated particle (effects) conformance fixtures + lock manifest (phase-3-vfx-particles.md WP-3.10).
+# generate-effects.ts owns their exact bytes (shortest round-trippable floats) and the
+# .effects-fixtures.lock drift gate is a byte-exact git diff; reformatting them would break that gate.
+# The hand-authored effects rigs and sample-specs alongside are prettier-owned and NOT excluded.
+packages/conformance/src/effects-fixtures/

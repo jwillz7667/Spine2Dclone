@@ -1,5 +1,25 @@
 import { addBoneToMeshBindingSpec } from './add-bone-to-mesh-binding.command';
 import { addMeshVertexSpec } from './add-mesh-vertex.command';
+import { clearAttachmentDeformSpec } from './clear-attachment-deform.command';
+import { createIkConstraintSpec } from './create-ik-constraint.command';
+import { createSkinSpec } from './create-skin.command';
+import { createTransformConstraintSpec } from './create-transform-constraint.command';
+import { deleteDeformKeyframeSpec } from './delete-deform-keyframe.command';
+import { deleteIkConstraintSpec } from './delete-ik-constraint.command';
+import { deleteIkKeyframeSpec } from './delete-ik-keyframe.command';
+import { deleteSkinSpec } from './delete-skin.command';
+import { deleteTransformConstraintSpec } from './delete-transform-constraint.command';
+import { deleteTransformKeyframeSpec } from './delete-transform-keyframe.command';
+import { moveDeformKeyframeSpec } from './move-deform-keyframe.command';
+import { removeSkinAttachmentSpec } from './remove-skin-attachment.command';
+import { renameSkinSpec } from './rename-skin.command';
+import { setDeformKeyframeSpec } from './set-deform-keyframe.command';
+import { setIkBendPositiveSpec } from './set-ik-bend-positive.command';
+import { setIkKeyframeSpec } from './set-ik-keyframe.command';
+import { setIkMixSpec } from './set-ik-mix.command';
+import { setSkinAttachmentSpec } from './set-skin-attachment.command';
+import { setTransformConstraintParamsSpec } from './set-transform-constraint-params.command';
+import { setTransformKeyframeSpec } from './set-transform-keyframe.command';
 import { addRegionAttachmentSpec } from './add-region-attachment.command';
 import { autoGridFillMeshSpec } from './auto-grid-fill-mesh.command';
 import { autoPerimeterTraceMeshSpec } from './auto-perimeter-trace-mesh.command';
@@ -97,4 +117,28 @@ export const commandRegistry: readonly CommandSpec[] = [
   autoWeightFromProximitySpec,
   paintWeightStrokeSpec,
   normalizeMeshWeightsSpec,
+  // WP-2.6 IK constraint authoring
+  createIkConstraintSpec,
+  setIkMixSpec,
+  setIkBendPositiveSpec,
+  deleteIkConstraintSpec,
+  setIkKeyframeSpec,
+  deleteIkKeyframeSpec,
+  // WP-2.7 transform constraint authoring
+  createTransformConstraintSpec,
+  setTransformConstraintParamsSpec,
+  deleteTransformConstraintSpec,
+  setTransformKeyframeSpec,
+  deleteTransformKeyframeSpec,
+  // WP-2.8 named skins
+  createSkinSpec,
+  renameSkinSpec,
+  deleteSkinSpec,
+  setSkinAttachmentSpec,
+  removeSkinAttachmentSpec,
+  // WP-2.9 deform timelines
+  setDeformKeyframeSpec,
+  deleteDeformKeyframeSpec,
+  moveDeformKeyframeSpec,
+  clearAttachmentDeformSpec,
 ];

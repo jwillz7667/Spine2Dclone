@@ -94,6 +94,56 @@ export {
   NormalizeMeshWeightsCommand,
   normalizeMeshWeightsSpec,
 } from './normalize-mesh-weights.command';
+// WP-2.6 IK constraint authoring
+export { CreateIkConstraintCommand, createIkConstraintSpec } from './create-ik-constraint.command';
+export { SetIkMixCommand, setIkMixSpec } from './set-ik-mix.command';
+export { SetIkBendPositiveCommand, setIkBendPositiveSpec } from './set-ik-bend-positive.command';
+export { DeleteIkConstraintCommand, deleteIkConstraintSpec } from './delete-ik-constraint.command';
+export { SetIkKeyframeCommand, setIkKeyframeSpec } from './set-ik-keyframe.command';
+export { DeleteIkKeyframeCommand, deleteIkKeyframeSpec } from './delete-ik-keyframe.command';
+// WP-2.7 transform constraint authoring
+export {
+  CreateTransformConstraintCommand,
+  createTransformConstraintSpec,
+} from './create-transform-constraint.command';
+export {
+  SetTransformConstraintParamsCommand,
+  setTransformConstraintParamsSpec,
+} from './set-transform-constraint-params.command';
+export type { TransformConstraintParams } from './create-transform-constraint.command';
+export {
+  DeleteTransformConstraintCommand,
+  deleteTransformConstraintSpec,
+} from './delete-transform-constraint.command';
+export {
+  SetTransformKeyframeCommand,
+  setTransformKeyframeSpec,
+} from './set-transform-keyframe.command';
+export type { TransformKeyframeMix } from './set-transform-keyframe.command';
+export {
+  DeleteTransformKeyframeCommand,
+  deleteTransformKeyframeSpec,
+} from './delete-transform-keyframe.command';
+// WP-2.8 named skins
+export { CreateSkinCommand, createSkinSpec } from './create-skin.command';
+export { RenameSkinCommand, renameSkinSpec } from './rename-skin.command';
+export { DeleteSkinCommand, deleteSkinSpec } from './delete-skin.command';
+export { SetSkinAttachmentCommand, setSkinAttachmentSpec } from './set-skin-attachment.command';
+export {
+  RemoveSkinAttachmentCommand,
+  removeSkinAttachmentSpec,
+} from './remove-skin-attachment.command';
+// WP-2.9 deform timelines
+export { SetDeformKeyframeCommand, setDeformKeyframeSpec } from './set-deform-keyframe.command';
+export {
+  DeleteDeformKeyframeCommand,
+  deleteDeformKeyframeSpec,
+} from './delete-deform-keyframe.command';
+export { MoveDeformKeyframeCommand, moveDeformKeyframeSpec } from './move-deform-keyframe.command';
+export {
+  ClearAttachmentDeformCommand,
+  clearAttachmentDeformSpec,
+} from './clear-attachment-deform.command';
 export { commandRegistry } from './registry';
 export type { CommandSpec, CommandFixture } from './spec';
 export {

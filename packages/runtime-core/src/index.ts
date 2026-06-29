@@ -126,3 +126,9 @@ export type {
   ReadonlySpriteView,
   ReadonlyRibbonView,
 } from './effects';
+
+// Phase-4 slot sequencer (phase-4 section 5.4, WP-4.7): the deterministic presentation core. The pinned
+// integer/fixed-point counter-rollup evaluation (the cross-runtime determinism surface, section 5.4.2)
+// lands first; the full (SpinResult, SlotScene) -> PresentationTimeline sequencer grows the slot barrel.
+export { rollupValueAt, CURVE_TYPES } from './slot';
+export type { CurveType } from './slot';

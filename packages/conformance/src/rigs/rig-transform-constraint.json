@@ -1,0 +1,126 @@
+{
+  "formatVersion": "0.2.0",
+  "name": "rig-transform-constraint",
+  "hash": "",
+  "bones": [
+    {
+      "name": "root",
+      "parent": null,
+      "length": 20,
+      "x": 0,
+      "y": 0,
+      "rotation": 0,
+      "scaleX": 1,
+      "scaleY": 1,
+      "shearX": 0,
+      "shearY": 0,
+      "transformMode": "normal"
+    },
+    {
+      "name": "upper",
+      "parent": "root",
+      "length": 100,
+      "x": 0,
+      "y": 0,
+      "rotation": 0,
+      "scaleX": 1,
+      "scaleY": 1,
+      "shearX": 0,
+      "shearY": 0,
+      "transformMode": "normal"
+    },
+    {
+      "name": "lower",
+      "parent": "upper",
+      "length": 100,
+      "x": 100,
+      "y": 0,
+      "rotation": 0,
+      "scaleX": 1,
+      "scaleY": 1,
+      "shearX": 0,
+      "shearY": 0,
+      "transformMode": "normal"
+    },
+    {
+      "name": "target",
+      "parent": "root",
+      "length": 20,
+      "x": 0,
+      "y": 0,
+      "rotation": 0,
+      "scaleX": 1,
+      "scaleY": 1,
+      "shearX": 0,
+      "shearY": 0,
+      "transformMode": "normal"
+    },
+    {
+      "name": "follower",
+      "parent": "root",
+      "length": 40,
+      "x": -60,
+      "y": 0,
+      "rotation": 0,
+      "scaleX": 1,
+      "scaleY": 1,
+      "shearX": 0,
+      "shearY": 0,
+      "transformMode": "normal"
+    }
+  ],
+  "slots": [],
+  "skins": [{ "name": "default", "attachments": {} }],
+  "ikConstraints": [
+    {
+      "name": "ik",
+      "bones": ["upper", "lower"],
+      "target": "target",
+      "mix": 1,
+      "bendPositive": true
+    }
+  ],
+  "transformConstraints": [
+    {
+      "name": "tc",
+      "bones": ["follower"],
+      "target": "lower",
+      "mixRotate": 1,
+      "mixX": 0,
+      "mixY": 0,
+      "mixScaleX": 0,
+      "mixScaleY": 0,
+      "mixShearY": 0,
+      "offsetRotation": 0,
+      "offsetX": 0,
+      "offsetY": 0,
+      "offsetScaleX": 0,
+      "offsetScaleY": 0,
+      "offsetShearY": 0
+    }
+  ],
+  "animations": {
+    "default": {
+      "duration": 1.0,
+      "bones": {
+        "target": {
+          "translate": [
+            { "time": 0.0, "value": { "x": 120, "y": 60 }, "curve": "linear" },
+            { "time": 0.5, "value": { "x": 120, "y": -60 }, "curve": "linear" },
+            { "time": 1.0, "value": { "x": 60, "y": 120 }, "curve": "linear" }
+          ]
+        }
+      },
+      "slots": {},
+      "ik": {},
+      "transform": {
+        "tc": [
+          { "time": 0.0, "value": { "mixRotate": 0 }, "curve": "linear" },
+          { "time": 1.0, "value": { "mixRotate": 1 }, "curve": "linear" }
+        ]
+      },
+      "deform": {}
+    }
+  },
+  "atlas": { "pages": [] }
+}

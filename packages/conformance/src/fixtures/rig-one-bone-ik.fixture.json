@@ -1,0 +1,60 @@
+{
+  "rigId": "rig-one-bone-ik",
+  "rigHash": "sha256:57a50ba278fd2f92fc5464d994610e92c7723d4eddef1c84649a44a0bae29a6b",
+  "specHash": "sha256:484f599b529f431ce8dbaba70787dead9a974a5b60c6df31d8ba752fc9c270f0",
+  "coreVersion": "runtime-core@0.0.0",
+  "toolchain": "node-22.13.1-v8",
+  "generatedBy": "generate.ts",
+  "samples": [
+    {
+      "time": 0,
+      "animation": "default",
+      "loop": false,
+      "bones": {
+        "root": [1, 0, 0, 1, 0, 0],
+        "bone": [1, 0, 0, 1, 0, 0],
+        "target": [1, 0, 0, 1, 0, 0]
+      }
+    },
+    {
+      "time": 0.25,
+      "animation": "default",
+      "loop": false,
+      "bones": {
+        "root": [1, 0, 0, 1, 0, 0],
+        "bone": [0.9238795325112867, 0.3826834323650898, -0.3826834323650898, 0.9238795325112867, 0, 0],
+        "target": [1, 0, 0, 1, 0, 40]
+      }
+    },
+    {
+      "time": 0.5,
+      "animation": "default",
+      "loop": false,
+      "bones": {
+        "root": [1, 0, 0, 1, 0, 0],
+        "bone": [0.7071067811865476, 0.7071067811865475, -0.7071067811865475, 0.7071067811865476, 0, 0],
+        "target": [1, 0, 0, 1, 0, 80]
+      }
+    },
+    {
+      "time": 0.75,
+      "animation": "default",
+      "loop": false,
+      "bones": {
+        "root": [1, 0, 0, 1, 0, 0],
+        "bone": [-0.1950903220161282, 0.9807852804032304, -0.9807852804032304, -0.1950903220161282, 0, 0],
+        "target": [1, 0, 0, 1, -40, 40]
+      }
+    },
+    {
+      "time": 1,
+      "animation": "default",
+      "loop": false,
+      "bones": {
+        "root": [1, 0, 0, 1, 0, 0],
+        "bone": [-1, 1.2246467991473532e-16, -1.2246467991473532e-16, -1, 0, 0],
+        "target": [1, 0, 0, 1, -80, 0]
+      }
+    }
+  ]
+}

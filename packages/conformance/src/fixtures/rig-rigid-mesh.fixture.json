@@ -1,0 +1,76 @@
+{
+  "rigId": "rig-rigid-mesh",
+  "rigHash": "sha256:7601bc88918549fb8789cb0ce41fd316f84aef37871a0d27faecc53a76ad0bab",
+  "specHash": "sha256:5cd1b2cbbe624a76eba901e6acf60d2a518ebf6837af902a0c84304a5e86fc29",
+  "coreVersion": "runtime-core@0.0.0",
+  "toolchain": "node-22.13.1-v8",
+  "generatedBy": "generate.ts",
+  "samples": [
+    {
+      "time": 0,
+      "animation": "default",
+      "loop": false,
+      "bones": {
+        "root": [1, 0, 0, 1, 0, 0]
+      },
+      "meshes": [
+        { "skin": "default", "slot": "mesh_slot", "attachment": "panel", "positions": [0, 0, 40, 0, 40, 40, 0, 40] }
+      ]
+    },
+    {
+      "time": 0.25,
+      "animation": "default",
+      "loop": false,
+      "bones": {
+        "root": [0.9238795325112867, 0.3826834323650898, -0.3826834323650898, 0.9238795325112867, 10, 5]
+      },
+      "meshes": [
+        { "skin": "default", "slot": "mesh_slot", "attachment": "panel", "positions": [10, 5, 46.95518112182617, 20.307336807250977, 31.647844314575195, 57.26251983642578, -5.307337284088135, 41.95518112182617] }
+      ]
+    },
+    {
+      "time": 0.5,
+      "animation": "default",
+      "loop": false,
+      "bones": {
+        "root": [0.7071067811865476, 0.7071067811865475, -0.7071067811865475, 0.7071067811865476, 20, 10]
+      },
+      "meshes": [
+        { "skin": "default", "slot": "mesh_slot", "attachment": "panel", "positions": [20, 10, 48.284271240234375, 38.284271240234375, 20, 66.56854248046875, -8.284271240234375, 38.284271240234375] }
+      ]
+    },
+    {
+      "time": 0.75,
+      "animation": "default",
+      "loop": false,
+      "bones": {
+        "root": [0.38268343236508984, 0.9238795325112867, -0.9238795325112867, 0.38268343236508984, 10, 5]
+      },
+      "meshes": [
+        { "skin": "default", "slot": "mesh_slot", "attachment": "panel", "positions": [10, 5, 25.307336807250977, 41.95518112182617, -11.647844314575195, 57.26251983642578, -26.955181121826172, 20.307336807250977] }
+      ]
+    },
+    {
+      "time": 1,
+      "animation": "default",
+      "loop": false,
+      "bones": {
+        "root": [6.123233995736766e-17, 1, -1, 6.123233995736766e-17, 0, 0]
+      },
+      "meshes": [
+        { "skin": "default", "slot": "mesh_slot", "attachment": "panel", "positions": [0, 0, 2.4492935992912173e-15, 40, -40, 40, -40, 2.4492935992912173e-15] }
+      ]
+    },
+    {
+      "time": 1.25,
+      "animation": "default",
+      "loop": false,
+      "bones": {
+        "root": [6.123233995736766e-17, 1, -1, 6.123233995736766e-17, 0, 0]
+      },
+      "meshes": [
+        { "skin": "default", "slot": "mesh_slot", "attachment": "panel", "positions": [0, 0, 2.4492935992912173e-15, 40, -40, 40, -40, 2.4492935992912173e-15] }
+      ]
+    }
+  ]
+}

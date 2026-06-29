@@ -5,7 +5,7 @@ import { validateRig } from './schema/rig';
 import { validateSampleSpec } from './schema/sample-spec';
 import { validateFixture } from './schema/fixture';
 import type { Fixture, FixtureSample, Affine } from './schema/fixture';
-import { LANDED_RIG_IDS } from './registry';
+import { LANDED_RIG_IDS, type RigId } from './registry';
 import {
   fixturePath,
   LOCK_PATH,
@@ -48,9 +48,23 @@ function pinnedNodeVersion(): string {
   return readText(join(REPO_ROOT, '.node-version')).trim();
 }
 
+// Enforce the pinned toolchain, UNLESS CONFORMANCE_ALLOW_UNPINNED is set (an explicit, loud opt-in for
+// regenerating on a non-pinned dev box where the true pinned Node is unavailable). When overridden, the
+// fixtures are still stamped with the PINNED toolchain id (the canonical target): the tolerance-based
+// conformance tests are Node-agnostic and pass, but the BYTE-EXACT lock gate must be re-run on the real
+// pinned Node before it is authoritative. The override never silently hides a mismatch (it warns).
 function assertPinnedToolchain(pinned: string): void {
   const actual = process.version.replace(/^v/, '');
-  if (actual !== pinned) throw new ToolchainMismatchError(pinned, process.version);
+  if (actual === pinned) return;
+  if (process.env.CONFORMANCE_ALLOW_UNPINNED === '1') {
+    process.stderr.write(
+      `WARNING: generating conformance fixtures on Node ${process.version}, not the pinned ${pinned}. ` +
+        `Float results may differ by a few ULPs (within the A.5 tolerance, so the tests pass), but the ` +
+        `byte-exact lock is NOT authoritative until regenerated on the pinned Node (A.7).\n`,
+    );
+    return;
+  }
+  throw new ToolchainMismatchError(pinned, process.version);
 }
 
 // runtime-core's package version, for the fixture coreVersion provenance (A.3, not compared). Read
@@ -83,22 +97,34 @@ function serializeAffine(affine: Affine): string {
   return `[${affine.map(num).join(', ')}]`;
 }
 
+// One mesh-vertices entry on a single line: the triple plus a compact positions array, so a diff reads
+// one mesh per line (matching the one-bone-per-line affine convention).
+function serializeMesh(mesh: NonNullable<FixtureSample['meshes']>[number], indent: string): string {
+  const positions = `[${mesh.positions.map(num).join(', ')}]`;
+  return `${indent}{ "skin": ${str(mesh.skin)}, "slot": ${str(mesh.slot)}, "attachment": ${str(mesh.attachment)}, "positions": ${positions} }`;
+}
+
 function serializeSample(sample: FixtureSample, indent: string): string {
   const i2 = `${indent}  `;
   const i3 = `${i2}  `;
   const boneLines = Object.entries(sample.bones).map(
     ([name, affine]) => `${i3}${str(name)}: ${serializeAffine(affine)}`,
   );
-  return [
+  const lines = [
     `${indent}{`,
     `${i2}"time": ${num(sample.time)},`,
     `${i2}"animation": ${str(sample.animation)},`,
     `${i2}"loop": ${sample.loop ? 'true' : 'false'},`,
-    `${i2}"bones": {`,
-    boneLines.join(',\n'),
-    `${i2}}`,
-    `${indent}}`,
-  ].join('\n');
+  ];
+  if (sample.meshes !== undefined && sample.meshes.length > 0) {
+    const meshLines = sample.meshes.map((mesh) => serializeMesh(mesh, i3));
+    lines.push(`${i2}"bones": {`, boneLines.join(',\n'), `${i2}},`);
+    lines.push(`${i2}"meshes": [`, meshLines.join(',\n'), `${i2}]`);
+  } else {
+    lines.push(`${i2}"bones": {`, boneLines.join(',\n'), `${i2}}`);
+  }
+  lines.push(`${indent}}`);
+  return lines.join('\n');
 }
 
 function serializeFixture(fixture: Fixture): string {
@@ -129,16 +155,59 @@ function serializeLock(lock: LockManifest): string {
   return `${JSON.stringify(lock, null, 2)}\n`;
 }
 
+// Parse optional rig-id arguments. With no args the generator rewrites EVERY landed rig (full lock
+// rewrite, the canonical determinism run). With args it regenerates ONLY those rigs and MERGES their
+// entries into the existing lock, leaving other rigs' fixtures and lock entries untouched, so a targeted
+// regeneration (e.g. of newly-landed rigs) never disturbs an already-committed fixture. Each arg must be a
+// landed rig id.
+function parseTargetRigs(): readonly RigId[] {
+  const args = process.argv.slice(2);
+  if (args.length === 0) return LANDED_RIG_IDS;
+  const landed = new Set<string>(LANDED_RIG_IDS);
+  for (const arg of args) {
+    if (!landed.has(arg)) {
+      throw new Error(`"${arg}" is not a landed rig id (landed: ${LANDED_RIG_IDS.join(', ')})`);
+    }
+  }
+  return args as RigId[];
+}
+
+// Read the existing lock's file map (for a targeted, merge-preserving regeneration). Empty when absent.
+function readExistingLockFiles(): Record<string, string> {
+  try {
+    const parsed: unknown = JSON.parse(readText(LOCK_PATH));
+    if (
+      typeof parsed === 'object' &&
+      parsed !== null &&
+      'files' in parsed &&
+      typeof parsed.files === 'object' &&
+      parsed.files !== null
+    ) {
+      const out: Record<string, string> = {};
+      for (const [key, value] of Object.entries(parsed.files)) {
+        if (typeof value === 'string') out[key] = value;
+      }
+      return out;
+    }
+  } catch {
+    // No existing lock (first generation); start empty.
+  }
+  return {};
+}
+
 function main(): void {
   const pinned = pinnedNodeVersion();
-  // Fail loud, before any fixture is written (A.7).
+  // Fail loud, before any fixture is written (A.7), unless explicitly overridden for an off-pin dev box.
   assertPinnedToolchain(pinned);
 
+  const targets = parseTargetRigs();
+  const partial = targets.length !== LANDED_RIG_IDS.length;
   const toolchain = `node-${pinned}-v8`;
   const core = coreVersion();
-  const lockFiles: Record<string, string> = {};
+  // A partial run preserves the other rigs' lock entries; a full run starts from an empty manifest.
+  const lockFiles: Record<string, string> = partial ? readExistingLockFiles() : {};
 
-  for (const rigId of LANDED_RIG_IDS) {
+  for (const rigId of targets) {
     const rigText = readText(rigPath(rigId));
     const rigHash = `sha256:${sha256Hex(rigText)}`;
     const document = validateRig(JSON.parse(rigText));

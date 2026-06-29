@@ -17,6 +17,20 @@ export const sampleSpecSchema = z
     duration: z.number().finite().nonnegative(),
     loop: z.boolean(),
     poseTimes: z.array(z.number().finite()).min(1),
+    // The mesh attachments whose skinned + deformed world vertices are sampled at every poseTime (Phase 2,
+    // FIX-2.RM / FIX-2.W / FIX-2.DF). Omitted for bone-only rigs (rig-2bone). Each names the (skin, slot,
+    // attachment) triple; the generator records its positions per sample.
+    meshes: z
+      .array(
+        z
+          .object({
+            skin: z.string().min(1),
+            slot: z.string().min(1),
+            attachment: z.string().min(1),
+          })
+          .strict(),
+      )
+      .optional(),
     eventStep: z
       .object({
         dt: z.number().finite().positive(),

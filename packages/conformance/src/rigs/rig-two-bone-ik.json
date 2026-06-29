@@ -1,0 +1,96 @@
+{
+  "formatVersion": "0.2.0",
+  "name": "rig-two-bone-ik",
+  "hash": "",
+  "bones": [
+    {
+      "name": "root",
+      "parent": null,
+      "length": 20,
+      "x": 0,
+      "y": 0,
+      "rotation": 0,
+      "scaleX": 1,
+      "scaleY": 1,
+      "shearX": 0,
+      "shearY": 0,
+      "transformMode": "normal"
+    },
+    {
+      "name": "upper",
+      "parent": "root",
+      "length": 100,
+      "x": 0,
+      "y": 0,
+      "rotation": 0,
+      "scaleX": 1,
+      "scaleY": 1,
+      "shearX": 0,
+      "shearY": 0,
+      "transformMode": "normal"
+    },
+    {
+      "name": "lower",
+      "parent": "upper",
+      "length": 100,
+      "x": 100,
+      "y": 0,
+      "rotation": 0,
+      "scaleX": 1,
+      "scaleY": 1,
+      "shearX": 0,
+      "shearY": 0,
+      "transformMode": "normal"
+    },
+    {
+      "name": "target",
+      "parent": "root",
+      "length": 20,
+      "x": 0,
+      "y": 0,
+      "rotation": 0,
+      "scaleX": 1,
+      "scaleY": 1,
+      "shearX": 0,
+      "shearY": 0,
+      "transformMode": "normal"
+    }
+  ],
+  "slots": [],
+  "skins": [{ "name": "default", "attachments": {} }],
+  "ikConstraints": [
+    {
+      "name": "ik",
+      "bones": ["upper", "lower"],
+      "target": "target",
+      "mix": 1,
+      "bendPositive": true
+    }
+  ],
+  "transformConstraints": [],
+  "animations": {
+    "default": {
+      "duration": 1.0,
+      "bones": {
+        "target": {
+          "translate": [
+            { "time": 0.0, "value": { "x": 120, "y": 60 }, "curve": "linear" },
+            { "time": 0.5, "value": { "x": 120, "y": -60 }, "curve": "linear" },
+            { "time": 1.0, "value": { "x": 400, "y": 0 }, "curve": "linear" }
+          ]
+        }
+      },
+      "slots": {},
+      "ik": {
+        "ik": [
+          { "time": 0.0, "value": { "mix": 0, "bendPositive": true }, "curve": "linear" },
+          { "time": 0.5, "value": { "mix": 1, "bendPositive": false }, "curve": "stepped" },
+          { "time": 1.0, "value": { "mix": 1, "bendPositive": false }, "curve": "linear" }
+        ]
+      },
+      "transform": {},
+      "deform": {}
+    }
+  },
+  "atlas": { "pages": [] }
+}

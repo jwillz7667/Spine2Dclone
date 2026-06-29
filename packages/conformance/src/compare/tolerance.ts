@@ -27,6 +27,13 @@ export const WORLD_TRANSLATION: Tolerance = { atol: 1e-4, rtol: 1e-6 };
 // cos/sin of a rotation, whose cross-runtime noise stays orders of magnitude under 1e-6.
 export const WORLD_BASIS: Tolerance = { atol: 1e-6, rtol: 1e-6 };
 
+// Skinned and deformed vertex world positions (Phase 2, plan section 11): coordinates can be hundreds of
+// pixels, so the absolute term covers values near zero and the relative term covers large magnitudes.
+// The relative term is the plan's pinned 1e-5 (looser than WORLD_TRANSLATION's 1e-6) because a skinned
+// position is a weighted SUM of bone-transformed points, so its reordering noise accumulates more than a
+// single world translation's; still far below the 1e-2 magnitude of a real skinning/weight/deform bug.
+export const VERTEX: Tolerance = { atol: 1e-4, rtol: 1e-5 };
+
 // Slot color r, g, b, a (bounded 0..1): no relative term needed. Locked by the first slotted Phase 2
 // rig; carried here so the one tolerance source is complete.
 export const COLOR: Tolerance = { atol: 1e-5, rtol: 0 };

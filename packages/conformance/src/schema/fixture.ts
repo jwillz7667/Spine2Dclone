@@ -22,6 +22,20 @@ const affineSchema = z.tuple([
   z.number().finite(),
 ]);
 
+// One mesh attachment's FINAL world-space vertices at a sample time (Phase 2, A.3): skin (LBS) then
+// deform (post-skin, additive), the result runtime-core's sampleMeshVertices produces. `positions` is the
+// flat [x0, y0, x1, y1, ...] world-space stream (length 2 * vertexCount). Keyed by the (skin, slot,
+// attachment) triple it was sampled for; emitted in sorted triple order for stable diffs. Locks the
+// skinning (FIX-2.RM rigid fast path, FIX-2.W weighted) and deform (FIX-2.DF skin-then-deform) solve.
+const meshVerticesSchema = z
+  .object({
+    skin: z.string().min(1),
+    slot: z.string().min(1),
+    attachment: z.string().min(1),
+    positions: z.array(z.number().finite()),
+  })
+  .strict();
+
 const fixtureSampleSchema = z
   .object({
     time: z.number().finite(),
@@ -29,6 +43,9 @@ const fixtureSampleSchema = z
     loop: z.boolean(),
     // Bone world affines keyed by bone name, emitted in document order (parents precede children).
     bones: z.record(z.string(), affineSchema),
+    // Skinned + deformed mesh vertices, present only on rigs whose sample-spec names meshes to sample
+    // (FIX-2.RM / FIX-2.W / FIX-2.DF). Omitted on bone-only rigs, so pre-Phase-2 fixtures stay valid.
+    meshes: z.array(meshVerticesSchema).optional(),
   })
   .strict();
 
@@ -45,6 +62,7 @@ export const fixtureSchema = z
   .strict();
 
 export type Affine = z.infer<typeof affineSchema>;
+export type MeshVertices = z.infer<typeof meshVerticesSchema>;
 export type FixtureSample = z.infer<typeof fixtureSampleSchema>;
 export type Fixture = z.infer<typeof fixtureSchema>;
 

@@ -1,0 +1,131 @@
+{
+  "formatVersion": "0.2.0",
+  "name": "rig-weighted-mesh",
+  "hash": "",
+  "bones": [
+    {
+      "name": "root",
+      "parent": null,
+      "length": 64,
+      "x": 0,
+      "y": 0,
+      "rotation": 0,
+      "scaleX": 1,
+      "scaleY": 1,
+      "shearX": 0,
+      "shearY": 0,
+      "transformMode": "normal"
+    },
+    {
+      "name": "boneA",
+      "parent": "root",
+      "length": 40,
+      "x": 0,
+      "y": 0,
+      "rotation": 0,
+      "scaleX": 1,
+      "scaleY": 1,
+      "shearX": 0,
+      "shearY": 0,
+      "transformMode": "normal"
+    },
+    {
+      "name": "boneB",
+      "parent": "root",
+      "length": 40,
+      "x": 40,
+      "y": 0,
+      "rotation": 0,
+      "scaleX": 1,
+      "scaleY": 1,
+      "shearX": 0,
+      "shearY": 0,
+      "transformMode": "normal"
+    }
+  ],
+  "slots": [
+    {
+      "name": "mesh_slot",
+      "bone": "root",
+      "color": { "r": 1, "g": 1, "b": 1, "a": 1 },
+      "attachment": "panel",
+      "blendMode": "normal"
+    }
+  ],
+  "skins": [
+    {
+      "name": "default",
+      "attachments": {
+        "mesh_slot": {
+          "panel": {
+            "type": "mesh",
+            "path": "panel_tex",
+            "uvs": [0, 0, 1, 0, 1, 1, 0, 1],
+            "triangles": [0, 1, 2, 0, 2, 3],
+            "hullLength": 4,
+            "width": 64,
+            "height": 64,
+            "color": { "r": 1, "g": 1, "b": 1, "a": 1 },
+            "vertices": [
+              2, 1, 0, 0, 0.5, 2, -40, 0, 0.5,
+              2, 1, 40, 0, 0.5, 2, 0, 0, 0.5,
+              2, 1, 40, 40, 0.5, 2, 0, 40, 0.5,
+              2, 1, 0, 40, 0.5, 2, -40, 40, 0.5
+            ],
+            "bones": [1, 2]
+          }
+        }
+      }
+    }
+  ],
+  "ikConstraints": [],
+  "transformConstraints": [],
+  "animations": {
+    "default": {
+      "duration": 1.0,
+      "bones": {
+        "boneA": {
+          "rotate": [
+            { "time": 0.0, "value": { "angle": 0 }, "curve": "linear" },
+            { "time": 0.5, "value": { "angle": 30 }, "curve": "linear" },
+            { "time": 1.0, "value": { "angle": 0 }, "curve": "linear" }
+          ]
+        },
+        "boneB": {
+          "rotate": [
+            { "time": 0.0, "value": { "angle": 0 }, "curve": "linear" },
+            { "time": 0.5, "value": { "angle": -45 }, "curve": "linear" },
+            { "time": 1.0, "value": { "angle": 0 }, "curve": "linear" }
+          ]
+        }
+      },
+      "slots": {},
+      "ik": {},
+      "transform": {},
+      "deform": {}
+    }
+  },
+  "atlas": {
+    "pages": [
+      {
+        "file": "atlas.png",
+        "width": 64,
+        "height": 64,
+        "regions": [
+          {
+            "name": "panel_tex",
+            "x": 0,
+            "y": 0,
+            "w": 64,
+            "h": 64,
+            "rotated": false,
+            "offsetX": 0,
+            "offsetY": 0,
+            "originalW": 64,
+            "originalH": 64
+          }
+        ]
+      }
+    ]
+  }
+}

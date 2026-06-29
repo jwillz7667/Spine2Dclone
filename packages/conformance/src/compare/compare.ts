@@ -1,5 +1,5 @@
-import type { Affine, Fixture } from '../schema/fixture';
-import { withinTolerance, WORLD_BASIS, WORLD_TRANSLATION } from './tolerance';
+import type { Affine, Fixture, MeshVertices } from '../schema/fixture';
+import { VERTEX, withinTolerance, WORLD_BASIS, WORLD_TRANSLATION } from './tolerance';
 import type { Tolerance } from './tolerance';
 
 // The skeletal parity comparison engine (conformance-and-ci.md B.5, WP-V.0/V.3). It compares two
@@ -17,7 +17,7 @@ import type { Tolerance } from './tolerance';
 // Affine lane names [a, b, c, d, tx, ty] for human-readable failure messages.
 const LANE_NAMES = ['a', 'b', 'c', 'd', 'tx', 'ty'] as const;
 
-export type QuantityClass = 'worldBasis' | 'worldTranslation' | 'structural';
+export type QuantityClass = 'worldBasis' | 'worldTranslation' | 'vertex' | 'structural';
 
 // One localized parity failure. Numeric fields are populated for a numeric (per-lane) drift; for a
 // structural failure they are null and `message` carries the discrete mismatch.
@@ -75,6 +75,73 @@ export function compareAffine(
       rtol: tol.rtol,
       message: `bone "${context.bone}" world affine lane ${lane} (${LANE_NAMES[lane]}) at t=${context.time} drifts beyond tolerance`,
     });
+  }
+}
+
+// The (skin, slot, attachment) triple a mesh-vertices entry is keyed by, for stable matching + messages.
+function meshKey(m: MeshVertices): string {
+  return `${m.skin}/${m.slot}/${m.attachment}`;
+}
+
+// Compare the skinned + deformed mesh vertices of one sample (FIX-2.RM / FIX-2.W / FIX-2.DF). The mesh SET
+// (by triple) and each mesh's position-array length are discrete (exact equality, structural); the
+// positions themselves are compared lane by lane within the VERTEX tolerance. Absent on both sides (a
+// bone-only rig) is a match.
+function compareMeshes(
+  expected: readonly MeshVertices[] | undefined,
+  actual: readonly MeshVertices[] | undefined,
+  rigId: string,
+  time: number,
+  failures: DriftFailure[],
+): void {
+  const e = expected ?? [];
+  const a = actual ?? [];
+  const expectedKeys = e.map(meshKey).sort();
+  const actualKeys = a.map(meshKey).sort();
+  if (
+    expectedKeys.length !== actualKeys.length ||
+    expectedKeys.some((k, i) => k !== actualKeys[i])
+  ) {
+    failures.push(
+      structuralFailure(
+        rigId,
+        `sample at t=${time} mesh set mismatch: expected [${expectedKeys.join(', ')}], actual [${actualKeys.join(', ')}]`,
+        time,
+      ),
+    );
+    return;
+  }
+  const actualByKey = new Map(a.map((m) => [meshKey(m), m]));
+  for (const em of e) {
+    const am = actualByKey.get(meshKey(em))!;
+    if (em.positions.length !== am.positions.length) {
+      failures.push(
+        structuralFailure(
+          rigId,
+          `mesh "${meshKey(em)}" at t=${time} vertex-count mismatch: expected ${em.positions.length}, actual ${am.positions.length}`,
+          time,
+        ),
+      );
+      continue;
+    }
+    for (let lane = 0; lane < em.positions.length; lane += 1) {
+      const expectedValue = em.positions[lane]!;
+      const actualValue = am.positions[lane]!;
+      if (withinTolerance(actualValue, expectedValue, VERTEX)) continue;
+      failures.push({
+        rigId,
+        time,
+        bone: meshKey(em),
+        quantity: 'vertex',
+        lane,
+        expected: expectedValue,
+        actual: actualValue,
+        absDelta: Math.abs(actualValue - expectedValue),
+        atol: VERTEX.atol,
+        rtol: VERTEX.rtol,
+        message: `mesh "${meshKey(em)}" vertex lane ${lane} (${lane % 2 === 0 ? 'x' : 'y'} of vertex ${Math.floor(lane / 2)}) at t=${time} drifts beyond tolerance`,
+      });
+    }
   }
 }
 
@@ -168,6 +235,8 @@ export function compareFixtures(expected: Fixture, actual: Fixture): DriftReport
     for (const bone of expectedBones) {
       compareAffine(e.bones[bone]!, a.bones[bone]!, { rigId, time: e.time, bone }, failures);
     }
+
+    compareMeshes(e.meshes, a.meshes, rigId, e.time, failures);
   }
 
   return { ok: failures.length === 0, failures };

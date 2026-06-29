@@ -1,6 +1,11 @@
-import { buildPose, MAT2X3_STRIDE, sampleSkeleton } from '@marionette/runtime-core';
+import {
+  buildPose,
+  MAT2X3_STRIDE,
+  sampleMeshVertices,
+  sampleSkeleton,
+} from '@marionette/runtime-core';
 import type { SkeletonDocument } from '@marionette/format/types';
-import type { Affine, Fixture, FixtureSample } from './schema/fixture';
+import type { Affine, Fixture, FixtureSample, MeshVertices } from './schema/fixture';
 import type { SampleSpec } from './schema/sample-spec';
 
 // The pure fixture builder (conformance-and-ci.md A.6, WP-V.2). This is the behavioral source of truth
@@ -37,15 +42,66 @@ function readAffine(world: Float64Array, boneIndex: number): Affine {
 export function buildFixtureSamples(document: SkeletonDocument, spec: SampleSpec): FixtureSample[] {
   const pose = buildPose(document);
   const samples: FixtureSample[] = [];
+  // Mesh-vertex sampling reuses one scratch buffer across all times and meshes (allocation-free contract);
+  // it is sized to the largest sampled mesh once. The spec.meshes order is normalized to a deterministic
+  // (skin, slot, attachment) sort so the emitted JSON is stable for diffs regardless of authoring order.
+  const meshTargets = [...(spec.meshes ?? [])].sort(
+    (a, b) =>
+      (a.skin < b.skin ? -1 : a.skin > b.skin ? 1 : 0) ||
+      (a.slot < b.slot ? -1 : a.slot > b.slot ? 1 : 0) ||
+      (a.attachment < b.attachment ? -1 : a.attachment > b.attachment ? 1 : 0),
+  );
+  const vertexScratch = meshTargets.length > 0 ? new Float32Array(maxMeshLanes(document)) : null;
   for (const time of spec.poseTimes) {
     sampleSkeleton(document, spec.animation, time, pose);
     const bones: Record<string, Affine> = {};
     for (let i = 0; i < pose.boneNames.length; i += 1) {
       bones[pose.boneNames[i]!] = readAffine(pose.world, i);
     }
-    samples.push({ time, animation: spec.animation, loop: spec.loop, bones });
+    const sample: FixtureSample = { time, animation: spec.animation, loop: spec.loop, bones };
+    if (meshTargets.length > 0 && vertexScratch !== null) {
+      const meshes: MeshVertices[] = [];
+      for (const target of meshTargets) {
+        // sampleMeshVertices reuses the pose just solved at `time` (no re-solve), skinning then adding
+        // deform into vertexScratch and returning the logical vertex count.
+        const count = sampleMeshVertices(
+          document,
+          spec.animation,
+          time,
+          pose,
+          target.skin,
+          target.slot,
+          target.attachment,
+          vertexScratch,
+        );
+        const positions: number[] = [];
+        for (let lane = 0; lane < count * 2; lane += 1) positions.push(vertexScratch[lane]!);
+        meshes.push({
+          skin: target.skin,
+          slot: target.slot,
+          attachment: target.attachment,
+          positions,
+        });
+      }
+      sample.meshes = meshes;
+    }
+    samples.push(sample);
   }
   return samples;
+}
+
+// The largest 2 * vertexCount across every mesh attachment in the document, used to size the reused
+// vertex scratch once. A mesh's vertex count is uvs.length / 2, so the lane count is uvs.length.
+function maxMeshLanes(document: SkeletonDocument): number {
+  let max = 0;
+  for (const skin of document.skins) {
+    for (const slotAttachments of Object.values(skin.attachments)) {
+      for (const attachment of Object.values(slotAttachments)) {
+        if (attachment.type === 'mesh' && attachment.uvs.length > max) max = attachment.uvs.length;
+      }
+    }
+  }
+  return max;
 }
 
 export function buildFixture(

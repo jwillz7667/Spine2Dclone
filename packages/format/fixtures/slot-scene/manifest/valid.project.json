@@ -1,0 +1,21 @@
+{
+  "projectFormatVersion": "1.0.0",
+  "name": "demo-slot-project",
+  "members": [
+    {
+      "path": "wild.skel.json",
+      "kind": "skeleton",
+      "hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    {
+      "path": "coins.fx.json",
+      "kind": "effects",
+      "hash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+    },
+    {
+      "path": "game.slot.json",
+      "kind": "slotScene",
+      "hash": "8fc9d2aa5fa463656947bf5d83a9fbd43a3a3c461180822cbf0d7b4d2875f298"
+    }
+  ]
+}

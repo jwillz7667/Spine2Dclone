@@ -1,0 +1,80 @@
+{
+  "slotSceneFormatVersion": "0.1.0",
+  "name": "scatterpay-6x5",
+  "hash": "ad2812626c478330b1ddc0d00e3a5a60feb45c6665f4bc37b4cd589e3b52a4ef",
+  "scene": {
+    "grid": {
+      "topology": "scatterPay",
+      "cols": 6,
+      "rows": 5,
+      "cellWidth": 90,
+      "cellHeight": 90,
+      "cellGap": 6,
+      "reelStopStaggerMs": 50,
+      "gravity": "column-down",
+      "anticipation": {
+        "triggerSymbols": ["SCAT"],
+        "thresholdCount": 1,
+        "maxAnticipatingCols": 3
+      }
+    },
+    "symbols": {
+      "WILD": {
+        "skeletonRef": "wildSkeleton",
+        "idle": "idle",
+        "land": "land",
+        "win": "win"
+      }
+    },
+    "winSequencer": {
+      "sequences": {
+        "base": {
+          "steps": [
+            {
+              "vfxPreset": "coinShower"
+            }
+          ]
+        }
+      },
+      "thresholds": {
+        "big": 10,
+        "mega": 50,
+        "epic": 200
+      }
+    },
+    "featureFlows": {
+      "states": {
+        "base": {
+          "cinematic": {
+            "vfxPreset": "coinShower"
+          }
+        }
+      },
+      "transitions": [],
+      "entry": "base"
+    },
+    "tumble": {
+      "explodeMs": 120,
+      "dropMs": 200,
+      "dropEasing": "easeOutQuad",
+      "refillStaggerMs": 40,
+      "settleMs": 80,
+      "stepGapMs": 150,
+      "rollupCurve": "easeInOutCubic"
+    }
+  },
+  "refs": {
+    "skeletons": [
+      {
+        "name": "wildSkeleton",
+        "hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    ],
+    "vfxPresets": [
+      {
+        "name": "coinShower",
+        "hash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+      }
+    ]
+  }
+}

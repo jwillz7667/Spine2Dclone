@@ -18,3 +18,10 @@ export const EFFECTS_FORMAT_VERSION = '1.0.0';
 // `CURRENT_FORMAT_VERSION` and `EFFECTS_FORMAT_VERSION` in the same PR (section 8.1). This is the one
 // bounded coupling between the two otherwise-independent document version lines.
 export const FORMAT_COMMON_VERSION = '1.0.0';
+
+// The semver of the Phase 4 slot scene format (format-contract section 15.1, phase-4 section 6.1).
+// The `SlotSceneDocument` version line moves INDEPENDENTLY of both `CURRENT_FORMAT_VERSION` and
+// `EFFECTS_FORMAT_VERSION`: a slot game references many skeletons plus a VFX bundle, so bumping one
+// format must never force-bump the others. Introduced at 0.1.0 in Phase 4, following the same pre-1.0
+// rule (a breaking change bumps MINOR and ships a tested migration, section 10.3).
+export const SLOT_SCENE_FORMAT_VERSION = '0.1.0';

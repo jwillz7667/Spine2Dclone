@@ -30,3 +30,9 @@ export type { GridSize, MathBridgeError, MathBridgeErrorCode, Result } from './v
 export { makeSymbolVocabulary, vocabularyHas } from './vocabulary';
 export type { SymbolVocabulary } from './vocabulary';
 export { BOUNDARY_CONTRACT_VERSION } from './version';
+
+// The deterministic mock engine (WP-4.2): canned, committed SpinResults so the slot layer is built and
+// tested before the real engine. The scenario is a constructor argument, never part of SpinInput.
+export { MockMathEngine } from './mock-engine';
+export { MOCK_SCENARIOS, MOCK_SCENARIO_IDS } from './scenarios';
+export type { MockScenarioId, MockScenario } from './scenarios';

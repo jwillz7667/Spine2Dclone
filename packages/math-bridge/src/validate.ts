@@ -75,7 +75,9 @@ function boardsEqual(
 // `removed`, let survivors fall to the lowest cells preserving relative vertical order, and refill the
 // now-empty top cells from `refill[col].symbols` top-down. Returns the next board, or null if the refill
 // count for any column does not exactly fill its emptied cells (a structurally inconsistent step).
-function forwardColumnDownStep(
+// Exported so scenario authoring (WP-4.2) can derive a guaranteed-consistent final board from an
+// initialGrid plus steps, using the SAME rule the validator checks against (one forward rule, no drift).
+export function forwardColumnDownStep(
   board: readonly (readonly SymbolId[])[],
   step: CascadeStep,
   rows: number,

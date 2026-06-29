@@ -1,5 +1,11 @@
 import type { AtlasRef } from '@marionette/format/types';
-import type { GridConfig, SceneRefs, SymbolAnimSet, SymbolId } from '@marionette/format/slot-types';
+import type {
+  GridConfig,
+  SceneRefs,
+  SymbolAnimSet,
+  SymbolId,
+  WinSequenceConfig,
+} from '@marionette/format/slot-types';
 import type {
   AnimationEntity,
   AttachmentEntity,
@@ -106,11 +112,12 @@ export interface Mutator extends DocumentReadModel {
   patchSkin(id: SkinId, patch: { readonly name?: string }): void;
   setSkinAttachment(skinId: SkinId, slotId: SlotId, entity: AttachmentEntity): void;
   removeSkinAttachment(skinId: SkinId, slotId: SlotId, name: string): void;
-  // Slot-scene write surface (phase-4 WP-4.5 / WP-4.6).
+  // Slot-scene write surface (phase-4 WP-4.5 / WP-4.6 / WP-4.8).
   setSlotGrid(grid: GridConfig): void;
   setSymbolAnimSet(symbolId: SymbolId, set: SymbolAnimSet): void;
   removeSymbolAnimSet(symbolId: SymbolId): void;
   setSceneRefs(refs: SceneRefs): void;
+  setSlotWinSequencer(config: WinSequenceConfig): void;
   setAtlas(atlas: AtlasRef): void;
 }
 
@@ -190,6 +197,7 @@ export function createMutator(model: DocumentModelInternal): Mutator {
     setSymbolAnimSet: (symbolId, set) => model.setSymbolAnimSet(symbolId, set),
     removeSymbolAnimSet: (symbolId) => model.removeSymbolAnimSet(symbolId),
     setSceneRefs: (refs) => model.setSceneRefs(refs),
+    setSlotWinSequencer: (config) => model.setSlotWinSequencer(config),
     setAtlas: (atlas) => model.setAtlas(atlas),
   };
 }

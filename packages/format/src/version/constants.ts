@@ -24,4 +24,7 @@ export const FORMAT_COMMON_VERSION = '1.0.0';
 // `EFFECTS_FORMAT_VERSION`: a slot game references many skeletons plus a VFX bundle, so bumping one
 // format must never force-bump the others. Introduced at 0.1.0 in Phase 4, following the same pre-1.0
 // rule (a breaking change bumps MINOR and ships a tested migration, section 10.3).
+// The slot sub-schemas (grid, symbols, win-sequence, feature-flow, tumble) are AUTHORED across WP-4.4..4.10
+// at this same 0.1.0 (completing the initial contract, not breaking a released one), so growing them does
+// not bump the version.
 export const SLOT_SCENE_FORMAT_VERSION = '0.1.0';

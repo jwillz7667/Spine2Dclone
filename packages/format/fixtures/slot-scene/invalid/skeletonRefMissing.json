@@ -31,7 +31,15 @@
         "base": {
           "steps": [
             {
-              "vfxPreset": "coinShower"
+              "atMs": 0,
+              "target": {
+                "kind": "allWinningCells"
+              },
+              "action": {
+                "kind": "vfx",
+                "preset": "coinShower",
+                "anchorRule": "gridCenter"
+              }
             }
           ]
         }
@@ -40,7 +48,8 @@
         "big": 10,
         "mega": 50,
         "epic": 200
-      }
+      },
+      "defaultSequence": "base"
     },
     "featureFlows": {
       "states": {

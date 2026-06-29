@@ -290,8 +290,8 @@ export interface EffectsValidationLike {
   }>;
 }
 
-// A slot-scene authoring edit (WP-4.5 / WP-4.6) rejected BEFORE any mutation, so it leaves no document
-// change and no history entry. The `reason` discriminant says which rule fired:
+// A slot-scene authoring edit (WP-4.5 / WP-4.6 / WP-4.8) rejected BEFORE any mutation, so it leaves no
+// document change and no history entry. The `reason` discriminant says which rule fired:
 //   - clusterNotSquare: a cluster grid whose cols !== rows.
 //   - clusterGravity: a cluster grid not using cluster-down gravity.
 //   - reelStripRows: a reelStrip grid whose rows are outside [2, 6].
@@ -303,8 +303,13 @@ export interface EffectsValidationLike {
 //     validate against (when an animation-name check was requested but the skeleton was not supplied).
 //   - animMissing: a MapSymbolAnimSet animation name (idle/land/win/anticipation) is not in the referenced
 //     skeleton's provided animation names.
-//   - emptyName: a MapSymbolAnimSet skeletonRef or animation name is empty (structural floor).
+//   - emptyName: a MapSymbolAnimSet skeletonRef or animation name is empty, or a CreateWinSequence name is
+//     empty (structural floor).
 //   - notMapped: MapSymbolAnimSet was asked to REMOVE a symbol that is not mapped.
+//   - duplicateSequence: CreateWinSequence targeted a win-sequence name that already exists (WP-4.8).
+//   - sequenceMissing: SetWinSequenceStep / ReorderWinSequenceStep named a win sequence that does not exist.
+//   - stepIndexOutOfRange: SetWinSequenceStep targeted an index outside [0, steps.length], or
+//     ReorderWinSequenceStep was given an order that is not a permutation of the sequence's step indices.
 // The author-time equivalent of the format slot-scene validator's GRID_* / SYMBOL_* codes; the full
 // cross-document resolution (the skeleton actually exists on disk) is the import-time validator's job.
 export type SlotEditErrorReason =
@@ -318,7 +323,10 @@ export type SlotEditErrorReason =
   | 'skeletonRefMissing'
   | 'animMissing'
   | 'emptyName'
-  | 'notMapped';
+  | 'notMapped'
+  | 'duplicateSequence'
+  | 'sequenceMissing'
+  | 'stepIndexOutOfRange';
 
 export class SlotEditError extends Error {
   override readonly name = 'SlotEditError';

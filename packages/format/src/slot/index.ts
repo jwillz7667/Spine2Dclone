@@ -20,6 +20,10 @@ export {
   winSequenceConfigSchema,
   winSequenceSchema,
   winSequenceStepSchema,
+  winStepActionSchema,
+  winTargetRuleSchema,
+  escalationThresholdsSchema,
+  escalationTierSchema,
 } from './win-sequence-config';
 export {
   featureFlowGraphSchema,

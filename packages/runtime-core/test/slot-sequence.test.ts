@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { symbolId } from '@marionette/format/slot';
-import type { SymbolId, SlotScene, GridConfig, SymbolAnimSet } from '@marionette/format/slot-types';
+import type {
+  SymbolId,
+  SlotScene,
+  GridConfig,
+  SymbolAnimSet,
+  WinSequenceConfig,
+} from '@marionette/format/slot-types';
 import { MOCK_SCENARIOS } from '@marionette/math-bridge';
 import type { SpinResult } from '@marionette/math-bridge/types';
 import { sequence } from '../src/slot/sequence';
@@ -36,6 +42,9 @@ function makeScene(opts: {
   thresholdCount: number;
   maxAnticipatingCols: number;
   symbolKeys?: readonly string[];
+  sequences?: WinSequenceConfig['sequences'];
+  thresholds?: WinSequenceConfig['thresholds'];
+  defaultSequence?: string;
 }): SlotScene {
   const grid: GridConfig = {
     topology: 'reelStrip',
@@ -57,7 +66,11 @@ function makeScene(opts: {
   return {
     grid,
     symbols,
-    winSequencer: { sequences: {}, thresholds: { big: 10, mega: 50, epic: 100 } },
+    winSequencer: {
+      sequences: opts.sequences ?? {},
+      thresholds: opts.thresholds ?? { big: 10, mega: 50, epic: 100 },
+      defaultSequence: opts.defaultSequence ?? 'base',
+    },
     featureFlows: { entry: 'base', states: { base: {} }, transitions: [] },
     tumble: {
       explodeMs: 100,
@@ -349,6 +362,393 @@ describe('sequence: iteration invariance over symbols Record (TASK-4.7.4)', () =
     const orderA = makeScene({ ...base, symbolKeys: ['1', '2', '10', 'scatter', 'H1', 'L1'] });
     const orderB = makeScene({ ...base, symbolKeys: ['L1', 'H1', 'scatter', '10', '2', '1'] });
     expect(sequence(result, orderA)).toEqual(sequence(result, orderB));
+  });
+});
+
+// WP-4.8 win sequencer (section 5.4.3 LINE-WIN model + escalation). The base-win scenario is a 5x3 line
+// win (initialGrid === grid, no cascades); the mega-escalation scenario is a 6x5 big win whose
+// totalWin/bet crosses big + mega (but not epic) against the default thresholds.
+describe('sequence: win sequence stage 3 (WP-4.8 TASK-4.8.3)', () => {
+  // An authored sequence that animates all winning cells, fires a VFX preset per cell, and starts the
+  // single line-win rollup. Used by the base-win assertions below.
+  function baseWinScene(): SlotScene {
+    return makeScene({
+      rows: 3,
+      cols: 5,
+      reelStopStaggerMs: 200,
+      triggerSymbols: ['scatter'],
+      thresholdCount: 99, // unreachable: isolate the win-sequence assertions from anticipation.
+      maxAnticipatingCols: 2,
+      thresholds: { big: 10, mega: 50, epic: 100 },
+      defaultSequence: 'base',
+      sequences: {
+        base: {
+          steps: [
+            { atMs: 1000, target: { kind: 'allWinningCells' }, action: { kind: 'animateWin' } },
+            {
+              atMs: 1000,
+              target: { kind: 'allWinningCells' },
+              action: { kind: 'vfx', preset: 'sparkle', anchorRule: 'eachCell' },
+            },
+            {
+              atMs: 1200,
+              target: { kind: 'allWinningCells' },
+              action: { kind: 'rollupStart', curve: 'linear' },
+            },
+          ],
+        },
+      },
+    });
+  }
+
+  it('animates exactly the cells in wins[].positions (set-equality)', () => {
+    const result = MOCK_SCENARIOS['base-win'].result; // wins[0].positions = [1,0],[1,1],[1,2]
+    const tl = sequence(result, baseWinScene());
+    const animated = tl.directives
+      .filter((d) => d.kind === 'symbolAnimate' && d.set === 'win')
+      .map((d) => (d.kind === 'symbolAnimate' ? `${d.row},${d.col}` : ''));
+    const expected = new Set(result.wins.flatMap((w) => w.positions.map(([r, c]) => `${r},${c}`)));
+    expect(new Set(animated)).toEqual(expected);
+    expect(animated).toHaveLength(expected.size); // no duplicate directive per cell
+  });
+
+  it('fires the authored VFX preset once per targeted cell (eachCell)', () => {
+    const result = MOCK_SCENARIOS['base-win'].result;
+    const tl = sequence(result, baseWinScene());
+    const bursts = tl.directives.filter((d) => d.kind === 'vfxBurst');
+    const cellCount = result.wins.flatMap((w) => w.positions).length;
+    expect(bursts).toHaveLength(cellCount);
+    for (const d of bursts) {
+      if (d.kind !== 'vfxBurst') throw new Error('narrowing');
+      expect(d.preset).toBe('sparkle');
+      expect(d.anchor.kind).toBe('cell');
+    }
+  });
+
+  it('fires ONE gridCenter VFX burst at the screen origin', () => {
+    const result = MOCK_SCENARIOS['base-win'].result;
+    const scene = makeScene({
+      rows: 3,
+      cols: 5,
+      reelStopStaggerMs: 200,
+      triggerSymbols: ['scatter'],
+      thresholdCount: 99,
+      maxAnticipatingCols: 2,
+      defaultSequence: 'base',
+      sequences: {
+        base: {
+          steps: [
+            {
+              atMs: 500,
+              target: { kind: 'allWinningCells' },
+              action: { kind: 'vfx', preset: 'rays', anchorRule: 'gridCenter' },
+            },
+          ],
+        },
+      },
+    });
+    const bursts = sequence(result, scene).directives.filter((d) => d.kind === 'vfxBurst');
+    expect(bursts).toHaveLength(1);
+    const burst = bursts[0]!;
+    if (burst.kind !== 'vfxBurst') throw new Error('narrowing');
+    expect(burst.anchor).toEqual({ kind: 'screen', x: 0, y: 0 });
+  });
+
+  it('emits exactly ONE counterRollup with toUnits === totalWin (line-win model)', () => {
+    const result = MOCK_SCENARIOS['base-win'].result;
+    const tl = sequence(result, baseWinScene());
+    const rollups = tl.directives.filter((d) => d.kind === 'counterRollup');
+    expect(rollups).toHaveLength(1);
+    const rollup = rollups[0]!;
+    if (rollup.kind !== 'counterRollup') throw new Error('narrowing');
+    expect(rollup.fromUnits).toBe(0);
+    expect(rollup.toUnits).toBe(result.totalWin);
+    expect(rollup.startMs).toBe(1200);
+    expect(rollup.endMs).toBeGreaterThan(rollup.startMs);
+    expect(rollup.curve).toBe('linear');
+  });
+
+  it('SUPPRESSES the line-win rollup when result.cascades is non-empty', () => {
+    const base = MOCK_SCENARIOS['base-win'].result;
+    // Synthesize a cascade marker on a copy (the suppression key is `cascades` non-empty).
+    const cascadeResult: SpinResult = {
+      ...base,
+      cascades: [{ removed: [], refill: [], stepWin: 0, cumulativeWin: base.totalWin }],
+    };
+    const tl = sequence(cascadeResult, baseWinScene());
+    expect(tl.directives.filter((d) => d.kind === 'counterRollup')).toHaveLength(0);
+  });
+
+  it('byLine and bySymbol target rules resolve to the right cells', () => {
+    const result = MOCK_SCENARIOS['mega-escalation'].result; // wins[0]: line 0, symbol H1, 5 cells
+    const byLine = makeScene({
+      rows: 5,
+      cols: 6,
+      reelStopStaggerMs: 0,
+      triggerSymbols: ['scatter'],
+      thresholdCount: 99,
+      maxAnticipatingCols: 1,
+      defaultSequence: 'base',
+      sequences: {
+        base: {
+          steps: [
+            { atMs: 0, target: { kind: 'byLine', index: 0 }, action: { kind: 'animateWin' } },
+          ],
+        },
+      },
+    });
+    const lineCells = sequence(result, byLine).directives.filter(
+      (d) => d.kind === 'symbolAnimate' && d.set === 'win',
+    );
+    expect(lineCells).toHaveLength(5);
+
+    const missLine = makeScene({
+      rows: 5,
+      cols: 6,
+      reelStopStaggerMs: 0,
+      triggerSymbols: ['scatter'],
+      thresholdCount: 99,
+      maxAnticipatingCols: 1,
+      defaultSequence: 'base',
+      sequences: {
+        base: {
+          steps: [
+            { atMs: 0, target: { kind: 'byLine', index: 7 }, action: { kind: 'animateWin' } },
+          ],
+        },
+      },
+    });
+    expect(
+      sequence(result, missLine).directives.filter(
+        (d) => d.kind === 'symbolAnimate' && d.set === 'win',
+      ),
+    ).toHaveLength(0);
+
+    const bySymbol = makeScene({
+      rows: 5,
+      cols: 6,
+      reelStopStaggerMs: 0,
+      triggerSymbols: ['scatter'],
+      thresholdCount: 99,
+      maxAnticipatingCols: 1,
+      defaultSequence: 'base',
+      sequences: {
+        base: {
+          steps: [
+            {
+              atMs: 0,
+              target: { kind: 'bySymbol', symbol: symbolId('H1') },
+              action: { kind: 'animateWin' },
+            },
+          ],
+        },
+      },
+    });
+    expect(
+      sequence(result, bySymbol).directives.filter(
+        (d) => d.kind === 'symbolAnimate' && d.set === 'win',
+      ),
+    ).toHaveLength(5);
+  });
+
+  it('resolves targeted cells in (col, row) order', () => {
+    // A two-win result on a 3x3 board, deliberately authored out of (col,row) order, to pin the sort.
+    const result: SpinResult = {
+      spinId: 'order',
+      bet: 100,
+      initialGrid: board([
+        ['A', 'B', 'C'],
+        ['D', 'E', 'F'],
+        ['G', 'H', 'I'],
+      ]),
+      grid: board([
+        ['A', 'B', 'C'],
+        ['D', 'E', 'F'],
+        ['G', 'H', 'I'],
+      ]),
+      wins: [
+        {
+          symbol: symbolId('A'),
+          positions: [
+            [2, 1],
+            [0, 0],
+            [1, 1],
+            [0, 2],
+          ],
+          amount: 10,
+        },
+      ],
+      totalWin: 10,
+      features: [],
+    };
+    const scene = makeScene({
+      rows: 3,
+      cols: 3,
+      reelStopStaggerMs: 0,
+      triggerSymbols: ['scatter'],
+      thresholdCount: 99,
+      maxAnticipatingCols: 1,
+      defaultSequence: 'base',
+      sequences: {
+        base: {
+          steps: [{ atMs: 0, target: { kind: 'allWinningCells' }, action: { kind: 'animateWin' } }],
+        },
+      },
+    });
+    const winCells = sequence(result, scene)
+      .directives.filter((d) => d.kind === 'symbolAnimate' && d.set === 'win')
+      .map((d) => (d.kind === 'symbolAnimate' ? [d.col, d.row] : []));
+    // (col,row) ascending: (0,0),(1,1),(1,2),(2,0).
+    expect(winCells).toEqual([
+      [0, 0],
+      [1, 1],
+      [1, 2],
+      [2, 0],
+    ]);
+  });
+
+  it('selects the tier-named sequence when its tier is crossed, else defaultSequence', () => {
+    // mega-escalation crosses mega; a 'mega' sequence (animates) is selected over 'base' (no steps).
+    const result = MOCK_SCENARIOS['mega-escalation'].result;
+    const scene = makeScene({
+      rows: 5,
+      cols: 6,
+      reelStopStaggerMs: 0,
+      triggerSymbols: ['scatter'],
+      thresholdCount: 99,
+      maxAnticipatingCols: 1,
+      thresholds: { big: 10, mega: 50, epic: 100 },
+      defaultSequence: 'base',
+      sequences: {
+        base: { steps: [] },
+        mega: {
+          steps: [{ atMs: 0, target: { kind: 'allWinningCells' }, action: { kind: 'animateWin' } }],
+        },
+      },
+    });
+    const winCells = sequence(result, scene).directives.filter(
+      (d) => d.kind === 'symbolAnimate' && d.set === 'win',
+    );
+    expect(winCells.length).toBeGreaterThan(0); // the 'mega' sequence ran, not the empty 'base'
+  });
+});
+
+describe('sequence: escalation stage 6 (WP-4.8 TASK-4.8.4)', () => {
+  function escalationScene(thresholds: WinSequenceConfig['thresholds']): SlotScene {
+    return makeScene({
+      rows: 5,
+      cols: 6,
+      reelStopStaggerMs: 0,
+      triggerSymbols: ['scatter'],
+      thresholdCount: 99,
+      maxAnticipatingCols: 1,
+      thresholds,
+      defaultSequence: 'base',
+      sequences: { base: { steps: [] } },
+    });
+  }
+
+  function tiers(tl: PresentationTimeline): string[] {
+    return tl.directives
+      .filter((d) => d.kind === 'escalation')
+      .map((d) => (d.kind === 'escalation' ? d.tier : ''));
+  }
+
+  it('emits exactly the crossed tiers in ascending order (mega-escalation crosses big + mega)', () => {
+    const result = MOCK_SCENARIOS['mega-escalation'].result; // totalWin 600, bet 10
+    // 600 >= 10*10 (big), 600 >= 50*10=500 (mega), 600 < 100*10=1000 (epic not crossed).
+    const tl = sequence(result, escalationScene({ big: 10, mega: 50, epic: 100 }));
+    expect(tiers(tl)).toEqual(['big', 'mega']);
+  });
+
+  it('lowering totalWin below a threshold removes that tier', () => {
+    const base = MOCK_SCENARIOS['mega-escalation'].result;
+    const scene = escalationScene({ big: 10, mega: 50, epic: 100 });
+    // totalWin 499 with bet 10: 499 >= 100 (big), 499 < 500 (mega gone).
+    const lowered: SpinResult = { ...base, totalWin: 499 };
+    expect(tiers(sequence(lowered, scene))).toEqual(['big']);
+    // totalWin 99 with bet 10: 99 < 100, no tier crosses.
+    const tiny: SpinResult = { ...base, totalWin: 99 };
+    expect(tiers(sequence(tiny, scene))).toEqual([]);
+  });
+
+  it('a small line win (base-win) crosses no tier', () => {
+    const result = MOCK_SCENARIOS['base-win'].result; // totalWin 200, bet 100 (5x3 grid)
+    // 200 < 10*100 = 1000, so no tier is crossed at the default thresholds.
+    const scene = makeScene({
+      rows: 3,
+      cols: 5,
+      reelStopStaggerMs: 0,
+      triggerSymbols: ['scatter'],
+      thresholdCount: 99,
+      maxAnticipatingCols: 1,
+      thresholds: { big: 10, mega: 50, epic: 100 },
+      defaultSequence: 'base',
+      sequences: { base: { steps: [] } },
+    });
+    expect(tiers(sequence(result, scene))).toEqual([]);
+  });
+});
+
+describe('sequence: WP-4.8 referential transparency + comparator totality', () => {
+  // A scene that emits win + vfx + rollup + escalation directives, exercising every WP-4.8 stage at once.
+  function fullScene(): SlotScene {
+    return makeScene({
+      rows: 5,
+      cols: 6,
+      reelStopStaggerMs: 120,
+      triggerSymbols: ['scatter'],
+      thresholdCount: 1,
+      maxAnticipatingCols: 3,
+      thresholds: { big: 10, mega: 50, epic: 100 },
+      defaultSequence: 'base',
+      sequences: {
+        base: {
+          steps: [
+            { atMs: 1000, target: { kind: 'allWinningCells' }, action: { kind: 'animateWin' } },
+            {
+              atMs: 1000,
+              target: { kind: 'allWinningCells' },
+              action: { kind: 'vfx', preset: 'coins', anchorRule: 'eachCell' },
+            },
+            {
+              atMs: 1000,
+              target: { kind: 'allWinningCells' },
+              action: { kind: 'rollupStart', curve: 'easeOutQuad' },
+            },
+          ],
+        },
+        mega: {
+          steps: [
+            { atMs: 1000, target: { kind: 'allWinningCells' }, action: { kind: 'animateWin' } },
+            {
+              atMs: 1000,
+              target: { kind: 'allWinningCells' },
+              action: { kind: 'rollupStart', curve: 'linear' },
+            },
+          ],
+        },
+      },
+    });
+  }
+
+  it('produces deep-equal timelines across 1000 repeated calls', () => {
+    const result = MOCK_SCENARIOS['mega-escalation'].result;
+    const scene = fullScene();
+    const first = sequence(result, scene);
+    for (let i = 0; i < 1000; i += 1) {
+      expect(sequence(result, scene)).toEqual(first);
+    }
+  });
+
+  it('the comparator stays total: every directive has a unique seq and the order is strict', () => {
+    const result = MOCK_SCENARIOS['mega-escalation'].result;
+    const tl = sequence(result, fullScene());
+    const seqs = tl.directives.map((d) => d.seq);
+    expect(new Set(seqs).size).toBe(seqs.length);
+    for (let i = 1; i < tl.directives.length; i += 1) {
+      expect(compareDirectives(tl.directives[i - 1]!, tl.directives[i]!)).toBeLessThan(0);
+    }
   });
 });
 

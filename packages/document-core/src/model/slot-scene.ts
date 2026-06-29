@@ -7,6 +7,7 @@ import type {
   SymbolAnimSet,
   SymbolId,
   TumbleChoreography,
+  WinSequence,
   WinSequenceConfig,
 } from '@marionette/format/slot-types';
 
@@ -57,12 +58,42 @@ export function defaultGridConfig(): GridConfig {
   };
 }
 
-// The minimal-but-valid default WinSequenceConfig (format win-sequence-config schema): no named sequences
-// and all-zero tier thresholds. WP-4.8 grows the sequencer; WP-4.5/4.6 only need a valid container.
+// The minimal-but-valid default WinSequenceConfig (format win-sequence-config schema, WP-4.8). One empty
+// named 'base' sequence (so defaultSequence resolves), all-zero tier thresholds, and 'base' as the default
+// sequence. WP-4.8 commands grow the sequencer; this is the smallest valid container a fresh document
+// carries. The format requires defaultSequence to be a non-empty name; 'base' matches the empty sequence.
 export function defaultWinSequenceConfig(): WinSequenceConfig {
   return {
-    sequences: {},
+    sequences: { base: { steps: [] } },
     thresholds: { big: 0, mega: 0, epic: 0 },
+    defaultSequence: 'base',
+  };
+}
+
+// Deep-copy one WinSequence (a fresh steps array of fresh, structurally-cloned steps) so a memento or a
+// handed-out value never aliases the live sequence. A step is { atMs, target, action }, each a small
+// closed shape; structuredClone gives a value-exact copy without re-enumerating every union arm by hand.
+export function cloneWinSequence(seq: WinSequence): WinSequence {
+  return structuredClone(seq);
+}
+
+// Deep-copy a whole WinSequenceConfig (fresh sequences record, fresh thresholds, scalar defaultSequence) so
+// the model never aliases a command-held config and a do/undo memento is value-exact. Used by the
+// setSlotWinSequencer mutator (on write) and the WP-4.8 commands (on capturing the before-memento).
+export function cloneWinSequenceConfig(config: WinSequenceConfig): WinSequenceConfig {
+  const sequences: Record<string, WinSequence> = {};
+  for (const [name, seq] of Object.entries(config.sequences)) {
+    if (seq === undefined) continue;
+    sequences[name] = cloneWinSequence(seq);
+  }
+  return {
+    sequences,
+    thresholds: {
+      big: config.thresholds.big,
+      mega: config.thresholds.mega,
+      epic: config.thresholds.epic,
+    },
+    defaultSequence: config.defaultSequence,
   };
 }
 
@@ -166,7 +197,7 @@ export function cloneSlotSceneState(scene: SlotSceneState): SlotSceneState {
   return {
     grid: cloneGridConfig(scene.grid),
     symbols,
-    winSequencer: scene.winSequencer,
+    winSequencer: cloneWinSequenceConfig(scene.winSequencer),
     featureFlows: scene.featureFlows,
     tumble: scene.tumble,
     refs: cloneSceneRefs(scene.refs),

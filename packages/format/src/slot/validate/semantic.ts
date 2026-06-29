@@ -258,13 +258,15 @@ function checkVfxRefs(
     }
   };
 
-  // Win-sequence steps. Keyed iteration over the sequences record (no ordered output is produced).
+  // Win-sequence steps. Keyed iteration over the sequences record (no ordered output is produced). A VFX
+  // preset name lives on a step whose action is the `vfx` member (WP-4.8 step shape); the name resolves
+  // against refs.vfxPresets and is located at the step's action.preset path.
   for (const [sequenceKey, sequence] of Object.entries(doc.scene.winSequencer.sequences)) {
     if (sequence === undefined) continue;
     sequence.steps.forEach((step, stepIndex) => {
-      if (step.vfxPreset !== undefined) {
+      if (step.action.kind === 'vfx') {
         checkPreset(
-          step.vfxPreset,
+          step.action.preset,
           jsonPointer([
             'scene',
             'winSequencer',
@@ -272,7 +274,8 @@ function checkVfxRefs(
             sequenceKey,
             'steps',
             stepIndex,
-            'vfxPreset',
+            'action',
+            'preset',
           ]),
         );
       }

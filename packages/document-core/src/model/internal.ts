@@ -1,5 +1,11 @@
 import type { AtlasRef } from '@marionette/format/types';
-import type { GridConfig, SceneRefs, SymbolAnimSet, SymbolId } from '@marionette/format/slot-types';
+import type {
+  GridConfig,
+  SceneRefs,
+  SymbolAnimSet,
+  SymbolId,
+  WinSequenceConfig,
+} from '@marionette/format/slot-types';
 import type {
   AnimationEntity,
   AttachmentEntity,
@@ -30,6 +36,7 @@ import {
   cloneSceneRefs,
   cloneSlotSceneState,
   cloneSymbolAnimSet,
+  cloneWinSequenceConfig,
 } from './slot-scene';
 import type {
   AnimationId,
@@ -1312,6 +1319,16 @@ export class DocumentModelInternal implements DocumentReadModel {
   // deep-copied; a fresh scene object is allocated. Driven only as part of a MapSymbolAnimSet composite.
   setSceneRefs(refs: SceneRefs): void {
     this.slotSceneValue = { ...this.slotSceneValue, refs: cloneSceneRefs(refs) };
+    this.revisionValue += 1;
+  }
+
+  // Replace the win sequencer config WHOLESALE (the WP-4.8 slot.winseq.* commands). The config is
+  // deep-copied so the model never aliases a command-held value, and a fresh scene object is allocated so a
+  // reference-equality selector sees one change. The config is a single immutable value replaced atomically
+  // (there is no in-place batch path; a step/threshold drag coalesces at the command level), mirroring how
+  // setSlotGrid replaces the grid.
+  setSlotWinSequencer(config: WinSequenceConfig): void {
+    this.slotSceneValue = { ...this.slotSceneValue, winSequencer: cloneWinSequenceConfig(config) };
     this.revisionValue += 1;
   }
 

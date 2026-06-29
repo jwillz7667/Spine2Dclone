@@ -1,7 +1,7 @@
 {
   "slotSceneFormatVersion": "0.1.0",
   "name": "cluster-7x7",
-  "hash": "84a75ab77ed8d64e343aa4d45b6924f8024495b13bd901ce675f82e6d3fdfc0e",
+  "hash": "649b1c9e2af52d293e57d992893e999dea0fbe3b6440e315e7b785510d1a2c89",
   "scene": {
     "grid": {
       "topology": "cluster",
@@ -31,7 +31,15 @@
         "base": {
           "steps": [
             {
-              "vfxPreset": "coinShower"
+              "atMs": 0,
+              "target": {
+                "kind": "allWinningCells"
+              },
+              "action": {
+                "kind": "vfx",
+                "preset": "coinShower",
+                "anchorRule": "gridCenter"
+              }
             }
           ]
         }
@@ -40,7 +48,8 @@
         "big": 10,
         "mega": 50,
         "epic": 200
-      }
+      },
+      "defaultSequence": "base"
     },
     "featureFlows": {
       "states": {

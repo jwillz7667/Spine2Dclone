@@ -71,13 +71,23 @@ function wildAnimSet() {
 }
 
 // A win sequencer with one named sequence carrying a single step that fires the corpus VFX preset (so
-// the "every referenced VFX preset resolves" rule is exercised by the valid fixtures).
+// the "every referenced VFX preset resolves" rule is exercised by the valid fixtures). The step targets
+// all winning cells and fires the preset at the grid center (WP-4.8 step shape: { atMs, target, action }).
 function winSequencer() {
   return {
     sequences: {
-      base: { steps: [{ vfxPreset: 'coinShower' }] },
+      base: {
+        steps: [
+          {
+            atMs: 0,
+            target: { kind: 'allWinningCells' },
+            action: { kind: 'vfx', preset: 'coinShower', anchorRule: 'gridCenter' },
+          },
+        ],
+      },
     },
     thresholds: { big: 10, mega: 50, epic: 200 },
+    defaultSequence: 'base',
   };
 }
 
@@ -246,10 +256,11 @@ function invalidCorpus(): Record<string, unknown> {
     out['animationRefMissing'] = d;
   }
 
-  // vfxPresetMissing: a win-sequence step referencing a preset not in refs.vfxPresets.
+  // vfxPresetMissing: a win-sequence step whose vfx action references a preset not in refs.vfxPresets.
   {
     const d = clone(smallestDraft());
-    d.scene.winSequencer.sequences['base']!.steps[0]!.vfxPreset = 'ghostPreset';
+    const action = d.scene.winSequencer.sequences['base']!.steps[0]!.action;
+    if (action.kind === 'vfx') action.preset = 'ghostPreset';
     out['vfxPresetMissing'] = d;
   }
 

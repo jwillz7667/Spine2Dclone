@@ -1,7 +1,7 @@
 {
   "slotSceneFormatVersion": "0.1.0",
   "name": "scatterpay-6x5",
-  "hash": "ad2812626c478330b1ddc0d00e3a5a60feb45c6665f4bc37b4cd589e3b52a4ef",
+  "hash": "85f746f493f233945907c70998f7f44aae7a71594c5aa8a1d5ff7150982745e9",
   "scene": {
     "grid": {
       "topology": "scatterPay",
@@ -31,7 +31,15 @@
         "base": {
           "steps": [
             {
-              "vfxPreset": "coinShower"
+              "atMs": 0,
+              "target": {
+                "kind": "allWinningCells"
+              },
+              "action": {
+                "kind": "vfx",
+                "preset": "coinShower",
+                "anchorRule": "gridCenter"
+              }
             }
           ]
         }
@@ -40,7 +48,8 @@
         "big": 10,
         "mega": 50,
         "epic": 200
-      }
+      },
+      "defaultSequence": "base"
     },
     "featureFlows": {
       "states": {

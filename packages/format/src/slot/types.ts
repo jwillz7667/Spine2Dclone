@@ -10,8 +10,16 @@ export type { SymbolId } from './symbol-id';
 export type { GridConfig, AnticipationConfig, GridTopology, GravityRule } from './grid-config';
 export type { SymbolAnimSet } from './symbol-anim-set';
 
-// Minimal-but-valid sub-schemas that grow in WP-4.8/4.9/4.10.
-export type { WinSequenceConfig, WinSequence, WinSequenceStep } from './win-sequence-config';
+// The win-sequence contract (owned + finalized by WP-4.8); the flow/tumble sub-schemas grow in WP-4.9/4.10.
+export type {
+  WinSequenceConfig,
+  WinSequence,
+  WinSequenceStep,
+  WinStepAction,
+  WinTargetRule,
+  EscalationThresholds,
+  EscalationTier,
+} from './win-sequence-config';
 export type {
   FeatureFlowGraph,
   FeatureFlowNode,

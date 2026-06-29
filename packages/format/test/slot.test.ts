@@ -9,6 +9,8 @@ import {
   type ResolvedMemberHashes,
 } from '../src/slot/validate/manifest';
 import { slotSceneDocumentSchema } from '../src/slot/scene-document';
+import { winSequenceConfigSchema } from '../src/slot/win-sequence-config';
+import { symbolId } from '../src/slot/symbol-id';
 import type { SceneResolver } from '../src/slot/validate/resolver';
 import type { SlotSceneDocument } from '../src/slot/scene-document';
 
@@ -93,6 +95,104 @@ describe('slot scene valid corpus', () => {
   });
 });
 
+// WP-4.8: the full WinSequenceConfig schema (every target rule + every action member). The positive case
+// validates; the closed unions / strict objects / finite-int bounds reject malformed shapes.
+describe('WinSequenceConfig schema (WP-4.8)', () => {
+  it('accepts a full config exercising every target rule and every action', () => {
+    const config = {
+      sequences: {
+        base: {
+          steps: [
+            { atMs: 0, target: { kind: 'allWinningCells' }, action: { kind: 'animateWin' } },
+            {
+              atMs: 200,
+              target: { kind: 'byLine', index: 4 },
+              action: { kind: 'vfx', preset: 'coinShower', anchorRule: 'eachCell' },
+            },
+            {
+              atMs: 400,
+              target: { kind: 'bySymbol', symbol: symbolId('H1') },
+              action: { kind: 'rollupStart', curve: 'easeOutQuad' },
+            },
+          ],
+        },
+        mega: {
+          steps: [
+            {
+              atMs: 0,
+              target: { kind: 'allWinningCells' },
+              action: { kind: 'escalationBanner', tier: 'mega' },
+            },
+          ],
+        },
+      },
+      thresholds: { big: 10, mega: 25, epic: 100 },
+      defaultSequence: 'base',
+    };
+    const parsed = winSequenceConfigSchema.safeParse(config);
+    expect(parsed.success).toBe(true);
+  });
+
+  it('accepts the minimal-valid form (one empty sequence)', () => {
+    const minimal = {
+      sequences: { base: { steps: [] } },
+      thresholds: { big: 10, mega: 25, epic: 100 },
+      defaultSequence: 'base',
+    };
+    expect(winSequenceConfigSchema.safeParse(minimal).success).toBe(true);
+  });
+
+  it.each([
+    ['missing defaultSequence', { sequences: {}, thresholds: { big: 1, mega: 2, epic: 3 } }],
+    [
+      'unknown action kind',
+      {
+        sequences: {
+          base: {
+            steps: [{ atMs: 0, target: { kind: 'allWinningCells' }, action: { kind: 'nope' } }],
+          },
+        },
+        thresholds: { big: 1, mega: 2, epic: 3 },
+        defaultSequence: 'base',
+      },
+    ],
+    [
+      'negative atMs',
+      {
+        sequences: {
+          base: {
+            steps: [
+              { atMs: -1, target: { kind: 'allWinningCells' }, action: { kind: 'animateWin' } },
+            ],
+          },
+        },
+        thresholds: { big: 1, mega: 2, epic: 3 },
+        defaultSequence: 'base',
+      },
+    ],
+    [
+      'unknown curve',
+      {
+        sequences: {
+          base: {
+            steps: [
+              {
+                atMs: 0,
+                target: { kind: 'allWinningCells' },
+                action: { kind: 'rollupStart', curve: 'bouncy' },
+              },
+            ],
+          },
+        },
+        thresholds: { big: 1, mega: 2, epic: 3 },
+        defaultSequence: 'base',
+      },
+    ],
+  ] as const)('rejects %s', (_label, bad) => {
+    expect(winSequenceConfigSchema.safeParse(bad).success).toBe(false);
+  });
+});
+
 const invalidFiles = readdirSync(invalidDir).filter((name) => name.endsWith('.json'));
 
 // Manifest-only codes are exercised by the manifest validator below, not the document corpus.
@@ -145,7 +245,7 @@ describe('slot scene invalid corpus', () => {
   it('locates a missing VFX preset at the win-sequence step path', () => {
     const report = validateSlotScene(loadInvalid('vfxPresetMissing.json'), corpusResolver());
     const error = report.errors.find((e) => e.code === 'vfxPresetMissing');
-    expect(error?.path).toBe('/scene/winSequencer/sequences/base/steps/0/vfxPreset');
+    expect(error?.path).toBe('/scene/winSequencer/sequences/base/steps/0/action/preset');
   });
 
   it('locates a cluster gravity fault at the gravity path', () => {

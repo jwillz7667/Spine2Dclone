@@ -148,6 +148,17 @@ export {
 export { SetGridConfigCommand, setGridConfigSpec } from './set-grid-config.command';
 export { MapSymbolAnimSetCommand, mapSymbolAnimSetSpec } from './map-symbol-anim-set.command';
 export type { MapSymbolAnimSetInit } from './map-symbol-anim-set.command';
+// WP-4.8 win presentation sequencer authoring
+export { CreateWinSequenceCommand, createWinSequenceSpec } from './create-win-sequence.command';
+export { SetWinSequenceStepCommand, setWinSequenceStepSpec } from './set-win-sequence-step.command';
+export {
+  ReorderWinSequenceStepCommand,
+  reorderWinSequenceStepSpec,
+} from './reorder-win-sequence-step.command';
+export {
+  SetEscalationThresholdCommand,
+  setEscalationThresholdSpec,
+} from './set-escalation-threshold.command';
 export {
   assertValidGridConfig,
   preset5x3ReelStrip,

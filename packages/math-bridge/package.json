@@ -11,6 +11,10 @@
     "./types": {
       "types": "./src/types.ts",
       "import": "./src/types.ts"
+    },
+    "./real": {
+      "types": "./src/real/index.ts",
+      "import": "./src/real/index.ts"
     }
   },
   "scripts": {

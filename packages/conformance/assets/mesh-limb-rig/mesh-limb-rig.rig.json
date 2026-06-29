@@ -1,0 +1,266 @@
+{
+  "formatVersion": "0.2.0",
+  "name": "mesh-limb-rig",
+  "hash": "b0af538696b448f1f4d8111cfeec692b0fd9b8b8ce27a50f841a57d8bbc9fa58",
+  "bones": [
+    {
+      "name": "root",
+      "parent": null,
+      "length": 50,
+      "x": 0,
+      "y": 0,
+      "rotation": 0,
+      "scaleX": 1,
+      "scaleY": 1,
+      "shearX": 0,
+      "shearY": 0,
+      "transformMode": "normal"
+    },
+    {
+      "name": "ik-target",
+      "parent": "root",
+      "length": 20,
+      "x": 120,
+      "y": -20,
+      "rotation": 0,
+      "scaleX": 1,
+      "scaleY": 1,
+      "shearX": 0,
+      "shearY": 0,
+      "transformMode": "normal"
+    },
+    {
+      "name": "target",
+      "parent": "root",
+      "length": 20,
+      "x": 120,
+      "y": 20,
+      "rotation": 0,
+      "scaleX": 1,
+      "scaleY": 1,
+      "shearX": 0,
+      "shearY": 0,
+      "transformMode": "normal"
+    },
+    {
+      "name": "upper",
+      "parent": "root",
+      "length": 50,
+      "x": 50,
+      "y": 0,
+      "rotation": 0,
+      "scaleX": 1,
+      "scaleY": 1,
+      "shearX": 0,
+      "shearY": 0,
+      "transformMode": "normal"
+    },
+    {
+      "name": "lower",
+      "parent": "upper",
+      "length": 50,
+      "x": 50,
+      "y": 0,
+      "rotation": 0,
+      "scaleX": 1,
+      "scaleY": 1,
+      "shearX": 0,
+      "shearY": 0,
+      "transformMode": "normal"
+    }
+  ],
+  "slots": [
+    {
+      "name": "limb",
+      "bone": "upper",
+      "color": {
+        "r": 1,
+        "g": 1,
+        "b": 1,
+        "a": 1
+      },
+      "attachment": "limb",
+      "blendMode": "normal"
+    }
+  ],
+  "skins": [
+    {
+      "name": "default",
+      "attachments": {
+        "limb": {
+          "limb": {
+            "type": "mesh",
+            "path": "limb",
+            "uvs": [0, 0, 1, 0, 1, 1, 0, 1],
+            "triangles": [0, 1, 2, 0, 2, 3],
+            "hullLength": 4,
+            "width": 64,
+            "height": 128,
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "vertices": [
+              2, 3, 0, 0, 0.9999999800000009, 4, -50, 0, 1.9999999200000033e-8, 2, 4, 14, 0,
+              0.9999999285714388, 3, 64, 0, 7.142856122449127e-8, 2, 4, 14, 128, 0.5014864832152127,
+              3, 64, 128, 0.4985135167847874, 2, 3, 0, 128, 0.5177437648370443, 4, -50, 128,
+              0.48225623516295574
+            ],
+            "bones": [3, 4]
+          }
+        }
+      }
+    }
+  ],
+  "ikConstraints": [
+    {
+      "name": "limb-ik",
+      "bones": ["upper", "lower"],
+      "target": "target",
+      "mix": 1,
+      "bendPositive": true
+    }
+  ],
+  "transformConstraints": [],
+  "animations": {
+    "wave": {
+      "duration": 1,
+      "bones": {
+        "upper": {
+          "rotate": [
+            {
+              "time": 0,
+              "value": {
+                "angle": 0
+              },
+              "curve": "linear"
+            },
+            {
+              "time": 0.5,
+              "value": {
+                "angle": 25
+              },
+              "curve": "linear"
+            },
+            {
+              "time": 1,
+              "value": {
+                "angle": 0
+              },
+              "curve": "linear"
+            }
+          ]
+        },
+        "lower": {
+          "rotate": [
+            {
+              "time": 0,
+              "value": {
+                "angle": 0
+              },
+              "curve": "linear"
+            },
+            {
+              "time": 0.5,
+              "value": {
+                "angle": -15
+              },
+              "curve": "linear"
+            },
+            {
+              "time": 1,
+              "value": {
+                "angle": 0
+              },
+              "curve": "linear"
+            }
+          ]
+        }
+      },
+      "slots": {},
+      "ik": {
+        "limb-ik": [
+          {
+            "time": 0,
+            "value": {
+              "mix": 0,
+              "bendPositive": true
+            },
+            "curve": "linear"
+          },
+          {
+            "time": 0.5,
+            "value": {
+              "mix": 1,
+              "bendPositive": true
+            },
+            "curve": "linear"
+          },
+          {
+            "time": 1,
+            "value": {
+              "mix": 0,
+              "bendPositive": true
+            },
+            "curve": "linear"
+          }
+        ]
+      },
+      "transform": {},
+      "deform": {
+        "default": {
+          "limb": {
+            "limb": [
+              {
+                "time": 0,
+                "value": {
+                  "offsets": [0, 0, 0, 0, 0, 0, 0, 0]
+                },
+                "curve": "linear"
+              },
+              {
+                "time": 0.5,
+                "value": {
+                  "offsets": [0, 4, 6, 0, 6, 0, 0, 4]
+                },
+                "curve": "linear"
+              },
+              {
+                "time": 1,
+                "value": {
+                  "offsets": [0, 0, 0, 0, 0, 0, 0, 0]
+                },
+                "curve": "linear"
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  "atlas": {
+    "pages": [
+      {
+        "file": "mesh-limb-rig.png",
+        "width": 128,
+        "height": 128,
+        "regions": [
+          {
+            "name": "limb",
+            "x": 0,
+            "y": 0,
+            "w": 64,
+            "h": 128,
+            "rotated": false,
+            "offsetX": 0,
+            "offsetY": 0,
+            "originalW": 64,
+            "originalH": 128
+          }
+        ]
+      }
+    ]
+  }
+}

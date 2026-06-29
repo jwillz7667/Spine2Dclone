@@ -21,6 +21,13 @@ export {
   RotatedRegionUnsupportedError,
 } from './scene/region-textures';
 export type { RegionTextureResolver } from './scene/region-textures';
+// Phase 3 particle rendering (phase-3-vfx-particles.md WP-3.5): the single format-BlendMode -> PixiJS
+// blend mapping shared by the slot renderer and the particle renderer (section 7.4, no second blend
+// path), and the pure SoA -> render-instance bridge that turns an EffectSystem emitter view into the
+// flat per-instance arrays a pooled ParticleContainer uploads (TASK-3.5.2, allocation-free after warmup).
+export { blendModeToPixi } from './scene/blend-mode';
+export { makeParticleRenderBatch, fillEmitterBatch } from './scene/particle-render-batch';
+export type { ParticleRenderBatch } from './scene/particle-render-batch';
 export { loopTime } from './transport';
 // Headless sampling harness (TASK-1.10.4): samples the SAME runtime-core path the player renders,
 // with no GL/render context, so WP-1.13 can check editor-vs-runtime parity in plain Node/Vitest.

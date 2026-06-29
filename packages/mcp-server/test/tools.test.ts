@@ -844,3 +844,442 @@ describe('MCP mesh weight tools (WP-2.3 / WP-2.4)', () => {
     );
   });
 });
+
+// A three-bone rig (root -> upper -> lower) plus an animation, built through the MCP tools, so the WP-2.6
+// to WP-2.9 constraint / skin / deform surface is exercised end to end. `lower` is a direct child of
+// `upper`, so [upper, lower] is a valid two-bone IK chain reaching `root` (no cycle: root is not a
+// descendant of the chain).
+async function buildConstraintRig(deps: ToolDeps): Promise<{
+  documentId: string;
+  rootId: string;
+  upperId: string;
+  lowerId: string;
+  animationId: string;
+}> {
+  const { documentId } = asRecord(await call(deps, 'document.new', { name: 'rig' }));
+  const { boneId: rootId } = asRecord(
+    await call(deps, 'bone.create', { documentId, name: 'root', length: 50 }),
+  );
+  const { boneId: upperId } = asRecord(
+    await call(deps, 'bone.create', {
+      documentId,
+      parentId: rootId,
+      name: 'upper',
+      x: 50,
+      length: 50,
+    }),
+  );
+  const { boneId: lowerId } = asRecord(
+    await call(deps, 'bone.create', {
+      documentId,
+      parentId: upperId,
+      name: 'lower',
+      x: 50,
+      length: 50,
+    }),
+  );
+  const { animationId } = asRecord(
+    await call(deps, 'anim.create', { documentId, name: 'move', duration: 1 }),
+  );
+  return {
+    documentId: String(documentId),
+    rootId: String(rootId),
+    upperId: String(upperId),
+    lowerId: String(lowerId),
+    animationId: String(animationId),
+  };
+}
+
+describe('MCP IK constraint tools (WP-2.6)', () => {
+  it('creates, edits, keys, and deletes an IK constraint through the AI surface', async () => {
+    const deps = makeDeps();
+    const { documentId, rootId, upperId, lowerId, animationId } = await buildConstraintRig(deps);
+
+    const { ikConstraintId } = asRecord(
+      await call(deps, 'ik.createConstraint', {
+        documentId,
+        name: 'leg_ik',
+        boneIds: [upperId, lowerId],
+        targetId: rootId,
+        mix: 1,
+        bendPositive: true,
+      }),
+    );
+    expect(typeof ikConstraintId).toBe('string');
+
+    const listed = asRecord(await call(deps, 'ik.list', { documentId }));
+    expect((listed.ikConstraints as unknown[]).length).toBe(1);
+
+    await call(deps, 'ik.setMix', { documentId, ikConstraintId, mix: 0.5 });
+    await call(deps, 'ik.setBendPositive', { documentId, ikConstraintId, bendPositive: false });
+    const got = asRecord(
+      asRecord(await call(deps, 'ik.get', { documentId, ikConstraintId })).ikConstraint,
+    );
+    expect(got.mix).toBe(0.5);
+    expect(got.bendPositive).toBe(false);
+
+    // Key the IK channel at two times, then delete one keyframe.
+    await call(deps, 'ik.setKeyframe', {
+      documentId,
+      animationId,
+      ikConstraintId,
+      time: 0,
+      mix: 1,
+      bendPositive: true,
+    });
+    await call(deps, 'ik.setKeyframe', {
+      documentId,
+      animationId,
+      ikConstraintId,
+      time: 1,
+      mix: 0,
+      bendPositive: true,
+    });
+    // The anim.get projection does not surface ik tracks; assert via the snapshot instead.
+    const ikTracks = (
+      asRecord(await call(deps, 'document.getSnapshot', { documentId })).snapshot as {
+        animations: Array<{ ik: Array<{ keyframes: unknown[] }> }>;
+      }
+    ).animations[0]!.ik;
+    expect(ikTracks[0]!.keyframes.length).toBe(2);
+    const firstKfId = (ikTracks[0]!.keyframes[0] as { id: string }).id;
+    await call(deps, 'ik.deleteKeyframe', {
+      documentId,
+      animationId,
+      ikConstraintId,
+      keyframeId: firstKfId,
+    });
+    const afterDel = (
+      asRecord(await call(deps, 'document.getSnapshot', { documentId })).snapshot as {
+        animations: Array<{ ik: Array<{ keyframes: unknown[] }> }>;
+      }
+    ).animations[0]!.ik;
+    expect(afterDel[0]!.keyframes.length).toBe(1);
+
+    // Delete the constraint: it (and its surviving track) go in one undo step.
+    await call(deps, 'ik.deleteConstraint', { documentId, ikConstraintId });
+    expect(
+      (asRecord(await call(deps, 'ik.list', { documentId })).ikConstraints as unknown[]).length,
+    ).toBe(0);
+    await call(deps, 'history.undo', { documentId });
+    expect(
+      (asRecord(await call(deps, 'ik.list', { documentId })).ikConstraints as unknown[]).length,
+    ).toBe(1);
+  });
+
+  it('surfaces typed errors for a bad chain, a duplicate name, and a missing constraint', async () => {
+    const deps = makeDeps();
+    const { documentId, rootId, upperId, lowerId } = await buildConstraintRig(deps);
+
+    // A three-bone chain violates the 1-or-2 arity (rejected at the boundary by the schema).
+    await expectToolError(
+      call(deps, 'ik.createConstraint', {
+        documentId,
+        name: 'too_long',
+        boneIds: [rootId, upperId, lowerId],
+        targetId: rootId,
+      }),
+      'INVALID_INPUT',
+    );
+
+    await call(deps, 'ik.createConstraint', {
+      documentId,
+      name: 'leg_ik',
+      boneIds: [upperId, lowerId],
+      targetId: rootId,
+    });
+    // A duplicate name is a typed CONSTRAINT error.
+    await expectToolError(
+      call(deps, 'ik.createConstraint', {
+        documentId,
+        name: 'leg_ik',
+        boneIds: [lowerId],
+        targetId: rootId,
+      }),
+      'CONSTRAINT',
+    );
+    // An unknown constraint id is a typed not-found.
+    await expectToolError(
+      call(deps, 'ik.setMix', { documentId, ikConstraintId: 'nope', mix: 0.5 }),
+      'IK_CONSTRAINT_NOT_FOUND',
+    );
+  });
+});
+
+describe('MCP transform constraint tools (WP-2.7)', () => {
+  it('creates, patches, keys, and deletes a transform constraint', async () => {
+    const deps = makeDeps();
+    const { documentId, rootId, upperId, animationId } = await buildConstraintRig(deps);
+
+    const { transformConstraintId } = asRecord(
+      await call(deps, 'transform.createConstraint', {
+        documentId,
+        name: 'follow',
+        boneIds: [upperId],
+        targetId: rootId,
+      }),
+    );
+    expect(typeof transformConstraintId).toBe('string');
+    // The defaults applied mixRotate 1 and the rest 0.
+    const created = asRecord(
+      asRecord(await call(deps, 'transform.get', { documentId, transformConstraintId }))
+        .transformConstraint,
+    );
+    expect(created.mixRotate).toBe(1);
+    expect(created.mixX).toBe(0);
+
+    await call(deps, 'transform.setParams', {
+      documentId,
+      transformConstraintId,
+      patch: { mixRotate: 0.5, offsetRotation: 10 },
+    });
+    const patched = asRecord(
+      asRecord(await call(deps, 'transform.get', { documentId, transformConstraintId }))
+        .transformConstraint,
+    );
+    expect(patched.mixRotate).toBe(0.5);
+    expect(patched.offsetRotation).toBe(10);
+    expect(patched.mixX).toBe(0); // untouched channel kept
+
+    // An empty patch is rejected at the boundary.
+    await expectToolError(
+      call(deps, 'transform.setParams', { documentId, transformConstraintId, patch: {} }),
+      'INVALID_INPUT',
+    );
+
+    await call(deps, 'transform.setKeyframe', {
+      documentId,
+      animationId,
+      transformConstraintId,
+      time: 0,
+      mix: { mixRotate: 1 },
+    });
+    await call(deps, 'transform.setKeyframe', {
+      documentId,
+      animationId,
+      transformConstraintId,
+      time: 1,
+      mix: { mixRotate: 0 },
+    });
+    const trTracks = (
+      asRecord(await call(deps, 'document.getSnapshot', { documentId })).snapshot as {
+        animations: Array<{ transform: Array<{ keyframes: Array<{ id: string }> }> }>;
+      }
+    ).animations[0]!.transform;
+    expect(trTracks[0]!.keyframes.length).toBe(2);
+    await call(deps, 'transform.deleteKeyframe', {
+      documentId,
+      animationId,
+      transformConstraintId,
+      keyframeId: trTracks[0]!.keyframes[0]!.id,
+    });
+
+    await call(deps, 'transform.deleteConstraint', { documentId, transformConstraintId });
+    expect(
+      (
+        asRecord(await call(deps, 'transform.list', { documentId }))
+          .transformConstraints as unknown[]
+      ).length,
+    ).toBe(0);
+  });
+});
+
+describe('MCP skin tools (WP-2.8)', () => {
+  it('creates, renames, populates, and deletes a named skin', async () => {
+    const deps = makeDeps();
+    const { documentId, rootId } = await buildConstraintRig(deps);
+    const { slotId } = asRecord(
+      await call(deps, 'slot.create', { documentId, boneId: rootId, name: 'body' }),
+    );
+
+    const { skinId } = asRecord(await call(deps, 'skin.create', { documentId, name: 'red' }));
+    expect(typeof skinId).toBe('string');
+
+    // 'default' is reserved.
+    await expectToolError(call(deps, 'skin.create', { documentId, name: 'default' }), 'SKIN');
+    // A duplicate named skin is rejected.
+    await expectToolError(call(deps, 'skin.create', { documentId, name: 'red' }), 'SKIN');
+
+    await call(deps, 'skin.rename', { documentId, skinId, name: 'crimson' });
+    expect(asRecord(asRecord(await call(deps, 'skin.get', { documentId, skinId })).skin).name).toBe(
+      'crimson',
+    );
+
+    await call(deps, 'skin.setAttachment', {
+      documentId,
+      skinId,
+      slotId,
+      attachment: { name: 'torso', path: 'tex_torso', width: 64, height: 64 },
+    });
+    const withAtt = asRecord(asRecord(await call(deps, 'skin.get', { documentId, skinId })).skin);
+    expect((withAtt.attachments as unknown[]).length).toBe(1);
+
+    await call(deps, 'skin.removeAttachment', { documentId, skinId, slotId, name: 'torso' });
+    expect(
+      (
+        asRecord(asRecord(await call(deps, 'skin.get', { documentId, skinId })).skin)
+          .attachments as unknown[]
+      ).length,
+    ).toBe(0);
+
+    await call(deps, 'skin.delete', { documentId, skinId });
+    expect(
+      (asRecord(await call(deps, 'skin.list', { documentId })).skins as unknown[]).length,
+    ).toBe(0);
+    // An edit against the now-deleted skin is a typed not-found.
+    await expectToolError(
+      call(deps, 'skin.rename', { documentId, skinId, name: 'gone' }),
+      'SKIN_NOT_FOUND',
+    );
+  });
+});
+
+describe('MCP deform tools (WP-2.9)', () => {
+  it('keys, moves, deletes, and clears deform on a default-skin mesh', async () => {
+    const deps = makeDeps();
+    const { documentId, slotId } = await buildUnweightedMeshDoc(deps);
+    const { animationId } = asRecord(
+      await call(deps, 'anim.create', { documentId, name: 'wobble', duration: 1 }),
+    );
+    // The 'panel' mesh has uvs of length 8 (4 vertices), so offsets must be length 8.
+    const offsets = [0, 0, 1, 0, 1, 1, 0, 1];
+
+    await call(deps, 'deform.setKeyframe', {
+      documentId,
+      animationId,
+      skin: 'default',
+      slotId,
+      name: 'panel',
+      time: 0,
+      offsets,
+    });
+    await call(deps, 'deform.setKeyframe', {
+      documentId,
+      animationId,
+      skin: 'default',
+      slotId,
+      name: 'panel',
+      time: 1,
+      offsets,
+    });
+
+    const deformTracks = (
+      asRecord(await call(deps, 'document.getSnapshot', { documentId })).snapshot as {
+        animations: Array<{ deform: Array<{ keyframes: Array<{ id: string }> }> }>;
+      }
+    ).animations[0]!.deform;
+    expect(deformTracks[0]!.keyframes.length).toBe(2);
+    const firstId = deformTracks[0]!.keyframes[0]!.id;
+
+    // Move the first keyframe to the midpoint (a free time), then delete it.
+    await call(deps, 'deform.moveKeyframe', {
+      documentId,
+      animationId,
+      skin: 'default',
+      slotId,
+      name: 'panel',
+      keyframeId: firstId,
+      time: 0.5,
+    });
+    await call(deps, 'deform.deleteKeyframe', {
+      documentId,
+      animationId,
+      skin: 'default',
+      slotId,
+      name: 'panel',
+      keyframeId: firstId,
+    });
+    const afterDel = (
+      asRecord(await call(deps, 'document.getSnapshot', { documentId })).snapshot as {
+        animations: Array<{ deform: Array<{ keyframes: unknown[] }> }>;
+      }
+    ).animations[0]!.deform;
+    expect(afterDel[0]!.keyframes.length).toBe(1);
+
+    // Clear the attachment deform: removes the remaining track in one undo step.
+    await call(deps, 'deform.clearAttachment', { documentId, slotId, name: 'panel' });
+    const cleared = (
+      asRecord(await call(deps, 'document.getSnapshot', { documentId })).snapshot as {
+        animations: Array<{ deform: unknown[] }>;
+      }
+    ).animations[0]!.deform;
+    expect(cleared.length).toBe(0);
+  });
+
+  it('rejects an offsets-length mismatch and an unknown named skin as typed errors', async () => {
+    const deps = makeDeps();
+    const { documentId, slotId } = await buildUnweightedMeshDoc(deps);
+    const { animationId } = asRecord(
+      await call(deps, 'anim.create', { documentId, name: 'wobble', duration: 1 }),
+    );
+
+    // Offsets length 6 does not match the mesh uvs length 8.
+    await expectToolError(
+      call(deps, 'deform.setKeyframe', {
+        documentId,
+        animationId,
+        skin: 'default',
+        slotId,
+        name: 'panel',
+        time: 0,
+        offsets: [0, 0, 1, 0, 1, 1],
+      }),
+      'DEFORM',
+    );
+
+    // An unknown named skin id is rejected before the command runs.
+    await expectToolError(
+      call(deps, 'deform.setKeyframe', {
+        documentId,
+        animationId,
+        skin: 'skin_nope',
+        slotId,
+        name: 'panel',
+        time: 0,
+        offsets: [0, 0, 1, 0, 1, 1, 0, 1],
+      }),
+      'SKIN_NOT_FOUND',
+    );
+  });
+});
+
+// A guard test enumerating the full tool catalog, so adding or removing a tool is a deliberate, reviewed
+// change (and the WP-2.6 to WP-2.9 tools are pinned present). The list mirrors TOOLS exactly.
+describe('MCP tool catalog', () => {
+  const PHASE_2_CONSTRAINT_TOOLS = [
+    'ik.createConstraint',
+    'ik.setMix',
+    'ik.setBendPositive',
+    'ik.deleteConstraint',
+    'ik.setKeyframe',
+    'ik.deleteKeyframe',
+    'ik.list',
+    'ik.get',
+    'transform.createConstraint',
+    'transform.setParams',
+    'transform.deleteConstraint',
+    'transform.setKeyframe',
+    'transform.deleteKeyframe',
+    'transform.list',
+    'transform.get',
+    'skin.create',
+    'skin.rename',
+    'skin.delete',
+    'skin.setAttachment',
+    'skin.removeAttachment',
+    'skin.list',
+    'skin.get',
+    'deform.setKeyframe',
+    'deform.deleteKeyframe',
+    'deform.moveKeyframe',
+    'deform.clearAttachment',
+  ] as const;
+
+  it('exposes every Phase 2 constraint / skin / deform tool with a unique name', () => {
+    for (const name of PHASE_2_CONSTRAINT_TOOLS) {
+      expect(byName.has(name), `missing tool ${name}`).toBe(true);
+    }
+    // Tool names are unique across the whole catalog.
+    expect(byName.size).toBe(TOOLS.length);
+  });
+});

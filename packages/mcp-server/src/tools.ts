@@ -7,14 +7,26 @@ import {
   AutoPerimeterTraceMeshCommand,
   AutoWeightFromProximityCommand,
   BindMeshToBonesCommand,
+  ClearAttachmentDeformCommand,
+  ConstraintError,
   CreateAnimationCommand,
   CreateBoneCommand,
+  CreateIkConstraintCommand,
+  CreateSkinCommand,
   CreateSlotCommand,
+  CreateTransformConstraintCommand,
+  DeformError,
   DeleteAnimationCommand,
   DeleteBoneCommand,
+  DeleteDeformKeyframeCommand,
+  DeleteIkConstraintCommand,
+  DeleteIkKeyframeCommand,
   DeleteKeyframeCommand,
   DeleteMeshVertexCommand,
+  DeleteSkinCommand,
   DeleteSlotCommand,
+  DeleteTransformConstraintCommand,
+  DeleteTransformKeyframeCommand,
   DocumentInvariantError,
   DuplicateAnimationCommand,
   ExportValidationError,
@@ -23,6 +35,7 @@ import {
   MeshBindingError,
   MeshTopologyLockedError,
   MoveBoneCommand,
+  MoveDeformKeyframeCommand,
   MoveKeyframeCommand,
   MoveMeshVertexCommand,
   NormalizeMeshWeightsCommand,
@@ -30,8 +43,10 @@ import {
   PasteKeyframesCommand,
   RemoveAttachmentCommand,
   RemoveBoneFromMeshBindingCommand,
+  RemoveSkinAttachmentCommand,
   RenameAnimationCommand,
   RenameBoneCommand,
+  RenameSkinCommand,
   RenameSlotCommand,
   ReorderSlotCommand,
   ReparentBoneCommand,
@@ -43,28 +58,46 @@ import {
   SetBoneLengthCommand,
   SetBoneTransformModeCommand,
   SetCurveCommand,
+  SetDeformKeyframeCommand,
+  SetIkBendPositiveCommand,
+  SetIkKeyframeCommand,
+  SetIkMixCommand,
   SetKeyframeCommand,
   SetMeshEdgesCommand,
   SetRegionAttachmentTransformCommand,
+  SetSkinAttachmentCommand,
   SetSlotBlendModeCommand,
   SetSlotColorCommand,
+  SetTransformConstraintParamsCommand,
+  SetTransformKeyframeCommand,
+  SkinError,
   UnbindMeshCommand,
   exportDocument,
   type AnimationEntity,
   type AnimationId,
+  type AttachmentEntity,
   type BoneChannel,
   type BoneEntity,
   type BoneId,
   type Command,
+  type DeformSkinKey,
   type DocumentReadModel,
+  type IkConstraintEntity,
+  type IkConstraintId,
   type KeyframeEntity,
   type KeyframeId,
   type KeyframeTarget,
   type KeyframeValue,
   type PaintMode,
   type PastedKeyframe,
+  type SkinEntity,
+  type SkinId,
   type SlotEntity,
   type SlotId,
+  type TransformConstraintEntity,
+  type TransformConstraintId,
+  type TransformConstraintParams,
+  type TransformKeyframeMix,
   type WeightDab,
 } from '@marionette/document-core';
 import { FormatValidationError } from '@marionette/format';
@@ -192,6 +225,51 @@ function executeBindingEdit(session: Session, cmd: Command): number {
   return session.document.model.revision;
 }
 
+// Execute a constraint authoring edit (WP-2.6 / WP-2.7), converting the constraint guard into a typed
+// CONSTRAINT tool error carrying the reason (a bad chain, a duplicate name, a cycle, a missing target).
+// The guard throws before any mutation, so a rejected edit changes nothing and pushes no history entry.
+function executeConstraintEdit(session: Session, cmd: Command): number {
+  try {
+    session.document.history.execute(cmd);
+  } catch (error) {
+    if (error instanceof ConstraintError) {
+      throw new McpToolError('CONSTRAINT', error.message, { reason: error.reason });
+    }
+    throw error;
+  }
+  return session.document.model.revision;
+}
+
+// Execute a skin authoring edit (WP-2.8), converting the skin guard into a typed SKIN tool error carrying
+// the reason (a duplicate name, the reserved 'default', a missing skin, a missing slot). The guard throws
+// before any mutation, so a rejected edit changes nothing and pushes no history entry.
+function executeSkinEdit(session: Session, cmd: Command): number {
+  try {
+    session.document.history.execute(cmd);
+  } catch (error) {
+    if (error instanceof SkinError) {
+      throw new McpToolError('SKIN', error.message, { reason: error.reason });
+    }
+    throw error;
+  }
+  return session.document.model.revision;
+}
+
+// Execute a deform timeline edit (WP-2.9), converting the deform guard into a typed DEFORM tool error
+// carrying the reason (the target is not a mesh, the offsets length is wrong, a keyframe is missing). The
+// guard throws before any mutation, so a rejected edit changes nothing and pushes no history entry.
+function executeDeformEdit(session: Session, cmd: Command): number {
+  try {
+    session.document.history.execute(cmd);
+  } catch (error) {
+    if (error instanceof DeformError) {
+      throw new McpToolError('DEFORM', error.message, { reason: error.reason });
+    }
+    throw error;
+  }
+  return session.document.model.revision;
+}
+
 function asAnimationId(id: string): AnimationId {
   return id as AnimationId;
 }
@@ -206,6 +284,58 @@ function requireAnimation(session: Session, animationId: string): AnimationEntit
     throw new McpToolError('ANIMATION_NOT_FOUND', `no animation with id "${animationId}"`);
   }
   return animation;
+}
+
+function asIkConstraintId(id: string): IkConstraintId {
+  return id as IkConstraintId;
+}
+
+// Require an existing IK constraint by id (WP-2.6). The id is branded and validated against the live model,
+// so a non-existent id is rejected as IK_CONSTRAINT_NOT_FOUND before the command runs.
+function requireIkConstraint(session: Session, id: string): IkConstraintEntity {
+  const constraint = session.document.model.getIkConstraint(asIkConstraintId(id));
+  if (constraint === undefined) {
+    throw new McpToolError('IK_CONSTRAINT_NOT_FOUND', `no IK constraint with id "${id}"`);
+  }
+  return constraint;
+}
+
+function asTransformConstraintId(id: string): TransformConstraintId {
+  return id as TransformConstraintId;
+}
+
+// Require an existing transform constraint by id (WP-2.7), rejected as TRANSFORM_CONSTRAINT_NOT_FOUND.
+function requireTransformConstraint(session: Session, id: string): TransformConstraintEntity {
+  const constraint = session.document.model.getTransformConstraint(asTransformConstraintId(id));
+  if (constraint === undefined) {
+    throw new McpToolError(
+      'TRANSFORM_CONSTRAINT_NOT_FOUND',
+      `no transform constraint with id "${id}"`,
+    );
+  }
+  return constraint;
+}
+
+function asSkinId(id: string): SkinId {
+  return id as SkinId;
+}
+
+// Require an existing NAMED skin by id (WP-2.8), rejected as SKIN_NOT_FOUND. The implicit 'default' skin is
+// never a SkinEntity, so it is not reachable here (deform tools accept it via resolveDeformSkinKey instead).
+function requireSkin(session: Session, id: string): SkinEntity {
+  const skin = session.document.model.getSkin(asSkinId(id));
+  if (skin === undefined) {
+    throw new McpToolError('SKIN_NOT_FOUND', `no named skin with id "${id}"`);
+  }
+  return skin;
+}
+
+// Resolve a deform skin key (WP-2.9): the literal 'default' addresses the implicit default skin, otherwise
+// the string is a SkinId that MUST resolve to a live named skin (rejected as SKIN_NOT_FOUND). Deform offsets
+// are keyed per skin, so the named-skin existence is validated at the boundary before the command runs.
+function resolveDeformSkinKey(session: Session, skin: string): DeformSkinKey {
+  if (skin === 'default') return 'default';
+  return requireSkin(session, skin).id;
 }
 
 // Read the keyframes currently on a target channel (or [] when the bone/slot has no timeline set).
@@ -323,6 +453,53 @@ function keyframeView(kf: KeyframeEntity): Record<string, unknown> {
   return { id: kf.id, time: kf.time, value: kf.value, curve: kf.curve };
 }
 
+// Project an IK constraint for `ik.list` / `ik.get` (bones/target are internal BoneId references).
+function ikConstraintView(c: IkConstraintEntity): Record<string, unknown> {
+  return {
+    id: c.id,
+    name: c.name,
+    bones: [...c.bones],
+    target: c.target,
+    mix: c.mix,
+    bendPositive: c.bendPositive,
+  };
+}
+
+// Project a transform constraint for `transform.list` / `transform.get` (all six mix and six offset
+// channels; bones/target are internal BoneId references).
+function transformConstraintView(c: TransformConstraintEntity): Record<string, unknown> {
+  return {
+    id: c.id,
+    name: c.name,
+    bones: [...c.bones],
+    target: c.target,
+    mixRotate: c.mixRotate,
+    mixX: c.mixX,
+    mixY: c.mixY,
+    mixScaleX: c.mixScaleX,
+    mixScaleY: c.mixScaleY,
+    mixShearY: c.mixShearY,
+    offsetRotation: c.offsetRotation,
+    offsetX: c.offsetX,
+    offsetY: c.offsetY,
+    offsetScaleX: c.offsetScaleX,
+    offsetScaleY: c.offsetScaleY,
+    offsetShearY: c.offsetShearY,
+  };
+}
+
+// Project a named skin for `skin.list` / `skin.get`: its attachments as a flat list of (slotId, name, kind)
+// addresses (the geometry detail lives on the slot's default-skin attachment query, mirroring slot.get).
+function skinView(skin: SkinEntity): Record<string, unknown> {
+  const attachments: Array<{ slotId: string; name: string; kind: string }> = [];
+  for (const [slotIdKey, byName] of skin.attachments) {
+    for (const att of byName.values()) {
+      attachments.push({ slotId: slotIdKey, name: att.name, kind: att.kind });
+    }
+  }
+  return { id: skin.id, name: skin.name, attachments };
+}
+
 // A summary of an animation (ids, name, duration, and per-bone/slot track counts); the keyframe detail
 // lives in animationView for `anim.get`.
 function animationSummary(animation: AnimationEntity): Record<string, unknown> {
@@ -423,6 +600,109 @@ const bezierCurveSchema = z
   })
   .strict();
 const curveSchema = z.union([z.literal('linear'), z.literal('stepped'), bezierCurveSchema]);
+
+// Constraint / skin reference ids (WP-2.6 to WP-2.9). Branded and validated against the live model by the
+// require* helpers, so a non-existent id is a typed *_NOT_FOUND rather than a silent no-op.
+const ikConstraintId = z.string().min(1);
+const transformConstraintId = z.string().min(1);
+const skinId = z.string().min(1);
+
+// An IK constraint's mix blend and bend direction (WP-2.6). `mix` is the [0, 1] blend toward the solved
+// pose; `bendPositive` is the bend-direction flag (sampled stepped at solve time).
+const ikMixSchema = z.number().finite().min(0).max(1);
+
+// A transform-constraint mix factor (WP-2.7): a per-channel blend in [0, 1]. The offsets are unbounded.
+const transformMixSchema = z.number().finite().min(0).max(1);
+const transformOffsetSchema = z.number().finite();
+
+// The twelve mix/offset channels a transform constraint carries on create (the six mix factors in [0, 1]
+// and the six additive offsets). The boundary validates ranges; the command stores them verbatim.
+const transformParamsSchema = z
+  .object({
+    mixRotate: transformMixSchema.default(1),
+    mixX: transformMixSchema.default(0),
+    mixY: transformMixSchema.default(0),
+    mixScaleX: transformMixSchema.default(0),
+    mixScaleY: transformMixSchema.default(0),
+    mixShearY: transformMixSchema.default(0),
+    offsetRotation: transformOffsetSchema.default(0),
+    offsetX: transformOffsetSchema.default(0),
+    offsetY: transformOffsetSchema.default(0),
+    offsetScaleX: transformOffsetSchema.default(0),
+    offsetScaleY: transformOffsetSchema.default(0),
+    offsetShearY: transformOffsetSchema.default(0),
+  })
+  .strict();
+
+// The twelve transform-constraint channel keys as a typed tuple, so the setParams handler assembles a
+// patch over a fixed, statically-typed key set (no `any`, no `as`): each key is a numeric channel field.
+const TRANSFORM_PARAM_KEYS = [
+  'mixRotate',
+  'mixX',
+  'mixY',
+  'mixScaleX',
+  'mixScaleY',
+  'mixShearY',
+  'offsetRotation',
+  'offsetX',
+  'offsetY',
+  'offsetScaleX',
+  'offsetScaleY',
+  'offsetShearY',
+] as const satisfies readonly (keyof TransformConstraintParams)[];
+
+// A PARTIAL transform-constraint params patch (WP-2.7 setParams): only the named channels change; the rest
+// keep their current value. At least one channel must be present (an empty patch is a no-op and rejected).
+const transformParamsPatchSchema = z
+  .object({
+    mixRotate: transformMixSchema.optional(),
+    mixX: transformMixSchema.optional(),
+    mixY: transformMixSchema.optional(),
+    mixScaleX: transformMixSchema.optional(),
+    mixScaleY: transformMixSchema.optional(),
+    mixShearY: transformMixSchema.optional(),
+    offsetRotation: transformOffsetSchema.optional(),
+    offsetX: transformOffsetSchema.optional(),
+    offsetY: transformOffsetSchema.optional(),
+    offsetScaleX: transformOffsetSchema.optional(),
+    offsetScaleY: transformOffsetSchema.optional(),
+    offsetShearY: transformOffsetSchema.optional(),
+  })
+  .strict();
+
+// A transform keyframe's six per-channel mix factors (WP-2.7). Each is optional at the boundary; an OMITTED
+// channel is keyed as `undefined` (it keeps its base value at solve time, ADR-0003), distinct from a 0 mix.
+const transformKeyframeMixSchema = z
+  .object({
+    mixRotate: transformMixSchema.optional(),
+    mixX: transformMixSchema.optional(),
+    mixY: transformMixSchema.optional(),
+    mixScaleX: transformMixSchema.optional(),
+    mixScaleY: transformMixSchema.optional(),
+    mixShearY: transformMixSchema.optional(),
+  })
+  .strict();
+
+// A deform skin key (WP-2.9): the literal 'default' addresses the implicit default skin, otherwise a SkinId
+// of a named skin (resolveDeformSkinKey validates a named id against the live model).
+const deformSkinKey = z.string().min(1);
+
+// One region attachment to set on a named skin (WP-2.8). Mirrors attach.region.add's region fields; the
+// path references an atlas region resolved by the import-time validator (the command trusts the caller).
+const skinRegionAttachmentSchema = z
+  .object({
+    name: z.string().min(1),
+    path: z.string().min(1),
+    x: z.number().finite().default(0),
+    y: z.number().finite().default(0),
+    rotation: z.number().finite().default(0),
+    scaleX: z.number().finite().default(1),
+    scaleY: z.number().finite().default(1),
+    width: z.number().finite().default(0),
+    height: z.number().finite().default(0),
+    color: rgbaSchema.default({ r: 1, g: 1, b: 1, a: 1 }),
+  })
+  .strict();
 
 export const TOOLS: readonly ToolDefinition[] = [
   // ----- document lifecycle -----
@@ -1458,6 +1738,664 @@ export const TOOLS: readonly ToolDefinition[] = [
           new NormalizeMeshWeightsCommand(asSlotId(input.slotId), input.name),
         ),
       };
+    },
+  ),
+
+  // ----- IK constraints (WP-2.6, same command + History as the GUI, LAW 2) -----
+  defineTool(
+    {
+      name: 'ik.createConstraint',
+      title: 'Create IK constraint',
+      description:
+        'Create an IK constraint over a 1 or 2 bone chain reaching toward a target bone, and return its ' +
+        'id. The chain is parent-then-direct-child for a two-bone chain. Rejected as CONSTRAINT (with a ' +
+        'reason: chainArity, chainDiscontinuous, boneMissing, targetMissing, cycle, or duplicateName).',
+      input: z
+        .object({
+          documentId,
+          name: z.string().min(1),
+          boneIds: z.array(boneId).min(1).max(2),
+          targetId: boneId,
+          mix: ikMixSchema.default(1),
+          bendPositive: z.boolean().default(true),
+        })
+        .strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      const bones = input.boneIds.map((id) => requireBone(session, id).id);
+      const target = requireBone(session, input.targetId).id;
+      const newId = session.document.ids.mint('ikConstraint');
+      executeConstraintEdit(
+        session,
+        new CreateIkConstraintCommand(
+          asIkConstraintId(newId),
+          input.name,
+          bones,
+          target,
+          input.mix,
+          input.bendPositive,
+        ),
+      );
+      return { ikConstraintId: newId };
+    },
+  ),
+  defineTool(
+    {
+      name: 'ik.setMix',
+      title: 'Set IK mix',
+      description:
+        'Set an IK constraint mix blend (0..1) toward the solved pose (absolute target).',
+      input: z.object({ documentId, ikConstraintId, mix: ikMixSchema }).strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireIkConstraint(session, input.ikConstraintId);
+      session.document.history.execute(
+        new SetIkMixCommand(asIkConstraintId(input.ikConstraintId), input.mix),
+      );
+      return { revision: session.document.model.revision };
+    },
+  ),
+  defineTool(
+    {
+      name: 'ik.setBendPositive',
+      title: 'Set IK bend direction',
+      description:
+        'Set an IK constraint bend-direction flag (true bends positive, false negative).',
+      input: z.object({ documentId, ikConstraintId, bendPositive: z.boolean() }).strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireIkConstraint(session, input.ikConstraintId);
+      session.document.history.execute(
+        new SetIkBendPositiveCommand(asIkConstraintId(input.ikConstraintId), input.bendPositive),
+      );
+      return { revision: session.document.model.revision };
+    },
+  ),
+  defineTool(
+    {
+      name: 'ik.deleteConstraint',
+      title: 'Delete IK constraint',
+      description:
+        'Delete an IK constraint, cascading every animation IK timeline keyed to it (one undo step).',
+      input: z.object({ documentId, ikConstraintId }).strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireIkConstraint(session, input.ikConstraintId);
+      session.document.history.execute(
+        new DeleteIkConstraintCommand(asIkConstraintId(input.ikConstraintId)),
+      );
+      return { revision: session.document.model.revision };
+    },
+  ),
+  defineTool(
+    {
+      name: 'ik.setKeyframe',
+      title: 'Set IK keyframe',
+      description:
+        'Insert or update an IK keyframe at a time on a constraint IK channel (mix + bendPositive). ' +
+        'Updating an existing time keeps its curve; a new keyframe takes the optional insert `curve` ' +
+        '(default linear).',
+      input: z
+        .object({
+          documentId,
+          animationId,
+          ikConstraintId,
+          time: z.number().finite().nonnegative(),
+          mix: ikMixSchema,
+          bendPositive: z.boolean(),
+          curve: curveSchema.optional(),
+        })
+        .strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireAnimation(session, input.animationId);
+      requireIkConstraint(session, input.ikConstraintId);
+      session.document.history.execute(
+        input.curve === undefined
+          ? new SetIkKeyframeCommand(
+              asAnimationId(input.animationId),
+              asIkConstraintId(input.ikConstraintId),
+              input.time,
+              input.mix,
+              input.bendPositive,
+            )
+          : new SetIkKeyframeCommand(
+              asAnimationId(input.animationId),
+              asIkConstraintId(input.ikConstraintId),
+              input.time,
+              input.mix,
+              input.bendPositive,
+              input.curve,
+            ),
+      );
+      return { revision: session.document.model.revision };
+    },
+  ),
+  defineTool(
+    {
+      name: 'ik.deleteKeyframe',
+      title: 'Delete IK keyframe',
+      description: 'Delete an IK keyframe (by id) from a constraint IK channel.',
+      input: z.object({ documentId, animationId, ikConstraintId, keyframeId }).strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireAnimation(session, input.animationId);
+      requireIkConstraint(session, input.ikConstraintId);
+      session.document.history.execute(
+        new DeleteIkKeyframeCommand(
+          asAnimationId(input.animationId),
+          asIkConstraintId(input.ikConstraintId),
+          asKeyframeId(input.keyframeId),
+        ),
+      );
+      return { revision: session.document.model.revision };
+    },
+  ),
+  defineTool(
+    {
+      name: 'ik.list',
+      title: 'List IK constraints',
+      description: 'List the IK constraints in solve order.',
+      input: z.object({ documentId }).strict(),
+    },
+    (deps, input) => ({
+      ikConstraints: deps.sessions
+        .get(input.documentId)
+        .document.model.ikConstraints()
+        .map(ikConstraintView),
+    }),
+  ),
+  defineTool(
+    {
+      name: 'ik.get',
+      title: 'Get IK constraint',
+      description: 'Get one IK constraint by id.',
+      input: z.object({ documentId, ikConstraintId }).strict(),
+    },
+    (deps, input) => ({
+      ikConstraint: ikConstraintView(
+        requireIkConstraint(deps.sessions.get(input.documentId), input.ikConstraintId),
+      ),
+    }),
+  ),
+
+  // ----- transform constraints (WP-2.7, same command + History as the GUI, LAW 2) -----
+  defineTool(
+    {
+      name: 'transform.createConstraint',
+      title: 'Create transform constraint',
+      description:
+        'Create a transform constraint that drives a set of bones from a target with per-channel mix and ' +
+        'additive offset, and return its id. Solves after all IK. Rejected as CONSTRAINT (with a reason: ' +
+        'boneMissing, targetMissing, cycle, or duplicateName).',
+      input: z
+        .object({
+          documentId,
+          name: z.string().min(1),
+          boneIds: z.array(boneId).min(1),
+          targetId: boneId,
+          params: transformParamsSchema.default({}),
+        })
+        .strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      const bones = input.boneIds.map((id) => requireBone(session, id).id);
+      const target = requireBone(session, input.targetId).id;
+      const newId = session.document.ids.mint('transformConstraint');
+      // The schema applies the per-channel defaults, so params is a complete TransformConstraintParams.
+      const params: TransformConstraintParams = input.params;
+      executeConstraintEdit(
+        session,
+        new CreateTransformConstraintCommand(
+          asTransformConstraintId(newId),
+          input.name,
+          bones,
+          target,
+          params,
+        ),
+      );
+      return { transformConstraintId: newId };
+    },
+  ),
+  defineTool(
+    {
+      name: 'transform.setParams',
+      title: 'Set transform constraint params',
+      description:
+        'Patch a transform constraint mix/offset channels (only the named channels change; the rest keep ' +
+        'their current value). The patch holds the absolute target values. At least one channel required.',
+      input: z
+        .object({ documentId, transformConstraintId, patch: transformParamsPatchSchema })
+        .strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireTransformConstraint(session, input.transformConstraintId);
+      // Copy only the channels the caller actually set into the patch. The schema makes each channel
+      // optional (so an omitted key is absent); under exactOptionalPropertyTypes the command's Partial
+      // patch must not carry explicit `undefined`, so we assemble it over the typed key set. The
+      // accumulator is the writable twin of the (readonly) params patch (the command stores it as-is).
+      const patch: { -readonly [K in keyof TransformConstraintParams]?: number } = {};
+      for (const key of TRANSFORM_PARAM_KEYS) {
+        const value = input.patch[key];
+        if (value !== undefined) patch[key] = value;
+      }
+      if (Object.keys(patch).length === 0) {
+        throw new McpToolError('INVALID_INPUT', 'patch must name at least one channel');
+      }
+      session.document.history.execute(
+        new SetTransformConstraintParamsCommand(
+          asTransformConstraintId(input.transformConstraintId),
+          patch,
+        ),
+      );
+      return { revision: session.document.model.revision };
+    },
+  ),
+  defineTool(
+    {
+      name: 'transform.deleteConstraint',
+      title: 'Delete transform constraint',
+      description:
+        'Delete a transform constraint, cascading every animation transform timeline keyed to it (one ' +
+        'undo step).',
+      input: z.object({ documentId, transformConstraintId }).strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireTransformConstraint(session, input.transformConstraintId);
+      session.document.history.execute(
+        new DeleteTransformConstraintCommand(asTransformConstraintId(input.transformConstraintId)),
+      );
+      return { revision: session.document.model.revision };
+    },
+  ),
+  defineTool(
+    {
+      name: 'transform.setKeyframe',
+      title: 'Set transform keyframe',
+      description:
+        'Insert or update a transform keyframe at a time on a constraint channel. `mix` carries the six ' +
+        'per-channel factors; an omitted channel keeps its base value at solve time. Updating an existing ' +
+        'time keeps its curve; a new keyframe takes the optional insert `curve` (default linear).',
+      input: z
+        .object({
+          documentId,
+          animationId,
+          transformConstraintId,
+          time: z.number().finite().nonnegative(),
+          mix: transformKeyframeMixSchema,
+          curve: curveSchema.optional(),
+        })
+        .strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireAnimation(session, input.animationId);
+      requireTransformConstraint(session, input.transformConstraintId);
+      // Key all six channels explicitly: an omitted input channel is `undefined` (keeps its base value).
+      const mix: TransformKeyframeMix = {
+        mixRotate: input.mix.mixRotate,
+        mixX: input.mix.mixX,
+        mixY: input.mix.mixY,
+        mixScaleX: input.mix.mixScaleX,
+        mixScaleY: input.mix.mixScaleY,
+        mixShearY: input.mix.mixShearY,
+      };
+      session.document.history.execute(
+        input.curve === undefined
+          ? new SetTransformKeyframeCommand(
+              asAnimationId(input.animationId),
+              asTransformConstraintId(input.transformConstraintId),
+              input.time,
+              mix,
+            )
+          : new SetTransformKeyframeCommand(
+              asAnimationId(input.animationId),
+              asTransformConstraintId(input.transformConstraintId),
+              input.time,
+              mix,
+              input.curve,
+            ),
+      );
+      return { revision: session.document.model.revision };
+    },
+  ),
+  defineTool(
+    {
+      name: 'transform.deleteKeyframe',
+      title: 'Delete transform keyframe',
+      description: 'Delete a transform keyframe (by id) from a constraint channel.',
+      input: z.object({ documentId, animationId, transformConstraintId, keyframeId }).strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireAnimation(session, input.animationId);
+      requireTransformConstraint(session, input.transformConstraintId);
+      session.document.history.execute(
+        new DeleteTransformKeyframeCommand(
+          asAnimationId(input.animationId),
+          asTransformConstraintId(input.transformConstraintId),
+          asKeyframeId(input.keyframeId),
+        ),
+      );
+      return { revision: session.document.model.revision };
+    },
+  ),
+  defineTool(
+    {
+      name: 'transform.list',
+      title: 'List transform constraints',
+      description: 'List the transform constraints in solve order (after all IK).',
+      input: z.object({ documentId }).strict(),
+    },
+    (deps, input) => ({
+      transformConstraints: deps.sessions
+        .get(input.documentId)
+        .document.model.transformConstraints()
+        .map(transformConstraintView),
+    }),
+  ),
+  defineTool(
+    {
+      name: 'transform.get',
+      title: 'Get transform constraint',
+      description: 'Get one transform constraint by id.',
+      input: z.object({ documentId, transformConstraintId }).strict(),
+    },
+    (deps, input) => ({
+      transformConstraint: transformConstraintView(
+        requireTransformConstraint(
+          deps.sessions.get(input.documentId),
+          input.transformConstraintId,
+        ),
+      ),
+    }),
+  ),
+
+  // ----- skins (WP-2.8, same command + History as the GUI, LAW 2) -----
+  defineTool(
+    {
+      name: 'skin.create',
+      title: 'Create skin',
+      description:
+        'Create a NAMED (non-default) skin and return its id. The implicit "default" skin is reserved. ' +
+        'Rejected as SKIN (with a reason: defaultProtected or duplicateName).',
+      input: z.object({ documentId, name: z.string().min(1) }).strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      const newId = session.document.ids.mint('skin');
+      executeSkinEdit(session, new CreateSkinCommand(asSkinId(newId), input.name));
+      return { skinId: newId };
+    },
+  ),
+  defineTool(
+    {
+      name: 'skin.rename',
+      title: 'Rename skin',
+      description:
+        'Rename a NAMED skin (identity is the id, so deform tracks are unaffected). Rejected as SKIN ' +
+        '(with a reason: defaultProtected, notFound, or duplicateName).',
+      input: z.object({ documentId, skinId, name: z.string().min(1) }).strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireSkin(session, input.skinId);
+      executeSkinEdit(session, new RenameSkinCommand(asSkinId(input.skinId), input.name));
+      return { revision: session.document.model.revision };
+    },
+  ),
+  defineTool(
+    {
+      name: 'skin.delete',
+      title: 'Delete skin',
+      description:
+        'Delete a NAMED skin, cascading every animation deform timeline keyed to it (one undo step).',
+      input: z.object({ documentId, skinId }).strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireSkin(session, input.skinId);
+      executeSkinEdit(session, new DeleteSkinCommand(asSkinId(input.skinId)));
+      return { revision: session.document.model.revision };
+    },
+  ),
+  defineTool(
+    {
+      name: 'skin.setAttachment',
+      title: 'Set skin attachment',
+      description:
+        'Add or replace a region attachment on a NAMED skin at a (slot, attachment-name) address. The ' +
+        '`path` references an atlas region. Rejected as SKIN (with a reason: notFound or slotMissing).',
+      input: z
+        .object({ documentId, skinId, slotId, attachment: skinRegionAttachmentSchema })
+        .strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireSkin(session, input.skinId);
+      requireSlot(session, input.slotId);
+      const entity: AttachmentEntity = {
+        kind: 'region',
+        name: input.attachment.name,
+        path: input.attachment.path,
+        x: input.attachment.x,
+        y: input.attachment.y,
+        rotation: input.attachment.rotation,
+        scaleX: input.attachment.scaleX,
+        scaleY: input.attachment.scaleY,
+        width: input.attachment.width,
+        height: input.attachment.height,
+        color: input.attachment.color,
+      };
+      executeSkinEdit(
+        session,
+        new SetSkinAttachmentCommand(asSkinId(input.skinId), asSlotId(input.slotId), entity),
+      );
+      return { revision: session.document.model.revision };
+    },
+  ),
+  defineTool(
+    {
+      name: 'skin.removeAttachment',
+      title: 'Remove skin attachment',
+      description:
+        'Remove an attachment from a NAMED skin at a (slot, attachment-name) address. Rejected as SKIN ' +
+        '(reason notFound) when the skin or the addressed attachment is absent.',
+      input: z.object({ documentId, skinId, slotId, name: attachmentName }).strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireSkin(session, input.skinId);
+      requireSlot(session, input.slotId);
+      executeSkinEdit(
+        session,
+        new RemoveSkinAttachmentCommand(asSkinId(input.skinId), asSlotId(input.slotId), input.name),
+      );
+      return { revision: session.document.model.revision };
+    },
+  ),
+  defineTool(
+    {
+      name: 'skin.list',
+      title: 'List skins',
+      description:
+        'List the NAMED (non-default) skins in skin order, each with its attachment addresses.',
+      input: z.object({ documentId }).strict(),
+    },
+    (deps, input) => ({
+      skins: deps.sessions.get(input.documentId).document.model.skins().map(skinView),
+    }),
+  ),
+  defineTool(
+    {
+      name: 'skin.get',
+      title: 'Get skin',
+      description: 'Get one NAMED skin (and its attachment addresses) by id.',
+      input: z.object({ documentId, skinId }).strict(),
+    },
+    (deps, input) => ({
+      skin: skinView(requireSkin(deps.sessions.get(input.documentId), input.skinId)),
+    }),
+  ),
+
+  // ----- deform timelines (WP-2.9, same command + History as the GUI, LAW 2) -----
+  defineTool(
+    {
+      name: 'deform.setKeyframe',
+      title: 'Set deform keyframe',
+      description:
+        'Insert or update a deform keyframe at a time on a (skin, slot, attachment) mesh channel. `skin` ' +
+        'is "default" or a named SkinId. `offsets` is the flat per-LOGICAL-vertex [dx, dy, ...] array and ' +
+        'its length must equal the mesh uvs length. Updating an existing time keeps its curve; a new ' +
+        'keyframe takes the optional insert `curve` (default linear). Rejected as DEFORM (reason notMesh ' +
+        'or offsetLength).',
+      input: z
+        .object({
+          documentId,
+          animationId,
+          skin: deformSkinKey,
+          slotId,
+          name: attachmentName,
+          time: z.number().finite().nonnegative(),
+          offsets: numberArray,
+          curve: curveSchema.optional(),
+        })
+        .strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireAnimation(session, input.animationId);
+      const skinKey = resolveDeformSkinKey(session, input.skin);
+      requireSlot(session, input.slotId);
+      return {
+        revision: executeDeformEdit(
+          session,
+          input.curve === undefined
+            ? new SetDeformKeyframeCommand(
+                asAnimationId(input.animationId),
+                skinKey,
+                asSlotId(input.slotId),
+                input.name,
+                input.time,
+                input.offsets,
+              )
+            : new SetDeformKeyframeCommand(
+                asAnimationId(input.animationId),
+                skinKey,
+                asSlotId(input.slotId),
+                input.name,
+                input.time,
+                input.offsets,
+                input.curve,
+              ),
+        ),
+      };
+    },
+  ),
+  defineTool(
+    {
+      name: 'deform.deleteKeyframe',
+      title: 'Delete deform keyframe',
+      description:
+        'Delete a deform keyframe (by id) from a (skin, slot, attachment) mesh channel. `skin` is ' +
+        '"default" or a named SkinId.',
+      input: z
+        .object({
+          documentId,
+          animationId,
+          skin: deformSkinKey,
+          slotId,
+          name: attachmentName,
+          keyframeId,
+        })
+        .strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireAnimation(session, input.animationId);
+      const skinKey = resolveDeformSkinKey(session, input.skin);
+      requireSlot(session, input.slotId);
+      session.document.history.execute(
+        new DeleteDeformKeyframeCommand(
+          asAnimationId(input.animationId),
+          skinKey,
+          asSlotId(input.slotId),
+          input.name,
+          asKeyframeId(input.keyframeId),
+        ),
+      );
+      return { revision: session.document.model.revision };
+    },
+  ),
+  defineTool(
+    {
+      name: 'deform.moveKeyframe',
+      title: 'Move deform keyframe',
+      description:
+        'Move a deform keyframe (by id) to a new time on its (skin, slot, attachment) channel. `skin` is ' +
+        '"default" or a named SkinId. Rejects landing on an occupied time as KEYFRAME_COLLISION.',
+      input: z
+        .object({
+          documentId,
+          animationId,
+          skin: deformSkinKey,
+          slotId,
+          name: attachmentName,
+          keyframeId,
+          time: z.number().finite().nonnegative(),
+        })
+        .strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireAnimation(session, input.animationId);
+      const skinKey = resolveDeformSkinKey(session, input.skin);
+      requireSlot(session, input.slotId);
+      try {
+        session.document.history.execute(
+          new MoveDeformKeyframeCommand(
+            asAnimationId(input.animationId),
+            skinKey,
+            asSlotId(input.slotId),
+            input.name,
+            asKeyframeId(input.keyframeId),
+            input.time,
+          ),
+        );
+      } catch (error) {
+        if (error instanceof KeyframeCollisionError) {
+          throw new McpToolError('KEYFRAME_COLLISION', error.message);
+        }
+        throw error;
+      }
+      return { revision: session.document.model.revision };
+    },
+  ),
+  defineTool(
+    {
+      name: 'deform.clearAttachment',
+      title: 'Clear attachment deform',
+      description:
+        'Remove every deform keyframe for one (slot, attachment) across all animations and all skins (one ' +
+        'undo step). The prerequisite for re-topologizing a deformed mesh.',
+      input: z.object({ documentId, slotId, name: attachmentName }).strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireSlot(session, input.slotId);
+      session.document.history.execute(
+        new ClearAttachmentDeformCommand(asSlotId(input.slotId), input.name),
+      );
+      return { revision: session.document.model.revision };
     },
   ),
 

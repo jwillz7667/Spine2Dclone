@@ -231,6 +231,65 @@ export class DeformError extends Error {
   }
 }
 
+// An effect-editing edit (WP-3.7) rejected BEFORE any mutation, so it leaves no document change and no
+// history entry. The `reason` discriminant says which rule fired:
+//   - notFound: an edit/delete targeted an effect / layer / life-stop / bundle / bundle-item id (or bundle
+//     name) that does not exist.
+//   - simulationDt: SetEffectMeta was given a simulationDt that is not greater than zero (EFFECT_SIMULATION_DT).
+//   - lifeCurveMinStops: RemoveLifeStop would drop a LifeCurve below its two-stop floor (the t=0 and t=1
+//     anchors), or remove one of those anchors (the t=0/t=1 endpoints are not removable).
+//   - lifeStopOrder: AddLifeStop / MoveLifeStop would break strict-ascending t or violate first.t===0 /
+//     last.t===1 (the WP-3.0 LIFECURVE_STOP_ORDER contract enforced at the command boundary).
+//   - lifeStopValueShape: SetLifeStopValue was handed a value of the wrong shape for the target curve (a
+//     scalar value on an RGB curve, or vice versa).
+//   - bundleEffectMissing: AddBundleItem / SetBundleItem referenced an EffectId the library does not define.
+// The author-time equivalent of the format validator's EFFECT_* / BUNDLE_* codes; the dangling-region case
+// for SetEffectsAtlas is surfaced through EffectsAtlasDanglingRegionError below (it carries the full report).
+export type EffectEditErrorReason =
+  | 'notFound'
+  | 'simulationDt'
+  | 'lifeCurveMinStops'
+  | 'lifeStopOrder'
+  | 'lifeStopValueShape'
+  | 'bundleEffectMissing';
+
+export class EffectEditError extends Error {
+  override readonly name = 'EffectEditError';
+  readonly code = 'EFFECT_EDIT' as const;
+  constructor(
+    readonly reason: EffectEditErrorReason,
+    readonly detail?: string,
+  ) {
+    super(`effect edit error (${reason})` + (detail === undefined ? '' : `: ${detail}`));
+  }
+}
+
+// A SetEffectsAtlas (WP-3.7 TASK-3.7.7) rejected BEFORE any mutation because the proposed atlas drops one
+// or more atlas regions that a layer `region` / `regions[]` still references: the WP-3.0 cross-reference
+// check (EFFECT_REGION_MISSING) is re-run against the candidate atlas, and a dangling reference fails
+// loudly here rather than silently leaving the document referencing a region that no longer resolves. The
+// `report` carries every EFFECT_REGION_MISSING (and any other) error so the editor can pinpoint each.
+export class EffectsAtlasDanglingRegionError extends Error {
+  override readonly name = 'EffectsAtlasDanglingRegionError';
+  readonly code = 'EFFECTS_ATLAS_DANGLING_REGION' as const;
+  constructor(readonly report: ValidationReport | EffectsValidationLike) {
+    super('the proposed effects atlas drops a region still referenced by a layer');
+  }
+}
+
+// The shape of the effects validation report carried by EffectsAtlasDanglingRegionError. document-core
+// does not depend on the format's EffectsValidationReport type by name here (the import would couple the
+// errors module to the effects barrel); a structural alias keeps the typed error self-contained while
+// still exposing the per-error codes/paths to a caller that narrows on `code`.
+export interface EffectsValidationLike {
+  readonly ok: boolean;
+  readonly errors: ReadonlyArray<{
+    readonly code: string;
+    readonly path: string;
+    readonly message: string;
+  }>;
+}
+
 export type DocumentError =
   | CommandTargetMissingError
   | CommandNotAppliedError
@@ -244,4 +303,6 @@ export type DocumentError =
   | MeshBindingError
   | ConstraintError
   | SkinError
-  | DeformError;
+  | DeformError
+  | EffectEditError
+  | EffectsAtlasDanglingRegionError;

@@ -1,12 +1,16 @@
+import type { EffectsMutator } from '../effects-model/effects-mutator';
 import type { BoneId, IdFactory, SlotId } from '../model/ids';
 import type { Mutator } from '../model/mutator';
 
-// The privileged context a command sees (command-history Section 4.1). It carries exactly two things,
-// a Mutator and an IdFactory, and NOTHING else: no SpinResult, no board, no RNG, no clock, no Zustand.
-// A command therefore cannot read or influence an outcome (LAW 1, structural) and cannot mutate
-// anything except through the Mutator (LAW 2, structural).
+// The privileged context a command sees (command-history Section 4.1). It carries the skeletal Mutator, the
+// effects EffectsMutator (WP-3.7: effect edits share the SAME History and CommandContext as skeleton edits,
+// so one project undo stack), and an IdFactory, and NOTHING else: no SpinResult, no board, no RNG, no clock,
+// no Zustand. A command therefore cannot read or influence an outcome (LAW 1, structural) and cannot mutate
+// anything except through one of the two mutators (LAW 2, structural). A skeleton command ignores
+// `ctx.effects`; an effect command ignores `ctx.mutate`; History builds both from the document's two models.
 export interface CommandContext {
   readonly mutate: Mutator;
+  readonly effects: EffectsMutator;
   readonly ids: IdFactory;
 }
 

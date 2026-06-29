@@ -1,4 +1,6 @@
 import { parseDocument } from '@marionette/format';
+import { effectsDocumentToState, loadEffectsState } from '../effects-model/effects-import';
+import type { EffectsState } from '../effects-model/effects-state';
 import type {
   Attachment,
   CurveType,
@@ -436,4 +438,31 @@ export function loadDocument(json: unknown, env: DocumentEnvironment): Document 
   const ids = env.createIds();
   const state = formatToDocState(document, ids);
   return buildLoadedDocument(state, ids, env);
+}
+
+// Load a project's skeleton AND effects library into ONE Document with a single shared id factory and one
+// History (WP-3.7 TASK-3.7.6: effect + skeleton edits interleave on one undo stack). Both formats validate
+// at the boundary (a typed FormatValidationError / EffectsValidationError on malformed input, constructing
+// NO Document, LAW 3); the SAME id factory mints skeletal and effects entities so their ids never collide.
+// Like loadDocument, this is NOT a command and NOT undoable: it returns a fresh Document with empty history.
+export function loadDocumentWithEffects(
+  skeletonJson: unknown,
+  effectsJson: unknown,
+  env: DocumentEnvironment,
+): Document {
+  const document = parseDocument(skeletonJson, { verifyHash: false });
+  const ids = env.createIds();
+  const state = formatToDocState(document, ids);
+  const effectsState = loadEffectsState(effectsJson, ids);
+  return buildLoadedDocument(state, ids, env, effectsState);
+}
+
+// Resolve an already-parsed/loaded EffectsState helper for callers that hold a validated EffectsDocument
+// (the conformance / preset paths) and want to seed a Document without re-parsing. Kept here so the load
+// seam is the single place that bridges the effects format to the model.
+export function effectsStateFromDocument(
+  document: Parameters<typeof effectsDocumentToState>[0],
+  ids: IdFactory,
+): EffectsState {
+  return effectsDocumentToState(document, ids);
 }

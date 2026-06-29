@@ -1,3 +1,5 @@
+import { createEffectsMutator, type EffectsMutator } from '../effects-model/effects-mutator';
+import type { EffectsModelInternal } from '../effects-model/effects-internal';
 import type { DocumentModelInternal } from '../model/internal';
 import { createMutator, type Mutator } from '../model/mutator';
 import type { Command, CommandContext, HistoryEvent, HistoryPhase } from './command';
@@ -10,6 +12,10 @@ export const HISTORY_DEFAULTS = { maxDepth: 500, coalesceWindowMs: 250 } as cons
 
 export interface HistoryDeps {
   readonly model: DocumentModelInternal;
+  // The effects model that shares this History's one undo stack (WP-3.7 TASK-3.7.6). It is built alongside
+  // the skeletal model by the Document factory; both are batched and committed together so a mixed
+  // skeleton+effects gesture is one undo step and an interleaved undo/redo walks one stack.
+  readonly effectsModel: EffectsModelInternal;
   readonly now: () => number; // injected clock; no default here (no performance.now in this module)
   readonly maxDepth?: number;
   readonly coalesceWindowMs?: number;
@@ -22,6 +28,7 @@ export class History {
   private past: Command[] = [];
   private future: Command[] = [];
   private readonly mutator: Mutator;
+  private readonly effectsMutator: EffectsMutator;
   private readonly ctx: CommandContext;
   private readonly windowMs: number;
   private readonly maxDepthValue: number;
@@ -32,7 +39,8 @@ export class History {
 
   constructor(private readonly deps: HistoryDeps) {
     this.mutator = createMutator(deps.model);
-    this.ctx = { mutate: this.mutator, ids: deps.model.ids };
+    this.effectsMutator = createEffectsMutator(deps.effectsModel);
+    this.ctx = { mutate: this.mutator, effects: this.effectsMutator, ids: deps.model.ids };
     this.windowMs = deps.coalesceWindowMs ?? HISTORY_DEFAULTS.coalesceWindowMs;
     this.maxDepthValue = deps.maxDepth ?? HISTORY_DEFAULTS.maxDepth;
   }
@@ -69,6 +77,7 @@ export class History {
     this.assertNotNotifying('beginInteraction');
     this.session = [];
     this.deps.model.beginBatch(); // switch to in-place mutation for this gesture
+    this.deps.effectsModel.beginBatch(); // both models batch together (one gesture, one undo step)
   }
 
   endInteraction(label: string): HistoryEvent | null {
@@ -76,6 +85,7 @@ export class History {
     const batch = this.session ?? [];
     this.session = null;
     this.deps.model.commitBatch(); // single copy-on-write boundary, exit batch mode
+    this.deps.effectsModel.commitBatch(); // same boundary for the effects model
     if (batch.length === 0) return null;
     const first = batch[0];
     const entry = batch.length === 1 && first ? first : new CompositeCommand(label, batch);
@@ -106,6 +116,7 @@ export class History {
       if (cmd) cmd.undo(this.ctx); // reverse order, still in batch mode (in-place undo)
     }
     this.deps.model.cancelBatch(); // exit batch mode; the live model now equals the pre-session state
+    this.deps.effectsModel.cancelBatch(); // exit the effects batch too (its in-place undos already ran)
     this.lastAt = Number.NEGATIVE_INFINITY; // a cancelled gesture is a fresh boundary for the next edit
   }
 

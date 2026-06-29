@@ -38,6 +38,19 @@ export type IkConstraintId = Id<'ikConstraint'>;
 export type TransformConstraintId = Id<'transformConstraint'>;
 export type SkinId = Id<'skin'>;
 
+// Phase 3 (WP-3.7) promotes the EffectsDocument entities to id-keyed editable entities (the realized
+// form of the EmitterId placeholder reserved in command-history Section 2). An EffectEntity is addressed
+// by EffectId (never by its name, the mutable on-disk record key), an EffectLayerEntity by EffectLayerId
+// (never by array index, which goes stale on a sibling insert/reorder), a life-curve stop by LifeStopId,
+// and an EffectBundle's item by BundleItemId. RenameEffect is a single-field change with ZERO cascade
+// because a bundle item references an EffectId, not the name (phase-3 section 8.1.1). IDs are minted at
+// import from the on-disk names/array order, are internal-only, and are NEVER serialized into the
+// EffectsDocument; export resolves them back to names and re-emits arrays in their preserved order.
+export type EffectId = Id<'effect'>;
+export type EffectLayerId = Id<'effectLayer'>;
+export type LifeStopId = Id<'lifeStop'>;
+export type BundleItemId = Id<'bundleItem'>;
+
 // IDs are minted by a single injected generator (no hidden global; dependency injection per house
 // rules). The counter is per-Document and monotonic, so ids are unique within a document and
 // deterministic given a fixed mint order (which makes load-path tests reproducible).

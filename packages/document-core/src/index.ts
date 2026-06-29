@@ -31,6 +31,8 @@ export {
   ConstraintError,
   SkinError,
   DeformError,
+  EffectEditError,
+  EffectsAtlasDanglingRegionError,
 } from './command/errors';
 export type {
   DocumentError,
@@ -38,6 +40,8 @@ export type {
   ConstraintErrorReason,
   SkinErrorReason,
   DeformErrorReason,
+  EffectEditErrorReason,
+  EffectsValidationLike,
 } from './command/errors';
 
 // Model (read surface + value types; the write surface stays private)
@@ -88,6 +92,10 @@ export type {
   IkConstraintId,
   TransformConstraintId,
   SkinId,
+  EffectId,
+  EffectLayerId,
+  LifeStopId,
+  BundleItemId,
   IdFactory,
 } from './model/ids';
 export { makeIdFactory } from './model/ids';
@@ -112,6 +120,87 @@ export type {
   TransformKeyframeSnapshot,
   DeformKeyframeSnapshot,
 } from './model/read-model';
+
+// Effects model (WP-3.7): the EffectsDocument as id-keyed editable entities, the read surface, the
+// snapshots, and the import/export seam. The write surface (EffectsMutator) stays private, exactly like
+// the skeletal Mutator: it is reachable only through History during a command's do/undo.
+export type {
+  EffectEntity,
+  EffectLayerEntity,
+  EffectLayerBody,
+  EmitterLayerBody,
+  SpriteAnimatorLayerBody,
+  RibbonTrailLayerBody,
+  EffectLifeCurveEntity,
+  EffectLifeStopEntity,
+  LifeCurveField,
+  LifeStopValue,
+  BundleEntity,
+  BundleItemEntity,
+  EffectsState,
+} from './effects-model/effects-state';
+export { makeLifeStop, newEffectsState } from './effects-model/effects-state';
+export type {
+  EffectsReadModel,
+  EffectsSnapshot,
+  EffectSnapshot,
+  EffectLayerSnapshot,
+  LifeCurveSnapshot,
+  LifeStopSnapshot,
+  BundleSnapshot,
+  BundleItemSnapshot,
+} from './effects-model/effects-read-model';
+export {
+  findEffectSnapshot,
+  findLayerSnapshot,
+  findBundleSnapshot,
+  findBundleItemSnapshot,
+} from './effects-model/effects-read-model';
+export { effectsDocumentToState, loadEffectsState } from './effects-model/effects-import';
+export { exportEffects, EffectsExportValidationError } from './effects-model/effects-export';
+export { EFFECTS_FORMAT_VERSION } from './effects-model/effects-version';
+
+// Effect-editing commands (WP-3.7): classes for tools/MCP, the registry + spec for the effects round-trip
+// harness. The full section-10 command table.
+export {
+  CreateEffectCommand,
+  DeleteEffectCommand,
+  RenameEffectCommand,
+  SetEffectMetaCommand,
+  SetEffectsAtlasCommand,
+  AddLayerCommand,
+  RemoveLayerCommand,
+  ReorderLayersCommand,
+  SetLayerFieldCommand,
+  SetLayerBlendModeCommand,
+  AddLifeStopCommand,
+  RemoveLifeStopCommand,
+  MoveLifeStopCommand,
+  SetLifeStopValueCommand,
+  SetLifeStopCurveCommand,
+  CreateBundleCommand,
+  DeleteBundleCommand,
+  AddBundleItemCommand,
+  RemoveBundleItemCommand,
+  ReorderBundleItemsCommand,
+  SetBundleItemCommand,
+  buildDefaultLayer,
+  withEmitterDrag,
+  assertValidStopOrder,
+  locateStop,
+  atlasKeepingSeedRegions,
+  effectsCommandRegistry,
+} from './effects-commands';
+export type {
+  CreateEffectInit,
+  EffectMetaPatch,
+  NewLayerKind,
+  LocatedStop,
+  BundleItemInit,
+  BundleItemPatch,
+  EffectCommandSpec,
+  EffectCommandFixture,
+} from './effects-commands';
 
 // Commands (classes for tools/MCP, specs/registry for the harness)
 export {
@@ -217,4 +306,10 @@ export type { BoneInfluence } from './weights';
 
 // Save / load seam
 export type { DocumentEnvironment, Document } from './save-load';
-export { createDocument, loadDocument, exportDocument } from './save-load';
+export {
+  createDocument,
+  loadDocument,
+  loadDocumentWithEffects,
+  effectsStateFromDocument,
+  exportDocument,
+} from './save-load';

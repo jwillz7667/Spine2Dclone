@@ -15,15 +15,17 @@ afterEach(() => {
 });
 
 describe('findForbiddenPackages (LAW 5)', () => {
-  it('flags packages and runtimes outside the Phase-0 allowed set', () => {
+  it('flags packages and runtimes outside the allowed set', () => {
     root = mkdtempSync(join(tmpdir(), 'mc-package-guard-'));
     mkdirSync(join(root, 'packages', 'format'), { recursive: true });
-    mkdirSync(join(root, 'packages', 'math-bridge'), { recursive: true });
+    // A package not in the allowed set is flagged. math-bridge is now ALLOWED (it landed in Phase 4,
+    // WP-4.1), so a still-forbidden name is used as the example; runtimes are Phase 5 (none yet).
+    mkdirSync(join(root, 'packages', 'not-a-real-package'), { recursive: true });
     mkdirSync(join(root, 'runtimes', 'unity'), { recursive: true });
 
     const violations = findForbiddenPackages(root);
 
-    expect(violations).toContain('packages/math-bridge');
+    expect(violations).toContain('packages/not-a-real-package');
     expect(violations).toContain('runtimes/unity');
     expect(violations).not.toContain('packages/format');
   });
@@ -39,6 +41,8 @@ describe('findForbiddenPackages (LAW 5)', () => {
       'document-core',
       'mcp-server',
       'conformance',
+      // math-bridge is allowed from Phase 4 (the engine OUTCOME boundary, WP-4.1).
+      'math-bridge',
     ]) {
       mkdirSync(join(root, 'packages', pkg), { recursive: true });
     }

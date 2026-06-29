@@ -96,4 +96,7 @@ export {
   effectsSpecPath,
   effectsFixturePath,
   EFFECTS_LOCK_PATH,
+  loadPerfBaseline,
+  PERF_BASELINE_PATH,
 } from './io';
+export type { PerfBaseline } from './io';

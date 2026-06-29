@@ -103,3 +103,40 @@ export function loadEffectsSampleSpec(effectId: string): EffectsSampleSpec {
 export function loadEffectsFixture(effectId: string): EffectsFixture {
   return validateEffectsFixture(readJson(effectsFixturePath(effectId)));
 }
+
+// --- Particle perf baseline (phase-3-vfx-particles.md WP-3.9, TASK-3.9.4/3.9.5) ---
+// The single committed source of the caps/budget/tier perf thresholds. The perf gate
+// (phase3-perf-gates.test.ts) and the DoD acceptance harness (phase3-acceptance.ts) both read it from
+// here, so a perf bound lives in exactly one reviewed artifact (perf/baseline.json), never as a magic
+// number duplicated across tests. The values are CONSERVATIVE DEFAULTS; device-tier tuning is Phase 5.
+
+export interface PerfBaseline {
+  readonly note: string;
+  readonly maxLiveParticles: number;
+  readonly referenceTier: 'low' | 'medium' | 'high';
+  readonly qualityTierScale: Readonly<Record<'low' | 'medium' | 'high', number>>;
+  readonly acceptanceRun: { readonly frames: number; readonly simulationDt: number };
+  readonly perFrameStepHeapBudgetBytes: number;
+  readonly perFrameStepHeapBudgetFrames: number;
+}
+
+// src -> packages/conformance, then into perf/.
+export const PERF_BASELINE_PATH = join(SRC_DIR, '..', 'perf', 'baseline.json');
+
+// Read the committed perf baseline. A narrow runtime check keeps a malformed baseline from silently
+// feeding NaN thresholds into a gate (Law 3 fail-loud, applied to the perf artifact).
+export function loadPerfBaseline(): PerfBaseline {
+  const raw = readJson(PERF_BASELINE_PATH) as Partial<PerfBaseline>;
+  const tier = raw.qualityTierScale;
+  if (
+    typeof raw.maxLiveParticles !== 'number' ||
+    typeof raw.perFrameStepHeapBudgetBytes !== 'number' ||
+    tier === undefined ||
+    typeof tier.low !== 'number' ||
+    typeof tier.medium !== 'number' ||
+    typeof tier.high !== 'number'
+  ) {
+    throw new Error('perf/baseline.json is malformed (missing a required numeric threshold)');
+  }
+  return raw as PerfBaseline;
+}

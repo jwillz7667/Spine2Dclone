@@ -1,0 +1,16 @@
+{
+  "note": "Phase 3 particle-perf baseline (phase-3-vfx-particles.md WP-3.9, TASK-3.9.4/3.9.5). These are CONSERVATIVE DEFAULTS, not final tuned device budgets: real per-device-tier budget tuning is deferred to Phase 5 (handoff risk register R3.1). The gate (phase3-perf-gates.test.ts) reads this file as the single committed source of the caps/budget/tier thresholds, so a change to a perf bound is a reviewed edit to this committed artifact, not a magic number scattered across tests. maxLiveParticles mirrors runtime-core DEFAULT_MAX_LIVE_PARTICLES; the gate asserts they agree (drift guard).",
+  "maxLiveParticles": 2000,
+  "referenceTier": "high",
+  "qualityTierScale": {
+    "low": 0.4,
+    "medium": 0.7,
+    "high": 1.0
+  },
+  "acceptanceRun": {
+    "frames": 600,
+    "simulationDt": 0.016666666666666666
+  },
+  "perFrameStepHeapBudgetBytes": 4194304,
+  "perFrameStepHeapBudgetFrames": 20000
+}

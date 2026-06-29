@@ -129,6 +129,17 @@ export type {
 
 // Phase-4 slot sequencer (phase-4 section 5.4, WP-4.7): the deterministic presentation core. The pinned
 // integer/fixed-point counter-rollup evaluation (the cross-runtime determinism surface, section 5.4.2)
-// lands first; the full (SpinResult, SlotScene) -> PresentationTimeline sequencer grows the slot barrel.
-export { rollupValueAt, CURVE_TYPES } from './slot';
-export type { CurveType } from './slot';
+// and the `sequence(result, scene) -> PresentationTimeline` core (landing + anticipation + emit/sort
+// framework). The full PresentationDirective union TYPE ships now (the renderer and golden corpus type
+// against it); WP-4.8/4.9/4.10 extend `sequence` with the win/flow/tumble/escalation emission stages.
+export { rollupValueAt, CURVE_TYPES, sequence } from './slot';
+export type {
+  CurveType,
+  PresentationTimeline,
+  PresentationDirective,
+  EscalationTier,
+  SymbolAnimSlot,
+  GridCell,
+  SymbolMove,
+  GridAnchor,
+} from './slot';

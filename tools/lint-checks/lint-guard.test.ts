@@ -103,6 +103,49 @@ describe('math/presentation boundary (LAW 1, phase-3 WP-3.4)', () => {
   });
 });
 
+describe('runtime-core/slot math-bridge carve-out (phase-4 WP-4.7, LAW 1)', () => {
+  const SLOT = 'packages/runtime-core/src/slot/__guard__.ts';
+  const EFFECTS = 'packages/runtime-core/src/effects/__guard__.ts';
+
+  it('ALLOWS the math-bridge SpinResult value types in runtime-core/slot', async () => {
+    const code =
+      "import type { SpinResult } from '@marionette/math-bridge/types';\n" +
+      "import { spinResultSchema } from '@marionette/math-bridge';\n" +
+      'export type R = SpinResult;\nexport const ok = typeof spinResultSchema;\n';
+    expect(ruleIds(await lint(SLOT, code))).not.toContain('no-restricted-imports');
+  });
+
+  it('ALLOWS @marionette/format/slot-types in runtime-core/slot', async () => {
+    const code =
+      "import type { SlotScene } from '@marionette/format/slot-types';\nexport type S = SlotScene;\n";
+    expect(ruleIds(await lint(SLOT, code))).not.toContain('no-restricted-imports');
+  });
+
+  it('still BANS the math-bridge engine client (math-bridge/real) in runtime-core/slot', async () => {
+    expect(
+      ruleIds(await lint(SLOT, "import { RealMathEngine } from '@marionette/math-bridge/real';\n")),
+    ).toContain('no-restricted-imports');
+  });
+
+  it('keeps the carve-out SLOT-ONLY: math-bridge is still banned in runtime-core/effects', async () => {
+    expect(
+      ruleIds(await lint(EFFECTS, "import { adaptSpin } from '@marionette/math-bridge';\n")),
+    ).toContain('no-restricted-imports');
+    expect(
+      ruleIds(
+        await lint(EFFECTS, "import type { SpinResult } from '@marionette/math-bridge/types';\n"),
+      ),
+    ).toContain('no-restricted-imports');
+  });
+
+  it('still bans pixi.js and the format value barrel in runtime-core/slot', async () => {
+    expect(ruleIds(await lint(SLOT, "import 'pixi.js';\n"))).toContain('no-restricted-imports');
+    expect(
+      ruleIds(await lint(SLOT, "import { validateDocument } from '@marionette/format';\n")),
+    ).toContain('no-restricted-imports');
+  });
+});
+
 describe('no any / no unjustified as in format + runtime-core (INV-4)', () => {
   it('bans explicit any in format', async () => {
     expect(ruleIds(await lint(FORMAT, 'export const x: any = 1;\n'))).toContain(

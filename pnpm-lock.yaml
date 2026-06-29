@@ -207,6 +207,9 @@ importers:
         specifier: workspace:*
         version: link:../format
     devDependencies:
+      '@marionette/math-bridge':
+        specifier: workspace:*
+        version: link:../math-bridge
       tsx:
         specifier: ^4.19.2
         version: 4.22.4

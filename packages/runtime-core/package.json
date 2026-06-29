@@ -19,6 +19,7 @@
     "@marionette/format": "workspace:*"
   },
   "devDependencies": {
+    "@marionette/math-bridge": "workspace:*",
     "tsx": "^4.19.2",
     "vitest": "^2.1.8"
   }

@@ -312,6 +312,75 @@ export default tseslint.config(
     },
   },
 
+  // runtime-core/slot carve-out (phase-4 WP-4.7): the slot sequencer is the determinism boundary and is a
+  // pure function OF a SpinResult (LAW 1), so it MUST import the math-bridge SpinResult VALUE TYPES
+  // (@marionette/math-bridge + /types) and the format slot-config TYPES (@marionette/format/slot-types,
+  // plus /types). This block REPLACES the runtime-core-wide no-restricted-imports for slot/** files (a
+  // later matching flat-config block wins). It keeps every OTHER ban: electron, pixi, node built-ins, the
+  // format value barrel, runtime-web, runtime-core self-imports, AND it still bans the engine client
+  // @marionette/math-bridge/real (the sequencer reads SpinResult VALUE TYPES but NEVER the certified
+  // engine client, LAW 1). math-bridge itself and math-bridge/types are NOT banned here (they are the
+  // permitted carve-out); the runtime-core-wide block above keeps banning them everywhere else (effects).
+  {
+    files: ['packages/runtime-core/src/slot/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            ELECTRON_PATH,
+            {
+              name: '@marionette/format',
+              message:
+                'Import format TYPES only, via `import type { ... } from "@marionette/format/types"` or ' +
+                '"@marionette/format/slot-types". The value barrel @marionette/format pulls Zod into the ' +
+                'platform-agnostic core (INV-1, format WP-F.9).',
+            },
+            {
+              name: '@marionette/runtime-web',
+              message:
+                'runtime-core must not import runtime-web; the dependency direction is format <- runtime-core <- runtime-web.',
+            },
+          ],
+          patterns: [
+            PIXI_PATTERN,
+            NODE_BUILTIN_PATTERN,
+            {
+              // Permit @marionette/format/types AND /slot-types (the authored slot-config types), ban every
+              // other deep format path (the value sub-barrels pull Zod into the pure core).
+              group: [
+                '@marionette/format/*',
+                '!@marionette/format/types',
+                '!@marionette/format/slot-types',
+              ],
+              message:
+                'runtime-core/slot may import only @marionette/format/types and ' +
+                '@marionette/format/slot-types from the format package (INV-1, format WP-F.9).',
+            },
+            {
+              group: [
+                '@marionette/runtime-web/*',
+                '@marionette/runtime-core',
+                '@marionette/runtime-core/*',
+              ],
+              message:
+                'runtime-core must not import runtime-web, and must not deep-import itself (INV-1).',
+            },
+            {
+              // LAW 1: the sequencer reads the SpinResult VALUE TYPES (@marionette/math-bridge + /types,
+              // permitted here) but NEVER the certified-engine client (math-bridge/real), which would be a
+              // channel from presentation toward the engine. The /real sub-path stays banned.
+              group: ['@marionette/math-bridge/real', '@marionette/math-bridge/real/*'],
+              message:
+                'runtime-core/slot reads SpinResult VALUE TYPES but never the engine client ' +
+                '(@marionette/math-bridge/real): presentation has no channel back to the engine (LAW 1).',
+            },
+          ],
+        },
+      ],
+    },
+  },
+
   // document-core: renderer-agnostic command/history spine (ADR-0001). It must run identically in the
   // editor renderer, the Electron main process (headless MCP server), and Vitest, so it bans PixiJS,
   // Node built-ins, Electron, React, runtime-web, and DOM/browser globals (including `performance`, so
@@ -434,7 +503,13 @@ export default tseslint.config(
             // cells are typed as SymbolId) and nothing else in-repo (CD-1 direction: format never
             // imports math-bridge). The external engine client used by real/** is not an in-repo element.
             { from: ['math-bridge'], allow: ['math-bridge', 'format'] },
-            { from: ['runtime-core'], allow: ['runtime-core', 'format'] },
+            // runtime-core imports format types; the runtime-core/slot sequencer ALSO imports the
+            // math-bridge SpinResult VALUE TYPES (phase-4 WP-4.7, LAW 1: presentation is a pure function
+            // OF the outcome, it never reads the engine client). boundaries is coarse (it cannot see the
+            // /slot sub-path or the import-type distinction), so it allows math-bridge at the package
+            // level; the fine-grained ban (slot-only, never math-bridge/real, never in effects) is
+            // enforced by the no-restricted-imports blocks below.
+            { from: ['runtime-core'], allow: ['runtime-core', 'format', 'math-bridge'] },
             { from: ['runtime-web'], allow: ['runtime-web', 'runtime-core', 'format'] },
             // document-core is the renderer-agnostic command/history spine (ADR-0001). It consumes
             // only format (validate/hash/types) and, where a transform command needs it, runtime-core.

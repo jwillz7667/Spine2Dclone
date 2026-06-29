@@ -44,6 +44,12 @@ function state(partial: Partial<DocState> & Pick<DocState, 'bones' | 'boneOrder'
     slotOrder: [],
     attachments: new Map(),
     animations: new Map(),
+    ikConstraints: new Map(),
+    ikConstraintOrder: [],
+    transformConstraints: new Map(),
+    transformConstraintOrder: [],
+    skins: new Map(),
+    skinOrder: [],
     preserved: emptyPreservedContent(),
     ...partial,
   };

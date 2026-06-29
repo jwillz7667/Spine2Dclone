@@ -50,11 +50,37 @@ export type {
   RotateValue,
   Vec2Value,
   ColorValue,
+  IkConstraintEntity,
+  TransformConstraintEntity,
+  SkinEntity,
+  IkKeyframeEntity,
+  TransformKeyframeEntity,
+  DeformKeyframeEntity,
+  DeformSkinKey,
   DocState,
   PreservedContent,
 } from './model/doc-state';
-export { emptyPreservedContent, meshGeometryOf, newDocState } from './model/doc-state';
-export type { Id, BoneId, SlotId, AnimationId, KeyframeId, IdFactory } from './model/ids';
+export {
+  emptyPreservedContent,
+  meshGeometryOf,
+  newDocState,
+  makeKeyframe,
+  makeIkKeyframe,
+  makeTransformKeyframe,
+  makeDeformKeyframe,
+  emptyAnimationConstraintTimelines,
+} from './model/doc-state';
+export type {
+  Id,
+  BoneId,
+  SlotId,
+  AnimationId,
+  KeyframeId,
+  IkConstraintId,
+  TransformConstraintId,
+  SkinId,
+  IdFactory,
+} from './model/ids';
 export { makeIdFactory } from './model/ids';
 export type {
   DocumentReadModel,
@@ -67,6 +93,15 @@ export type {
   SlotTimelineSnapshot,
   KeyframeSnapshot,
   AttachmentFrameSnapshot,
+  IkConstraintSnapshot,
+  TransformConstraintSnapshot,
+  SkinSnapshot,
+  IkTimelineSnapshot,
+  TransformTimelineSnapshot,
+  DeformTimelineSnapshot,
+  IkKeyframeSnapshot,
+  TransformKeyframeSnapshot,
+  DeformKeyframeSnapshot,
 } from './model/read-model';
 
 // Commands (classes for tools/MCP, specs/registry for the harness)

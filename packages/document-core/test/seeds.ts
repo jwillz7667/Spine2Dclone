@@ -2,11 +2,14 @@ import type {
   Animation,
   AtlasRegion,
   Bone,
+  IkConstraint,
   MeshAttachment,
   RegionAttachment,
   SkeletonDocument,
   Slot,
+  TransformConstraint,
 } from '@marionette/format/types';
+import { CURRENT_FORMAT_VERSION } from '@marionette/format';
 import { makeIdFactory, type DocumentEnvironment } from '../src';
 
 // In-memory format seed documents for the round-trip harness and command tests. They are valid
@@ -109,6 +112,126 @@ function atlasRegion(name: string): AtlasRegion {
     offsetY: 0,
     originalW: 64,
     originalH: 64,
+  };
+}
+
+// A weighted quad bound to two GLOBAL bones (indices passed in), each vertex split 0.5 / 0.5. The bind
+// coords are simple finite values (the validator checks arity/range/sum/finiteness, not geometry). The
+// `bones` manifest is the ascending de-duplicated index set. Used by the `rigged` seed below.
+function weightedQuad(path: string, boneA: number, boneB: number): MeshAttachment {
+  // Weights 0.5 / 0.49995 sum to 0.99995: within WEIGHT_SUM_EPSILON (1e-4) of 1 so the document is valid,
+  // but NOT exactly 1, so NormalizeMeshWeights produces a real delta on this seed (matching the `weighted`
+  // seed convention) while every other weighted command re-normalizes regardless.
+  const v = (vx: number, vy: number): number[] => [2, boneA, vx, vy, 0.5, boneB, vx, vy, 0.49995];
+  return {
+    type: 'mesh',
+    path,
+    uvs: [0, 0, 1, 0, 1, 1, 0, 1],
+    triangles: [0, 1, 2, 0, 2, 3],
+    hullLength: 4,
+    width: 64,
+    height: 64,
+    color: { r: 1, g: 1, b: 1, a: 1 },
+    vertices: [...v(0, 0), ...v(64, 0), ...v(64, 64), ...v(0, 64)],
+    bones: [boneA, boneB].sort((a, b) => a - b),
+  };
+}
+
+// A fully-rigged Phase-2 document at formatVersion 0.2.0: a two-bone IK chain (upper, lower) reaching a
+// target, a transform constraint (follower follows driver in world rotation), a weighted mesh on the
+// default skin, a NAMED variant skin, and an animation that keys a bone rotate, an IK mix ramp with a
+// bendPositive flag, a transform mixRotate ramp, and a deform timeline on the default skin's mesh. This is
+// the seed the WP-2.6/2.7/2.8/2.9 commands target: every constraint/skin/deform command is applicable here
+// with a real delta, and the keyed commands (Set*Keyframe/Delete*Keyframe) have an existing track to edit.
+// Bone GLOBAL indices: root 0, upper 1, lower 2, target 3, driver 4, follower 5.
+function riggedDoc(): SkeletonDocument {
+  const bones: Bone[] = [
+    bone('root', null, { length: 50 }),
+    bone('upper', 'root', { x: 50, length: 50 }),
+    bone('lower', 'upper', { x: 50, length: 50 }),
+    bone('target', 'root', { x: 120, y: 20, length: 20 }),
+    bone('driver', 'root', { x: 0, y: 80, length: 20 }),
+    bone('follower', 'root', { x: 0, y: -80, length: 20 }),
+  ];
+  const ikConstraints: IkConstraint[] = [
+    { name: 'limb-ik', bones: ['upper', 'lower'], target: 'target', mix: 1, bendPositive: true },
+  ];
+  const transformConstraints: TransformConstraint[] = [
+    {
+      name: 'follow',
+      bones: ['follower'],
+      target: 'driver',
+      mixRotate: 1,
+      mixX: 0,
+      mixY: 0,
+      mixScaleX: 0,
+      mixScaleY: 0,
+      mixShearY: 0,
+      offsetRotation: 0,
+      offsetX: 0,
+      offsetY: 0,
+      offsetScaleX: 0,
+      offsetScaleY: 0,
+      offsetShearY: 0,
+    },
+  ];
+  const moveAnimation: Animation = {
+    duration: 1,
+    bones: {
+      upper: {
+        rotate: [
+          { time: 0, value: { angle: 0 }, curve: 'linear' },
+          { time: 1, value: { angle: 20 }, curve: 'linear' },
+        ],
+      },
+    },
+    slots: {},
+    ik: {
+      'limb-ik': [
+        { time: 0, value: { mix: 0, bendPositive: true }, curve: 'linear' },
+        { time: 1, value: { mix: 1, bendPositive: false }, curve: 'stepped' },
+      ],
+    },
+    transform: {
+      follow: [
+        { time: 0, value: { mixRotate: 0 }, curve: 'linear' },
+        { time: 1, value: { mixRotate: 1 }, curve: 'linear' },
+      ],
+    },
+    deform: {
+      default: {
+        mesh_slot: {
+          panel: [
+            { time: 0, value: { offsets: [0, 0, 0, 0, 0, 0, 0, 0] }, curve: 'linear' },
+            { time: 1, value: { offsets: [2, 0, 2, 0, 2, 0, 2, 0] }, curve: 'linear' },
+          ],
+        },
+      },
+    },
+  };
+  return {
+    formatVersion: CURRENT_FORMAT_VERSION,
+    name: 'rigged',
+    hash: '',
+    bones,
+    slots: [slot('mesh_slot', 'root', { attachment: 'panel' })],
+    skins: [
+      { name: 'default', attachments: { mesh_slot: { panel: weightedQuad('skin_panel', 1, 2) } } },
+      { name: 'variant', attachments: { mesh_slot: { alt: region('skin_variant') } } },
+    ],
+    ikConstraints,
+    transformConstraints,
+    animations: { move: moveAnimation },
+    atlas: {
+      pages: [
+        {
+          file: 'atlas.png',
+          width: 128,
+          height: 128,
+          regions: [atlasRegion('skin_panel'), atlasRegion('skin_variant')],
+        },
+      ],
+    },
   };
 }
 
@@ -250,6 +373,10 @@ export const seeds = {
       },
     },
   ),
+  // The fully-rigged Phase-2 seed (0.2.0): two-bone IK, a transform constraint, a weighted mesh, a named
+  // variant skin, and an animation with ik/transform/deform timelines. Target of the WP-2.6/2.7/2.8/2.9
+  // constraint, skin, and deform commands.
+  rigged: riggedDoc(),
 } as const;
 
 export interface Seed {
@@ -265,6 +392,7 @@ export const seedList: readonly Seed[] = [
   { id: 'animated', json: seeds.animated },
   { id: 'meshed', json: seeds.meshed },
   { id: 'weighted', json: seeds.weighted },
+  { id: 'rigged', json: seeds.rigged },
 ];
 
 // A deterministic test environment: a controllable fake clock (so coalescing-window tests are

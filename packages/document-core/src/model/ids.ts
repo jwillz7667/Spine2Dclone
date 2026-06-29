@@ -27,6 +27,17 @@ export type SlotId = Id<'slot'>;
 export type AnimationId = Id<'animation'>;
 export type KeyframeId = Id<'keyframe'>;
 
+// Phase 2 promotes constraints and named skins to id-keyed editable entities. An IkConstraintEntity is
+// addressed by IkConstraintId and a TransformConstraintEntity by TransformConstraintId (never by name,
+// the mutable on-disk key), so a constraint rename or a sibling delete never invalidates a captured
+// command. A SkinEntity (a NON-default named skin) is addressed by SkinId; the implicit 'default' skin is
+// materialized from the editable attachments and carries no SkinId. Constraint solve order is the stored
+// array order (ADR-0003), so the model keeps an explicit id order alongside the id-keyed map, exactly as
+// boneOrder accompanies the bones map.
+export type IkConstraintId = Id<'ikConstraint'>;
+export type TransformConstraintId = Id<'transformConstraint'>;
+export type SkinId = Id<'skin'>;
+
 // IDs are minted by a single injected generator (no hidden global; dependency injection per house
 // rules). The counter is per-Document and monotonic, so ids are unique within a document and
 // deterministic given a fixed mint order (which makes load-path tests reproducible).

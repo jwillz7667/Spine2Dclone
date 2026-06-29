@@ -5,13 +5,27 @@ import type {
   BoneChannel,
   BoneEntity,
   BoneTimelineSet,
+  DeformKeyframeEntity,
+  DeformSkinKey,
+  IkConstraintEntity,
+  IkKeyframeEntity,
   KeyframeEntity,
   MeshGeometry,
   RegionAttachmentEntity,
+  SkinEntity,
   SlotEntity,
   SlotTimelineSet,
+  TransformConstraintEntity,
+  TransformKeyframeEntity,
 } from './doc-state';
-import type { AnimationId, BoneId, SlotId } from './ids';
+import type {
+  AnimationId,
+  BoneId,
+  IkConstraintId,
+  SkinId,
+  SlotId,
+  TransformConstraintId,
+} from './ids';
 import type { DocumentModelInternal } from './internal';
 import type { DocumentReadModel } from './read-model';
 
@@ -60,6 +74,37 @@ export interface Mutator extends DocumentReadModel {
   ): void;
   setBoneTimelines(animId: AnimationId, boneId: BoneId, set: BoneTimelineSet | null): void;
   setSlotTimelines(animId: AnimationId, slotId: SlotId, set: SlotTimelineSet | null): void;
+  setIkChannel(
+    animId: AnimationId,
+    constraintId: IkConstraintId,
+    keyframes: readonly IkKeyframeEntity[],
+  ): void;
+  setTransformChannel(
+    animId: AnimationId,
+    constraintId: TransformConstraintId,
+    keyframes: readonly TransformKeyframeEntity[],
+  ): void;
+  setDeformChannel(
+    animId: AnimationId,
+    skinKey: DeformSkinKey,
+    slotId: SlotId,
+    attachmentName: string,
+    keyframes: readonly DeformKeyframeEntity[],
+  ): void;
+  insertIkConstraint(entity: IkConstraintEntity, index: number): void;
+  removeIkConstraint(id: IkConstraintId): void;
+  patchIkConstraint(id: IkConstraintId, patch: Partial<Omit<IkConstraintEntity, 'id'>>): void;
+  insertTransformConstraint(entity: TransformConstraintEntity, index: number): void;
+  removeTransformConstraint(id: TransformConstraintId): void;
+  patchTransformConstraint(
+    id: TransformConstraintId,
+    patch: Partial<Omit<TransformConstraintEntity, 'id'>>,
+  ): void;
+  insertSkin(entity: SkinEntity, index: number): void;
+  removeSkin(id: SkinId): void;
+  patchSkin(id: SkinId, patch: { readonly name?: string }): void;
+  setSkinAttachment(skinId: SkinId, slotId: SlotId, entity: AttachmentEntity): void;
+  removeSkinAttachment(skinId: SkinId, slotId: SlotId, name: string): void;
   setAtlas(atlas: AtlasRef): void;
 }
 
@@ -84,6 +129,12 @@ export function createMutator(model: DocumentModelInternal): Mutator {
     getAttachment: (slotId, name) => model.getAttachment(slotId, name),
     getAnimation: (id) => model.getAnimation(id),
     animations: () => model.animations(),
+    getIkConstraint: (id) => model.getIkConstraint(id),
+    ikConstraints: () => model.ikConstraints(),
+    getTransformConstraint: (id) => model.getTransformConstraint(id),
+    transformConstraints: () => model.transformConstraints(),
+    getSkin: (id) => model.getSkin(id),
+    skins: () => model.skins(),
     preserved: () => model.preserved(),
     snapshot: () => model.snapshot(),
     insertBone: (entity, index) => model.insertBone(entity, index),
@@ -108,6 +159,24 @@ export function createMutator(model: DocumentModelInternal): Mutator {
       model.setSlotColorChannel(animId, slotId, keyframes),
     setBoneTimelines: (animId, boneId, set) => model.setBoneTimelines(animId, boneId, set),
     setSlotTimelines: (animId, slotId, set) => model.setSlotTimelines(animId, slotId, set),
+    setIkChannel: (animId, constraintId, keyframes) =>
+      model.setIkChannel(animId, constraintId, keyframes),
+    setTransformChannel: (animId, constraintId, keyframes) =>
+      model.setTransformChannel(animId, constraintId, keyframes),
+    setDeformChannel: (animId, skinKey, slotId, name, keyframes) =>
+      model.setDeformChannel(animId, skinKey, slotId, name, keyframes),
+    insertIkConstraint: (entity, index) => model.insertIkConstraint(entity, index),
+    removeIkConstraint: (id) => model.removeIkConstraint(id),
+    patchIkConstraint: (id, patch) => model.patchIkConstraint(id, patch),
+    insertTransformConstraint: (entity, index) => model.insertTransformConstraint(entity, index),
+    removeTransformConstraint: (id) => model.removeTransformConstraint(id),
+    patchTransformConstraint: (id, patch) => model.patchTransformConstraint(id, patch),
+    insertSkin: (entity, index) => model.insertSkin(entity, index),
+    removeSkin: (id) => model.removeSkin(id),
+    patchSkin: (id, patch) => model.patchSkin(id, patch),
+    setSkinAttachment: (skinId, slotId, entity) => model.setSkinAttachment(skinId, slotId, entity),
+    removeSkinAttachment: (skinId, slotId, name) =>
+      model.removeSkinAttachment(skinId, slotId, name),
     setAtlas: (atlas) => model.setAtlas(atlas),
   };
 }

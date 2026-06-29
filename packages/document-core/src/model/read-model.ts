@@ -10,13 +10,26 @@ import type {
   AttachmentEntity,
   AttachmentFrameEntity,
   BoneEntity,
+  DeformKeyframeEntity,
+  IkConstraintEntity,
+  IkKeyframeEntity,
   KeyframeEntity,
   KeyframeValue,
   PreservedContent,
+  SkinEntity,
   SlotEntity,
+  TransformConstraintEntity,
+  TransformKeyframeEntity,
 } from './doc-state';
 import { cloneCurve, cloneKeyframeValue } from './doc-state';
-import type { AnimationId, BoneId, SlotId } from './ids';
+import type {
+  AnimationId,
+  BoneId,
+  IkConstraintId,
+  SkinId,
+  SlotId,
+  TransformConstraintId,
+} from './ids';
 
 // The public read surface given to the UI and to commands (command-history Section 3.2). Every
 // accessor returns a frozen value copy or a readonly view; no accessor leaks a handle that can mutate
@@ -41,8 +54,17 @@ export interface DocumentReadModel {
   // All animations, sorted by id (the on-disk record is name-keyed and order-insignificant, so a
   // deterministic enumeration sorts by the stable internal id).
   animations(): readonly AnimationEntity[];
-  // The preserved (not-yet-promoted) document body, read-only. Phase 1 holds the atlas and non-default
-  // skins verbatim.
+  getIkConstraint(id: IkConstraintId): IkConstraintEntity | undefined;
+  // IK constraints in stored solve order (ikConstraintOrder); ALL IK solve before any transform (ADR-0003).
+  ikConstraints(): readonly IkConstraintEntity[];
+  getTransformConstraint(id: TransformConstraintId): TransformConstraintEntity | undefined;
+  // Transform constraints in stored solve order, solved AFTER all IK constraints (ADR-0003).
+  transformConstraints(): readonly TransformConstraintEntity[];
+  getSkin(id: SkinId): SkinEntity | undefined;
+  // The NON-default named skins in skinOrder. The default skin is implicit (its attachments are the
+  // editable default-skin attachments reached via attachments()); it is never a SkinEntity.
+  skins(): readonly SkinEntity[];
+  // The preserved (not-yet-promoted) document body, read-only. After Phase 2 this holds only the atlas.
   preserved(): PreservedContent;
   // Canonical, deterministically-ordered, deep-equality-comparable projection (includes internal ids).
   snapshot(): DocSnapshot;
@@ -150,14 +172,105 @@ export interface SlotTimelineSnapshot {
   readonly attachment: readonly AttachmentFrameSnapshot[];
 }
 
-// A plain animation projection. `bones`/`slots` are sorted by their internal id so the snapshot is
-// deterministic and stable across renames.
+// Plain IK / transform / deform keyframe projections (WP-2.6/2.7/2.9), value copies in time order.
+export interface IkKeyframeSnapshot {
+  readonly id: string;
+  readonly time: number;
+  readonly mix: number;
+  readonly bendPositive: boolean;
+  readonly curve: CurveType;
+}
+
+export interface TransformKeyframeSnapshot {
+  readonly id: string;
+  readonly time: number;
+  readonly mixRotate: number | undefined;
+  readonly mixX: number | undefined;
+  readonly mixY: number | undefined;
+  readonly mixScaleX: number | undefined;
+  readonly mixScaleY: number | undefined;
+  readonly mixShearY: number | undefined;
+  readonly curve: CurveType;
+}
+
+export interface DeformKeyframeSnapshot {
+  readonly id: string;
+  readonly time: number;
+  readonly offsets: readonly number[];
+  readonly curve: CurveType;
+}
+
+// A per-constraint IK timeline projection, keyed by the internal IkConstraintId string.
+export interface IkTimelineSnapshot {
+  readonly constraintId: string;
+  readonly keyframes: readonly IkKeyframeSnapshot[];
+}
+
+// A per-constraint transform timeline projection, keyed by the internal TransformConstraintId string.
+export interface TransformTimelineSnapshot {
+  readonly constraintId: string;
+  readonly keyframes: readonly TransformKeyframeSnapshot[];
+}
+
+// A per-(skin, slot, attachment) deform timeline projection. `skin` is the DeformSkinKey string ('default'
+// or a SkinId), `slotId` the internal slot reference, `attachment` the attachment name.
+export interface DeformTimelineSnapshot {
+  readonly skin: string;
+  readonly slotId: string;
+  readonly attachment: string;
+  readonly keyframes: readonly DeformKeyframeSnapshot[];
+}
+
+// A plain animation projection. `bones`/`slots`/`ik`/`transform` are sorted by their internal id and
+// `deform` by (skin, slotId, attachment), so the snapshot is deterministic and stable across renames.
 export interface AnimationSnapshot {
   readonly id: string;
   readonly name: string;
   readonly duration: number;
   readonly bones: readonly BoneTimelineSnapshot[]; // sorted by boneId
   readonly slots: readonly SlotTimelineSnapshot[]; // sorted by slotId
+  readonly ik: readonly IkTimelineSnapshot[]; // sorted by constraintId
+  readonly transform: readonly TransformTimelineSnapshot[]; // sorted by constraintId
+  readonly deform: readonly DeformTimelineSnapshot[]; // sorted by (skin, slotId, attachment)
+}
+
+// A plain IK-constraint projection. `bones`/`target` are internal BoneId strings (references), stable
+// across a bone rename.
+export interface IkConstraintSnapshot {
+  readonly id: string;
+  readonly name: string;
+  readonly bones: readonly string[];
+  readonly target: string;
+  readonly mix: number;
+  readonly bendPositive: boolean;
+}
+
+// A plain transform-constraint projection (all six mix and six offset channels).
+export interface TransformConstraintSnapshot {
+  readonly id: string;
+  readonly name: string;
+  readonly bones: readonly string[];
+  readonly target: string;
+  readonly mixRotate: number;
+  readonly mixX: number;
+  readonly mixY: number;
+  readonly mixScaleX: number;
+  readonly mixScaleY: number;
+  readonly mixShearY: number;
+  readonly offsetRotation: number;
+  readonly offsetX: number;
+  readonly offsetY: number;
+  readonly offsetScaleX: number;
+  readonly offsetScaleY: number;
+  readonly offsetShearY: number;
+}
+
+// A plain named-skin projection: its attachments as a flat sorted list (by slotId then name), the same
+// shape the default skin uses in DocSnapshot.attachments.
+export interface SkinSnapshot {
+  readonly id: string;
+  readonly name: string;
+  readonly attachments: readonly AttachmentSnapshot[];
 }
 
 // The full internal-state projection the round-trip harness deep-compares (command-history Section
@@ -173,6 +286,12 @@ export interface DocSnapshot {
   readonly slotOrder: readonly string[]; // order-significant (draw order)
   readonly attachments: readonly AttachmentSnapshot[]; // sorted by (slotId, name)
   readonly animations: readonly AnimationSnapshot[]; // sorted by id
+  readonly ikConstraints: readonly IkConstraintSnapshot[]; // sorted by id
+  readonly ikConstraintOrder: readonly string[]; // order-significant (solve order)
+  readonly transformConstraints: readonly TransformConstraintSnapshot[]; // sorted by id
+  readonly transformConstraintOrder: readonly string[]; // order-significant (solve order)
+  readonly skins: readonly SkinSnapshot[]; // sorted by id (NON-default named skins)
+  readonly skinOrder: readonly string[]; // order-significant
   readonly preserved: PreservedContent; // verbatim (already deeply immutable)
 }
 
@@ -260,8 +379,37 @@ function attachmentFrameToSnapshot(frame: AttachmentFrameEntity): AttachmentFram
   return { id: frame.id, time: frame.time, name: frame.name };
 }
 
-// Project an animation entity to its snapshot shape: bones and slots sorted by their internal id, each
-// channel a value copy in time order. Keyframe arrays are already time-sorted in the model.
+function ikKeyframeToSnapshot(kf: IkKeyframeEntity): IkKeyframeSnapshot {
+  return {
+    id: kf.id,
+    time: kf.time,
+    mix: kf.mix,
+    bendPositive: kf.bendPositive,
+    curve: cloneCurve(kf.curve),
+  };
+}
+
+function transformKeyframeToSnapshot(kf: TransformKeyframeEntity): TransformKeyframeSnapshot {
+  return {
+    id: kf.id,
+    time: kf.time,
+    mixRotate: kf.mixRotate,
+    mixX: kf.mixX,
+    mixY: kf.mixY,
+    mixScaleX: kf.mixScaleX,
+    mixScaleY: kf.mixScaleY,
+    mixShearY: kf.mixShearY,
+    curve: cloneCurve(kf.curve),
+  };
+}
+
+function deformKeyframeToSnapshot(kf: DeformKeyframeEntity): DeformKeyframeSnapshot {
+  return { id: kf.id, time: kf.time, offsets: kf.offsets.slice(), curve: cloneCurve(kf.curve) };
+}
+
+// Project an animation entity to its snapshot shape: bones/slots/ik/transform sorted by their internal id,
+// deform sorted by (skin, slotId, attachment), each channel a value copy in time order. Keyframe arrays
+// are already time-sorted in the model.
 export function animationToSnapshot(animation: AnimationEntity): AnimationSnapshot {
   const bones: BoneTimelineSnapshot[] = [];
   for (const [boneId, set] of animation.bones) {
@@ -283,5 +431,99 @@ export function animationToSnapshot(animation: AnimationEntity): AnimationSnapsh
     });
   }
   slots.sort((a, b) => (a.slotId < b.slotId ? -1 : a.slotId > b.slotId ? 1 : 0));
-  return { id: animation.id, name: animation.name, duration: animation.duration, bones, slots };
+  const ik: IkTimelineSnapshot[] = [];
+  for (const [constraintId, frames] of animation.ik) {
+    ik.push({ constraintId, keyframes: frames.map(ikKeyframeToSnapshot) });
+  }
+  ik.sort((a, b) =>
+    a.constraintId < b.constraintId ? -1 : a.constraintId > b.constraintId ? 1 : 0,
+  );
+  const transform: TransformTimelineSnapshot[] = [];
+  for (const [constraintId, frames] of animation.transform) {
+    transform.push({ constraintId, keyframes: frames.map(transformKeyframeToSnapshot) });
+  }
+  transform.sort((a, b) =>
+    a.constraintId < b.constraintId ? -1 : a.constraintId > b.constraintId ? 1 : 0,
+  );
+  const deform: DeformTimelineSnapshot[] = [];
+  for (const [skin, bySlot] of animation.deform) {
+    for (const [slotId, byName] of bySlot) {
+      for (const [attachment, frames] of byName) {
+        deform.push({ skin, slotId, attachment, keyframes: frames.map(deformKeyframeToSnapshot) });
+      }
+    }
+  }
+  deform.sort(
+    (a, b) =>
+      (a.skin < b.skin ? -1 : a.skin > b.skin ? 1 : 0) ||
+      (a.slotId < b.slotId ? -1 : a.slotId > b.slotId ? 1 : 0) ||
+      (a.attachment < b.attachment ? -1 : a.attachment > b.attachment ? 1 : 0),
+  );
+  return {
+    id: animation.id,
+    name: animation.name,
+    duration: animation.duration,
+    bones,
+    slots,
+    ik,
+    transform,
+    deform,
+  };
+}
+
+// Project an IK constraint to its snapshot shape (bones array copied so the snapshot never aliases).
+export function ikConstraintToSnapshot(c: IkConstraintEntity): IkConstraintSnapshot {
+  return {
+    id: c.id,
+    name: c.name,
+    bones: c.bones.slice(),
+    target: c.target,
+    mix: c.mix,
+    bendPositive: c.bendPositive,
+  };
+}
+
+// Project a transform constraint to its snapshot shape (all six mix and six offset channels).
+export function transformConstraintToSnapshot(
+  c: TransformConstraintEntity,
+): TransformConstraintSnapshot {
+  return {
+    id: c.id,
+    name: c.name,
+    bones: c.bones.slice(),
+    target: c.target,
+    mixRotate: c.mixRotate,
+    mixX: c.mixX,
+    mixY: c.mixY,
+    mixScaleX: c.mixScaleX,
+    mixScaleY: c.mixScaleY,
+    mixShearY: c.mixShearY,
+    offsetRotation: c.offsetRotation,
+    offsetX: c.offsetX,
+    offsetY: c.offsetY,
+    offsetScaleX: c.offsetScaleX,
+    offsetScaleY: c.offsetScaleY,
+    offsetShearY: c.offsetShearY,
+  };
+}
+
+// Project a named skin to its snapshot shape: its attachments flattened to a sorted list (by slotId then
+// name), the same shape DocSnapshot.attachments uses for the default skin.
+export function skinToSnapshot(skin: SkinEntity): SkinSnapshot {
+  const attachments: AttachmentSnapshot[] = [];
+  for (const [slotId, inner] of skin.attachments) {
+    for (const att of inner.values()) attachments.push(attachmentToSnapshot(slotId, att));
+  }
+  attachments.sort((a, b) =>
+    a.slotId < b.slotId
+      ? -1
+      : a.slotId > b.slotId
+        ? 1
+        : a.name < b.name
+          ? -1
+          : a.name > b.name
+            ? 1
+            : 0,
+  );
+  return { id: skin.id, name: skin.name, attachments };
 }

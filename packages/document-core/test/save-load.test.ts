@@ -294,6 +294,26 @@ describe('save / load seam', () => {
     expect(exported).toEqual(original); // lossless, hash included
   });
 
+  it('round-trips a fully-rigged Phase-2 document (constraints, named skin, ik/transform/deform timelines) deep-equal', () => {
+    // The seed is authored at 0.2.0 with real constraints and timelines; loadDocument promotes them to
+    // first-class editable entities and exportDocument projects them back. Hash it first so the format
+    // projection (which stamps the hash) reproduces the input exactly.
+    const original = { ...seeds.rigged, hash: computeContentHash({ ...seeds.rigged, hash: '' }) };
+    const doc = loadDocument(original, makeTestEnv().env);
+
+    // Constraints and the named skin load as first-class entities (not preserved verbatim).
+    expect(doc.model.ikConstraints().map((c) => c.name)).toEqual(['limb-ik']);
+    expect(doc.model.transformConstraints().map((c) => c.name)).toEqual(['follow']);
+    expect(doc.model.skins().map((s) => s.name)).toEqual(['variant']); // default is implicit
+    const move = doc.model.animations().find((a) => a.name === 'move')!;
+    expect(move.ik.size).toBe(1); // the limb-ik timeline
+    expect(move.transform.size).toBe(1); // the follow timeline
+    expect(move.deform.size).toBe(1); // the default-skin deform track
+
+    const exported = exportDocument(doc.model);
+    expect(exported).toEqual(original); // lossless, hash included
+  });
+
   it('cascades the slot and attachment when its bone is deleted, restoring them on undo', () => {
     // WP-1.2: DeleteBone now cascades the slots riding deleted bones and their attachments (the slice
     // of TASK-1.1.2 for slots/attachments), so deleting a slot-referenced bone leaves NO orphan: the

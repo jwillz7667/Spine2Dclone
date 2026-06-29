@@ -4,31 +4,43 @@ import type {
   Attachment,
   Bone,
   BoneTimelines,
+  DeformTimelines,
+  IkConstraint,
+  IkFrame,
+  Keyframe,
   MeshAttachment,
   RegionAttachment,
   Skin,
   SkeletonDocument,
   Slot,
   SlotTimelines,
+  TransformConstraint,
+  TransformFrame,
 } from '@marionette/format/types';
 import { DocumentInvariantError, ExportValidationError } from '../command/errors';
 import type {
   AnimationEntity,
   AttachmentEntity,
   BoneTimelineSet,
+  DeformKeyframeEntity,
+  DeformSkinKey,
+  IkConstraintEntity,
+  IkKeyframeEntity,
   KeyframeEntity,
+  SkinEntity,
   SlotTimelineSet,
+  TransformConstraintEntity,
+  TransformKeyframeEntity,
 } from '../model/doc-state';
 import type { DocumentReadModel } from '../model/read-model';
 
-// Project the internal model to the format (command-history Section 7.1): resolve BoneId references to
-// bone names, emit boneOrder as the ordered bones[] and slotOrder as the ordered slots[], materialize
-// the default skin from the editable attachments, carry the preserved non-default skins / animations /
-// atlas, stamp CURRENT_FORMAT_VERSION, then set `hash` LAST via computeContentHash from packages/format
-// (hash ownership lives there, never duplicated here). Finally run validateDocument on its own output,
-// so the bone-ordering invariant, slot/attachment resolution, and name uniqueness (the export-only D9
-// contract) are enforced here; an invalid projection throws ExportValidationError (LAW 3: fail loudly),
-// never ships silently.
+// Project the internal model to the format (command-history Section 7.1): resolve id references to names,
+// emit boneOrder as bones[] and slotOrder as slots[], materialize the default skin from the editable
+// attachments plus the named skins, project the constraints and the ik/transform/deform animation
+// timelines, stamp CURRENT_FORMAT_VERSION, then set `hash` LAST via computeContentHash (hash ownership
+// lives in packages/format). Finally run validateDocument on its own output so the bone-ordering invariant,
+// resolution, and name uniqueness (the export-only D9 contract) are enforced here; an invalid projection
+// throws ExportValidationError (LAW 3: fail loudly), never ships silently.
 function resolveName(id: string, idToName: ReadonlyMap<string, string>, what: string): string {
   const name = idToName.get(id);
   if (name === undefined) {
@@ -110,8 +122,7 @@ function colorKeyframes(channel: readonly KeyframeEntity[]): NonNullable<SlotTim
 }
 
 // Project a bone timeline set, emitting only the non-empty channels (the format channels are optional;
-// an empty channel is OMITTED rather than emitted as undefined or [], per exactOptionalPropertyTypes and
-// the slot/bone export style).
+// an empty channel is OMITTED rather than emitted as undefined or [], per exactOptionalPropertyTypes).
 function boneTimelinesToFormat(set: BoneTimelineSet): BoneTimelines {
   return {
     ...(set.rotate.length > 0 ? { rotate: rotateKeyframes(set.rotate) } : {}),
@@ -130,15 +141,55 @@ function slotTimelinesToFormat(set: SlotTimelineSet): SlotTimelines {
   };
 }
 
-// Project one animation entity to the format Animation, resolving BoneId/SlotId to current names and
-// dropping bone/slot entries whose every channel is empty. Phase 2 (ADR-0004) made the format Animation
-// `{ duration, bones, slots, ik, transform, deform }`; the document-core model does not yet author
-// ik/transform/deform timelines (they land with WP-2.6/2.7/2.9), so empty records are emitted to satisfy
-// the now-required keys. When those WPs add the model entities, this projects them here.
+// Project an IK timeline (Keyframe<IkFrame>[]). bendPositive and mix are both carried; the runtime samples
+// bendPositive stepped regardless of the curve (ADR-0003 section 7).
+function ikFramesToFormat(frames: readonly IkKeyframeEntity[]): Keyframe<IkFrame>[] {
+  return frames.map((kf) => ({
+    time: kf.time,
+    value: { mix: kf.mix, bendPositive: kf.bendPositive },
+    curve: kf.curve,
+  }));
+}
+
+// Project a transform timeline (Keyframe<TransformFrame>[]). Only the present (non-undefined) mix channels
+// are emitted, per the format's optional-channel shape (exactOptionalPropertyTypes); an absent channel
+// keeps its base value at solve time (ADR-0003).
+function transformFramesToFormat(
+  frames: readonly TransformKeyframeEntity[],
+): Keyframe<TransformFrame>[] {
+  return frames.map((kf) => {
+    const value: TransformFrame = {
+      ...(kf.mixRotate !== undefined ? { mixRotate: kf.mixRotate } : {}),
+      ...(kf.mixX !== undefined ? { mixX: kf.mixX } : {}),
+      ...(kf.mixY !== undefined ? { mixY: kf.mixY } : {}),
+      ...(kf.mixScaleX !== undefined ? { mixScaleX: kf.mixScaleX } : {}),
+      ...(kf.mixScaleY !== undefined ? { mixScaleY: kf.mixScaleY } : {}),
+      ...(kf.mixShearY !== undefined ? { mixShearY: kf.mixShearY } : {}),
+    };
+    return { time: kf.time, value, curve: kf.curve };
+  });
+}
+
+function deformFramesToFormat(
+  frames: readonly DeformKeyframeEntity[],
+): Keyframe<{ offsets: number[] }>[] {
+  return frames.map((kf) => ({
+    time: kf.time,
+    value: { offsets: [...kf.offsets] },
+    curve: kf.curve,
+  }));
+}
+
+// Project one animation entity to the format Animation, resolving id keys to current names and dropping
+// bone/slot entries whose every channel is empty. The ik/transform/deform records are emitted from the
+// model's timelines (ADR-0004 made them required format keys).
 function animationToFormat(
   animation: AnimationEntity,
   boneIdToName: ReadonlyMap<string, string>,
   slotIdToName: ReadonlyMap<string, string>,
+  ikIdToName: ReadonlyMap<string, string>,
+  transformIdToName: ReadonlyMap<string, string>,
+  skinIdToName: ReadonlyMap<string, string>,
 ): Animation {
   const bones: Record<string, BoneTimelines> = {};
   for (const [boneId, set] of animation.bones) {
@@ -152,7 +203,91 @@ function animationToFormat(
     if (Object.keys(timelines).length === 0) continue;
     slots[resolveName(slotId, slotIdToName, 'animation slot')] = timelines;
   }
-  return { duration: animation.duration, bones, slots, ik: {}, transform: {}, deform: {} };
+  const ik: Record<string, Keyframe<IkFrame>[]> = {};
+  for (const [constraintId, frames] of animation.ik) {
+    if (frames.length === 0) continue;
+    ik[resolveName(constraintId, ikIdToName, 'animation ik constraint')] = ikFramesToFormat(frames);
+  }
+  const transform: Record<string, Keyframe<TransformFrame>[]> = {};
+  for (const [constraintId, frames] of animation.transform) {
+    if (frames.length === 0) continue;
+    transform[resolveName(constraintId, transformIdToName, 'animation transform constraint')] =
+      transformFramesToFormat(frames);
+  }
+  const deform: DeformTimelines = {};
+  for (const [skinKey, bySlot] of animation.deform) {
+    const skinName = deformSkinKeyToName(skinKey, skinIdToName);
+    const bySlotOut: Record<string, Record<string, Keyframe<{ offsets: number[] }>[]>> = {};
+    for (const [slotId, byName] of bySlot) {
+      const byNameOut: Record<string, Keyframe<{ offsets: number[] }>[]> = {};
+      for (const [attachmentName, frames] of byName) {
+        if (frames.length === 0) continue;
+        byNameOut[attachmentName] = deformFramesToFormat(frames);
+      }
+      if (Object.keys(byNameOut).length > 0) {
+        bySlotOut[resolveName(slotId, slotIdToName, 'deform slot')] = byNameOut;
+      }
+    }
+    if (Object.keys(bySlotOut).length > 0) deform[skinName] = bySlotOut;
+  }
+  return { duration: animation.duration, bones, slots, ik, transform, deform };
+}
+
+// Resolve a deform skin key to its on-disk name: the literal 'default' passes through; a SkinId resolves
+// to that skin's CURRENT name.
+function deformSkinKeyToName(
+  skinKey: DeformSkinKey,
+  skinIdToName: ReadonlyMap<string, string>,
+): string {
+  return skinKey === 'default' ? 'default' : resolveName(skinKey, skinIdToName, 'deform skin');
+}
+
+function ikConstraintToFormat(
+  c: IkConstraintEntity,
+  boneIdToName: ReadonlyMap<string, string>,
+): IkConstraint {
+  return {
+    name: c.name,
+    bones: c.bones.map((boneId) => resolveName(boneId, boneIdToName, 'ik constraint bone')),
+    target: resolveName(c.target, boneIdToName, 'ik constraint target'),
+    mix: c.mix,
+    bendPositive: c.bendPositive,
+  };
+}
+
+function transformConstraintToFormat(
+  c: TransformConstraintEntity,
+  boneIdToName: ReadonlyMap<string, string>,
+): TransformConstraint {
+  return {
+    name: c.name,
+    bones: c.bones.map((boneId) => resolveName(boneId, boneIdToName, 'transform constraint bone')),
+    target: resolveName(c.target, boneIdToName, 'transform constraint target'),
+    mixRotate: c.mixRotate,
+    mixX: c.mixX,
+    mixY: c.mixY,
+    mixScaleX: c.mixScaleX,
+    mixScaleY: c.mixScaleY,
+    mixShearY: c.mixShearY,
+    offsetRotation: c.offsetRotation,
+    offsetX: c.offsetX,
+    offsetY: c.offsetY,
+    offsetScaleX: c.offsetScaleX,
+    offsetScaleY: c.offsetScaleY,
+    offsetShearY: c.offsetShearY,
+  };
+}
+
+// Materialize a named skin's attachments to the format record, keyed by each owning slot's CURRENT name.
+function skinToFormat(skin: SkinEntity, slotIdToName: ReadonlyMap<string, string>): Skin {
+  const attachments: Record<string, Record<string, Attachment>> = {};
+  for (const [slotId, inner] of skin.attachments) {
+    if (inner.size === 0) continue;
+    const record: Record<string, Attachment> = {};
+    for (const [name, att] of inner) record[name] = attachmentToFormat(att);
+    attachments[resolveName(slotId, slotIdToName, 'skin slot')] = record;
+  }
+  return { name: skin.name, attachments };
 }
 
 export function exportDocument(model: DocumentReadModel): SkeletonDocument {
@@ -200,11 +335,24 @@ export function exportDocument(model: DocumentReadModel): SkeletonDocument {
     for (const att of atts) record[att.name] = attachmentToFormat(att);
     defaultAttachments[slot.name] = record;
   }
-  const preserved = model.preserved();
+  const skinIdToName = new Map<string, string>();
+  for (const skin of model.skins()) skinIdToName.set(skin.id, skin.name);
   const skins: Skin[] = [
     { name: 'default', attachments: defaultAttachments },
-    ...preserved.extraSkins,
+    ...model.skins().map((skin) => skinToFormat(skin, slotIdToName)),
   ];
+
+  // Constraints emit in their stored solve order (ADR-0003: all IK, then all transform).
+  const ikIdToName = new Map<string, string>();
+  for (const c of model.ikConstraints()) ikIdToName.set(c.id, c.name);
+  const transformIdToName = new Map<string, string>();
+  for (const c of model.transformConstraints()) transformIdToName.set(c.id, c.name);
+  const ikConstraints: IkConstraint[] = model
+    .ikConstraints()
+    .map((c) => ikConstraintToFormat(c, boneIdToName));
+  const transformConstraints: TransformConstraint[] = model
+    .transformConstraints()
+    .map((c) => transformConstraintToFormat(c, boneIdToName));
 
   // Animations are name-keyed on disk (the record key is the animation name) and order-insignificant.
   // model.animations() is id-sorted (deterministic); a duplicate name cannot be represented in the
@@ -214,7 +362,14 @@ export function exportDocument(model: DocumentReadModel): SkeletonDocument {
     if (animation.name in animations) {
       throw new DocumentInvariantError(`animation name "${animation.name}" is not unique`);
     }
-    animations[animation.name] = animationToFormat(animation, boneIdToName, slotIdToName);
+    animations[animation.name] = animationToFormat(
+      animation,
+      boneIdToName,
+      slotIdToName,
+      ikIdToName,
+      transformIdToName,
+      skinIdToName,
+    );
   }
 
   const draft: SkeletonDocument = {
@@ -224,13 +379,10 @@ export function exportDocument(model: DocumentReadModel): SkeletonDocument {
     bones,
     slots,
     skins,
-    // Phase 2 (ADR-0004): the format requires these arrays. The model does not yet author constraints
-    // (WP-2.6/2.7 add the entities); empty arrays satisfy the contract and round-trip losslessly until
-    // then. extraSkins already round-trips non-default skins verbatim.
-    ikConstraints: [],
-    transformConstraints: [],
+    ikConstraints,
+    transformConstraints,
     animations,
-    atlas: preserved.atlas,
+    atlas: model.preserved().atlas,
   };
   const withHash: SkeletonDocument = { ...draft, hash: computeContentHash(draft) };
 

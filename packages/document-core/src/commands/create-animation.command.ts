@@ -1,5 +1,6 @@
 import type { Command, CommandContext } from '../command/command';
 import type { AnimationEntity } from '../model/doc-state';
+import { emptyAnimationConstraintTimelines } from '../model/doc-state';
 import type { AnimationId } from '../model/ids';
 import { findAnimationSnapshot, type CommandSpec } from './spec';
 
@@ -25,6 +26,7 @@ export class CreateAnimationCommand implements Command {
       duration: this.duration,
       bones: new Map(),
       slots: new Map(),
+      ...emptyAnimationConstraintTimelines(),
     };
     ctx.mutate.insertAnimation(entity);
   }

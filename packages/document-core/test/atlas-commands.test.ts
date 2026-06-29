@@ -51,15 +51,15 @@ describe('WP-1.3 SetAtlasRef command', () => {
     expect(doc.model.snapshot()).toEqual(afterDo); // redo replays the same value
   });
 
-  it('replaces a non-empty seed atlas and leaves extraSkins untouched, restoring it on undo', () => {
+  it('replaces a non-empty seed atlas and leaves the rest of the document untouched, restoring it on undo', () => {
     const { env } = makeTestEnv();
     const doc = loadDocument(seeds.slotted, env); // seeds an atlas of one page with two regions
     const before = doc.model.snapshot();
-    const priorExtraSkins = doc.model.preserved().extraSkins;
+    const priorSkins = doc.model.skins();
 
     doc.history.execute(new SetAtlasRefCommand(newAtlas));
     expect(doc.model.preserved().atlas).toEqual(newAtlas);
-    expect(doc.model.preserved().extraSkins).toEqual(priorExtraSkins); // atlas-only change
+    expect(doc.model.skins()).toEqual(priorSkins); // atlas-only change leaves named skins untouched
 
     doc.history.undo();
     expect(doc.model.snapshot()).toEqual(before); // the prior multi-region atlas restored exactly

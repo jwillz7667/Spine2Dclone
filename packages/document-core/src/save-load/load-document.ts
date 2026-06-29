@@ -1,5 +1,12 @@
 import { parseDocument } from '@marionette/format';
-import type { CurveType, Skin, SkeletonDocument } from '@marionette/format/types';
+import type {
+  Attachment,
+  CurveType,
+  IkConstraint,
+  Skin,
+  SkeletonDocument,
+  TransformConstraint,
+} from '@marionette/format/types';
 import { DocumentInvariantError } from '../command/errors';
 import type {
   AnimationEntity,
@@ -7,23 +14,45 @@ import type {
   AttachmentFrameEntity,
   BoneEntity,
   BoneTimelineSet,
+  DeformKeyframeEntity,
+  DeformSkinKey,
   DocState,
+  IkConstraintEntity,
+  IkKeyframeEntity,
   KeyframeEntity,
   KeyframeValue,
+  SkinEntity,
   SlotEntity,
   SlotTimelineSet,
+  TransformConstraintEntity,
+  TransformKeyframeEntity,
 } from '../model/doc-state';
-import { makeAttachmentFrame, makeKeyframe } from '../model/doc-state';
-import type { AnimationId, BoneId, IdFactory, SlotId } from '../model/ids';
+import {
+  makeAttachmentFrame,
+  makeDeformKeyframe,
+  makeIkKeyframe,
+  makeKeyframe,
+  makeTransformKeyframe,
+} from '../model/doc-state';
+import type {
+  AnimationId,
+  BoneId,
+  IdFactory,
+  IkConstraintId,
+  SkinId,
+  SlotId,
+  TransformConstraintId,
+} from '../model/ids';
 import { buildLoadedDocument, type Document } from './document';
 import type { DocumentEnvironment } from './environment';
 
 // Resolve a validated format document into internal DocState: mint a BoneId per bone (in format order),
-// a SlotId per slot (in slots[] order), resolve NAME references to ids, build the editable attachment
-// map from the default skin, and carry the non-default skins / animations / atlas verbatim. The format
-// validator already guaranteed unique names, parent-before-child ordering, and slot/attachment
-// resolution, so the resolutions below are total; a failure is corrupt input and throws (symmetry with
-// export).
+// a SlotId per slot (in slots[] order), an IkConstraintId / TransformConstraintId per constraint, a SkinId
+// per non-default skin, resolve NAME references to ids, build the editable attachment map from the default
+// skin and the named skins, and carry the atlas verbatim. The format validator already guaranteed unique
+// names, parent-before-child ordering, slot/attachment resolution, constraint bone/target existence, and
+// timeline key resolution, so the resolutions below are total; a failure is corrupt input and throws
+// (symmetry with export).
 function resolveId<T extends string>(
   name: string,
   nameToId: ReadonlyMap<string, T>,
@@ -34,6 +63,105 @@ function resolveId<T extends string>(
     throw new DocumentInvariantError(`${what} references "${name}", which does not exist`);
   }
   return id;
+}
+
+// Convert one format attachment to its editable entity (region/mesh promoted, everything else preserved
+// verbatim). Shared by the default skin and every named skin so both load identically. Arrays are copied
+// so the model never aliases the parsed document; edges/bones stay omitted when absent
+// (exactOptionalPropertyTypes).
+function attachmentToEntity(attachmentName: string, attachment: Attachment): AttachmentEntity {
+  if (attachment.type === 'region') {
+    return {
+      kind: 'region',
+      name: attachmentName,
+      path: attachment.path,
+      x: attachment.x,
+      y: attachment.y,
+      rotation: attachment.rotation,
+      scaleX: attachment.scaleX,
+      scaleY: attachment.scaleY,
+      width: attachment.width,
+      height: attachment.height,
+      color: attachment.color,
+    };
+  }
+  if (attachment.type === 'mesh') {
+    return {
+      kind: 'mesh',
+      name: attachmentName,
+      path: attachment.path,
+      uvs: attachment.uvs.slice(),
+      triangles: attachment.triangles.slice(),
+      hullLength: attachment.hullLength,
+      width: attachment.width,
+      height: attachment.height,
+      color: attachment.color,
+      vertices: attachment.vertices.slice(),
+      ...(attachment.edges !== undefined ? { edges: attachment.edges.slice() } : {}),
+      ...(attachment.bones !== undefined ? { bones: attachment.bones.slice() } : {}),
+    };
+  }
+  return { kind: 'preserved', name: attachmentName, value: attachment };
+}
+
+// Build a skin's editable attachment map (slotId -> name -> entity) from a format skin's `attachments`
+// record (slotName -> attachmentName -> Attachment). A slot with no attachments contributes no entry.
+function buildSkinAttachments(
+  attachments: Skin['attachments'],
+  slotNameToId: ReadonlyMap<string, SlotId>,
+): Map<SlotId, Map<string, AttachmentEntity>> {
+  const out = new Map<SlotId, Map<string, AttachmentEntity>>();
+  for (const [slotName, slotAttachments] of Object.entries(attachments)) {
+    const slotId = resolveId(slotName, slotNameToId, 'skin slot');
+    const inner = new Map<string, AttachmentEntity>();
+    for (const [attachmentName, attachment] of Object.entries(slotAttachments)) {
+      inner.set(attachmentName, attachmentToEntity(attachmentName, attachment));
+    }
+    if (inner.size > 0) out.set(slotId, inner);
+  }
+  return out;
+}
+
+function ikConstraintToEntity(
+  id: IkConstraintId,
+  c: IkConstraint,
+  boneNameToId: ReadonlyMap<string, BoneId>,
+): IkConstraintEntity {
+  return {
+    id,
+    name: c.name,
+    bones: c.bones.map((boneName) => resolveId(boneName, boneNameToId, 'ik constraint bone')),
+    target: resolveId(c.target, boneNameToId, 'ik constraint target'),
+    mix: c.mix,
+    bendPositive: c.bendPositive,
+  };
+}
+
+function transformConstraintToEntity(
+  id: TransformConstraintId,
+  c: TransformConstraint,
+  boneNameToId: ReadonlyMap<string, BoneId>,
+): TransformConstraintEntity {
+  return {
+    id,
+    name: c.name,
+    bones: c.bones.map((boneName) =>
+      resolveId(boneName, boneNameToId, 'transform constraint bone'),
+    ),
+    target: resolveId(c.target, boneNameToId, 'transform constraint target'),
+    mixRotate: c.mixRotate,
+    mixX: c.mixX,
+    mixY: c.mixY,
+    mixScaleX: c.mixScaleX,
+    mixScaleY: c.mixScaleY,
+    mixShearY: c.mixShearY,
+    offsetRotation: c.offsetRotation,
+    offsetX: c.offsetX,
+    offsetY: c.offsetY,
+    offsetScaleX: c.offsetScaleX,
+    offsetScaleY: c.offsetScaleY,
+    offsetShearY: c.offsetShearY,
+  };
 }
 
 function formatToDocState(document: SkeletonDocument, ids: IdFactory): DocState {
@@ -86,61 +214,58 @@ function formatToDocState(document: SkeletonDocument, ids: IdFactory): DocState 
     });
   });
 
-  // The default skin's attachments become first-class; every OTHER skin round-trips verbatim. The
-  // default skin always exists (the validator's SKIN_DEFAULT_MISSING guarantees it).
+  // The default skin's attachments become first-class; every OTHER skin is promoted to a SkinEntity (WP-2.8;
+  // no longer carried verbatim in preserved.extraSkins). The default skin always exists (the validator's
+  // SKIN_DEFAULT_MISSING guarantees it).
   const defaultSkin = document.skins.find((skin) => skin.name === 'default');
-  const extraSkins: Skin[] = document.skins.filter((skin) => skin.name !== 'default');
-  const attachments = new Map<SlotId, Map<string, AttachmentEntity>>();
-  if (defaultSkin) {
-    for (const [slotName, slotAttachments] of Object.entries(defaultSkin.attachments)) {
-      const slotId = resolveId(slotName, slotNameToId, 'default-skin slot');
-      const inner = new Map<string, AttachmentEntity>();
-      for (const [attachmentName, attachment] of Object.entries(slotAttachments)) {
-        if (attachment.type === 'region') {
-          inner.set(attachmentName, {
-            kind: 'region',
-            name: attachmentName,
-            path: attachment.path,
-            x: attachment.x,
-            y: attachment.y,
-            rotation: attachment.rotation,
-            scaleX: attachment.scaleX,
-            scaleY: attachment.scaleY,
-            width: attachment.width,
-            height: attachment.height,
-            color: attachment.color,
-          });
-        } else if (attachment.type === 'mesh') {
-          // WP-2.1: default-skin mesh attachments become first-class editable entities (no longer
-          // preserved verbatim). The format MeshAttachment is mirrored BY VALUE; edges/bones stay
-          // omitted when absent (exactOptionalPropertyTypes). Arrays are copied so the model never
-          // aliases the parsed document.
-          inner.set(attachmentName, {
-            kind: 'mesh',
-            name: attachmentName,
-            path: attachment.path,
-            uvs: attachment.uvs.slice(),
-            triangles: attachment.triangles.slice(),
-            hullLength: attachment.hullLength,
-            width: attachment.width,
-            height: attachment.height,
-            color: attachment.color,
-            vertices: attachment.vertices.slice(),
-            ...(attachment.edges !== undefined ? { edges: attachment.edges.slice() } : {}),
-            ...(attachment.bones !== undefined ? { bones: attachment.bones.slice() } : {}),
-          });
-        } else {
-          inner.set(attachmentName, { kind: 'preserved', name: attachmentName, value: attachment });
-        }
-      }
-      if (inner.size > 0) attachments.set(slotId, inner);
-    }
+  const attachments = defaultSkin
+    ? buildSkinAttachments(defaultSkin.attachments, slotNameToId)
+    : new Map<SlotId, Map<string, AttachmentEntity>>();
+
+  const skinNameToId = new Map<string, SkinId>();
+  const skinOrder: SkinId[] = [];
+  const skinsMap = new Map<SkinId, SkinEntity>();
+  for (const skin of document.skins) {
+    if (skin.name === 'default') continue;
+    const id = ids.mint('skin');
+    skinNameToId.set(skin.name, id);
+    skinOrder.push(id);
+    skinsMap.set(id, {
+      id,
+      name: skin.name,
+      attachments: buildSkinAttachments(skin.attachments, slotNameToId),
+    });
   }
 
-  // Animations (WP-1.5) become first-class: mint an AnimationId per animation and a KeyframeId per
-  // keyframe/frame, and resolve bone/slot NAME keys to ids. The validator already guaranteed every
-  // timeline key resolves (ANIM_BONE_UNKNOWN / ANIM_SLOT_UNKNOWN), so resolveId is total here; a failure
-  // is corrupt input and throws (symmetry with export).
+  // Constraints (WP-2.6/2.7): mint an id per constraint, resolve bone/target NAME references to ids, and
+  // keep the stored array order as the solve order (ikConstraintOrder / transformConstraintOrder).
+  const ikNameToId = new Map<string, IkConstraintId>();
+  const ikConstraintOrder: IkConstraintId[] = [];
+  const ikConstraints = new Map<IkConstraintId, IkConstraintEntity>();
+  for (const c of document.ikConstraints) {
+    const id = ids.mint('ikConstraint');
+    ikNameToId.set(c.name, id);
+    ikConstraintOrder.push(id);
+    ikConstraints.set(id, ikConstraintToEntity(id, c, boneNameToId));
+  }
+  const tcNameToId = new Map<string, TransformConstraintId>();
+  const transformConstraintOrder: TransformConstraintId[] = [];
+  const transformConstraints = new Map<TransformConstraintId, TransformConstraintEntity>();
+  for (const c of document.transformConstraints) {
+    const id = ids.mint('transformConstraint');
+    tcNameToId.set(c.name, id);
+    transformConstraintOrder.push(id);
+    transformConstraints.set(id, transformConstraintToEntity(id, c, boneNameToId));
+  }
+
+  // The deform skin key resolves 'default' to itself and a named skin to its SkinId, so a deform track
+  // survives a skin rename.
+  const resolveDeformSkinKey = (skinName: string): DeformSkinKey =>
+    skinName === 'default' ? 'default' : resolveId(skinName, skinNameToId, 'deform skin');
+
+  // Animations (WP-1.5, extended in Phase 2) become first-class: mint an AnimationId per animation and a
+  // KeyframeId per keyframe/frame, and resolve bone/slot/constraint/skin NAME keys to ids. The validator
+  // already guaranteed every timeline key resolves, so resolveId is total here.
   const animations = new Map<AnimationId, AnimationEntity>();
   for (const [animName, animation] of Object.entries(document.animations)) {
     const id = ids.mint('animation');
@@ -154,12 +279,42 @@ function formatToDocState(document: SkeletonDocument, ids: IdFactory): DocState 
       const slotId = resolveId(slotName, slotNameToId, 'animation slot');
       slotTracks.set(slotId, loadSlotTimelines(timelines, ids));
     }
+    const ikTracks = new Map<IkConstraintId, readonly IkKeyframeEntity[]>();
+    for (const [constraintName, frames] of Object.entries(animation.ik)) {
+      const constraintId = resolveId(constraintName, ikNameToId, 'animation ik constraint');
+      ikTracks.set(constraintId, loadIkFrames(frames, ids));
+    }
+    const transformTracks = new Map<TransformConstraintId, readonly TransformKeyframeEntity[]>();
+    for (const [constraintName, frames] of Object.entries(animation.transform)) {
+      const constraintId = resolveId(constraintName, tcNameToId, 'animation transform constraint');
+      transformTracks.set(constraintId, loadTransformFrames(frames, ids));
+    }
+    const deformTracks = new Map<
+      DeformSkinKey,
+      Map<SlotId, Map<string, readonly DeformKeyframeEntity[]>>
+    >();
+    for (const [skinName, bySlot] of Object.entries(animation.deform)) {
+      const skinKey = resolveDeformSkinKey(skinName);
+      const slotMap = new Map<SlotId, Map<string, readonly DeformKeyframeEntity[]>>();
+      for (const [slotName, byName] of Object.entries(bySlot)) {
+        const slotId = resolveId(slotName, slotNameToId, 'deform slot');
+        const nameMap = new Map<string, readonly DeformKeyframeEntity[]>();
+        for (const [attachmentName, frames] of Object.entries(byName)) {
+          nameMap.set(attachmentName, loadDeformFrames(frames, ids));
+        }
+        slotMap.set(slotId, nameMap);
+      }
+      deformTracks.set(skinKey, slotMap);
+    }
     animations.set(id, {
       id,
       name: animName,
       duration: animation.duration,
       bones: bonesTracks,
       slots: slotTracks,
+      ik: ikTracks,
+      transform: transformTracks,
+      deform: deformTracks,
     });
   }
 
@@ -172,9 +327,14 @@ function formatToDocState(document: SkeletonDocument, ids: IdFactory): DocState 
     slotOrder,
     attachments,
     animations,
+    ikConstraints,
+    ikConstraintOrder,
+    transformConstraints,
+    transformConstraintOrder,
+    skins: skinsMap,
+    skinOrder,
     preserved: {
       atlas: document.atlas,
-      extraSkins,
     },
   };
 }
@@ -219,6 +379,51 @@ function loadSlotTimelines(
     color: loadKeyframes(timelines.color, ids),
     attachment: loadAttachmentFrames(timelines.attachment, ids),
   };
+}
+
+function loadIkFrames(
+  frames: SkeletonDocument['animations'][string]['ik'][string],
+  ids: IdFactory,
+): IkKeyframeEntity[] {
+  return frames.map((frame) =>
+    makeIkKeyframe(
+      ids.mint('keyframe'),
+      frame.time,
+      frame.value.mix,
+      frame.value.bendPositive,
+      frame.curve,
+    ),
+  );
+}
+
+function loadTransformFrames(
+  frames: SkeletonDocument['animations'][string]['transform'][string],
+  ids: IdFactory,
+): TransformKeyframeEntity[] {
+  return frames.map((frame) =>
+    makeTransformKeyframe(
+      ids.mint('keyframe'),
+      frame.time,
+      {
+        mixRotate: frame.value.mixRotate,
+        mixX: frame.value.mixX,
+        mixY: frame.value.mixY,
+        mixScaleX: frame.value.mixScaleX,
+        mixScaleY: frame.value.mixScaleY,
+        mixShearY: frame.value.mixShearY,
+      },
+      frame.curve,
+    ),
+  );
+}
+
+function loadDeformFrames(
+  frames: SkeletonDocument['animations'][string]['deform'][string][string][string],
+  ids: IdFactory,
+): DeformKeyframeEntity[] {
+  return frames.map((frame) =>
+    makeDeformKeyframe(ids.mint('keyframe'), frame.time, frame.value.offsets, frame.curve),
+  );
 }
 
 // Load a document from format JSON (command-history Section 7.2). Validates at the boundary via

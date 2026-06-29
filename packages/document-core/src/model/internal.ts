@@ -6,26 +6,47 @@ import type {
   BoneChannel,
   BoneEntity,
   BoneTimelineSet,
+  DeformKeyframeEntity,
+  DeformSkinKey,
   DocState,
+  IkConstraintEntity,
+  IkKeyframeEntity,
   KeyframeEntity,
   MeshAttachmentEntity,
   MeshGeometry,
   PreservedContent,
   RegionAttachmentEntity,
+  SkinEntity,
   SlotEntity,
   SlotTimelineSet,
+  TransformConstraintEntity,
+  TransformKeyframeEntity,
 } from './doc-state';
 import { isBoneTimelineSetEmpty, isSlotTimelineSetEmpty } from './doc-state';
-import type { AnimationId, BoneId, IdFactory, SlotId } from './ids';
+import type {
+  AnimationId,
+  BoneId,
+  IdFactory,
+  IkConstraintId,
+  SkinId,
+  SlotId,
+  TransformConstraintId,
+} from './ids';
 import {
   animationToSnapshot,
   attachmentToSnapshot,
   boneToSnapshot,
+  ikConstraintToSnapshot,
+  skinToSnapshot,
   slotToSnapshot,
+  transformConstraintToSnapshot,
   type AnimationSnapshot,
   type AttachmentSnapshot,
   type DocSnapshot,
   type DocumentReadModel,
+  type IkConstraintSnapshot,
+  type SkinSnapshot,
+  type TransformConstraintSnapshot,
 } from './read-model';
 
 // Internal mutable bone: the same fields as BoneEntity but writable, so BATCH mode can patch a field
@@ -143,13 +164,22 @@ interface MutableSlotTimelineSet {
   attachment: AttachmentFrameEntity[];
 }
 
-// Internal mutable animation: timelines keyed by branded id, with writable maps/arrays for batch mode.
+// Internal mutable deform map: skin -> slot -> attachment name -> keyframe array. The keyframe OBJECTS are
+// immutable (replaced wholesale, never patched), so the arrays carry shared frozen refs safely.
+type MutableDeformMap = Map<DeformSkinKey, Map<SlotId, Map<string, DeformKeyframeEntity[]>>>;
+
+// Internal mutable animation: timelines keyed by branded id, with writable maps/arrays for batch mode. The
+// ik/transform timelines are keyed by the constraint id; the deform timeline is the nested skin/slot/name
+// map (the format `deform` shape).
 interface MutableAnimation {
   id: AnimationId;
   name: string;
   duration: number;
   bones: Map<BoneId, MutableBoneTimelineSet>;
   slots: Map<SlotId, MutableSlotTimelineSet>;
+  ik: Map<IkConstraintId, IkKeyframeEntity[]>;
+  transform: Map<TransformConstraintId, TransformKeyframeEntity[]>;
+  deform: MutableDeformMap;
 }
 
 function toMutableBoneSet(set: BoneTimelineSet): MutableBoneTimelineSet {
@@ -165,12 +195,68 @@ function toMutableSlotSet(set: SlotTimelineSet): MutableSlotTimelineSet {
   return { color: set.color.slice(), attachment: set.attachment.slice() };
 }
 
+// Deep-copy a deform map (fresh nested maps and sliced keyframe arrays) so an in-place edit to one copy
+// never touches another. Used by both the readonly->mutable load and the discrete copy-on-write clone.
+function cloneDeformMap(
+  src: ReadonlyMap<
+    DeformSkinKey,
+    ReadonlyMap<SlotId, ReadonlyMap<string, readonly DeformKeyframeEntity[]>>
+  >,
+): MutableDeformMap {
+  const out: MutableDeformMap = new Map();
+  for (const [skinKey, bySlot] of src) {
+    const slotMap = new Map<SlotId, Map<string, DeformKeyframeEntity[]>>();
+    for (const [slotId, byName] of bySlot) {
+      const nameMap = new Map<string, DeformKeyframeEntity[]>();
+      for (const [name, frames] of byName) nameMap.set(name, frames.slice());
+      slotMap.set(slotId, nameMap);
+    }
+    out.set(skinKey, slotMap);
+  }
+  return out;
+}
+
+function freezeDeformMap(
+  src: MutableDeformMap,
+): ReadonlyMap<
+  DeformSkinKey,
+  ReadonlyMap<SlotId, ReadonlyMap<string, readonly DeformKeyframeEntity[]>>
+> {
+  const out = new Map<
+    DeformSkinKey,
+    ReadonlyMap<SlotId, ReadonlyMap<string, readonly DeformKeyframeEntity[]>>
+  >();
+  for (const [skinKey, bySlot] of src) {
+    const slotMap = new Map<SlotId, ReadonlyMap<string, readonly DeformKeyframeEntity[]>>();
+    for (const [slotId, byName] of bySlot) {
+      const nameMap = new Map<string, readonly DeformKeyframeEntity[]>();
+      for (const [name, frames] of byName) nameMap.set(name, Object.freeze(frames.slice()));
+      slotMap.set(slotId, nameMap);
+    }
+    out.set(skinKey, slotMap);
+  }
+  return out;
+}
+
 function toMutableAnimation(animation: AnimationEntity): MutableAnimation {
   const bones = new Map<BoneId, MutableBoneTimelineSet>();
   for (const [id, set] of animation.bones) bones.set(id, toMutableBoneSet(set));
   const slots = new Map<SlotId, MutableSlotTimelineSet>();
   for (const [id, set] of animation.slots) slots.set(id, toMutableSlotSet(set));
-  return { id: animation.id, name: animation.name, duration: animation.duration, bones, slots };
+  const ik = new Map<IkConstraintId, IkKeyframeEntity[]>();
+  for (const [id, frames] of animation.ik) ik.set(id, frames.slice());
+  const transform = new Map<TransformConstraintId, TransformKeyframeEntity[]>();
+  for (const [id, frames] of animation.transform) transform.set(id, frames.slice());
+  return {
+    id: animation.id,
+    name: animation.name,
+    duration: animation.duration,
+    bones,
+    slots,
+    ik,
+    transform,
+    deform: cloneDeformMap(animation.deform),
+  };
 }
 
 // Clone a mutable animation (deep enough that an in-place edit to the clone never touches the original):
@@ -189,7 +275,20 @@ function cloneMutableAnimation(a: MutableAnimation): MutableAnimation {
   for (const [id, set] of a.slots) {
     slots.set(id, { color: set.color.slice(), attachment: set.attachment.slice() });
   }
-  return { id: a.id, name: a.name, duration: a.duration, bones, slots };
+  const ik = new Map<IkConstraintId, IkKeyframeEntity[]>();
+  for (const [id, frames] of a.ik) ik.set(id, frames.slice());
+  const transform = new Map<TransformConstraintId, TransformKeyframeEntity[]>();
+  for (const [id, frames] of a.transform) transform.set(id, frames.slice());
+  return {
+    id: a.id,
+    name: a.name,
+    duration: a.duration,
+    bones,
+    slots,
+    ik,
+    transform,
+    deform: cloneDeformMap(a.deform),
+  };
 }
 
 // Freeze a mutable animation for hand-out: a fresh readonly entity with fresh maps and frozen channel
@@ -217,7 +316,20 @@ function freezeAnimation(a: MutableAnimation): AnimationEntity {
       }),
     );
   }
-  return Object.freeze({ id: a.id, name: a.name, duration: a.duration, bones, slots });
+  const ik = new Map<IkConstraintId, readonly IkKeyframeEntity[]>();
+  for (const [id, frames] of a.ik) ik.set(id, Object.freeze(frames.slice()));
+  const transform = new Map<TransformConstraintId, readonly TransformKeyframeEntity[]>();
+  for (const [id, frames] of a.transform) transform.set(id, Object.freeze(frames.slice()));
+  return Object.freeze({
+    id: a.id,
+    name: a.name,
+    duration: a.duration,
+    bones,
+    slots,
+    ik,
+    transform,
+    deform: freezeDeformMap(a.deform),
+  });
 }
 
 function cloneAnimations(
@@ -225,6 +337,83 @@ function cloneAnimations(
 ): Map<AnimationId, MutableAnimation> {
   const out = new Map<AnimationId, MutableAnimation>();
   for (const [id, animation] of source) out.set(id, cloneMutableAnimation(animation));
+  return out;
+}
+
+// Internal mutable constraints, same role as MutableBone/MutableSlot: BATCH mode patches a field in place
+// during a slider drag without cloning the map; read accessors hand out frozen copies. `bones` is replaced
+// wholesale (never mutated in place), so a shared array reference is safe.
+interface MutableIkConstraint {
+  id: IkConstraintId;
+  name: string;
+  bones: readonly BoneId[];
+  target: BoneId;
+  mix: number;
+  bendPositive: boolean;
+}
+
+interface MutableTransformConstraint {
+  id: TransformConstraintId;
+  name: string;
+  bones: readonly BoneId[];
+  target: BoneId;
+  mixRotate: number;
+  mixX: number;
+  mixY: number;
+  mixScaleX: number;
+  mixScaleY: number;
+  mixShearY: number;
+  offsetRotation: number;
+  offsetX: number;
+  offsetY: number;
+  offsetScaleX: number;
+  offsetScaleY: number;
+  offsetShearY: number;
+}
+
+// Internal mutable named skin: its own attachment map (slotId -> name -> entity), the same shape as the
+// model's default-skin attachmentsMap, so cloneAttachments and freezeAttachment are reused verbatim.
+interface MutableSkin {
+  id: SkinId;
+  name: string;
+  attachments: Map<SlotId, Map<string, AttachmentEntity>>;
+}
+
+function toMutableIk(c: IkConstraintEntity): MutableIkConstraint {
+  return { ...c, bones: c.bones.slice() };
+}
+
+function freezeIk(c: MutableIkConstraint): IkConstraintEntity {
+  return Object.freeze({ ...c, bones: Object.freeze(c.bones.slice()) });
+}
+
+function toMutableTransform(c: TransformConstraintEntity): MutableTransformConstraint {
+  return { ...c, bones: c.bones.slice() };
+}
+
+function freezeTransform(c: MutableTransformConstraint): TransformConstraintEntity {
+  return Object.freeze({ ...c, bones: Object.freeze(c.bones.slice()) });
+}
+
+function toMutableSkin(skin: SkinEntity): MutableSkin {
+  return { id: skin.id, name: skin.name, attachments: cloneAttachments(skin.attachments) };
+}
+
+function freezeSkin(skin: MutableSkin): SkinEntity {
+  const attachments = new Map<SlotId, ReadonlyMap<string, AttachmentEntity>>();
+  for (const [slotId, inner] of skin.attachments) {
+    const frozen = new Map<string, AttachmentEntity>();
+    for (const [name, att] of inner) frozen.set(name, freezeAttachment(att));
+    attachments.set(slotId, frozen);
+  }
+  return Object.freeze({ id: skin.id, name: skin.name, attachments });
+}
+
+function cloneSkins(source: ReadonlyMap<SkinId, MutableSkin>): Map<SkinId, MutableSkin> {
+  const out = new Map<SkinId, MutableSkin>();
+  for (const [id, skin] of source) {
+    out.set(id, { id: skin.id, name: skin.name, attachments: cloneAttachments(skin.attachments) });
+  }
   return out;
 }
 
@@ -244,6 +433,12 @@ export class DocumentModelInternal implements DocumentReadModel {
   private slotOrderArr: SlotId[];
   private attachmentsMap: Map<SlotId, Map<string, AttachmentEntity>>;
   private animationsMap: Map<AnimationId, MutableAnimation>;
+  private ikConstraintsMap: Map<IkConstraintId, MutableIkConstraint>;
+  private ikConstraintOrderArr: IkConstraintId[];
+  private transformConstraintsMap: Map<TransformConstraintId, MutableTransformConstraint>;
+  private transformConstraintOrderArr: TransformConstraintId[];
+  private skinsMap: Map<SkinId, MutableSkin>;
+  private skinOrderArr: SkinId[];
   private preservedContent: PreservedContent;
   private batching = false;
   private revisionValue = 0;
@@ -263,9 +458,19 @@ export class DocumentModelInternal implements DocumentReadModel {
     for (const [id, animation] of state.animations) {
       this.animationsMap.set(id, toMutableAnimation(animation));
     }
+    this.ikConstraintsMap = new Map();
+    for (const [id, c] of state.ikConstraints) this.ikConstraintsMap.set(id, toMutableIk(c));
+    this.ikConstraintOrderArr = state.ikConstraintOrder.slice();
+    this.transformConstraintsMap = new Map();
+    for (const [id, c] of state.transformConstraints) {
+      this.transformConstraintsMap.set(id, toMutableTransform(c));
+    }
+    this.transformConstraintOrderArr = state.transformConstraintOrder.slice();
+    this.skinsMap = new Map();
+    for (const [id, skin] of state.skins) this.skinsMap.set(id, toMutableSkin(skin));
+    this.skinOrderArr = state.skinOrder.slice();
     this.preservedContent = deepFreeze({
       atlas: state.preserved.atlas,
-      extraSkins: state.preserved.extraSkins,
     });
   }
 
@@ -341,6 +546,48 @@ export class DocumentModelInternal implements DocumentReadModel {
       .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   }
 
+  getIkConstraint(id: IkConstraintId): IkConstraintEntity | undefined {
+    const c = this.ikConstraintsMap.get(id);
+    return c ? freezeIk(c) : undefined;
+  }
+
+  ikConstraints(): readonly IkConstraintEntity[] {
+    const out: IkConstraintEntity[] = [];
+    for (const id of this.ikConstraintOrderArr) {
+      const c = this.ikConstraintsMap.get(id);
+      if (c) out.push(freezeIk(c));
+    }
+    return out;
+  }
+
+  getTransformConstraint(id: TransformConstraintId): TransformConstraintEntity | undefined {
+    const c = this.transformConstraintsMap.get(id);
+    return c ? freezeTransform(c) : undefined;
+  }
+
+  transformConstraints(): readonly TransformConstraintEntity[] {
+    const out: TransformConstraintEntity[] = [];
+    for (const id of this.transformConstraintOrderArr) {
+      const c = this.transformConstraintsMap.get(id);
+      if (c) out.push(freezeTransform(c));
+    }
+    return out;
+  }
+
+  getSkin(id: SkinId): SkinEntity | undefined {
+    const skin = this.skinsMap.get(id);
+    return skin ? freezeSkin(skin) : undefined;
+  }
+
+  skins(): readonly SkinEntity[] {
+    const out: SkinEntity[] = [];
+    for (const id of this.skinOrderArr) {
+      const skin = this.skinsMap.get(id);
+      if (skin) out.push(freezeSkin(skin));
+    }
+    return out;
+  }
+
   preserved(): PreservedContent {
     return this.preservedContent;
   }
@@ -370,6 +617,17 @@ export class DocumentModelInternal implements DocumentReadModel {
     const animations: AnimationSnapshot[] = [...this.animationsMap.values()]
       .map((animation) => animationToSnapshot(freezeAnimation(animation)))
       .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+    const ikConstraints: IkConstraintSnapshot[] = [...this.ikConstraintsMap.values()]
+      .map((c) => ikConstraintToSnapshot(freezeIk(c)))
+      .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+    const transformConstraints: TransformConstraintSnapshot[] = [
+      ...this.transformConstraintsMap.values(),
+    ]
+      .map((c) => transformConstraintToSnapshot(freezeTransform(c)))
+      .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+    const skins: SkinSnapshot[] = [...this.skinsMap.values()]
+      .map((skin) => skinToSnapshot(freezeSkin(skin)))
+      .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
     return {
       formatVersion: this.formatVersionValue,
       name: this.nameValue,
@@ -379,6 +637,12 @@ export class DocumentModelInternal implements DocumentReadModel {
       slotOrder: this.slotOrderArr.slice(),
       attachments,
       animations,
+      ikConstraints,
+      ikConstraintOrder: this.ikConstraintOrderArr.slice(),
+      transformConstraints,
+      transformConstraintOrder: this.transformConstraintOrderArr.slice(),
+      skins,
+      skinOrder: this.skinOrderArr.slice(),
       preserved: this.preservedContent,
     };
   }
@@ -718,6 +982,67 @@ export class DocumentModelInternal implements DocumentReadModel {
     });
   }
 
+  // Replace a constraint's IK keyframe array on one animation (WP-2.6). An empty array prunes the entry
+  // (the prune-on-empty symmetry the do/undo round-trip relies on); the caller passes an already-time-
+  // sorted array of immutable frames.
+  setIkChannel(
+    animId: AnimationId,
+    constraintId: IkConstraintId,
+    keyframes: readonly IkKeyframeEntity[],
+  ): void {
+    this.writeAnimation(animId, (animation) => {
+      if (keyframes.length === 0) animation.ik.delete(constraintId);
+      else animation.ik.set(constraintId, keyframes.slice());
+    });
+  }
+
+  // Replace a constraint's transform keyframe array on one animation (WP-2.7). Same prune-on-empty contract.
+  setTransformChannel(
+    animId: AnimationId,
+    constraintId: TransformConstraintId,
+    keyframes: readonly TransformKeyframeEntity[],
+  ): void {
+    this.writeAnimation(animId, (animation) => {
+      if (keyframes.length === 0) animation.transform.delete(constraintId);
+      else animation.transform.set(constraintId, keyframes.slice());
+    });
+  }
+
+  // Replace the deform keyframes for one skin/slot/attachment on one animation (WP-2.9). An empty array
+  // prunes the attachment entry, then the slot map, then the skin map as each becomes empty, so clearing
+  // exactly reverses a prior set (round-trip symmetry). The caller passes an already-time-sorted array.
+  setDeformChannel(
+    animId: AnimationId,
+    skinKey: DeformSkinKey,
+    slotId: SlotId,
+    attachmentName: string,
+    keyframes: readonly DeformKeyframeEntity[],
+  ): void {
+    this.writeAnimation(animId, (animation) => {
+      const bySlot = animation.deform.get(skinKey);
+      if (keyframes.length === 0) {
+        if (!bySlot) return;
+        const byName = bySlot.get(slotId);
+        if (!byName) return;
+        byName.delete(attachmentName);
+        if (byName.size === 0) bySlot.delete(slotId);
+        if (bySlot.size === 0) animation.deform.delete(skinKey);
+        return;
+      }
+      let slotMap = bySlot;
+      if (!slotMap) {
+        slotMap = new Map();
+        animation.deform.set(skinKey, slotMap);
+      }
+      let nameMap = slotMap.get(slotId);
+      if (!nameMap) {
+        nameMap = new Map();
+        slotMap.set(slotId, nameMap);
+      }
+      nameMap.set(attachmentName, keyframes.slice());
+    });
+  }
+
   // The single copy-on-write boundary for an animation edit: DISCRETE clones the target animation (so a
   // reference-equality selector sees exactly one change and siblings stay shared), BATCH mutates it in
   // place. A missing id is a no-op (commands assert existence before writing).
@@ -736,15 +1061,196 @@ export class DocumentModelInternal implements DocumentReadModel {
     this.revisionValue += 1;
   }
 
+  // ----- constraint write surface (WP-2.6 / WP-2.7, reached only through the Mutator) -----
+
+  insertIkConstraint(entity: IkConstraintEntity, index: number): void {
+    const c = toMutableIk(entity);
+    if (this.batching) {
+      this.ikConstraintsMap.set(c.id, c);
+      this.ikConstraintOrderArr.splice(index, 0, c.id);
+    } else {
+      const next = new Map(this.ikConstraintsMap);
+      next.set(c.id, c);
+      this.ikConstraintsMap = next;
+      const order = this.ikConstraintOrderArr.slice();
+      order.splice(index, 0, c.id);
+      this.ikConstraintOrderArr = order;
+    }
+    this.revisionValue += 1;
+  }
+
+  removeIkConstraint(id: IkConstraintId): void {
+    if (this.batching) {
+      this.ikConstraintsMap.delete(id);
+      const i = this.ikConstraintOrderArr.indexOf(id);
+      if (i >= 0) this.ikConstraintOrderArr.splice(i, 1);
+    } else {
+      const next = new Map(this.ikConstraintsMap);
+      next.delete(id);
+      this.ikConstraintsMap = next;
+      this.ikConstraintOrderArr = this.ikConstraintOrderArr.filter((x) => x !== id);
+    }
+    this.revisionValue += 1;
+  }
+
+  patchIkConstraint(id: IkConstraintId, patch: Partial<Omit<IkConstraintEntity, 'id'>>): void {
+    const current = this.ikConstraintsMap.get(id);
+    if (!current) return;
+    if (this.batching) {
+      Object.assign(current, patch);
+    } else {
+      const next = new Map(this.ikConstraintsMap);
+      next.set(id, { ...current, ...patch });
+      this.ikConstraintsMap = next;
+    }
+    this.revisionValue += 1;
+  }
+
+  insertTransformConstraint(entity: TransformConstraintEntity, index: number): void {
+    const c = toMutableTransform(entity);
+    if (this.batching) {
+      this.transformConstraintsMap.set(c.id, c);
+      this.transformConstraintOrderArr.splice(index, 0, c.id);
+    } else {
+      const next = new Map(this.transformConstraintsMap);
+      next.set(c.id, c);
+      this.transformConstraintsMap = next;
+      const order = this.transformConstraintOrderArr.slice();
+      order.splice(index, 0, c.id);
+      this.transformConstraintOrderArr = order;
+    }
+    this.revisionValue += 1;
+  }
+
+  removeTransformConstraint(id: TransformConstraintId): void {
+    if (this.batching) {
+      this.transformConstraintsMap.delete(id);
+      const i = this.transformConstraintOrderArr.indexOf(id);
+      if (i >= 0) this.transformConstraintOrderArr.splice(i, 1);
+    } else {
+      const next = new Map(this.transformConstraintsMap);
+      next.delete(id);
+      this.transformConstraintsMap = next;
+      this.transformConstraintOrderArr = this.transformConstraintOrderArr.filter((x) => x !== id);
+    }
+    this.revisionValue += 1;
+  }
+
+  patchTransformConstraint(
+    id: TransformConstraintId,
+    patch: Partial<Omit<TransformConstraintEntity, 'id'>>,
+  ): void {
+    const current = this.transformConstraintsMap.get(id);
+    if (!current) return;
+    if (this.batching) {
+      Object.assign(current, patch);
+    } else {
+      const next = new Map(this.transformConstraintsMap);
+      next.set(id, { ...current, ...patch });
+      this.transformConstraintsMap = next;
+    }
+    this.revisionValue += 1;
+  }
+
+  // ----- named-skin write surface (WP-2.8, reached only through the Mutator) -----
+
+  insertSkin(entity: SkinEntity, index: number): void {
+    const skin = toMutableSkin(entity);
+    if (this.batching) {
+      this.skinsMap.set(skin.id, skin);
+      this.skinOrderArr.splice(index, 0, skin.id);
+    } else {
+      const next = new Map(this.skinsMap);
+      next.set(skin.id, skin);
+      this.skinsMap = next;
+      const order = this.skinOrderArr.slice();
+      order.splice(index, 0, skin.id);
+      this.skinOrderArr = order;
+    }
+    this.revisionValue += 1;
+  }
+
+  removeSkin(id: SkinId): void {
+    if (this.batching) {
+      this.skinsMap.delete(id);
+      const i = this.skinOrderArr.indexOf(id);
+      if (i >= 0) this.skinOrderArr.splice(i, 1);
+    } else {
+      const next = new Map(this.skinsMap);
+      next.delete(id);
+      this.skinsMap = next;
+      this.skinOrderArr = this.skinOrderArr.filter((x) => x !== id);
+    }
+    this.revisionValue += 1;
+  }
+
+  patchSkin(id: SkinId, patch: { readonly name?: string }): void {
+    const current = this.skinsMap.get(id);
+    if (!current) return;
+    if (this.batching) {
+      if (patch.name !== undefined) current.name = patch.name;
+    } else {
+      const next = new Map(this.skinsMap);
+      next.set(id, { ...current, ...(patch.name !== undefined ? { name: patch.name } : {}) });
+      this.skinsMap = next;
+    }
+    this.revisionValue += 1;
+  }
+
+  // Place an attachment in a NAMED skin under (slotId, entity.name), the mirror of the default-skin
+  // addAttachment path but scoped to one skin's own attachment map. A missing skin is a no-op (commands
+  // assert existence before writing).
+  setSkinAttachment(skinId: SkinId, slotId: SlotId, entity: AttachmentEntity): void {
+    const current = this.skinsMap.get(skinId);
+    if (!current) return;
+    if (this.batching) {
+      const inner = current.attachments.get(slotId) ?? new Map<string, AttachmentEntity>();
+      current.attachments.set(slotId, inner);
+      inner.set(entity.name, entity);
+    } else {
+      const inner = new Map(current.attachments.get(slotId) ?? []);
+      inner.set(entity.name, entity);
+      const attachments = new Map(current.attachments);
+      attachments.set(slotId, inner);
+      const next = new Map(this.skinsMap);
+      next.set(skinId, { ...current, attachments });
+      this.skinsMap = next;
+    }
+    this.revisionValue += 1;
+  }
+
+  removeSkinAttachment(skinId: SkinId, slotId: SlotId, name: string): void {
+    const current = this.skinsMap.get(skinId);
+    if (!current) return;
+    if (this.batching) {
+      const inner = current.attachments.get(slotId);
+      if (!inner) return;
+      inner.delete(name);
+      if (inner.size === 0) current.attachments.delete(slotId);
+    } else {
+      const inner0 = current.attachments.get(slotId);
+      if (!inner0) return;
+      const innerNext = new Map(inner0);
+      innerNext.delete(name);
+      const attachments = new Map(current.attachments);
+      if (innerNext.size === 0) attachments.delete(slotId);
+      else attachments.set(slotId, innerNext);
+      const next = new Map(this.skinsMap);
+      next.set(skinId, { ...current, attachments });
+      this.skinsMap = next;
+    }
+    this.revisionValue += 1;
+  }
+
   // ----- preserved-content write surface (reached only through the Mutator) -----
 
   // Replace the preserved atlas wholesale (WP-1.3, command-history catalog SetAtlasRef). preservedContent
   // is a single immutable value, replaced with a fresh deeply-frozen object (the same way the constructor
   // builds it), so there is no in-place/copy-on-write distinction and no batch branch: an atlas import is
-  // a discrete edit, never part of a drag. extraSkins is carried through untouched. NO content hash is
-  // computed here (the exporter is the sole hash owner, LAW 3).
+  // a discrete edit, never part of a drag. NO content hash is computed here (the exporter is the sole hash
+  // owner, LAW 3).
   setAtlas(atlas: AtlasRef): void {
-    this.preservedContent = deepFreeze({ atlas, extraSkins: this.preservedContent.extraSkins });
+    this.preservedContent = deepFreeze({ atlas });
     this.revisionValue += 1;
   }
 
@@ -761,6 +1267,12 @@ export class DocumentModelInternal implements DocumentReadModel {
     this.slotOrderArr = this.slotOrderArr.slice();
     this.attachmentsMap = cloneAttachments(this.attachmentsMap);
     this.animationsMap = cloneAnimations(this.animationsMap);
+    this.ikConstraintsMap = new Map(this.ikConstraintsMap);
+    this.ikConstraintOrderArr = this.ikConstraintOrderArr.slice();
+    this.transformConstraintsMap = new Map(this.transformConstraintsMap);
+    this.transformConstraintOrderArr = this.transformConstraintOrderArr.slice();
+    this.skinsMap = cloneSkins(this.skinsMap);
+    this.skinOrderArr = this.skinOrderArr.slice();
     this.batching = false;
   }
 
@@ -795,6 +1307,12 @@ export function createReadModel(model: DocumentModelInternal): DocumentReadModel
     getAttachment: (slotId, name) => model.getAttachment(slotId, name),
     getAnimation: (id) => model.getAnimation(id),
     animations: () => model.animations(),
+    getIkConstraint: (id) => model.getIkConstraint(id),
+    ikConstraints: () => model.ikConstraints(),
+    getTransformConstraint: (id) => model.getTransformConstraint(id),
+    transformConstraints: () => model.transformConstraints(),
+    getSkin: (id) => model.getSkin(id),
+    skins: () => model.skins(),
     preserved: () => model.preserved(),
     snapshot: () => model.snapshot(),
   };

@@ -1,0 +1,17 @@
+{
+  "toolchain": "node-22.13.1-v8",
+  "files": {
+    "effects-fixtures/effect-circle-spawn.fixture.json": "bfdbcc7c1e11271077049187265aab4f6457f9dc6a3242b379a85248a457d83e",
+    "effects-fixtures/effect-coin-burst.fixture.json": "a44be5795f08633d071e076d34241bf97d071822d4fa391efd32906e08026f17",
+    "effects-fixtures/effect-god-rays-sprite.fixture.json": "8a2a4a3150fa53abb667a87151055fe97bc02d4cd72affac4a5c046614b2be65",
+    "effects-fixtures/effect-ribbon-trail.fixture.json": "508e75fbdbace2782f1378cec19c141268cffa587f4b1a2614bf9b3566bb073d",
+    "effects-rigs/effect-circle-spawn.fx.json": "672531b70c9fa77307d6851a20f5095d696159866c99b2bff10574f3318428c7",
+    "effects-rigs/effect-coin-burst.fx.json": "18d08635cff04c342138c5964589752eb939e62eca1eb4861aca074db94beb16",
+    "effects-rigs/effect-god-rays-sprite.fx.json": "3a418a6c17a23810712f9abc8fdcf0d6af91c458866ac584b1ea00fa0c544e02",
+    "effects-rigs/effect-ribbon-trail.fx.json": "826f5e8cd6e07383f8f62f0e5ffcdb1f31df42d6a51a9367cdb03a97864c4eae",
+    "effects-sample-spec/effect-circle-spawn.sample-spec.json": "ae783196112b49776a03ae4af832b354a4f59194fdf8f1806d0ff6f4d8b45819",
+    "effects-sample-spec/effect-coin-burst.sample-spec.json": "459244c38c5086b3584fb64d175c934de08ef9a9d5e0af1a830987dcbd6a427f",
+    "effects-sample-spec/effect-god-rays-sprite.sample-spec.json": "7a8304dd961613838bdae6c28ee8f9247d59fba94233287d746eeb3dd11c70b9",
+    "effects-sample-spec/effect-ribbon-trail.sample-spec.json": "a5bb866e0a48c55ec26962deee196c90ffde0e97850bea1c780ae7e22558f9f4"
+  }
+}

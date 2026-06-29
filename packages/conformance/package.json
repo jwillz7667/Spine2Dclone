@@ -13,7 +13,8 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
-    "generate": "tsx src/generate.ts"
+    "generate": "tsx src/generate.ts",
+    "generate:effects": "tsx src/generate-effects.ts"
   },
   "dependencies": {
     "@marionette/format": "workspace:*",

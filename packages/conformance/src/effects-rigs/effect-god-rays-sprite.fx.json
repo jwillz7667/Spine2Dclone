@@ -1,0 +1,70 @@
+{
+  "effectsFormatVersion": "1.0.0",
+  "name": "rig-god-rays-sprite",
+  "hash": "",
+  "atlas": {
+    "pages": [
+      {
+        "file": "vfx.png",
+        "width": 256,
+        "height": 256,
+        "regions": [
+          {
+            "name": "rayFan",
+            "x": 0,
+            "y": 0,
+            "w": 256,
+            "h": 256,
+            "rotated": false,
+            "offsetX": 0,
+            "offsetY": 0,
+            "originalW": 256,
+            "originalH": 256
+          }
+        ]
+      }
+    ]
+  },
+  "effects": {
+    "godRaysSprite": {
+      "name": "godRaysSprite",
+      "duration": 2,
+      "deterministic": true,
+      "simulationDt": 0.016666666666666666,
+      "blendMode": "additive",
+      "layers": [
+        {
+          "type": "spriteAnimator",
+          "name": "rays",
+          "blendMode": "additive",
+          "region": "rayFan",
+          "anchorSpace": "world",
+          "rotationDegPerSec": 6,
+          "scaleOverLife": {
+            "stops": [
+              { "t": 0, "value": 1, "curve": "linear" },
+              { "t": 0.5, "value": 1.1, "curve": "linear" },
+              { "t": 1, "value": 1, "curve": "linear" }
+            ]
+          },
+          "colorOverLife": {
+            "stops": [
+              { "t": 0, "value": { "r": 1, "g": 1, "b": 0.8 }, "curve": "linear" },
+              { "t": 1, "value": { "r": 1, "g": 1, "b": 0.8 }, "curve": "linear" }
+            ]
+          },
+          "alphaOverLife": {
+            "stops": [
+              { "t": 0, "value": 0.2, "curve": "linear" },
+              { "t": 0.5, "value": 0.8, "curve": "linear" },
+              { "t": 1, "value": 0.2, "curve": "linear" }
+            ]
+          },
+          "loop": true,
+          "layerDuration": 1
+        }
+      ]
+    }
+  },
+  "bundles": {}
+}

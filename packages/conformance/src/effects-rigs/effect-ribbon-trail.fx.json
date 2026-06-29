@@ -1,0 +1,67 @@
+{
+  "effectsFormatVersion": "1.0.0",
+  "name": "rig-ribbon-trail",
+  "hash": "",
+  "atlas": {
+    "pages": [
+      {
+        "file": "vfx.png",
+        "width": 64,
+        "height": 16,
+        "regions": [
+          {
+            "name": "ribbon",
+            "x": 0,
+            "y": 0,
+            "w": 64,
+            "h": 8,
+            "rotated": false,
+            "offsetX": 0,
+            "offsetY": 0,
+            "originalW": 64,
+            "originalH": 8
+          }
+        ]
+      }
+    ]
+  },
+  "effects": {
+    "ribbonTrailGold": {
+      "name": "ribbonTrailGold",
+      "duration": null,
+      "deterministic": true,
+      "simulationDt": 0.016666666666666666,
+      "blendMode": "additive",
+      "layers": [
+        {
+          "type": "ribbonTrail",
+          "name": "trail",
+          "blendMode": "additive",
+          "region": "ribbon",
+          "anchorRef": "tip",
+          "maxSegments": 16,
+          "segmentSpacing": 4,
+          "widthOverLength": {
+            "stops": [
+              { "t": 0, "value": 12, "curve": "linear" },
+              { "t": 1, "value": 0, "curve": "linear" }
+            ]
+          },
+          "colorOverLength": {
+            "stops": [
+              { "t": 0, "value": { "r": 1, "g": 0.85, "b": 0.3 }, "curve": "linear" },
+              { "t": 1, "value": { "r": 1, "g": 0.6, "b": 0.1 }, "curve": "linear" }
+            ]
+          },
+          "alphaOverLength": {
+            "stops": [
+              { "t": 0, "value": 1, "curve": "linear" },
+              { "t": 1, "value": 0, "curve": "linear" }
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "bundles": {}
+}

@@ -1,0 +1,1174 @@
+{
+  "effectsFormatVersion": "1.0.0",
+  "name": "megawin-presets",
+  "hash": "7218c25eab67b3605aeb3c7e1542aa8d1d3390c587b71539baef0670dc4b4069",
+  "atlas": {
+    "pages": [
+      {
+        "file": "megawin-vfx.png",
+        "width": 512,
+        "height": 512,
+        "regions": [
+          {
+            "name": "coin0",
+            "x": 0,
+            "y": 0,
+            "w": 32,
+            "h": 32,
+            "rotated": false,
+            "offsetX": 0,
+            "offsetY": 0,
+            "originalW": 32,
+            "originalH": 32
+          },
+          {
+            "name": "coin1",
+            "x": 32,
+            "y": 0,
+            "w": 32,
+            "h": 32,
+            "rotated": false,
+            "offsetX": 0,
+            "offsetY": 0,
+            "originalW": 32,
+            "originalH": 32
+          },
+          {
+            "name": "coin2",
+            "x": 64,
+            "y": 0,
+            "w": 32,
+            "h": 32,
+            "rotated": false,
+            "offsetX": 0,
+            "offsetY": 0,
+            "originalW": 32,
+            "originalH": 32
+          },
+          {
+            "name": "coin3",
+            "x": 96,
+            "y": 0,
+            "w": 32,
+            "h": 32,
+            "rotated": false,
+            "offsetX": 0,
+            "offsetY": 0,
+            "originalW": 32,
+            "originalH": 32
+          },
+          {
+            "name": "coin4",
+            "x": 128,
+            "y": 0,
+            "w": 32,
+            "h": 32,
+            "rotated": false,
+            "offsetX": 0,
+            "offsetY": 0,
+            "originalW": 32,
+            "originalH": 32
+          },
+          {
+            "name": "coin5",
+            "x": 160,
+            "y": 0,
+            "w": 32,
+            "h": 32,
+            "rotated": false,
+            "offsetX": 0,
+            "offsetY": 0,
+            "originalW": 32,
+            "originalH": 32
+          },
+          {
+            "name": "star",
+            "x": 0,
+            "y": 32,
+            "w": 32,
+            "h": 32,
+            "rotated": false,
+            "offsetX": 0,
+            "offsetY": 0,
+            "originalW": 32,
+            "originalH": 32
+          },
+          {
+            "name": "rayFan",
+            "x": 256,
+            "y": 0,
+            "w": 256,
+            "h": 256,
+            "rotated": false,
+            "offsetX": 0,
+            "offsetY": 0,
+            "originalW": 256,
+            "originalH": 256
+          },
+          {
+            "name": "glow",
+            "x": 192,
+            "y": 32,
+            "w": 64,
+            "h": 64,
+            "rotated": false,
+            "offsetX": 0,
+            "offsetY": 0,
+            "originalW": 64,
+            "originalH": 64
+          },
+          {
+            "name": "ribbon",
+            "x": 0,
+            "y": 96,
+            "w": 64,
+            "h": 8,
+            "rotated": false,
+            "offsetX": 0,
+            "offsetY": 0,
+            "originalW": 64,
+            "originalH": 8
+          },
+          {
+            "name": "white",
+            "x": 0,
+            "y": 104,
+            "w": 1,
+            "h": 1,
+            "rotated": false,
+            "offsetX": 0,
+            "offsetY": 0,
+            "originalW": 1,
+            "originalH": 1
+          }
+        ]
+      }
+    ]
+  },
+  "effects": {
+    "coinBurst": {
+      "name": "coinBurst",
+      "duration": 1.5,
+      "deterministic": true,
+      "simulationDt": 0.016666666666666666,
+      "blendMode": "normal",
+      "layers": [
+        {
+          "type": "emitter",
+          "name": "coins",
+          "blendMode": "normal",
+          "maxParticles": 80,
+          "spawn": {
+            "mode": "burst",
+            "count": 40,
+            "atTime": 0
+          },
+          "shape": {
+            "kind": "point"
+          },
+          "lifetime": {
+            "min": 0.9,
+            "max": 1.4
+          },
+          "startSpeed": {
+            "min": 160,
+            "max": 320
+          },
+          "emissionAngle": {
+            "min": 60,
+            "max": 120
+          },
+          "startRotation": {
+            "min": 0,
+            "max": 360
+          },
+          "angularVelocity": {
+            "min": -540,
+            "max": 540
+          },
+          "startScale": {
+            "min": 0.8,
+            "max": 1.2
+          },
+          "gravity": {
+            "x": 0,
+            "y": 520
+          },
+          "acceleration": {
+            "x": 0,
+            "y": 0
+          },
+          "drag": 0,
+          "scaleOverLife": {
+            "stops": [
+              {
+                "t": 0,
+                "value": 1,
+                "curve": "linear"
+              },
+              {
+                "t": 1,
+                "value": 0.85,
+                "curve": "linear"
+              }
+            ]
+          },
+          "colorOverLife": {
+            "stops": [
+              {
+                "t": 0,
+                "value": {
+                  "r": 1,
+                  "g": 1,
+                  "b": 1
+                },
+                "curve": "linear"
+              },
+              {
+                "t": 1,
+                "value": {
+                  "r": 1,
+                  "g": 0.9,
+                  "b": 0.6
+                },
+                "curve": "linear"
+              }
+            ]
+          },
+          "alphaOverLife": {
+            "stops": [
+              {
+                "t": 0,
+                "value": 1,
+                "curve": "linear"
+              },
+              {
+                "t": 0.5,
+                "value": 1,
+                "curve": "linear"
+              },
+              {
+                "t": 1,
+                "value": 0,
+                "curve": "linear"
+              }
+            ]
+          },
+          "texture": {
+            "kind": "animated",
+            "regions": ["coin0", "coin1", "coin2", "coin3", "coin4", "coin5"],
+            "fps": 18,
+            "mode": "loop"
+          },
+          "particleTrail": null
+        }
+      ]
+    },
+    "coinShowerLarge": {
+      "name": "coinShowerLarge",
+      "duration": 2.5,
+      "deterministic": true,
+      "simulationDt": 0.016666666666666666,
+      "blendMode": "normal",
+      "layers": [
+        {
+          "type": "emitter",
+          "name": "shower",
+          "blendMode": "normal",
+          "maxParticles": 600,
+          "spawn": {
+            "mode": "rate",
+            "particlesPerSecond": 120
+          },
+          "shape": {
+            "kind": "line",
+            "x1": -300,
+            "y1": -360,
+            "x2": 300,
+            "y2": -360
+          },
+          "lifetime": {
+            "min": 1.4,
+            "max": 2.2
+          },
+          "startSpeed": {
+            "min": 60,
+            "max": 180
+          },
+          "emissionAngle": {
+            "min": 70,
+            "max": 110
+          },
+          "startRotation": {
+            "min": 0,
+            "max": 360
+          },
+          "angularVelocity": {
+            "min": -720,
+            "max": 720
+          },
+          "startScale": {
+            "min": 0.7,
+            "max": 1.1
+          },
+          "gravity": {
+            "x": 0,
+            "y": 600
+          },
+          "acceleration": {
+            "x": 0,
+            "y": 0
+          },
+          "drag": 0.1,
+          "scaleOverLife": {
+            "stops": [
+              {
+                "t": 0,
+                "value": 1,
+                "curve": "linear"
+              },
+              {
+                "t": 1,
+                "value": 0.9,
+                "curve": "linear"
+              }
+            ]
+          },
+          "colorOverLife": {
+            "stops": [
+              {
+                "t": 0,
+                "value": {
+                  "r": 1,
+                  "g": 1,
+                  "b": 0.9
+                },
+                "curve": "linear"
+              },
+              {
+                "t": 1,
+                "value": {
+                  "r": 1,
+                  "g": 0.85,
+                  "b": 0.5
+                },
+                "curve": "linear"
+              }
+            ]
+          },
+          "alphaOverLife": {
+            "stops": [
+              {
+                "t": 0,
+                "value": 1,
+                "curve": "linear"
+              },
+              {
+                "t": 0.5,
+                "value": 1,
+                "curve": "linear"
+              },
+              {
+                "t": 1,
+                "value": 0,
+                "curve": "linear"
+              }
+            ]
+          },
+          "texture": {
+            "kind": "animated",
+            "regions": ["coin0", "coin1", "coin2", "coin3", "coin4", "coin5"],
+            "fps": 18,
+            "mode": "loop"
+          },
+          "particleTrail": {
+            "region": "ribbon",
+            "maxSegments": 8,
+            "segmentSpacing": 6,
+            "widthOverLength": {
+              "stops": [
+                {
+                  "t": 0,
+                  "value": 6,
+                  "curve": "linear"
+                },
+                {
+                  "t": 1,
+                  "value": 0,
+                  "curve": "linear"
+                }
+              ]
+            },
+            "alphaOverLength": {
+              "stops": [
+                {
+                  "t": 0,
+                  "value": 0.6,
+                  "curve": "linear"
+                },
+                {
+                  "t": 1,
+                  "value": 0,
+                  "curve": "linear"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "sparkle": {
+      "name": "sparkle",
+      "duration": 1,
+      "deterministic": true,
+      "simulationDt": 0.016666666666666666,
+      "blendMode": "additive",
+      "layers": [
+        {
+          "type": "emitter",
+          "name": "sparks",
+          "blendMode": "additive",
+          "maxParticles": 64,
+          "spawn": {
+            "mode": "rate",
+            "particlesPerSecond": 40
+          },
+          "shape": {
+            "kind": "circle",
+            "radius": 24,
+            "edgeOnly": false
+          },
+          "lifetime": {
+            "min": 0.2,
+            "max": 0.5
+          },
+          "startSpeed": {
+            "min": 10,
+            "max": 50
+          },
+          "emissionAngle": {
+            "min": 0,
+            "max": 360
+          },
+          "startRotation": {
+            "min": 0,
+            "max": 0
+          },
+          "angularVelocity": {
+            "min": -90,
+            "max": 90
+          },
+          "startScale": {
+            "min": 0.6,
+            "max": 1
+          },
+          "gravity": {
+            "x": 0,
+            "y": 0
+          },
+          "acceleration": {
+            "x": 0,
+            "y": 0
+          },
+          "drag": 0,
+          "scaleOverLife": {
+            "stops": [
+              {
+                "t": 0,
+                "value": 1,
+                "curve": "linear"
+              },
+              {
+                "t": 1,
+                "value": 0,
+                "curve": "linear"
+              }
+            ]
+          },
+          "colorOverLife": {
+            "stops": [
+              {
+                "t": 0,
+                "value": {
+                  "r": 1,
+                  "g": 1,
+                  "b": 1
+                },
+                "curve": "linear"
+              },
+              {
+                "t": 1,
+                "value": {
+                  "r": 1,
+                  "g": 0.95,
+                  "b": 0.7
+                },
+                "curve": "linear"
+              }
+            ]
+          },
+          "alphaOverLife": {
+            "stops": [
+              {
+                "t": 0,
+                "value": 1,
+                "curve": "linear"
+              },
+              {
+                "t": 1,
+                "value": 0,
+                "curve": "linear"
+              }
+            ]
+          },
+          "texture": {
+            "kind": "static",
+            "region": "star"
+          },
+          "particleTrail": null
+        }
+      ]
+    },
+    "starBurst": {
+      "name": "starBurst",
+      "duration": 0.6,
+      "deterministic": true,
+      "simulationDt": 0.016666666666666666,
+      "blendMode": "additive",
+      "layers": [
+        {
+          "type": "emitter",
+          "name": "stars",
+          "blendMode": "additive",
+          "maxParticles": 48,
+          "spawn": {
+            "mode": "burst",
+            "count": 24,
+            "atTime": 0
+          },
+          "shape": {
+            "kind": "point"
+          },
+          "lifetime": {
+            "min": 0.3,
+            "max": 0.5
+          },
+          "startSpeed": {
+            "min": 120,
+            "max": 260
+          },
+          "emissionAngle": {
+            "min": 0,
+            "max": 360
+          },
+          "startRotation": {
+            "min": 0,
+            "max": 360
+          },
+          "angularVelocity": {
+            "min": -180,
+            "max": 180
+          },
+          "startScale": {
+            "min": 0.8,
+            "max": 1.2
+          },
+          "gravity": {
+            "x": 0,
+            "y": 0
+          },
+          "acceleration": {
+            "x": 0,
+            "y": 0
+          },
+          "drag": 2,
+          "scaleOverLife": {
+            "stops": [
+              {
+                "t": 0,
+                "value": 1,
+                "curve": "linear"
+              },
+              {
+                "t": 1,
+                "value": 0,
+                "curve": "linear"
+              }
+            ]
+          },
+          "colorOverLife": {
+            "stops": [
+              {
+                "t": 0,
+                "value": {
+                  "r": 1,
+                  "g": 1,
+                  "b": 1
+                },
+                "curve": "linear"
+              },
+              {
+                "t": 1,
+                "value": {
+                  "r": 0.8,
+                  "g": 0.9,
+                  "b": 1
+                },
+                "curve": "linear"
+              }
+            ]
+          },
+          "alphaOverLife": {
+            "stops": [
+              {
+                "t": 0,
+                "value": 1,
+                "curve": "linear"
+              },
+              {
+                "t": 1,
+                "value": 0,
+                "curve": "linear"
+              }
+            ]
+          },
+          "texture": {
+            "kind": "static",
+            "region": "star"
+          },
+          "particleTrail": null
+        }
+      ]
+    },
+    "godRaysSprite": {
+      "name": "godRaysSprite",
+      "duration": null,
+      "deterministic": true,
+      "simulationDt": 0.016666666666666666,
+      "blendMode": "additive",
+      "layers": [
+        {
+          "type": "spriteAnimator",
+          "name": "rays",
+          "blendMode": "additive",
+          "region": "rayFan",
+          "anchorSpace": "world",
+          "rotationDegPerSec": 6,
+          "scaleOverLife": {
+            "stops": [
+              {
+                "t": 0,
+                "value": 1,
+                "curve": "linear"
+              },
+              {
+                "t": 0.5,
+                "value": 1.1,
+                "curve": "linear"
+              },
+              {
+                "t": 1,
+                "value": 1,
+                "curve": "linear"
+              }
+            ]
+          },
+          "colorOverLife": {
+            "stops": [
+              {
+                "t": 0,
+                "value": {
+                  "r": 1,
+                  "g": 1,
+                  "b": 0.8
+                },
+                "curve": "linear"
+              },
+              {
+                "t": 1,
+                "value": {
+                  "r": 1,
+                  "g": 1,
+                  "b": 0.8
+                },
+                "curve": "linear"
+              }
+            ]
+          },
+          "alphaOverLife": {
+            "stops": [
+              {
+                "t": 0,
+                "value": 0.2,
+                "curve": "linear"
+              },
+              {
+                "t": 0.5,
+                "value": 0.8,
+                "curve": "linear"
+              },
+              {
+                "t": 1,
+                "value": 0.2,
+                "curve": "linear"
+              }
+            ]
+          },
+          "loop": true,
+          "layerDuration": 1.5
+        }
+      ]
+    },
+    "godRaysParticle": {
+      "name": "godRaysParticle",
+      "duration": null,
+      "deterministic": true,
+      "simulationDt": 0.016666666666666666,
+      "blendMode": "additive",
+      "layers": [
+        {
+          "type": "emitter",
+          "name": "rays",
+          "blendMode": "additive",
+          "maxParticles": 24,
+          "spawn": {
+            "mode": "rate",
+            "particlesPerSecond": 8
+          },
+          "shape": {
+            "kind": "point"
+          },
+          "lifetime": {
+            "min": 2,
+            "max": 3
+          },
+          "startSpeed": {
+            "min": 0,
+            "max": 0
+          },
+          "emissionAngle": {
+            "min": 0,
+            "max": 360
+          },
+          "startRotation": {
+            "min": 0,
+            "max": 360
+          },
+          "angularVelocity": {
+            "min": 4,
+            "max": 12
+          },
+          "startScale": {
+            "min": 1,
+            "max": 1.4
+          },
+          "gravity": {
+            "x": 0,
+            "y": 0
+          },
+          "acceleration": {
+            "x": 0,
+            "y": 0
+          },
+          "drag": 0,
+          "scaleOverLife": {
+            "stops": [
+              {
+                "t": 0,
+                "value": 0,
+                "curve": "linear"
+              },
+              {
+                "t": 0.5,
+                "value": 1,
+                "curve": "linear"
+              },
+              {
+                "t": 1,
+                "value": 0,
+                "curve": "linear"
+              }
+            ]
+          },
+          "colorOverLife": {
+            "stops": [
+              {
+                "t": 0,
+                "value": {
+                  "r": 1,
+                  "g": 1,
+                  "b": 0.8
+                },
+                "curve": "linear"
+              },
+              {
+                "t": 1,
+                "value": {
+                  "r": 1,
+                  "g": 0.9,
+                  "b": 0.6
+                },
+                "curve": "linear"
+              }
+            ]
+          },
+          "alphaOverLife": {
+            "stops": [
+              {
+                "t": 0,
+                "value": 0,
+                "curve": "linear"
+              },
+              {
+                "t": 0.5,
+                "value": 0.6,
+                "curve": "linear"
+              },
+              {
+                "t": 1,
+                "value": 0,
+                "curve": "linear"
+              }
+            ]
+          },
+          "texture": {
+            "kind": "static",
+            "region": "rayFan"
+          },
+          "particleTrail": null
+        }
+      ]
+    },
+    "glowPulse": {
+      "name": "glowPulse",
+      "duration": null,
+      "deterministic": true,
+      "simulationDt": 0.016666666666666666,
+      "blendMode": "additive",
+      "layers": [
+        {
+          "type": "spriteAnimator",
+          "name": "glow",
+          "blendMode": "additive",
+          "region": "glow",
+          "anchorSpace": "world",
+          "rotationDegPerSec": 0,
+          "scaleOverLife": {
+            "stops": [
+              {
+                "t": 0,
+                "value": 0.8,
+                "curve": "linear"
+              },
+              {
+                "t": 0.5,
+                "value": 1.2,
+                "curve": "linear"
+              },
+              {
+                "t": 1,
+                "value": 0.8,
+                "curve": "linear"
+              }
+            ]
+          },
+          "colorOverLife": {
+            "stops": [
+              {
+                "t": 0,
+                "value": {
+                  "r": 1,
+                  "g": 1,
+                  "b": 0.9
+                },
+                "curve": "linear"
+              },
+              {
+                "t": 1,
+                "value": {
+                  "r": 1,
+                  "g": 0.95,
+                  "b": 0.7
+                },
+                "curve": "linear"
+              }
+            ]
+          },
+          "alphaOverLife": {
+            "stops": [
+              {
+                "t": 0,
+                "value": 0.3,
+                "curve": "linear"
+              },
+              {
+                "t": 0.5,
+                "value": 0.9,
+                "curve": "linear"
+              },
+              {
+                "t": 1,
+                "value": 0.3,
+                "curve": "linear"
+              }
+            ]
+          },
+          "loop": true,
+          "layerDuration": 0.8
+        }
+      ]
+    },
+    "ribbonTrailGold": {
+      "name": "ribbonTrailGold",
+      "duration": null,
+      "deterministic": true,
+      "simulationDt": 0.016666666666666666,
+      "blendMode": "additive",
+      "layers": [
+        {
+          "type": "ribbonTrail",
+          "name": "trail",
+          "blendMode": "additive",
+          "region": "ribbon",
+          "anchorRef": "tip",
+          "maxSegments": 24,
+          "segmentSpacing": 4,
+          "widthOverLength": {
+            "stops": [
+              {
+                "t": 0,
+                "value": 14,
+                "curve": "linear"
+              },
+              {
+                "t": 1,
+                "value": 0,
+                "curve": "linear"
+              }
+            ]
+          },
+          "colorOverLength": {
+            "stops": [
+              {
+                "t": 0,
+                "value": {
+                  "r": 1,
+                  "g": 0.85,
+                  "b": 0.3
+                },
+                "curve": "linear"
+              },
+              {
+                "t": 1,
+                "value": {
+                  "r": 1,
+                  "g": 0.6,
+                  "b": 0.1
+                },
+                "curve": "linear"
+              }
+            ]
+          },
+          "alphaOverLength": {
+            "stops": [
+              {
+                "t": 0,
+                "value": 1,
+                "curve": "linear"
+              },
+              {
+                "t": 1,
+                "value": 0,
+                "curve": "linear"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "screenFlash": {
+      "name": "screenFlash",
+      "duration": 0.25,
+      "deterministic": true,
+      "simulationDt": 0.016666666666666666,
+      "blendMode": "additive",
+      "layers": [
+        {
+          "type": "spriteAnimator",
+          "name": "flash",
+          "blendMode": "additive",
+          "region": "white",
+          "anchorSpace": "screen",
+          "rotationDegPerSec": 0,
+          "scaleOverLife": {
+            "stops": [
+              {
+                "t": 0,
+                "value": 1,
+                "curve": "linear"
+              },
+              {
+                "t": 1,
+                "value": 1,
+                "curve": "linear"
+              }
+            ]
+          },
+          "colorOverLife": {
+            "stops": [
+              {
+                "t": 0,
+                "value": {
+                  "r": 1,
+                  "g": 1,
+                  "b": 1
+                },
+                "curve": "linear"
+              },
+              {
+                "t": 1,
+                "value": {
+                  "r": 1,
+                  "g": 1,
+                  "b": 1
+                },
+                "curve": "linear"
+              }
+            ]
+          },
+          "alphaOverLife": {
+            "stops": [
+              {
+                "t": 0,
+                "value": 0,
+                "curve": "linear"
+              },
+              {
+                "t": 0.5,
+                "value": 1,
+                "curve": "linear"
+              },
+              {
+                "t": 1,
+                "value": 0,
+                "curve": "linear"
+              }
+            ]
+          },
+          "loop": false,
+          "layerDuration": 0.25
+        }
+      ]
+    },
+    "rayBurst": {
+      "name": "rayBurst",
+      "duration": 0.8,
+      "deterministic": true,
+      "simulationDt": 0.016666666666666666,
+      "blendMode": "additive",
+      "layers": [
+        {
+          "type": "spriteAnimator",
+          "name": "burst",
+          "blendMode": "additive",
+          "region": "rayFan",
+          "anchorSpace": "world",
+          "rotationDegPerSec": 90,
+          "scaleOverLife": {
+            "stops": [
+              {
+                "t": 0,
+                "value": 0.4,
+                "curve": "linear"
+              },
+              {
+                "t": 0.5,
+                "value": 1.4,
+                "curve": "linear"
+              },
+              {
+                "t": 1,
+                "value": 1.6,
+                "curve": "linear"
+              }
+            ]
+          },
+          "colorOverLife": {
+            "stops": [
+              {
+                "t": 0,
+                "value": {
+                  "r": 1,
+                  "g": 1,
+                  "b": 0.85
+                },
+                "curve": "linear"
+              },
+              {
+                "t": 1,
+                "value": {
+                  "r": 1,
+                  "g": 0.9,
+                  "b": 0.6
+                },
+                "curve": "linear"
+              }
+            ]
+          },
+          "alphaOverLife": {
+            "stops": [
+              {
+                "t": 0,
+                "value": 0,
+                "curve": "linear"
+              },
+              {
+                "t": 0.5,
+                "value": 1,
+                "curve": "linear"
+              },
+              {
+                "t": 1,
+                "value": 0,
+                "curve": "linear"
+              }
+            ]
+          },
+          "loop": false,
+          "layerDuration": 0.8
+        }
+      ]
+    }
+  },
+  "bundles": {
+    "megaWin": {
+      "name": "megaWin",
+      "items": [
+        {
+          "effect": "coinShowerLarge",
+          "startOffset": 0,
+          "anchorRole": "center",
+          "seedSalt": 1
+        },
+        {
+          "effect": "rayBurst",
+          "startOffset": 0,
+          "anchorRole": "center",
+          "seedSalt": 2
+        },
+        {
+          "effect": "screenFlash",
+          "startOffset": 0.1,
+          "anchorRole": "screen",
+          "seedSalt": 3
+        },
+        {
+          "effect": "glowPulse",
+          "startOffset": 0.2,
+          "anchorRole": "center",
+          "seedSalt": 4
+        }
+      ]
+    }
+  }
+}

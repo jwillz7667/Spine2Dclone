@@ -1,0 +1,119 @@
+{
+  "effectsFormatVersion": "1.0.0",
+  "name": "rig-coin-burst",
+  "hash": "",
+  "atlas": {
+    "pages": [
+      {
+        "file": "vfx.png",
+        "width": 128,
+        "height": 64,
+        "regions": [
+          {
+            "name": "coin0",
+            "x": 0,
+            "y": 0,
+            "w": 16,
+            "h": 16,
+            "rotated": false,
+            "offsetX": 0,
+            "offsetY": 0,
+            "originalW": 16,
+            "originalH": 16
+          },
+          {
+            "name": "coin1",
+            "x": 16,
+            "y": 0,
+            "w": 16,
+            "h": 16,
+            "rotated": false,
+            "offsetX": 0,
+            "offsetY": 0,
+            "originalW": 16,
+            "originalH": 16
+          },
+          {
+            "name": "coin2",
+            "x": 32,
+            "y": 0,
+            "w": 16,
+            "h": 16,
+            "rotated": false,
+            "offsetX": 0,
+            "offsetY": 0,
+            "originalW": 16,
+            "originalH": 16
+          },
+          {
+            "name": "coin3",
+            "x": 48,
+            "y": 0,
+            "w": 16,
+            "h": 16,
+            "rotated": false,
+            "offsetX": 0,
+            "offsetY": 0,
+            "originalW": 16,
+            "originalH": 16
+          }
+        ]
+      }
+    ]
+  },
+  "effects": {
+    "coinBurst": {
+      "name": "coinBurst",
+      "duration": 1,
+      "deterministic": true,
+      "simulationDt": 0.016666666666666666,
+      "blendMode": "normal",
+      "layers": [
+        {
+          "type": "emitter",
+          "name": "coins",
+          "blendMode": "normal",
+          "maxParticles": 64,
+          "spawn": { "mode": "burst", "count": 40, "atTime": 0 },
+          "shape": { "kind": "point" },
+          "lifetime": { "min": 0.8, "max": 1.2 },
+          "startSpeed": { "min": 120, "max": 240 },
+          "emissionAngle": { "min": 60, "max": 120 },
+          "startRotation": { "min": 0, "max": 360 },
+          "angularVelocity": { "min": -360, "max": 360 },
+          "startScale": { "min": 0.8, "max": 1.2 },
+          "gravity": { "x": 0, "y": 480 },
+          "acceleration": { "x": 0, "y": 0 },
+          "drag": 0,
+          "scaleOverLife": {
+            "stops": [
+              { "t": 0, "value": 1, "curve": "linear" },
+              { "t": 1, "value": 0.8, "curve": "linear" }
+            ]
+          },
+          "colorOverLife": {
+            "stops": [
+              { "t": 0, "value": { "r": 1, "g": 1, "b": 1 }, "curve": "linear" },
+              { "t": 1, "value": { "r": 1, "g": 0.9, "b": 0.6 }, "curve": "linear" }
+            ]
+          },
+          "alphaOverLife": {
+            "stops": [
+              { "t": 0, "value": 1, "curve": "linear" },
+              { "t": 0.8, "value": 1, "curve": "linear" },
+              { "t": 1, "value": 0, "curve": "linear" }
+            ]
+          },
+          "texture": {
+            "kind": "animated",
+            "regions": ["coin0", "coin1", "coin2", "coin3"],
+            "fps": 12,
+            "mode": "loop"
+          },
+          "particleTrail": null
+        }
+      ]
+    }
+  },
+  "bundles": {}
+}

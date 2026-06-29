@@ -1,0 +1,104 @@
+{
+  "effectId": "effect-god-rays-sprite",
+  "effectName": "godRaysSprite",
+  "rigHash": "sha256:3a418a6c17a23810712f9abc8fdcf0d6af91c458866ac584b1ea00fa0c544e02",
+  "specHash": "sha256:7a8304dd961613838bdae6c28ee8f9247d59fba94233287d746eeb3dd11c70b9",
+  "seed": 1,
+  "simulationDt": 0.016666666666666666,
+  "coreVersion": "runtime-core@0.0.0",
+  "toolchain": "node-22.13.1-v8",
+  "generatedBy": "generate-effects.ts",
+  "prngStreamHead": [
+    3933715328,
+    1209598815,
+    2211571118,
+    1092573667
+  ],
+  "samples": [
+    {
+      "step": 1,
+      "emitters": [],
+      "sprites": [
+        {
+          "layerName": "rays",
+          "stepIndex": 1,
+          "rotationDeg": 0.1,
+          "scale": 1.0033333333333334,
+          "alpha": 0.22000000000000003,
+          "r": 1,
+          "g": 1,
+          "b": 0.8
+        }
+      ],
+      "ribbons": []
+    },
+    {
+      "step": 15,
+      "emitters": [],
+      "sprites": [
+        {
+          "layerName": "rays",
+          "stepIndex": 15,
+          "rotationDeg": 1.5,
+          "scale": 1.05,
+          "alpha": 0.5,
+          "r": 1,
+          "g": 1,
+          "b": 0.8
+        }
+      ],
+      "ribbons": []
+    },
+    {
+      "step": 30,
+      "emitters": [],
+      "sprites": [
+        {
+          "layerName": "rays",
+          "stepIndex": 30,
+          "rotationDeg": 3,
+          "scale": 1.1,
+          "alpha": 0.8,
+          "r": 1,
+          "g": 1,
+          "b": 0.8
+        }
+      ],
+      "ribbons": []
+    },
+    {
+      "step": 60,
+      "emitters": [],
+      "sprites": [
+        {
+          "layerName": "rays",
+          "stepIndex": 60,
+          "rotationDeg": 6,
+          "scale": 1,
+          "alpha": 0.2,
+          "r": 1,
+          "g": 1,
+          "b": 0.8
+        }
+      ],
+      "ribbons": []
+    },
+    {
+      "step": 90,
+      "emitters": [],
+      "sprites": [
+        {
+          "layerName": "rays",
+          "stepIndex": 90,
+          "rotationDeg": 9,
+          "scale": 1.1,
+          "alpha": 0.8,
+          "r": 1,
+          "g": 1,
+          "b": 0.8
+        }
+      ],
+      "ribbons": []
+    }
+  ]
+}

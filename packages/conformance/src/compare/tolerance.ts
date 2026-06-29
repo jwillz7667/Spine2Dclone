@@ -41,6 +41,22 @@ export const COLOR: Tolerance = { atol: 1e-5, rtol: 0 };
 // Event floatValue (authored values, low noise). Carried here for completeness; events land in Phase 2.
 export const EVENT_FLOAT: Tolerance = { atol: 1e-5, rtol: 1e-6 };
 
+// Particle float quantities (phase-3-vfx-particles.md section 8.9, WP-3.10): per-particle px/py (float
+// Euler position accumulation), rot (float degrees), outScale (curve output), the ribbon vertex
+// positions vx/vy, and the sprite rotationDeg/scale. A particle position is a semi-implicit Euler sum
+// accumulated over MANY fixed-dt steps (more reordering exposure than a single skinned-vertex sum), and
+// coordinates can be hundreds of units, so this mirrors the VERTEX class: the absolute term covers
+// values near zero, the relative term covers large magnitudes. It stays far below the 1e-2 magnitude of
+// a real bug (degrees-vs-radians velocity decomposition, wrong gravity sign, wrong integrator order).
+// The INTEGER lanes (liveCount, spawnOrder, frame, alive, vertexCount) are NOT in this table: they are
+// compared EXACT (section 8.9), because the integer step schedule makes them portable by construction.
+export const PARTICLE: Tolerance = { atol: 1e-4, rtol: 1e-5 };
+
+// Particle color channels and alpha (bounded 0..1, curve outputs): reuse the COLOR class shape (no
+// relative term needed for a 0..1 quantity). Kept as a named alias so the particle comparison reads
+// from one place and a future retune is local.
+export const PARTICLE_COLOR: Tolerance = { atol: 1e-5, rtol: 0 };
+
 // A pair (actual, expected) matches iff |actual - expected| <= atol + rtol * max(|actual|, |expected|)
 // (A.5). The combined absolute + relative band: the absolute term dominates near zero, the relative
 // term dominates at large coordinates. This is NOT a blanket epsilon, and the symmetric max() makes

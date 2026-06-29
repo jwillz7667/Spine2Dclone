@@ -1,0 +1,8 @@
+{
+  "effectName": "circleSpawn",
+  "seed": 12345,
+  "qualityTier": "high",
+  "simulationDt": 0.016666666666666666,
+  "steps": 60,
+  "snapshotSteps": [1, 5, 15, 30, 45]
+}

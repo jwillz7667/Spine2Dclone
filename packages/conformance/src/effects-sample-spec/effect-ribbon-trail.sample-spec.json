@@ -1,0 +1,8 @@
+{
+  "effectName": "ribbonTrailGold",
+  "seed": 7,
+  "qualityTier": "high",
+  "simulationDt": 0.016666666666666666,
+  "steps": 24,
+  "snapshotSteps": [1, 4, 10, 16, 24]
+}

@@ -343,4 +343,8 @@ export {
   loadDocumentWithEffects,
   effectsStateFromDocument,
   exportDocument,
+  exportSlotSceneDocument,
+  loadSlotSceneState,
+  SlotSceneDocumentError,
 } from './save-load';
+export type { SlotSceneDocumentErrorCode } from './save-load';

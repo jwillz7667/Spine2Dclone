@@ -71,7 +71,7 @@ export function assertTopologyEditable(
   if (mesh.bones !== undefined) {
     throw new MeshTopologyLockedError(slotId, name, 'weighted');
   }
-  if (attachmentHasDeform(slotId, name)) {
+  if (attachmentHasDeform(ctx, slotId, name)) {
     throw new MeshTopologyLockedError(slotId, name, 'deformed');
   }
   return mesh;
@@ -109,10 +109,17 @@ export function requireUnweightedMesh(
   return mesh;
 }
 
-// Whether the model holds any deform keyframe for this attachment. WP-2.9 introduces deform timelines;
-// until then no deform state exists, so this is constant false. The single seam for the deform half of
-// both the topology lock (TASK-2.1.8) and the UnbindMesh deform guard (TASK-2.3.5): both activate by
-// editing ONLY this function once the deform model lands.
-export function attachmentHasDeform(_slotId: SlotId, _name: string): boolean {
+// Whether the model holds any deform keyframe for this attachment, in ANY animation and under ANY skin
+// (WP-2.9). The single seam for the deform half of both the topology lock (TASK-2.1.8) and the UnbindMesh
+// deform guard (TASK-2.3.5): a mesh that is keyed in deform cannot change vertex count/order or be unbound
+// until its deform tracks are cleared (ClearAttachmentDeform), because both the weighted encoding and the
+// deform offset arrays are indexed by vertex position. Scans the deform map (skinKey -> slotId -> name).
+export function attachmentHasDeform(ctx: CommandContext, slotId: SlotId, name: string): boolean {
+  for (const animation of ctx.mutate.animations()) {
+    for (const [, bySlot] of animation.deform) {
+      const frames = bySlot.get(slotId)?.get(name);
+      if (frames !== undefined && frames.length > 0) return true;
+    }
+  }
   return false;
 }

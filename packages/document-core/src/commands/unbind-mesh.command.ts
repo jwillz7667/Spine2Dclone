@@ -35,7 +35,7 @@ export class UnbindMeshCommand implements Command {
   do(ctx: CommandContext): void {
     const mesh = requireWeightedMesh(ctx, this.kind, this.slotId, this.name);
     if (this.before === undefined || this.after === undefined) {
-      if (attachmentHasDeform(this.slotId, this.name)) {
+      if (attachmentHasDeform(ctx, this.slotId, this.name)) {
         throw new MeshBindingError(this.slotId, this.name, 'deformPresent');
       }
       const slot = ctx.mutate.getSlot(this.slotId);
@@ -70,13 +70,21 @@ export const unbindMeshSpec: CommandSpec = {
   // 'weighted' carries a weighted mesh to unbind back to the flat encoding.
   representativeSeedId: 'weighted',
   fixture: (model) => {
+    // A mesh with deform keyframes is unbind-locked (TASK-2.3.5), so it is not a valid unbind fixture;
+    // skip it here so the harness exercises unbind on a deform-free weighted mesh (e.g. the `weighted` seed).
     for (const slot of model.slots()) {
       const att = model
         .attachments(slot.id)
         .find((a) => a.kind === 'mesh' && a.bones !== undefined);
-      if (att && att.kind === 'mesh') {
-        return { command: new UnbindMeshCommand(slot.id, att.name) };
-      }
+      if (att === undefined || att.kind !== 'mesh') continue;
+      const hasDeform = model.animations().some((anim) => {
+        for (const [, bySlot] of anim.deform) {
+          const frames = bySlot.get(slot.id)?.get(att.name);
+          if (frames && frames.length > 0) return true;
+        }
+        return false;
+      });
+      if (!hasDeform) return { command: new UnbindMeshCommand(slot.id, att.name) };
     }
     return null;
   },

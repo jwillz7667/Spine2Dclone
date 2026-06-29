@@ -8,6 +8,34 @@ import type {
 import type { DocumentReadModel } from '../model/read-model';
 import { DocumentInvariantError } from './errors';
 
+// Assert a list of timeline frames (ik/transform/deform) is strictly ascending in time and within
+// [0, duration]; returns the maximum time so the caller can enforce the duration bound. Mirrors the bone/
+// slot channel checks for the Phase 2 timelines.
+function checkFrameTimes(
+  animationName: string,
+  label: string,
+  frames: readonly { readonly time: number }[],
+  duration: number,
+): number {
+  let previous: number | null = null;
+  let maxTime = 0;
+  for (const frame of frames) {
+    if (frame.time < 0 || frame.time > duration) {
+      throw new DocumentInvariantError(
+        `animation "${animationName}" ${label} keyframe time ${frame.time} is outside [0, ${duration}]`,
+      );
+    }
+    if (previous !== null && frame.time <= previous) {
+      throw new DocumentInvariantError(
+        `animation "${animationName}" ${label} keyframe times must strictly ascend, ${frame.time} does not follow ${previous}`,
+      );
+    }
+    previous = frame.time;
+    if (frame.time > maxTime) maxTime = frame.time;
+  }
+  return maxTime;
+}
+
 // Channel -> the value-shape predicate it must carry, so a track never holds a value of the wrong shape
 // (a rotate keyframe with a color value is corrupt internal state). The `in` checks match the disjoint
 // keyframe value shapes (doc-state.ts) with no `as`.
@@ -150,11 +178,79 @@ export function assertInvariants(model: DocumentReadModel): void {
     }
   }
 
-  // Animation graph (WP-1.5): every track targets a live bone/slot, every value channel is strictly
-  // time-ascending within [0, duration] and carries the channel's value shape, duration is non-negative
-  // and at least the maximum keyframe time, and every KeyframeId is unique across the whole document
-  // (ids are minted monotonically, so a duplicate is a bug). These mirror the format validator's
-  // ANIM_* / CURVE checks at the command boundary, the author-time equivalent of the export-time gate.
+  // Constraint graph (WP-2.6 / WP-2.7): every IK and transform constraint references live bones and a live
+  // target, and constraint names are unique across BOTH arrays (the format's CONSTRAINT_NAME_DUPLICATE).
+  // The no-cycle property is an authoring-time guard (ADR-0003 section 5), not adjudicated here, matching
+  // the format validator. Builds the id sets the timeline checks below resolve against.
+  const ikConstraintIds = new Set<string>();
+  const transformConstraintIds = new Set<string>();
+  const constraintNames = new Set<string>();
+  for (const c of model.ikConstraints()) {
+    ikConstraintIds.add(c.id);
+    if (constraintNames.has(c.name)) {
+      throw new DocumentInvariantError(`constraint name "${c.name}" is not unique`);
+    }
+    constraintNames.add(c.name);
+    for (const boneId of c.bones) {
+      if (!boneIds.has(boneId)) {
+        throw new DocumentInvariantError(
+          `ik constraint "${c.name}" references bone ${boneId}, which does not exist`,
+        );
+      }
+    }
+    if (!boneIds.has(c.target)) {
+      throw new DocumentInvariantError(
+        `ik constraint "${c.name}" targets bone ${c.target}, which does not exist`,
+      );
+    }
+  }
+  for (const c of model.transformConstraints()) {
+    transformConstraintIds.add(c.id);
+    if (constraintNames.has(c.name)) {
+      throw new DocumentInvariantError(`constraint name "${c.name}" is not unique`);
+    }
+    constraintNames.add(c.name);
+    for (const boneId of c.bones) {
+      if (!boneIds.has(boneId)) {
+        throw new DocumentInvariantError(
+          `transform constraint "${c.name}" references bone ${boneId}, which does not exist`,
+        );
+      }
+    }
+    if (!boneIds.has(c.target)) {
+      throw new DocumentInvariantError(
+        `transform constraint "${c.name}" targets bone ${c.target}, which does not exist`,
+      );
+    }
+  }
+
+  // Skin graph (WP-2.8): every NAMED skin's attachments are owned by a live slot, and 'default' is never a
+  // named skin (it is implicit). The deform skin key set is the named skin ids plus the literal 'default'.
+  const skinIds = new Set<string>(['default']);
+  for (const skin of model.skins()) {
+    if (skin.name === 'default') {
+      throw new DocumentInvariantError(`'default' must not be a named skin (it is implicit)`);
+    }
+    skinIds.add(skin.id);
+    for (const [slotId, inner] of skin.attachments) {
+      if (!slotIds.has(slotId)) {
+        throw new DocumentInvariantError(
+          `skin "${skin.name}" has attachments on slot ${slotId}, which does not exist`,
+        );
+      }
+      for (const att of inner.values()) {
+        if (att.name.length === 0) {
+          throw new DocumentInvariantError(`skin "${skin.name}" has an unnamed attachment`);
+        }
+      }
+    }
+  }
+
+  // Animation graph (WP-1.5, extended in Phase 2): every track targets a live bone/slot/constraint/skin,
+  // every value channel is strictly time-ascending within [0, duration] and carries the channel's value
+  // shape, duration is non-negative and at least the maximum keyframe time, and every KeyframeId is unique
+  // across the whole document (ids are minted monotonically, so a duplicate is a bug). These mirror the
+  // format validator's ANIM_* / CURVE checks at the command boundary.
   const seenKeyframeIds = new Set<string>();
   const noteKeyframeId = (id: string, animationName: string): void => {
     if (seenKeyframeIds.has(id)) {
@@ -202,6 +298,47 @@ export function assertInvariants(model: DocumentReadModel): void {
         maxTime,
         checkAttachmentFrames(animation, 'attachment', set.attachment, duration),
       );
+    }
+    // Phase 2 timelines: ik keyed by a live IK constraint, transform by a live transform constraint, and
+    // deform by a live skin key + live slot. Every frame keeps a unique KeyframeId and strict time order.
+    for (const [constraintId, frames] of animation.ik) {
+      if (!ikConstraintIds.has(constraintId)) {
+        throw new DocumentInvariantError(
+          `animation "${animation.name}" keys an ik timeline on constraint ${constraintId}, which does not exist`,
+        );
+      }
+      for (const kf of frames) noteKeyframeId(kf.id, animation.name);
+      maxTime = Math.max(maxTime, checkFrameTimes(animation.name, 'ik', frames, duration));
+    }
+    for (const [constraintId, frames] of animation.transform) {
+      if (!transformConstraintIds.has(constraintId)) {
+        throw new DocumentInvariantError(
+          `animation "${animation.name}" keys a transform timeline on constraint ${constraintId}, which does not exist`,
+        );
+      }
+      for (const kf of frames) noteKeyframeId(kf.id, animation.name);
+      maxTime = Math.max(maxTime, checkFrameTimes(animation.name, 'transform', frames, duration));
+    }
+    for (const [skinKey, bySlot] of animation.deform) {
+      if (!skinIds.has(skinKey)) {
+        throw new DocumentInvariantError(
+          `animation "${animation.name}" keys a deform timeline on skin ${skinKey}, which does not exist`,
+        );
+      }
+      for (const [slotId, byName] of bySlot) {
+        if (!slotIds.has(slotId)) {
+          throw new DocumentInvariantError(
+            `animation "${animation.name}" keys a deform timeline on slot ${slotId}, which does not exist`,
+          );
+        }
+        for (const [attachmentName, frames] of byName) {
+          for (const kf of frames) noteKeyframeId(kf.id, animation.name);
+          maxTime = Math.max(
+            maxTime,
+            checkFrameTimes(animation.name, `deform ${attachmentName}`, frames, duration),
+          );
+        }
+      }
     }
     if (duration < maxTime) {
       throw new DocumentInvariantError(

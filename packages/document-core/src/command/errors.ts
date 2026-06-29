@@ -165,6 +165,72 @@ export class MeshBindingError extends Error {
   }
 }
 
+// A constraint authoring edit (WP-2.6 / WP-2.7) rejected BEFORE any mutation, so it leaves no document
+// change and no history entry. The `reason` discriminant says which rule fired:
+//   - boneMissing: a referenced chain bone is not in the document.
+//   - targetMissing: the target bone is not in the document.
+//   - chainArity: an IK chain is not 1 or 2 bones.
+//   - chainDiscontinuous: a two-bone IK chain's child is not parented to its parent bone.
+//   - cycle: the constrained bone (or an IK chain bone) is an ancestor of the target (would not resolve).
+//   - duplicateName: a constraint with that name already exists (names are the on-disk record keys).
+//   - notFound: an edit/delete targeted a constraint id that does not exist.
+// The author-time equivalent of the format validator's IK_*/TC_*/CONSTRAINT_NAME_DUPLICATE codes.
+export type ConstraintErrorReason =
+  | 'boneMissing'
+  | 'targetMissing'
+  | 'chainArity'
+  | 'chainDiscontinuous'
+  | 'cycle'
+  | 'duplicateName'
+  | 'notFound';
+
+export class ConstraintError extends Error {
+  override readonly name = 'ConstraintError';
+  readonly code = 'CONSTRAINT' as const;
+  constructor(
+    readonly reason: ConstraintErrorReason,
+    readonly detail?: string,
+  ) {
+    super(`constraint error (${reason})` + (detail === undefined ? '' : `: ${detail}`));
+  }
+}
+
+// A skin authoring edit (WP-2.8) rejected BEFORE any mutation. The `reason` discriminant:
+//   - duplicateName: a skin with that name already exists, or a rename collides ('default' is reserved).
+//   - defaultProtected: an attempt to create/rename/delete the implicit 'default' skin.
+//   - notFound: an edit targeted a skin id that does not exist.
+//   - slotMissing: SetSkinAttachment named a slot not in the document.
+export type SkinErrorReason = 'duplicateName' | 'defaultProtected' | 'notFound' | 'slotMissing';
+
+export class SkinError extends Error {
+  override readonly name = 'SkinError';
+  readonly code = 'SKIN' as const;
+  constructor(
+    readonly reason: SkinErrorReason,
+    readonly detail?: string,
+  ) {
+    super(`skin error (${reason})` + (detail === undefined ? '' : `: ${detail}`));
+  }
+}
+
+// A deform timeline edit (WP-2.9) rejected BEFORE any mutation. The `reason` discriminant:
+//   - notMesh: the target attachment is absent or is not a mesh (deform applies only to meshes).
+//   - offsetLength: an offsets array length is not 2 * vertexCount of the target mesh.
+//   - keyframeMissing: a delete/move targeted a deform keyframe time that does not exist.
+//   - skinMissing: a named deform skin key does not resolve to a known skin.
+export type DeformErrorReason = 'notMesh' | 'offsetLength' | 'keyframeMissing' | 'skinMissing';
+
+export class DeformError extends Error {
+  override readonly name = 'DeformError';
+  readonly code = 'DEFORM' as const;
+  constructor(
+    readonly reason: DeformErrorReason,
+    readonly detail?: string,
+  ) {
+    super(`deform error (${reason})` + (detail === undefined ? '' : `: ${detail}`));
+  }
+}
+
 export type DocumentError =
   | CommandTargetMissingError
   | CommandNotAppliedError
@@ -175,4 +241,7 @@ export type DocumentError =
   | AnimationDurationError
   | KeyframeCollisionError
   | MeshTopologyLockedError
-  | MeshBindingError;
+  | MeshBindingError
+  | ConstraintError
+  | SkinError
+  | DeformError;

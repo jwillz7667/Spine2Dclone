@@ -28,8 +28,17 @@ export {
   KeyframeCollisionError,
   MeshTopologyLockedError,
   MeshBindingError,
+  ConstraintError,
+  SkinError,
+  DeformError,
 } from './command/errors';
-export type { DocumentError, MeshBindingErrorReason } from './command/errors';
+export type {
+  DocumentError,
+  MeshBindingErrorReason,
+  ConstraintErrorReason,
+  SkinErrorReason,
+  DeformErrorReason,
+} from './command/errors';
 
 // Model (read surface + value types; the write surface stays private)
 export type {

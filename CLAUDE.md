@@ -1,12 +1,19 @@
-# Marionette: Project CLAUDE.md (session memory)
+# Armature 2D (codename Marionette): Project CLAUDE.md (session memory)
 
-Marionette is a desktop authoring tool (Electron + React + PixiJS v8) that produces the full visual
-presentation of top-tier 2D slot games (Pragmatic Play class): a Spine-equivalent skeletal animation editor,
-a particle/VFX subsystem, and a slot composition layer. It exports one portable data format that web/Unity/
-Godot runtimes play back. A pre-existing certified math engine drives outcomes; Marionette authors presentation
-only. **Status: greenfield. Next action is Phase 0 (WP-0.1, below).** Build phase by phase, do not scaffold
-everything at once. The authoritative spec is `MARIONETTE_HANDOFF.md`. The plan of record lives in `docs/plan/`;
-the master index and dependency graph are in `docs/DEV_PLAN.md`; start building at `docs/plan/phase-0-foundations.md`.
+Armature 2D (internal codename Marionette) is a desktop authoring tool (Electron + React + PixiJS v8) that
+produces the full visual presentation of top-tier 2D slot games (Pragmatic Play class): a Spine-equivalent
+skeletal animation editor, a particle/VFX subsystem, and a slot composition layer. It exports one portable
+data format that web/Unity/Godot runtimes play back. A pre-existing certified math engine drives outcomes;
+Armature 2D authors presentation only. **Status: Phase 0 and Phase 1 complete and green; Phase 2 (Rigging)
+in progress (see `docs/plan/phase-2-rigging.md`).** Build phase by phase, do not scaffold everything at once.
+The authoritative spec is `MARIONETTE_HANDOFF.md`. The plan of record lives in `docs/plan/`; the master index
+and dependency graph are in `docs/DEV_PLAN.md`.
+
+**Product name and editions.** The user-facing product name is "Armature 2D". The package scope and the
+codename "Marionette" (including `MARIONETTE_HANDOFF.md` and the `@marionette/*` package names) are kept as
+the internal codename for now; the deep package rename is deferred to its own change. The product is planned
+to ship in two editions, Essentials and Pro; that tier split carries NO code or feature-gating in Phase 2 and
+is tracked for Phase 4/5 in `docs/plan/product-editions.md`. Do not add edition gating before then (Law 5).
 
 ---
 

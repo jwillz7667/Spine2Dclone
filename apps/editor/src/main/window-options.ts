@@ -11,6 +11,7 @@ export interface WindowOptionsInput {
 
 export function createWindowOptions(input: WindowOptionsInput): BrowserWindowConstructorOptions {
   return {
+    title: 'Armature 2D',
     width: 1440,
     height: 900,
     minWidth: 1024,

@@ -1,10 +1,14 @@
-# Marionette
+# Armature 2D
 
-Marionette is a desktop authoring tool (Electron + React + PixiJS v8) that produces the full
-visual presentation of top-tier 2D slot games: a skeletal animation editor (a Spine-equivalent
-built from first principles), a particle/VFX subsystem, and a slot composition layer. It exports
-one portable data format that web, Unity, and Godot runtimes play back. A pre-existing certified
-math engine drives outcomes; Marionette authors presentation only.
+Armature 2D (internal codename Marionette) is a desktop authoring tool (Electron + React + PixiJS
+v8) that produces the full visual presentation of top-tier 2D slot games: a skeletal animation
+editor (a Spine-equivalent built from first principles), a particle/VFX subsystem, and a slot
+composition layer. It exports one portable data format that web, Unity, and Godot runtimes play
+back. A pre-existing certified math engine drives outcomes; Armature 2D authors presentation only.
+
+The product is planned to ship in two editions, Essentials and Pro; the tier split is tracked for
+Phase 4/5 and is documented in `docs/plan/product-editions.md`. Package names keep the `@marionette`
+codename scope for now (the deep package rename is deferred to its own change).
 
 The authoritative spec is `MARIONETTE_HANDOFF.md`. The plan of record lives in `docs/plan/`, with
 the master index and dependency graph in `docs/DEV_PLAN.md`. Project laws and conventions are in
@@ -12,9 +16,10 @@ the master index and dependency graph in `docs/DEV_PLAN.md`. Project laws and co
 
 ## Status
 
-Phase 0 (Foundations) is in progress. WP-0.1 (monorepo, tooling, boundary lint, CI skeleton) and
-WP-0.2 (Electron + React shell, three dockview panels, hardened secure IPC) have landed. See
-`docs/plan/phase-0-foundations.md` for the work-package breakdown.
+Phase 0 (Foundations) and Phase 1 (Bone puppet, Tier 0) are complete and green. Phase 2 (Rigging)
+adds mesh deform, linear blend skinning, weight painting, analytic IK, transform constraints, named
+skins, and deform timelines. See `docs/plan/phase-2-rigging.md` for the work-package breakdown and
+`docs/DEV_PLAN.md` for the phase roadmap.
 
 Launch the editor shell in development:
 

@@ -11,7 +11,7 @@ import type { FileOpenResponse, FileSaveResponse, IpcResult } from '../shared';
 // node:path keeps file names portable across macOS and Windows.
 
 const FILE_FILTERS = [
-  { name: 'Marionette Skeleton', extensions: ['json'] },
+  { name: 'Armature 2D Skeleton', extensions: ['json'] },
   { name: 'All Files', extensions: ['*'] },
 ];
 

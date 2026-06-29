@@ -19,6 +19,14 @@
     "./effects-types": {
       "types": "./src/effects/types.ts",
       "import": "./src/effects/types.ts"
+    },
+    "./slot": {
+      "types": "./src/slot/index.ts",
+      "import": "./src/slot/index.ts"
+    },
+    "./slot-types": {
+      "types": "./src/slot/types.ts",
+      "import": "./src/slot/types.ts"
     }
   },
   "scripts": {

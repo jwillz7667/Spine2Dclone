@@ -20,6 +20,10 @@ const ALLOWED = {
     'document-core',
     'mcp-server',
     'conformance',
+    // math-bridge is introduced in Phase 4 (the engine OUTCOME boundary: SpinResult + MathEngine +
+    // MockMathEngine + the non-transacting real adapter), per phase-4-slot-composer.md section 5.3. It
+    // does not exist before Phase 4 (LAW 5); it lands with WP-4.1.
+    'math-bridge',
   ]),
   apps: new Set(['editor']),
   runtimes: new Set(), // Unity and Godot are Phase 5; none may exist yet.

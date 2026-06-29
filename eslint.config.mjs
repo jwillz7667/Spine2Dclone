@@ -169,12 +169,23 @@ export default tseslint.config(
 
   // INV-4: no-explicit-any is an explicit error in the contract packages (redundant with
   // recommended, stated here so the guarantee is local to the packages that must hold it).
+  // math-bridge is held to the same bar (phase-4 section 5.3): it is the engine boundary contract and
+  // must be as type-safe as format/runtime-core. (math-bridge is NOT a pure-core package, so the DOM /
+  // determinism global bans below do not apply to it; its import boundary is the separate block at the
+  // end of this file.)
   {
     files: ['packages/format/src/**/*.ts', 'packages/runtime-core/src/**/*.ts'],
     rules: {
       '@typescript-eslint/no-explicit-any': 'error',
       'no-restricted-syntax': ['error', ...DETERMINISM_SYNTAX, ...NO_NON_CONST_AS],
       'no-restricted-globals': ['error', ...PURE_CORE_RESTRICTED_GLOBALS],
+    },
+  },
+  {
+    files: ['packages/math-bridge/src/**/*.ts'],
+    rules: {
+      '@typescript-eslint/no-explicit-any': 'error',
+      'no-restricted-syntax': ['error', ...NO_NON_CONST_AS],
     },
   },
 
@@ -193,6 +204,43 @@ export default tseslint.config(
             {
               group: ['@marionette/*'],
               message: 'packages/format is a dependency-graph leaf and imports nothing in-repo.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+
+  // math-bridge boundary (phase-4 section 5.3): the engine OUTCOME package may import the format
+  // contract (so a SpinResult cell is typed as SymbolId) and nothing else in-repo. It is PixiJS-free and
+  // renderer-free; the external certified-engine client is reached ONLY from the real/** sub-path (an
+  // external dependency, so it is not an @marionette/* ban target here).
+  {
+    files: ['packages/math-bridge/src/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [ELECTRON_PATH],
+          patterns: [
+            PIXI_PATTERN,
+            {
+              group: [
+                'react',
+                'react-dom',
+                '@marionette/runtime-web',
+                '@marionette/runtime-web/*',
+                '@marionette/runtime-core',
+                '@marionette/runtime-core/*',
+                '@marionette/document-core',
+                '@marionette/document-core/*',
+                '@marionette/mcp-server',
+                '@marionette/mcp-server/*',
+                '@marionette/conformance',
+                '@marionette/conformance/*',
+              ],
+              message:
+                'math-bridge imports the format contract only (CD-1, phase-4 section 5.3): no renderer, no runtime, no document-core.',
             },
           ],
         },
@@ -360,6 +408,10 @@ export default tseslint.config(
       'boundaries/include': ['packages/**/*', 'apps/**/*'],
       'boundaries/elements': [
         { type: 'format', pattern: 'packages/format/src/**' },
+        // math-bridge is the engine OUTCOME boundary (phase-4 section 5.3). The core may import format
+        // only; the real/** sub-path additionally imports the external engine client (not an in-repo
+        // element, so element-types does not govern it). It lands in Phase 4 (WP-4.1).
+        { type: 'math-bridge', pattern: 'packages/math-bridge/src/**' },
         { type: 'runtime-core', pattern: 'packages/runtime-core/src/**' },
         { type: 'runtime-web', pattern: 'packages/runtime-web/src/**' },
         { type: 'document-core', pattern: 'packages/document-core/src/**' },
@@ -378,6 +430,10 @@ export default tseslint.config(
           default: 'disallow',
           rules: [
             { from: ['format'], allow: ['format'] },
+            // math-bridge owns the outcome boundary; it may import the format contract (so SpinResult
+            // cells are typed as SymbolId) and nothing else in-repo (CD-1 direction: format never
+            // imports math-bridge). The external engine client used by real/** is not an in-repo element.
+            { from: ['math-bridge'], allow: ['math-bridge', 'format'] },
             { from: ['runtime-core'], allow: ['runtime-core', 'format'] },
             { from: ['runtime-web'], allow: ['runtime-web', 'runtime-core', 'format'] },
             // document-core is the renderer-agnostic command/history spine (ADR-0001). It consumes

@@ -26,6 +26,8 @@
     "paths": {
       "@marionette/format": ["./packages/format/src/index.ts"],
       "@marionette/format/types": ["./packages/format/src/types.ts"],
+      "@marionette/format/effects": ["./packages/format/src/effects/index.ts"],
+      "@marionette/format/effects-types": ["./packages/format/src/effects/types.ts"],
       "@marionette/runtime-core": ["./packages/runtime-core/src/index.ts"],
       "@marionette/runtime-web": ["./packages/runtime-web/src/index.ts"],
       "@marionette/document-core": ["./packages/document-core/src/index.ts"],

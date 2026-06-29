@@ -1,0 +1,16 @@
+{
+  "projectFormatVersion": "1.0.0",
+  "name": "demo-project",
+  "members": [
+    {
+      "path": "demo.skel.json",
+      "kind": "skeleton",
+      "hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    },
+    {
+      "path": "demo.fx.json",
+      "kind": "effects",
+      "hash": "3c1051dd7322a9ef438b0e8d927e7f53854c57a0b97654fd1b6b4344372e55d1"
+    }
+  ]
+}

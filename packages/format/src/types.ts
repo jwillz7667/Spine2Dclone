@@ -27,3 +27,30 @@ export type {
 } from './schema/animation';
 export type { AtlasRef, AtlasPage, AtlasRegion } from './schema/atlas';
 export type { SkeletonDocument } from './schema/document';
+
+// The sibling effects format types (phase-3-vfx-particles.md section 8.1). Re-exported here so a
+// type-only consumer (runtime-core) can reach them through the single `@marionette/format/types`
+// entry point the boundary lint permits. They are also available at `@marionette/format/effects-types`.
+export type {
+  RangeF,
+  Vec2,
+  RGB,
+  LifeCurve,
+  LifeStop,
+  LifeCurveNumber,
+  LifeCurveRgb,
+  SpawnConfig,
+  EmitterShape,
+  ParticleTexture,
+  TrailSpec,
+  EmitterLayer,
+  SpriteAnimatorLayer,
+  RibbonTrailLayer,
+  EffectLayer,
+  EffectConfig,
+  BundleItem,
+  EffectBundle,
+  EffectsDocument,
+  ProjectMember,
+  ProjectManifest,
+} from './effects/types';

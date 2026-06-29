@@ -4,8 +4,12 @@ Armature 2D (internal codename Marionette) is a desktop authoring tool (Electron
 produces the full visual presentation of top-tier 2D slot games (Pragmatic Play class): a Spine-equivalent
 skeletal animation editor, a particle/VFX subsystem, and a slot composition layer. It exports one portable
 data format that web/Unity/Godot runtimes play back. A pre-existing certified math engine drives outcomes;
-Armature 2D authors presentation only. **Status: Phase 0 and Phase 1 complete and green; Phase 2 (Rigging)
-in progress (see `docs/plan/phase-2-rigging.md`).** Build phase by phase, do not scaffold everything at once.
+Armature 2D authors presentation only. **Status: Phase 0, Phase 1, and Phase 2 (Rigging) complete and green
+(model + all 34 commands + runtime-core solve + six conformance families + MCP tools + editor authoring
+utilities + the mesh-limb-rig DoD milestone). Phase 3 (VFX/particles) in progress (see
+`docs/plan/phase-3-vfx-particles.md`). NOTE: the editor GUI and the byte-exact fixture-determinism gate on
+the pinned Node 22.13.1 are not exercisable in a headless container; they are covered by pure-logic +
+parity + tolerance tests instead.** Build phase by phase, do not scaffold everything at once.
 The authoritative spec is `MARIONETTE_HANDOFF.md`. The plan of record lives in `docs/plan/`; the master index
 and dependency graph are in `docs/DEV_PLAN.md`.
 

@@ -56,3 +56,12 @@ export {
   applyDeform,
 } from './solve';
 export type { TransformMix, TransformOffset } from './solve';
+
+// Phase-3 effects solve primitives (phase-3-vfx-particles.md section 8.3, WP-3.1): the normative
+// seeded integer PRNG and the per-particle draw-order helper. PixiJS-free and math-bridge-free; the
+// cross-runtime determinism anchor (the PRNG golden vector locks the integer stream). The emitter
+// solve, sprite/ribbon solve, and EffectSystem land in WP-3.2 to WP-3.4 on top of these.
+export { makePrng, nextU32, nextUnit, drawRange, hash32 } from './effects';
+export type { PrngState } from './effects';
+export { makeSpawnState, drawParticleInitialState, spawnDrawCount } from './effects';
+export type { SpawnDrawInputs, SpawnState } from './effects';

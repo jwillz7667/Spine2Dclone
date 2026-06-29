@@ -71,7 +71,10 @@ export function assertValidIkChain(
     const parentId = bones[0]!;
     const childId = bones[1]!;
     if (model.getBone(childId)?.parent !== parentId) {
-      throw new ConstraintError('chainDiscontinuous', `${childId} is not a direct child of ${parentId}`);
+      throw new ConstraintError(
+        'chainDiscontinuous',
+        `${childId} is not a direct child of ${parentId}`,
+      );
     }
   }
   assertNoCycle(model, bones, target);
@@ -85,7 +88,8 @@ export function assertValidTransformConstraint(
   bones: readonly BoneId[],
   target: BoneId,
 ): void {
-  if (bones.length < 1) throw new ConstraintError('chainArity', 'transform constraint has no bones');
+  if (bones.length < 1)
+    throw new ConstraintError('chainArity', 'transform constraint has no bones');
   for (const boneId of bones) {
     if (model.getBone(boneId) === undefined) throw new ConstraintError('boneMissing', boneId);
   }

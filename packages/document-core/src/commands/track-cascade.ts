@@ -31,7 +31,10 @@ interface RemovedSlotTrack {
 interface RemovedIkConstraint {
   readonly entity: IkConstraintEntity;
   readonly index: number;
-  readonly tracks: readonly { readonly animId: AnimationId; readonly frames: readonly IkKeyframeEntity[] }[];
+  readonly tracks: readonly {
+    readonly animId: AnimationId;
+    readonly frames: readonly IkKeyframeEntity[];
+  }[];
 }
 
 interface RemovedTransformConstraint {
@@ -144,7 +147,14 @@ export function collectRemovedTracks(
     }
   }
 
-  return { boneTracks, slotTracks, ikConstraints, transformConstraints, skinAttachments, deformTracks };
+  return {
+    boneTracks,
+    slotTracks,
+    ikConstraints,
+    transformConstraints,
+    skinAttachments,
+    deformTracks,
+  };
 }
 
 // Remove the captured state (the prune half of the cascade). Constraint timelines are cleared first, then

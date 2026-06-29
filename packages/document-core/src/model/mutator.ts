@@ -5,6 +5,7 @@ import type {
   SceneRefs,
   SymbolAnimSet,
   SymbolId,
+  TumbleChoreography,
   WinSequenceConfig,
 } from '@marionette/format/slot-types';
 import type {
@@ -120,6 +121,7 @@ export interface Mutator extends DocumentReadModel {
   setSceneRefs(refs: SceneRefs): void;
   setSlotWinSequencer(config: WinSequenceConfig): void;
   setSlotFeatureFlows(graph: FeatureFlowGraph): void;
+  setSlotTumble(tumble: TumbleChoreography): void;
   setAtlas(atlas: AtlasRef): void;
 }
 
@@ -152,6 +154,7 @@ export function createMutator(model: DocumentModelInternal): Mutator {
     skins: () => model.skins(),
     slotScene: () => model.slotScene(),
     slotGrid: () => model.slotGrid(),
+    slotTumble: () => model.slotTumble(),
     getSymbolAnimSet: (symbolId) => model.getSymbolAnimSet(symbolId),
     preserved: () => model.preserved(),
     snapshot: () => model.snapshot(),
@@ -201,6 +204,7 @@ export function createMutator(model: DocumentModelInternal): Mutator {
     setSceneRefs: (refs) => model.setSceneRefs(refs),
     setSlotWinSequencer: (config) => model.setSlotWinSequencer(config),
     setSlotFeatureFlows: (graph) => model.setSlotFeatureFlows(graph),
+    setSlotTumble: (tumble) => model.setSlotTumble(tumble),
     setAtlas: (atlas) => model.setAtlas(atlas),
   };
 }

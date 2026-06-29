@@ -24,6 +24,7 @@ import { addFeatureFlowTransitionSpec } from './add-feature-flow-transition.comm
 import { deleteFeatureFlowStateSpec } from './delete-feature-flow-state.command';
 import { renameFeatureFlowStateSpec } from './rename-feature-flow-state.command';
 import { removeFeatureFlowTransitionSpec } from './remove-feature-flow-transition.command';
+import { setTumbleChoreographySpec } from './set-tumble-choreography.command';
 import { setEscalationThresholdSpec } from './set-escalation-threshold.command';
 import { setIkBendPositiveSpec } from './set-ik-bend-positive.command';
 import { setIkKeyframeSpec } from './set-ik-keyframe.command';
@@ -166,4 +167,6 @@ export const commandRegistry: readonly CommandSpec[] = [
   deleteFeatureFlowStateSpec,
   renameFeatureFlowStateSpec,
   removeFeatureFlowTransitionSpec,
+  // WP-4.10 tumble / cascade choreography authoring
+  setTumbleChoreographySpec,
 ];

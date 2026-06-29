@@ -180,6 +180,11 @@ export {
   RemoveFeatureFlowTransitionCommand,
   removeFeatureFlowTransitionSpec,
 } from './remove-feature-flow-transition.command';
+// WP-4.10 tumble / cascade choreography authoring
+export {
+  SetTumbleChoreographyCommand,
+  setTumbleChoreographySpec,
+} from './set-tumble-choreography.command';
 export {
   assertValidGridConfig,
   preset5x3ReelStrip,

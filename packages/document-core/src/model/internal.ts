@@ -5,6 +5,7 @@ import type {
   SceneRefs,
   SymbolAnimSet,
   SymbolId,
+  TumbleChoreography,
   WinSequenceConfig,
 } from '@marionette/format/slot-types';
 import type {
@@ -38,6 +39,7 @@ import {
   cloneSceneRefs,
   cloneSlotSceneState,
   cloneSymbolAnimSet,
+  cloneTumbleChoreography,
   cloneWinSequenceConfig,
 } from './slot-scene';
 import type {
@@ -623,6 +625,10 @@ export class DocumentModelInternal implements DocumentReadModel {
 
   slotGrid(): GridConfig {
     return Object.freeze(cloneGridConfig(this.slotSceneValue.grid));
+  }
+
+  slotTumble(): TumbleChoreography {
+    return Object.freeze(cloneTumbleChoreography(this.slotSceneValue.tumble));
   }
 
   getSymbolAnimSet(symbolId: SymbolId): SymbolAnimSet | undefined {
@@ -1344,6 +1350,16 @@ export class DocumentModelInternal implements DocumentReadModel {
     this.revisionValue += 1;
   }
 
+  // Replace the tumble choreography WHOLESALE (the WP-4.10 SetTumbleChoreography command). The choreography
+  // is deep-copied so the model never aliases a command-held value, and a fresh scene object is allocated so
+  // a reference-equality selector sees one change. The choreography is a single immutable value replaced
+  // atomically (a timing-slider drag coalesces at the COMMAND level, not by mutating the live value),
+  // mirroring how setSlotGrid replaces the grid.
+  setSlotTumble(tumble: TumbleChoreography): void {
+    this.slotSceneValue = { ...this.slotSceneValue, tumble: cloneTumbleChoreography(tumble) };
+    this.revisionValue += 1;
+  }
+
   // ----- preserved-content write surface (reached only through the Mutator) -----
 
   // Replace the preserved atlas wholesale (WP-1.3, command-history catalog SetAtlasRef). preservedContent
@@ -1417,6 +1433,7 @@ export function createReadModel(model: DocumentModelInternal): DocumentReadModel
     skins: () => model.skins(),
     slotScene: () => model.slotScene(),
     slotGrid: () => model.slotGrid(),
+    slotTumble: () => model.slotTumble(),
     getSymbolAnimSet: (symbolId) => model.getSymbolAnimSet(symbolId),
     preserved: () => model.preserved(),
     snapshot: () => model.snapshot(),

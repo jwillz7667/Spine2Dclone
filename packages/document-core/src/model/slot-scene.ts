@@ -132,6 +132,21 @@ export function defaultTumbleChoreography(): TumbleChoreography {
   };
 }
 
+// Deep-copy a TumbleChoreography so a memento or a handed-out value never aliases the live scene. The
+// shape is all scalar (integer ms timings + two closed-enum curve strings), so a field-by-field copy is
+// value-exact and keeps the do/undo round-trip bit-exact (SetTumbleChoreography, WP-4.10).
+export function cloneTumbleChoreography(tumble: TumbleChoreography): TumbleChoreography {
+  return {
+    explodeMs: tumble.explodeMs,
+    dropMs: tumble.dropMs,
+    dropEasing: tumble.dropEasing,
+    refillStaggerMs: tumble.refillStaggerMs,
+    settleMs: tumble.settleMs,
+    stepGapMs: tumble.stepGapMs,
+    rollupCurve: tumble.rollupCurve,
+  };
+}
+
 // Empty SceneRefs (no referenced skeletons or VFX presets). MapSymbolAnimSet adds a skeletons entry when a
 // mapping introduces a new skeletonRef and prunes it when the last symbol referencing it is removed.
 export function emptySceneRefs(): SceneRefs {
@@ -209,7 +224,7 @@ export function cloneSlotSceneState(scene: SlotSceneState): SlotSceneState {
     symbols,
     winSequencer: cloneWinSequenceConfig(scene.winSequencer),
     featureFlows: cloneFeatureFlowGraph(scene.featureFlows),
-    tumble: scene.tumble,
+    tumble: cloneTumbleChoreography(scene.tumble),
     refs: cloneSceneRefs(scene.refs),
   };
 }

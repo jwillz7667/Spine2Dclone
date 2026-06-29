@@ -294,6 +294,7 @@ export {
   DeleteFeatureFlowStateCommand,
   RenameFeatureFlowStateCommand,
   RemoveFeatureFlowTransitionCommand,
+  SetTumbleChoreographyCommand,
   assertValidGridConfig,
   preset5x3ReelStrip,
   preset6x5ScatterPay,

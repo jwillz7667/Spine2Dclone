@@ -132,7 +132,7 @@ export type {
 // and the `sequence(result, scene) -> PresentationTimeline` core (landing + anticipation + emit/sort
 // framework). The full PresentationDirective union TYPE ships now (the renderer and golden corpus type
 // against it); WP-4.8/4.9/4.10 extend `sequence` with the win/flow/tumble/escalation emission stages.
-export { rollupValueAt, CURVE_TYPES, sequence } from './slot';
+export { rollupValueAt, CURVE_TYPES, sequence, solveCascadeStep } from './slot';
 export type {
   CurveType,
   PresentationTimeline,
@@ -142,4 +142,5 @@ export type {
   GridCell,
   SymbolMove,
   GridAnchor,
+  DropStepResult,
 } from './slot';

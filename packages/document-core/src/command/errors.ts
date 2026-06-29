@@ -316,6 +316,9 @@ export interface EffectsValidationLike {
 //     not exist.
 //   - baseStateProtected: DeleteFeatureFlowState was asked to delete the sole mandatory `base` node (WP-4.9).
 //   - transitionMissing: RemoveFeatureFlowTransition targeted a transition index/value that does not exist.
+//   - invalidTiming: SetTumbleChoreography was given a timing value that is not a finite non-negative
+//     integer millisecond (explodeMs/dropMs/refillStaggerMs/settleMs/stepGapMs), so the cascade timing is
+//     malformed (WP-4.10).
 // The author-time equivalent of the format slot-scene validator's GRID_* / SYMBOL_* / flow* codes; the full
 // cross-document resolution (the skeleton actually exists on disk) is the import-time validator's job.
 export type SlotEditErrorReason =
@@ -336,7 +339,8 @@ export type SlotEditErrorReason =
   | 'duplicateState'
   | 'stateMissing'
   | 'baseStateProtected'
-  | 'transitionMissing';
+  | 'transitionMissing'
+  | 'invalidTiming';
 
 export class SlotEditError extends Error {
   override readonly name = 'SlotEditError';

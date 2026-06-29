@@ -20,3 +20,9 @@ export type {
   SymbolMove,
   GridAnchor,
 } from './timeline';
+
+// The cascade drop solver (WP-4.10): the pure column-down gravity resolver producing the survivor move
+// list + next board for one cascade step. Exported so the editor/tooling can preview a drop and the
+// isolated drop-solver tests pin the rule; the cascade STAGE uses it internally via `sequence`.
+export { solveCascadeStep } from './drop-solver';
+export type { DropStepResult } from './drop-solver';

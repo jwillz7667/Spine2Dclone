@@ -469,15 +469,29 @@ describe('sequence: win sequence stage 3 (WP-4.8 TASK-4.8.3)', () => {
     expect(rollup.curve).toBe('linear');
   });
 
-  it('SUPPRESSES the line-win rollup when result.cascades is non-empty', () => {
+  it('SUPPRESSES the WP-4.8 single line-win rollup when result.cascades is non-empty (the WP-4.10 chain owns it)', () => {
     const base = MOCK_SCENARIOS['base-win'].result;
-    // Synthesize a cascade marker on a copy (the suppression key is `cascades` non-empty).
+    // Synthesize a single no-op cascade step on a copy (the suppression key is `cascades` non-empty). A
+    // no-op step (no removed/refill) leaves the board unchanged, so initialGrid still equals grid; its
+    // cumulativeWin carries the whole totalWin.
     const cascadeResult: SpinResult = {
       ...base,
       cascades: [{ removed: [], refill: [], stepWin: 0, cumulativeWin: base.totalWin }],
     };
     const tl = sequence(cascadeResult, baseWinScene());
-    expect(tl.directives.filter((d) => d.kind === 'counterRollup')).toHaveLength(0);
+    const rollups = tl.directives.filter((d) => d.kind === 'counterRollup');
+    // Exactly ONE rollup, and it is the WP-4.10 CHAIN LINK, not the WP-4.8 single rollup: the WP-4.8 rollup
+    // is authored at step atMs 1200 with the fixed 1000ms authored window; the WP-4.10 chain link starts at
+    // the cascade running atMs 0 and spans [0, 0 + dropMs] (dropMs is 100 in baseWinScene's tumble). The
+    // single chain link's terminal toUnits is the engine's cumulativeWin (= totalWin), proving suppression of
+    // the WP-4.8 rollup (no double-count, section 5.4.3).
+    expect(rollups).toHaveLength(cascadeResult.cascades!.length); // one link per cascade step
+    const link = rollups[0]!;
+    if (link.kind !== 'counterRollup') throw new Error('narrowing');
+    expect(link.fromUnits).toBe(0);
+    expect(link.toUnits).toBe(base.totalWin);
+    expect(link.startMs).toBe(0); // chain start, NOT the WP-4.8 authored step atMs 1200
+    expect(link.endMs).toBe(100); // start + dropMs (dropMs is 100 in baseWinScene's tumble)
   });
 
   it('byLine and bySymbol target rules resolve to the right cells', () => {

@@ -5,7 +5,12 @@ import type {
   RGBA,
   TransformMode,
 } from '@marionette/format/types';
-import type { GridConfig, SymbolAnimSet, SymbolId } from '@marionette/format/slot-types';
+import type {
+  GridConfig,
+  SymbolAnimSet,
+  SymbolId,
+  TumbleChoreography,
+} from '@marionette/format/slot-types';
 import type {
   AnimationEntity,
   AttachmentEntity,
@@ -79,6 +84,8 @@ export interface DocumentReadModel {
   slotScene(): SlotSceneState;
   // The slot grid alone (a convenience over slotScene().grid, mirroring getBone over bones()).
   slotGrid(): GridConfig;
+  // The tumble choreography alone (a convenience over slotScene().tumble; WP-4.10), deep-copied.
+  slotTumble(): TumbleChoreography;
   // The SymbolAnimSet mapped to one SymbolId, or undefined when the symbol is unmapped.
   getSymbolAnimSet(symbolId: SymbolId): SymbolAnimSet | undefined;
   // The preserved (not-yet-promoted) document body, read-only. After Phase 2 this holds only the atlas.

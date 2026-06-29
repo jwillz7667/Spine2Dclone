@@ -11,6 +11,7 @@ import {
 import { slotSceneDocumentSchema } from '../src/slot/scene-document';
 import { winSequenceConfigSchema } from '../src/slot/win-sequence-config';
 import { featureFlowGraphSchema } from '../src/slot/feature-flow-graph';
+import { tumbleChoreographySchema } from '../src/slot/tumble-choreography';
 import { symbolId } from '../src/slot/symbol-id';
 import type { SceneResolver } from '../src/slot/validate/resolver';
 import type { SlotSceneDocument } from '../src/slot/scene-document';
@@ -252,6 +253,68 @@ describe('FeatureFlowGraph schema (WP-4.9)', () => {
     ],
   ] as const)('rejects %s', (_label, bad) => {
     expect(featureFlowGraphSchema.safeParse(bad).success).toBe(false);
+  });
+});
+
+// WP-4.10: the finalized TumbleChoreography schema (integer-ms explode/drop/refill timings + the closed
+// rollupCurve enum for the per-step rollup chain). The positive case validates; the strict object / closed
+// enum / non-negative-integer bounds reject malformed shapes.
+describe('TumbleChoreography schema (WP-4.10)', () => {
+  it('accepts a full choreography with non-zero timings and closed-enum curves', () => {
+    const tumble = {
+      explodeMs: 120,
+      dropMs: 200,
+      dropEasing: 'easeOutQuad',
+      refillStaggerMs: 40,
+      settleMs: 80,
+      stepGapMs: 150,
+      rollupCurve: 'easeInOutCubic',
+    };
+    expect(tumbleChoreographySchema.safeParse(tumble).success).toBe(true);
+  });
+
+  it('accepts the minimal-valid form (all timings zero, linear curves)', () => {
+    const minimal = {
+      explodeMs: 0,
+      dropMs: 0,
+      dropEasing: 'linear',
+      refillStaggerMs: 0,
+      settleMs: 0,
+      stepGapMs: 0,
+      rollupCurve: 'linear',
+    };
+    expect(tumbleChoreographySchema.safeParse(minimal).success).toBe(true);
+  });
+
+  function valid(): Record<string, unknown> {
+    return {
+      explodeMs: 120,
+      dropMs: 200,
+      dropEasing: 'easeOutQuad',
+      refillStaggerMs: 40,
+      settleMs: 80,
+      stepGapMs: 150,
+      rollupCurve: 'easeInOutCubic',
+    };
+  }
+
+  it.each([
+    ['negative explodeMs', { ...valid(), explodeMs: -1 }],
+    ['non-integer dropMs', { ...valid(), dropMs: 12.5 }],
+    ['negative settleMs', { ...valid(), settleMs: -50 }],
+    ['unknown dropEasing', { ...valid(), dropEasing: 'bouncy' }],
+    ['unknown rollupCurve', { ...valid(), rollupCurve: 'springy' }],
+    ['unexpected extra key (strict)', { ...valid(), vfxPreset: 'coinShower' }],
+    [
+      'missing stepGapMs',
+      (() => {
+        const t = valid();
+        delete t['stepGapMs'];
+        return t;
+      })(),
+    ],
+  ] as const)('rejects %s', (_label, bad) => {
+    expect(tumbleChoreographySchema.safeParse(bad).success).toBe(false);
   });
 });
 

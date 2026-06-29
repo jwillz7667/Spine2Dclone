@@ -14,17 +14,20 @@
 // `emit*` stages between the marked seams below; each new stage appends to the SAME builder before the
 // single sort, so `seq` stays globally monotonic and the comparator stays total across all stages.
 
-import type { SpinResult, WinLine, FeatureEvent } from '@marionette/math-bridge/types';
+import type { SpinResult, WinLine, FeatureEvent, CascadeStep } from '@marionette/math-bridge/types';
 import type {
   SlotScene,
+  SymbolId,
+  TumbleChoreography,
   WinSequenceConfig,
   WinSequenceStep,
   EscalationTier,
   FeatureFlowGraph,
   FeatureMatch,
 } from '@marionette/format/slot-types';
-import type { PresentationDirective, PresentationTimeline } from './timeline';
+import type { GridCell, PresentationDirective, PresentationTimeline } from './timeline';
 import type { CurveType } from './rollup';
+import { solveCascadeStep } from './drop-solver';
 
 // The authored duration of the single line-win counter rollup (WP-4.8 / section 5.4.3). The rollupStart
 // step pins the rollup START (its atMs); the rollup END is START + this fixed authored window, so the
@@ -418,6 +421,119 @@ function emitNodeCinematic(
   }
 }
 
+// Cascade phase (TASK-4.10.3, construction-order STAGE 5, section 5.4.1 / section 5.4.3 CASCADE-WIN model).
+// Runs ONLY for a cascade spin (`result.cascades` non-empty). Starting from `result.initialGrid`, walk the
+// engine's `cascades` IN ARRAY ORDER; for each step emit, in this fixed within-step order (pinned by `seq`):
+//   1. `cascadeExplode{ cells }` for the step's `removed` cells, mapped to {row,col} in (col,row) order.
+//   2. `symbolAnimate(win)` for each removed cell, in (col,row) order.
+//   3. (per-step authored VFX: SKIPPED by construction, see the DELIBERATE DEVIATION note below.)
+//   4. `cascadeDrop{ moves }` from the drop solver: the survivor slides for this step's column-down gravity.
+//   5. `cascadeRefill{ col, symbols }` per refilled column LEFT-TO-RIGHT, using the engine's
+//      `step.refill[col].symbols` VERBATIM (no synthesized symbols, LAW 1).
+//   6. this step's `counterRollup` chain link `{ fromUnits: prevCumulative, toUnits: step.cumulativeWin,
+//      startMs, endMs, curve: tumble.rollupCurve }` (the contiguous CASCADE-WIN chain, section 5.4.3).
+//
+// atMs ACCUMULATION (documented, integer ms): a running `atMs` starts at 0 and ADVANCES by
+// `explodeMs + dropMs + settleMs + stepGapMs` per step (the authored TumbleChoreography timings). Within a
+// step ALL of explode/win/drop/refill share the step's START atMs (their relative order is pinned by `seq`,
+// not by atMs); the rollup link spans `[stepStart, stepStart + dropMs]` (the drop window) so the displayed
+// total ticks up as the symbols fall. A zero-duration TumbleChoreography (the default for a non-cascade
+// game) collapses every step to atMs 0; the order is still total via `seq`. All amounts are integer base
+// units; the chain reads `cumulativeWin`, NEVER sums `stepWin` (LAW 1).
+//
+// prevCumulative RULE: `0` for the first step (k === 0), else `cascades[k-1].cumulativeWin`. The chain is
+// therefore contiguous and non-overlapping (each link starts where the previous ended), and its terminal
+// `toUnits` is `cascades[last].cumulativeWin`, which validation (WP-4.1) requires to equal
+// `result.totalWin` exactly. The WP-4.8 single line-win rollup is SUPPRESSED for cascade spins (emitWinSequence
+// already gates on `cascades`), so exactly one rollup channel fires (no double-count, section 5.4.3).
+//
+// DELIBERATE DEVIATION (per-step VFX): the plan's stage-5 sketch lists "the authored vfxBurst", but the
+// owned `TumbleChoreography` schema carries NO vfx preset / anchor field, and inventing one is out of scope
+// for WP-4.10 (it would be a format change). Rather than emit a `vfxBurst` with a fabricated preset name
+// (which would fail the renderer's load-time preset resolution, WP-4.11), the per-step cascade VFX is
+// SKIPPED here and is driven elsewhere (the win-sequence / feature-flow VFX already covers the spin, and a
+// future TumbleChoreography vfx field is the natural home). This keeps every emitted directive
+// engine/author-truthful and changes no committed slot fixture.
+//
+// The function reads `result.cascades` / `result.initialGrid` VALUE TYPES and the authored `tumble` timings
+// only; it decides nothing (LAW 1). The drop solver re-derives the survivor moves AND the next board, so the
+// stage chains steps from `initialGrid`; a WP-4.10 test asserts the final chained board equals `result.grid`.
+function emitCascades(builder: DirectiveBuilder, result: SpinResult, scene: SlotScene): void {
+  const cascades = result.cascades;
+  if (cascades === undefined || cascades.length === 0) return;
+  const { rows, cols } = scene.grid;
+  const tumble: TumbleChoreography = scene.tumble;
+  const rollupCurve: CurveType = tumble.rollupCurve;
+  const stepSpanMs = tumble.explodeMs + tumble.dropMs + tumble.settleMs + tumble.stepGapMs;
+
+  let board: readonly (readonly SymbolId[])[] = result.initialGrid;
+  let atMs = 0;
+  let prevCumulative = 0;
+  for (let k = 0; k < cascades.length; k += 1) {
+    const step: CascadeStep = cascades[k]!;
+
+    // 1. Explode: the removed cells mapped to {row,col}, de-duplicated and ordered (col asc, then row asc).
+    const removedCells = orderedRemovedCells(step);
+    builder.push({ kind: 'cascadeExplode', cells: removedCells, atMs });
+
+    // 2. The win animation for each removed cell, in the same (col, row) order.
+    for (const cell of removedCells) {
+      builder.push({ kind: 'symbolAnimate', row: cell.row, col: cell.col, set: 'win', atMs });
+    }
+
+    // 3. (per-step authored VFX intentionally skipped: see the DELIBERATE DEVIATION note above.)
+
+    // 4. The survivor slides for this step (column-down gravity), plus the chained next board.
+    const drop = solveCascadeStep(board, step.removed, step.refill, rows, cols);
+    builder.push({ kind: 'cascadeDrop', moves: drop.moves, atMs });
+    board = drop.board;
+
+    // 5. The refilled columns LEFT-TO-RIGHT, using the engine's refill symbols verbatim. The engine's
+    // `refill` array order is followed but de-conflicted by column so the emission is column-sorted (a
+    // refill array that lists columns out of order still emits left-to-right).
+    for (const colRefill of orderedRefill(step)) {
+      builder.push({ kind: 'cascadeRefill', col: colRefill.col, symbols: colRefill.symbols, atMs });
+    }
+
+    // 6. This step's contiguous rollup chain link, reading the engine's authoritative cumulativeWin.
+    builder.push({
+      kind: 'counterRollup',
+      fromUnits: prevCumulative,
+      toUnits: step.cumulativeWin,
+      startMs: atMs,
+      endMs: atMs + tumble.dropMs,
+      curve: rollupCurve,
+      atMs,
+    });
+
+    prevCumulative = step.cumulativeWin;
+    atMs += stepSpanMs;
+  }
+}
+
+// The step's removed cells as {row,col}, de-duplicated by a (col,row) key and sorted (col asc, then row
+// asc) so the explode/win emission order is a pure function of the input (mirrors resolveTargetCells).
+function orderedRemovedCells(step: CascadeStep): readonly GridCell[] {
+  const seen = new Set<string>();
+  const cells: GridCell[] = [];
+  for (const [row, col] of step.removed) {
+    const key = `${col},${row}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    cells.push({ row, col });
+  }
+  cells.sort((a, b) => (a.col !== b.col ? a.col - b.col : a.row - b.row));
+  return cells;
+}
+
+// The step's refill entries sorted by column ascending (left-to-right emission), preserving each entry's
+// `symbols` order verbatim. A stable copy so a refill array listed out of column order still emits L-to-R.
+function orderedRefill(
+  step: CascadeStep,
+): readonly { readonly col: number; readonly symbols: readonly SymbolId[] }[] {
+  return [...step.refill].sort((a, b) => a.col - b.col);
+}
+
 // Escalation phase (TASK-4.8.4, construction-order stage 6, section 5.4.1). Emit one `escalation{tier}`
 // directive for EACH crossed tier in ASCENDING tier order (big, then mega, then epic), driven PURELY by
 // `totalWin/bet` against the threshold table (the engine amount decides the tier; the author decides the
@@ -454,9 +570,11 @@ export function sequence(result: SpinResult, scene: SlotScene): PresentationTime
   // for each matching transition, multiplierOrb for multiplier features, and a freeSpins re-entry for
   // retriggers. Pushed AFTER win sequence (stage 3) and BEFORE escalation (stage 6).
   emitFeatureFlow(builder, result, scene);
-  // SEAM: WP-4.10 cascades (stage 5) push their directives HERE, between stage 4 (feature flow) and stage 6
-  // (escalation), before the single build()/sort. Each new stage appends to the same builder so `seq`
-  // remains globally monotonic and the comparator stays total.
+  // Stage 5: cascades (WP-4.10): for a cascade spin, walk result.cascades from initialGrid emitting the
+  // explode/win/drop/refill cycle and the per-step counterRollup chain link. Pushed AFTER feature flow
+  // (stage 4) and BEFORE escalation (stage 6), so `seq` remains globally monotonic and the comparator stays
+  // total. A no-op for a non-cascade spin (the WP-4.8 single rollup carries those, suppressed here).
+  emitCascades(builder, result, scene);
   // Stage 6: win-tier escalation (WP-4.8): one escalation{tier} per crossed tier in ascending order.
   emitEscalation(builder, result, scene);
 

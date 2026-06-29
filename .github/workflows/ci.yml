@@ -94,6 +94,21 @@ jobs:
       - name: Phase-0 forbidden-package guard (LAW 5)
         run: pnpm check:packages
 
+  phase3-acceptance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Phase 3 particle conformance (runtime-core matches committed fixtures, WP-3.10)
+        run: pnpm conformance:particles
+      - name: Phase 3 DoD acceptance (megaWin bundle plays; caps + determinism, WP-3.11)
+        run: pnpm phase3:acceptance
+
   commitlint:
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
@@ -114,11 +129,12 @@ jobs:
           --to ${{ github.event.pull_request.head.sha }}
 
   # Single required status check. Its dependency set grows per phase (conformance-and-ci D.13);
-  # Phase 0 = typecheck, lint, test, build, format-semver, package-guard.
+  # Phase 0 = typecheck, lint, test, build, format-semver, package-guard. Phase 3 adds the
+  # phase3-acceptance gate (the milestone DoD: particle conformance + the megaWin acceptance harness).
   ci-pass:
     runs-on: ubuntu-latest
     if: always()
-    needs: [typecheck, lint, test, build, format-semver, package-guard]
+    needs: [typecheck, lint, test, build, format-semver, package-guard, phase3-acceptance]
     steps:
       - name: Verify all required jobs succeeded
         run: |

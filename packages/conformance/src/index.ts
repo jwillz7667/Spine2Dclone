@@ -100,3 +100,10 @@ export {
   PERF_BASELINE_PATH,
 } from './io';
 export type { PerfBaseline } from './io';
+
+// The Phase 3 Definition-of-Done acceptance harness (phase-3-vfx-particles.md section 12.2, WP-3.11):
+// load the megaWin artifact, validate it, trigger the bundle by name, and assert expansion/caps/
+// determinism/bone-anchor/blend-intent. Pure (runtime-core + format only, no renderer); the GL pixel
+// sample is the deferred render-side remainder.
+export { runPhase3Acceptance, loadMegaWinArtifact } from './phase3-acceptance';
+export type { AcceptanceCheck, AcceptanceReport } from './phase3-acceptance';

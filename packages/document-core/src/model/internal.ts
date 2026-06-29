@@ -1,4 +1,5 @@
 import type { AtlasRef } from '@marionette/format/types';
+import type { GridConfig, SceneRefs, SymbolAnimSet, SymbolId } from '@marionette/format/slot-types';
 import type {
   AnimationEntity,
   AttachmentEntity,
@@ -23,6 +24,13 @@ import type {
   TransformKeyframeEntity,
 } from './doc-state';
 import { isBoneTimelineSetEmpty, isSlotTimelineSetEmpty } from './doc-state';
+import type { SlotSceneState } from './slot-scene';
+import {
+  cloneGridConfig,
+  cloneSceneRefs,
+  cloneSlotSceneState,
+  cloneSymbolAnimSet,
+} from './slot-scene';
 import type {
   AnimationId,
   BoneId,
@@ -36,8 +44,10 @@ import {
   animationToSnapshot,
   attachmentToSnapshot,
   boneToSnapshot,
+  freezeSlotSceneForReadOut,
   ikConstraintToSnapshot,
   skinToSnapshot,
+  slotSceneToSnapshot,
   slotToSnapshot,
   transformConstraintToSnapshot,
   type AnimationSnapshot,
@@ -439,6 +449,13 @@ export class DocumentModelInternal implements DocumentReadModel {
   private transformConstraintOrderArr: TransformConstraintId[];
   private skinsMap: Map<SkinId, MutableSkin>;
   private skinOrderArr: SkinId[];
+  // The slot-scene aggregate (phase-4 WP-4.5 / WP-4.6). Held as a single value whose members are replaced
+  // WHOLESALE by the slot commands (grid, one symbol entry, refs), never patched in place, so a frozen copy
+  // is safe to share by reference. There is no batch/discrete distinction worth threading per member: a grid
+  // metric drag coalesces at the COMMAND level (SetGridConfig.coalesceWith), and each command applies an
+  // absolute new scene value, so the model just swaps the value (revision bumps each swap so a coalesced
+  // session still redraws). DISCRETE and BATCH both replace the held value object identically.
+  private slotSceneValue: SlotSceneState;
   private preservedContent: PreservedContent;
   private batching = false;
   private revisionValue = 0;
@@ -469,6 +486,9 @@ export class DocumentModelInternal implements DocumentReadModel {
     this.skinsMap = new Map();
     for (const [id, skin] of state.skins) this.skinsMap.set(id, toMutableSkin(skin));
     this.skinOrderArr = state.skinOrder.slice();
+    // Deep-copy the incoming scene so the model never aliases the caller's DocState (the same isolation the
+    // bones/slots maps get above). The grid and refs are copied; the immutable configs are shared.
+    this.slotSceneValue = cloneSlotSceneState(state.slotScene);
     this.preservedContent = deepFreeze({
       atlas: state.preserved.atlas,
     });
@@ -588,6 +608,19 @@ export class DocumentModelInternal implements DocumentReadModel {
     return out;
   }
 
+  slotScene(): SlotSceneState {
+    return freezeSlotSceneForReadOut(this.slotSceneValue);
+  }
+
+  slotGrid(): GridConfig {
+    return Object.freeze(cloneGridConfig(this.slotSceneValue.grid));
+  }
+
+  getSymbolAnimSet(symbolId: SymbolId): SymbolAnimSet | undefined {
+    const set = this.slotSceneValue.symbols[symbolId];
+    return set ? Object.freeze(cloneSymbolAnimSet(set)) : undefined;
+  }
+
   preserved(): PreservedContent {
     return this.preservedContent;
   }
@@ -643,6 +676,7 @@ export class DocumentModelInternal implements DocumentReadModel {
       transformConstraintOrder: this.transformConstraintOrderArr.slice(),
       skins,
       skinOrder: this.skinOrderArr.slice(),
+      slotScene: slotSceneToSnapshot(this.slotSceneValue),
       preserved: this.preservedContent,
     };
   }
@@ -1242,6 +1276,45 @@ export class DocumentModelInternal implements DocumentReadModel {
     this.revisionValue += 1;
   }
 
+  // ----- slot-scene write surface (phase-4 WP-4.5 / WP-4.6, reached only through the Mutator) -----
+
+  // Replace the slot grid WHOLESALE (SetGridConfig). The grid is deep-copied on the way in so the stored
+  // scene never aliases the command's value. A fresh scene object is allocated (one reference change) in
+  // both modes: the held value is a single object replaced atomically, so there is no in-place batch path
+  // (a grid-metric drag coalesces at the command level, not by mutating the live grid).
+  setSlotGrid(grid: GridConfig): void {
+    this.slotSceneValue = { ...this.slotSceneValue, grid: cloneGridConfig(grid) };
+    this.revisionValue += 1;
+  }
+
+  // Set (add or replace) one symbol's SymbolAnimSet (MapSymbolAnimSet do). The set is deep-copied; a fresh
+  // symbols record and a fresh scene object are allocated so a reference-equality selector sees one change.
+  setSymbolAnimSet(symbolId: SymbolId, set: SymbolAnimSet): void {
+    const symbols = { ...this.slotSceneValue.symbols, [symbolId]: cloneSymbolAnimSet(set) };
+    this.slotSceneValue = { ...this.slotSceneValue, symbols };
+    this.revisionValue += 1;
+  }
+
+  // Remove one symbol's mapping (MapSymbolAnimSet do with a null target, and undo of an add). A missing key
+  // is a no-op (commands assert intent before writing). A fresh record and scene object are allocated.
+  removeSymbolAnimSet(symbolId: SymbolId): void {
+    if (!(symbolId in this.slotSceneValue.symbols)) return;
+    const symbols: Record<SymbolId, SymbolAnimSet> = {};
+    for (const [id, value] of Object.entries(this.slotSceneValue.symbols)) {
+      if (id === symbolId) continue;
+      symbols[id as SymbolId] = value;
+    }
+    this.slotSceneValue = { ...this.slotSceneValue, symbols };
+    this.revisionValue += 1;
+  }
+
+  // Replace the scene refs WHOLESALE (MapSymbolAnimSet's refs.skeletons add/prune bookkeeping). The refs are
+  // deep-copied; a fresh scene object is allocated. Driven only as part of a MapSymbolAnimSet composite.
+  setSceneRefs(refs: SceneRefs): void {
+    this.slotSceneValue = { ...this.slotSceneValue, refs: cloneSceneRefs(refs) };
+    this.revisionValue += 1;
+  }
+
   // ----- preserved-content write surface (reached only through the Mutator) -----
 
   // Replace the preserved atlas wholesale (WP-1.3, command-history catalog SetAtlasRef). preservedContent
@@ -1313,6 +1386,9 @@ export function createReadModel(model: DocumentModelInternal): DocumentReadModel
     transformConstraints: () => model.transformConstraints(),
     getSkin: (id) => model.getSkin(id),
     skins: () => model.skins(),
+    slotScene: () => model.slotScene(),
+    slotGrid: () => model.slotGrid(),
+    getSymbolAnimSet: (symbolId) => model.getSymbolAnimSet(symbolId),
     preserved: () => model.preserved(),
     snapshot: () => model.snapshot(),
   };

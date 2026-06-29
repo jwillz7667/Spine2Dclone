@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { DocumentInvariantError, assertInvariants } from '../src';
 import { emptyPreservedContent } from '../src/model/doc-state';
+import { defaultSlotSceneState } from '../src/model/slot-scene';
 import type { AttachmentEntity, BoneEntity, DocState, SlotEntity } from '../src/model/doc-state';
 import { makeIdFactory, type BoneId, type SlotId } from '../src/model/ids';
 import { DocumentModelInternal } from '../src/model/internal';
@@ -50,6 +51,7 @@ function state(partial: Partial<DocState> & Pick<DocState, 'bones' | 'boneOrder'
     transformConstraintOrder: [],
     skins: new Map(),
     skinOrder: [],
+    slotScene: defaultSlotSceneState(),
     preserved: emptyPreservedContent(),
     ...partial,
   };

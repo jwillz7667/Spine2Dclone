@@ -23,6 +23,7 @@ import {
   SetSlotColorCommand,
   assertInvariants,
   createDocument,
+  defaultSlotSceneState,
   exportDocument,
   makeIdFactory,
   wrapDegrees,
@@ -378,6 +379,7 @@ function danglingSlotState(): DocState {
     transformConstraintOrder: [],
     skins: new Map(),
     skinOrder: [],
+    slotScene: defaultSlotSceneState(),
     preserved: { atlas: { pages: [] } },
   };
 }

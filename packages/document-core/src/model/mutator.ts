@@ -1,4 +1,5 @@
 import type { AtlasRef } from '@marionette/format/types';
+import type { GridConfig, SceneRefs, SymbolAnimSet, SymbolId } from '@marionette/format/slot-types';
 import type {
   AnimationEntity,
   AttachmentEntity,
@@ -105,6 +106,11 @@ export interface Mutator extends DocumentReadModel {
   patchSkin(id: SkinId, patch: { readonly name?: string }): void;
   setSkinAttachment(skinId: SkinId, slotId: SlotId, entity: AttachmentEntity): void;
   removeSkinAttachment(skinId: SkinId, slotId: SlotId, name: string): void;
+  // Slot-scene write surface (phase-4 WP-4.5 / WP-4.6).
+  setSlotGrid(grid: GridConfig): void;
+  setSymbolAnimSet(symbolId: SymbolId, set: SymbolAnimSet): void;
+  removeSymbolAnimSet(symbolId: SymbolId): void;
+  setSceneRefs(refs: SceneRefs): void;
   setAtlas(atlas: AtlasRef): void;
 }
 
@@ -135,6 +141,9 @@ export function createMutator(model: DocumentModelInternal): Mutator {
     transformConstraints: () => model.transformConstraints(),
     getSkin: (id) => model.getSkin(id),
     skins: () => model.skins(),
+    slotScene: () => model.slotScene(),
+    slotGrid: () => model.slotGrid(),
+    getSymbolAnimSet: (symbolId) => model.getSymbolAnimSet(symbolId),
     preserved: () => model.preserved(),
     snapshot: () => model.snapshot(),
     insertBone: (entity, index) => model.insertBone(entity, index),
@@ -177,6 +186,10 @@ export function createMutator(model: DocumentModelInternal): Mutator {
     setSkinAttachment: (skinId, slotId, entity) => model.setSkinAttachment(skinId, slotId, entity),
     removeSkinAttachment: (skinId, slotId, name) =>
       model.removeSkinAttachment(skinId, slotId, name),
+    setSlotGrid: (grid) => model.setSlotGrid(grid),
+    setSymbolAnimSet: (symbolId, set) => model.setSymbolAnimSet(symbolId, set),
+    removeSymbolAnimSet: (symbolId) => model.removeSymbolAnimSet(symbolId),
+    setSceneRefs: (refs) => model.setSceneRefs(refs),
     setAtlas: (atlas) => model.setAtlas(atlas),
   };
 }

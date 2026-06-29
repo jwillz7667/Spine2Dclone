@@ -36,6 +36,7 @@ import {
   makeKeyframe,
   makeTransformKeyframe,
 } from '../model/doc-state';
+import { defaultSlotSceneState } from '../model/slot-scene';
 import type {
   AnimationId,
   BoneId,
@@ -335,6 +336,11 @@ function formatToDocState(document: SkeletonDocument, ids: IdFactory): DocState 
     transformConstraintOrder,
     skins: skinsMap,
     skinOrder,
+    // The skeletal SkeletonDocument envelope carries NO slot scene (the slot scene is its own
+    // SlotSceneDocument, phase-4 WP-4.4). A skeleton-only load therefore seeds the always-present DEFAULT
+    // slot scene; wiring the SlotSceneDocument save/load envelope is a separate change (see report). The
+    // in-model slotScene still snapshots and round-trips cleanly through History do/undo.
+    slotScene: defaultSlotSceneState(),
     preserved: {
       atlas: document.atlas,
     },

@@ -5,6 +5,7 @@ import type {
   RGBA,
   TransformMode,
 } from '@marionette/format/types';
+import type { GridConfig, SymbolAnimSet, SymbolId } from '@marionette/format/slot-types';
 import type {
   AnimationEntity,
   AttachmentEntity,
@@ -22,6 +23,8 @@ import type {
   TransformKeyframeEntity,
 } from './doc-state';
 import { cloneCurve, cloneKeyframeValue } from './doc-state';
+import type { SlotSceneState } from './slot-scene';
+import { cloneGridConfig, cloneSceneRefs, cloneSymbolAnimSet } from './slot-scene';
 import type {
   AnimationId,
   BoneId,
@@ -64,6 +67,14 @@ export interface DocumentReadModel {
   // The NON-default named skins in skinOrder. The default skin is implicit (its attachments are the
   // editable default-skin attachments reached via attachments()); it is never a SkinEntity.
   skins(): readonly SkinEntity[];
+  // The slot-scene aggregate (phase-4 WP-4.5 / WP-4.6), read-only and deep-frozen. Always present (a
+  // default 5x3 reelStrip scene on a fresh document). The grid, the SymbolId-keyed symbol library, the
+  // sequencer / feature-flow / tumble configs, and the scene refs.
+  slotScene(): SlotSceneState;
+  // The slot grid alone (a convenience over slotScene().grid, mirroring getBone over bones()).
+  slotGrid(): GridConfig;
+  // The SymbolAnimSet mapped to one SymbolId, or undefined when the symbol is unmapped.
+  getSymbolAnimSet(symbolId: SymbolId): SymbolAnimSet | undefined;
   // The preserved (not-yet-promoted) document body, read-only. After Phase 2 this holds only the atlas.
   preserved(): PreservedContent;
   // Canonical, deterministically-ordered, deep-equality-comparable projection (includes internal ids).
@@ -273,6 +284,38 @@ export interface SkinSnapshot {
   readonly attachments: readonly AttachmentSnapshot[];
 }
 
+// A single symbol-library entry projection, tagged with its SymbolId key. The set is name/value-keyed
+// (no internal id), so the snapshot lists each symbol's id string plus its SymbolAnimSet fields.
+export interface SymbolAnimSetSnapshot {
+  readonly symbolId: string;
+  readonly skeletonRef: string;
+  readonly idle: string;
+  readonly land: string;
+  readonly win: string;
+  readonly anticipation?: string;
+}
+
+// A scene-ref-entry projection (name + content hash), in name order within each ref list.
+export interface SceneRefEntrySnapshot {
+  readonly name: string;
+  readonly hash: string;
+}
+
+// A plain, deterministic slot-scene projection (phase-4 WP-4.5 / WP-4.6). The grid is a value copy; the
+// symbol library is a list sorted by SymbolId; the sequencer / feature-flow / tumble configs are carried by
+// value; the refs are name-sorted lists. So a do/undo round-trip deep-equal covers a SetGridConfig and a
+// MapSymbolAnimSet edit. The grid/configs are deeply-frozen format values; the snapshot copies the grid and
+// refs (which the commands mutate) and shares the immutable sequencer/feature/tumble values by reference.
+export interface SlotSceneSnapshot {
+  readonly grid: GridConfig;
+  readonly symbols: readonly SymbolAnimSetSnapshot[]; // sorted by symbolId
+  readonly winSequencer: SlotSceneState['winSequencer'];
+  readonly featureFlows: SlotSceneState['featureFlows'];
+  readonly tumble: SlotSceneState['tumble'];
+  readonly skeletons: readonly SceneRefEntrySnapshot[]; // refs.skeletons, sorted by name
+  readonly vfxPresets: readonly SceneRefEntrySnapshot[]; // refs.vfxPresets, sorted by name
+}
+
 // The full internal-state projection the round-trip harness deep-compares (command-history Section
 // 3.4). Maps serialize as arrays sorted by id; order-significant arrays (boneOrder, slotOrder) preserve
 // order; attachments sort by (slotId, name); animations sort by id with keyframes in time order;
@@ -292,6 +335,7 @@ export interface DocSnapshot {
   readonly transformConstraintOrder: readonly string[]; // order-significant (solve order)
   readonly skins: readonly SkinSnapshot[]; // sorted by id (NON-default named skins)
   readonly skinOrder: readonly string[]; // order-significant
+  readonly slotScene: SlotSceneSnapshot; // the always-present slot-scene aggregate (phase-4)
   readonly preserved: PreservedContent; // verbatim (already deeply immutable)
 }
 
@@ -526,4 +570,69 @@ export function skinToSnapshot(skin: SkinEntity): SkinSnapshot {
             : 0,
   );
   return { id: skin.id, name: skin.name, attachments };
+}
+
+// Project the slot-scene aggregate to its deterministic snapshot shape (phase-4 WP-4.5 / WP-4.6): the grid
+// is a deep value copy; the symbol library is flattened to a list sorted by SymbolId; the refs are
+// name-sorted lists; the sequencer / feature-flow / tumble configs are carried by value (deeply-frozen
+// format values, shared by reference). `anticipation` is emitted only when present (exactOptionalProperty
+// Types) so a mapped symbol with no anticipation round-trips deep-equal.
+export function slotSceneToSnapshot(scene: SlotSceneState): SlotSceneSnapshot {
+  const symbols: SymbolAnimSetSnapshot[] = [];
+  for (const [id, set] of Object.entries(scene.symbols)) {
+    symbols.push({
+      symbolId: id,
+      skeletonRef: set.skeletonRef,
+      idle: set.idle,
+      land: set.land,
+      win: set.win,
+      ...(set.anticipation !== undefined ? { anticipation: set.anticipation } : {}),
+    });
+  }
+  symbols.sort((a, b) => (a.symbolId < b.symbolId ? -1 : a.symbolId > b.symbolId ? 1 : 0));
+  const byName = (a: SceneRefEntrySnapshot, b: SceneRefEntrySnapshot): number =>
+    a.name < b.name ? -1 : a.name > b.name ? 1 : 0;
+  const skeletons = scene.refs.skeletons
+    .map((entry) => ({ name: entry.name, hash: entry.hash }))
+    .sort(byName);
+  const vfxPresets = scene.refs.vfxPresets
+    .map((entry) => ({ name: entry.name, hash: entry.hash }))
+    .sort(byName);
+  return {
+    grid: cloneGridConfig(scene.grid),
+    symbols,
+    winSequencer: scene.winSequencer,
+    featureFlows: scene.featureFlows,
+    tumble: scene.tumble,
+    skeletons,
+    vfxPresets,
+  };
+}
+
+// Project the symbol library to a fresh SymbolId-keyed record (a value copy that never aliases the live
+// scene). Used by the read accessor that hands out slotScene().symbols.
+export function cloneSymbolLibrary(
+  symbols: Readonly<Record<SymbolId, SymbolAnimSet>>,
+): Record<SymbolId, SymbolAnimSet> {
+  const out: Record<SymbolId, SymbolAnimSet> = {};
+  for (const [id, set] of Object.entries(symbols)) {
+    // Object.entries widens the key to string; the keys were branded SymbolIds when stored, so the
+    // documented brand round-trip via cloneSymbolAnimSet keeps the value copy exact.
+    out[id as SymbolId] = cloneSymbolAnimSet(set);
+  }
+  return out;
+}
+
+// Hand out a deep-copied, deep-frozen SlotSceneState so a read holder cannot mutate the live scene through
+// the returned reference. The grid and refs are copied (the commands mutate them); the immutable sequencer/
+// feature/tumble values are shared by reference (they are never patched in place).
+export function freezeSlotSceneForReadOut(scene: SlotSceneState): SlotSceneState {
+  return Object.freeze({
+    grid: Object.freeze(cloneGridConfig(scene.grid)),
+    symbols: Object.freeze(cloneSymbolLibrary(scene.symbols)),
+    winSequencer: scene.winSequencer,
+    featureFlows: scene.featureFlows,
+    tumble: scene.tumble,
+    refs: Object.freeze(cloneSceneRefs(scene.refs)),
+  });
 }

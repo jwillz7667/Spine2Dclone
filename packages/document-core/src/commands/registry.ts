@@ -14,6 +14,8 @@ import { moveDeformKeyframeSpec } from './move-deform-keyframe.command';
 import { removeSkinAttachmentSpec } from './remove-skin-attachment.command';
 import { renameSkinSpec } from './rename-skin.command';
 import { setDeformKeyframeSpec } from './set-deform-keyframe.command';
+import { setGridConfigSpec } from './set-grid-config.command';
+import { mapSymbolAnimSetSpec } from './map-symbol-anim-set.command';
 import { setIkBendPositiveSpec } from './set-ik-bend-positive.command';
 import { setIkKeyframeSpec } from './set-ik-keyframe.command';
 import { setIkMixSpec } from './set-ik-mix.command';
@@ -141,4 +143,7 @@ export const commandRegistry: readonly CommandSpec[] = [
   deleteDeformKeyframeSpec,
   moveDeformKeyframeSpec,
   clearAttachmentDeformSpec,
+  // WP-4.5 / WP-4.6 slot-scene authoring
+  setGridConfigSpec,
+  mapSymbolAnimSetSpec,
 ];

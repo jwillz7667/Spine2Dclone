@@ -144,6 +144,16 @@ export {
   ClearAttachmentDeformCommand,
   clearAttachmentDeformSpec,
 } from './clear-attachment-deform.command';
+// WP-4.5 / WP-4.6 slot-scene authoring
+export { SetGridConfigCommand, setGridConfigSpec } from './set-grid-config.command';
+export { MapSymbolAnimSetCommand, mapSymbolAnimSetSpec } from './map-symbol-anim-set.command';
+export type { MapSymbolAnimSetInit } from './map-symbol-anim-set.command';
+export {
+  assertValidGridConfig,
+  preset5x3ReelStrip,
+  preset6x5ScatterPay,
+  preset7x7Cluster,
+} from './slot-scene-support';
 export { commandRegistry } from './registry';
 export type { CommandSpec, CommandFixture } from './spec';
 export {

@@ -1,3 +1,4 @@
+import type { GridConfig } from '@marionette/format/slot-types';
 import type {
   AnimationEntity,
   AttachmentFrameEntity,
@@ -7,6 +8,44 @@ import type {
 } from '../model/doc-state';
 import type { DocumentReadModel } from '../model/read-model';
 import { DocumentInvariantError } from './errors';
+
+// Assert a GridConfig's dims/gravity/anticipation cross-field consistency (format-contract section 15.4),
+// the invariant mirror of the SetGridConfig command-time guard. A cluster grid is square and cluster-down;
+// a reelStrip has rows in [2, 6]; a scatterPay has cols in [5, 7]; anticipation needs a non-empty trigger
+// vocabulary, a thresholdCount >= 1, and maxAnticipatingCols in [1, cols]. Per-field scalar bounds (cols/
+// rows in [1, 12], cellWidth/Height > 0, etc.) are the format schema's job, not re-checked here.
+function assertGridConsistent(grid: GridConfig): void {
+  if (grid.topology === 'cluster') {
+    if (grid.cols !== grid.rows) {
+      throw new DocumentInvariantError(
+        `cluster grid must be square (cols ${grid.cols} !== rows ${grid.rows})`,
+      );
+    }
+    if (grid.gravity !== 'cluster-down') {
+      throw new DocumentInvariantError(`cluster grid must use cluster-down gravity`);
+    }
+  } else if (grid.topology === 'reelStrip') {
+    if (grid.rows < 2 || grid.rows > 6) {
+      throw new DocumentInvariantError(`reelStrip grid rows ${grid.rows} must be in [2, 6]`);
+    }
+  } else if (grid.cols < 5 || grid.cols > 7) {
+    throw new DocumentInvariantError(`scatterPay grid cols ${grid.cols} must be in [5, 7]`);
+  }
+  const ant = grid.anticipation;
+  if (ant.triggerSymbols.length === 0) {
+    throw new DocumentInvariantError(`grid anticipation triggerSymbols must be non-empty`);
+  }
+  if (ant.thresholdCount < 1) {
+    throw new DocumentInvariantError(
+      `grid anticipation thresholdCount ${ant.thresholdCount} must be at least 1`,
+    );
+  }
+  if (ant.maxAnticipatingCols < 1 || ant.maxAnticipatingCols > grid.cols) {
+    throw new DocumentInvariantError(
+      `grid anticipation maxAnticipatingCols ${ant.maxAnticipatingCols} must be in [1, ${grid.cols}]`,
+    );
+  }
+}
 
 // Assert a list of timeline frames (ik/transform/deform) is strictly ascending in time and within
 // [0, duration]; returns the maximum time so the caller can enforce the duration bound. Mirrors the bone/
@@ -243,6 +282,23 @@ export function assertInvariants(model: DocumentReadModel): void {
           throw new DocumentInvariantError(`skin "${skin.name}" has an unnamed attachment`);
         }
       }
+    }
+  }
+
+  // Slot-scene graph (phase-4 WP-4.5 / WP-4.6): the grid is always present (the always-present default), the
+  // grid dims/gravity/anticipation are internally consistent (the command-time SlotEditError guards, mirrored
+  // here so an injected violation is caught), and every mapped symbol's skeletonRef resolves to a
+  // refs.skeletons entry (the format's cross-reference rule; the inverse of refs.skeletons add/prune
+  // bookkeeping). This is the command-boundary mirror of the format's slot-scene semantic checks; it does NOT
+  // re-run the full slot-scene validator (that needs an injected scene resolver document-core lacks).
+  const scene = model.slotScene();
+  assertGridConsistent(scene.grid);
+  const skeletonRefNames = new Set(scene.refs.skeletons.map((entry) => entry.name));
+  for (const [symbol, set] of Object.entries(scene.symbols)) {
+    if (!skeletonRefNames.has(set.skeletonRef)) {
+      throw new DocumentInvariantError(
+        `slot symbol "${symbol}" references skeleton "${set.skeletonRef}", which is not in refs.skeletons`,
+      );
     }
   }
 

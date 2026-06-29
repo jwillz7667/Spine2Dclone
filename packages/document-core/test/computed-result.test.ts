@@ -5,6 +5,7 @@ import { NormalizeBoneRotationCommand, type CommandContext } from '../src';
 // property from a recompute, because through the public History API a post-undo execute clears the
 // redo stack, so the bone is always back to its pre-do value at redo time.
 import { emptyPreservedContent } from '../src/model/doc-state';
+import { defaultSlotSceneState } from '../src/model/slot-scene';
 import { makeIdFactory } from '../src/model/ids';
 import { DocumentModelInternal } from '../src/model/internal';
 import { createMutator } from '../src/model/mutator';
@@ -47,6 +48,7 @@ describe('computed-result command replays its stored result on redo', () => {
         transformConstraintOrder: [],
         skins: new Map(),
         skinOrder: [],
+        slotScene: defaultSlotSceneState(),
         preserved: emptyPreservedContent(),
       },
       ids,

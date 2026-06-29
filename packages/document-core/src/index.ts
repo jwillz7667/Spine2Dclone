@@ -33,6 +33,7 @@ export {
   DeformError,
   EffectEditError,
   EffectsAtlasDanglingRegionError,
+  SlotEditError,
 } from './command/errors';
 export type {
   DocumentError,
@@ -42,6 +43,7 @@ export type {
   DeformErrorReason,
   EffectEditErrorReason,
   EffectsValidationLike,
+  SlotEditErrorReason,
 } from './command/errors';
 
 // Model (read surface + value types; the write surface stays private)
@@ -83,6 +85,15 @@ export {
   makeDeformKeyframe,
   emptyAnimationConstraintTimelines,
 } from './model/doc-state';
+export type { SlotSceneState } from './model/slot-scene';
+export {
+  defaultSlotSceneState,
+  defaultGridConfig,
+  defaultWinSequenceConfig,
+  defaultFeatureFlowGraph,
+  defaultTumbleChoreography,
+  emptySceneRefs,
+} from './model/slot-scene';
 export type {
   Id,
   BoneId,
@@ -119,6 +130,9 @@ export type {
   IkKeyframeSnapshot,
   TransformKeyframeSnapshot,
   DeformKeyframeSnapshot,
+  SlotSceneSnapshot,
+  SymbolAnimSetSnapshot,
+  SceneRefEntrySnapshot,
 } from './model/read-model';
 
 // Effects model (WP-3.7): the EffectsDocument as id-keyed editable entities, the read surface, the
@@ -269,6 +283,12 @@ export {
   DeleteDeformKeyframeCommand,
   MoveDeformKeyframeCommand,
   ClearAttachmentDeformCommand,
+  SetGridConfigCommand,
+  MapSymbolAnimSetCommand,
+  assertValidGridConfig,
+  preset5x3ReelStrip,
+  preset6x5ScatterPay,
+  preset7x7Cluster,
   wrapDegrees,
   commandRegistry,
   findBoneSnapshot,
@@ -290,6 +310,7 @@ export type {
   WeightDab,
   TransformConstraintParams,
   TransformKeyframeMix,
+  MapSymbolAnimSetInit,
   CommandSpec,
   CommandFixture,
 } from './commands';

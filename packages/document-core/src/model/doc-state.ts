@@ -16,6 +16,8 @@ import type {
   SlotId,
   TransformConstraintId,
 } from './ids';
+import type { SlotSceneState } from './slot-scene';
+import { defaultSlotSceneState } from './slot-scene';
 
 // Internal bone entity (command-history Section 3.1): carries an internal `id` and otherwise mirrors
 // the format bone fields BY VALUE. `parent` is an Id reference, not a name, so a rename never cascades.
@@ -340,6 +342,11 @@ export interface DocState {
   readonly transformConstraintOrder: readonly TransformConstraintId[];
   readonly skins: ReadonlyMap<SkinId, SkinEntity>;
   readonly skinOrder: readonly SkinId[];
+  // The slot-scene aggregate (phase-4 WP-4.5 / WP-4.6): the grid, the SymbolId-keyed symbol library, the
+  // win sequencer, the feature-flow graph, the tumble choreography, and the scene refs, all value/name-keyed
+  // (not id-branded, mirroring how the format references slot artifacts by name). It is ALWAYS present (a
+  // default 5x3 reelStrip scene on a fresh document), so a slot command never has to create the container.
+  readonly slotScene: SlotSceneState;
   readonly preserved: PreservedContent;
 }
 
@@ -372,6 +379,7 @@ export function newDocState(name: string): DocState {
     transformConstraintOrder: [],
     skins: new Map(),
     skinOrder: [],
+    slotScene: defaultSlotSceneState(),
     preserved: emptyPreservedContent(),
   };
 }

@@ -290,6 +290,47 @@ export interface EffectsValidationLike {
   }>;
 }
 
+// A slot-scene authoring edit (WP-4.5 / WP-4.6) rejected BEFORE any mutation, so it leaves no document
+// change and no history entry. The `reason` discriminant says which rule fired:
+//   - clusterNotSquare: a cluster grid whose cols !== rows.
+//   - clusterGravity: a cluster grid not using cluster-down gravity.
+//   - reelStripRows: a reelStrip grid whose rows are outside [2, 6].
+//   - scatterPayCols: a scatterPay grid whose cols are outside [5, 7].
+//   - anticipationTriggers: an empty anticipation triggerSymbols vocabulary.
+//   - anticipationThreshold: an anticipation thresholdCount below 1.
+//   - anticipationCols: an anticipation maxAnticipatingCols outside [1, cols].
+//   - skeletonRefMissing: MapSymbolAnimSet referenced a skeletonRef with no provided animation names to
+//     validate against (when an animation-name check was requested but the skeleton was not supplied).
+//   - animMissing: a MapSymbolAnimSet animation name (idle/land/win/anticipation) is not in the referenced
+//     skeleton's provided animation names.
+//   - emptyName: a MapSymbolAnimSet skeletonRef or animation name is empty (structural floor).
+//   - notMapped: MapSymbolAnimSet was asked to REMOVE a symbol that is not mapped.
+// The author-time equivalent of the format slot-scene validator's GRID_* / SYMBOL_* codes; the full
+// cross-document resolution (the skeleton actually exists on disk) is the import-time validator's job.
+export type SlotEditErrorReason =
+  | 'clusterNotSquare'
+  | 'clusterGravity'
+  | 'reelStripRows'
+  | 'scatterPayCols'
+  | 'anticipationTriggers'
+  | 'anticipationThreshold'
+  | 'anticipationCols'
+  | 'skeletonRefMissing'
+  | 'animMissing'
+  | 'emptyName'
+  | 'notMapped';
+
+export class SlotEditError extends Error {
+  override readonly name = 'SlotEditError';
+  readonly code = 'SLOT_EDIT' as const;
+  constructor(
+    readonly reason: SlotEditErrorReason,
+    readonly detail?: string,
+  ) {
+    super(`slot edit error (${reason})` + (detail === undefined ? '' : `: ${detail}`));
+  }
+}
+
 export type DocumentError =
   | CommandTargetMissingError
   | CommandNotAppliedError
@@ -305,4 +346,5 @@ export type DocumentError =
   | SkinError
   | DeformError
   | EffectEditError
-  | EffectsAtlasDanglingRegionError;
+  | EffectsAtlasDanglingRegionError
+  | SlotEditError;

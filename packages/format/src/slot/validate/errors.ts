@@ -27,6 +27,10 @@ export const SLOT_SCENE_ERROR_CODES = [
   'animationRefMissing',
   'vfxPresetMissing',
   'refHashMismatch',
+  // Feature-flow graph integrity (semantic, WP-4.9).
+  'flowMissingBase',
+  'flowEntryInvalid',
+  'flowTransitionDangling',
   // Hash integrity.
   'hashMismatch',
   // Slot project manifest faults.

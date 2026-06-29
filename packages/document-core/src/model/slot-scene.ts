@@ -107,6 +107,16 @@ export function defaultFeatureFlowGraph(): FeatureFlowGraph {
   };
 }
 
+// Deep-copy a whole FeatureFlowGraph (fresh states record of fresh nodes, fresh transitions array of fresh
+// transitions, scalar entry) so the model never aliases a command-held graph and a do/undo memento is
+// value-exact. The node cinematic and the transition `on` (FeatureMatch, incl. an optional dataEquals) are
+// small closed shapes; structuredClone gives a value-exact copy without re-enumerating every optional by
+// hand (used by the setSlotFeatureFlows mutator on write and the WP-4.9 commands when capturing the
+// before-memento). The graph is authoring DATA only (states, transitions, entry); it never embeds an outcome.
+export function cloneFeatureFlowGraph(graph: FeatureFlowGraph): FeatureFlowGraph {
+  return structuredClone(graph);
+}
+
 // The minimal-but-valid default TumbleChoreography (format tumble-choreography schema): all timings zero
 // and linear easing/rollup. WP-4.10 grows the cascade sequencer; for a non-cascade game these defaults are
 // never exercised.
@@ -198,7 +208,7 @@ export function cloneSlotSceneState(scene: SlotSceneState): SlotSceneState {
     grid: cloneGridConfig(scene.grid),
     symbols,
     winSequencer: cloneWinSequenceConfig(scene.winSequencer),
-    featureFlows: scene.featureFlows,
+    featureFlows: cloneFeatureFlowGraph(scene.featureFlows),
     tumble: scene.tumble,
     refs: cloneSceneRefs(scene.refs),
   };

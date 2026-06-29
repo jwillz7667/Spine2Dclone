@@ -25,6 +25,7 @@ import type {
 import { cloneCurve, cloneKeyframeValue } from './doc-state';
 import type { SlotSceneState } from './slot-scene';
 import {
+  cloneFeatureFlowGraph,
   cloneGridConfig,
   cloneSceneRefs,
   cloneSymbolAnimSet,
@@ -636,7 +637,7 @@ export function freezeSlotSceneForReadOut(scene: SlotSceneState): SlotSceneState
     grid: Object.freeze(cloneGridConfig(scene.grid)),
     symbols: Object.freeze(cloneSymbolLibrary(scene.symbols)),
     winSequencer: Object.freeze(cloneWinSequenceConfig(scene.winSequencer)),
-    featureFlows: scene.featureFlows,
+    featureFlows: Object.freeze(cloneFeatureFlowGraph(scene.featureFlows)),
     tumble: scene.tumble,
     refs: Object.freeze(cloneSceneRefs(scene.refs)),
   });

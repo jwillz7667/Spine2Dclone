@@ -25,6 +25,7 @@ export type {
   FeatureFlowNode,
   FeatureFlowTransition,
   FeatureFlowCinematic,
+  FeatureMatch,
 } from './feature-flow-graph';
 export type { TumbleChoreography, RollupCurve } from './tumble-choreography';
 

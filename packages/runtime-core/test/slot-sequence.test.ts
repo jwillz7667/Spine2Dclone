@@ -45,6 +45,7 @@ function makeScene(opts: {
   sequences?: WinSequenceConfig['sequences'];
   thresholds?: WinSequenceConfig['thresholds'];
   defaultSequence?: string;
+  featureFlows?: SlotScene['featureFlows'];
 }): SlotScene {
   const grid: GridConfig = {
     topology: 'reelStrip',
@@ -71,7 +72,7 @@ function makeScene(opts: {
       thresholds: opts.thresholds ?? { big: 10, mega: 50, epic: 100 },
       defaultSequence: opts.defaultSequence ?? 'base',
     },
-    featureFlows: { entry: 'base', states: { base: {} }, transitions: [] },
+    featureFlows: opts.featureFlows ?? { entry: 'base', states: { base: {} }, transitions: [] },
     tumble: {
       explodeMs: 100,
       dropMs: 100,

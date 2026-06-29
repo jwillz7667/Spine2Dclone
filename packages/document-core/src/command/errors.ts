@@ -310,7 +310,13 @@ export interface EffectsValidationLike {
 //   - sequenceMissing: SetWinSequenceStep / ReorderWinSequenceStep named a win sequence that does not exist.
 //   - stepIndexOutOfRange: SetWinSequenceStep targeted an index outside [0, steps.length], or
 //     ReorderWinSequenceStep was given an order that is not a permutation of the sequence's step indices.
-// The author-time equivalent of the format slot-scene validator's GRID_* / SYMBOL_* codes; the full
+//   - duplicateState: CreateFeatureFlowState targeted a flow state name that already exists, or
+//     RenameFeatureFlowState targeted a NEW name that already exists (WP-4.9).
+//   - stateMissing: a WP-4.9 flow command (delete / rename / a transition endpoint) named a state that does
+//     not exist.
+//   - baseStateProtected: DeleteFeatureFlowState was asked to delete the sole mandatory `base` node (WP-4.9).
+//   - transitionMissing: RemoveFeatureFlowTransition targeted a transition index/value that does not exist.
+// The author-time equivalent of the format slot-scene validator's GRID_* / SYMBOL_* / flow* codes; the full
 // cross-document resolution (the skeleton actually exists on disk) is the import-time validator's job.
 export type SlotEditErrorReason =
   | 'clusterNotSquare'
@@ -326,7 +332,11 @@ export type SlotEditErrorReason =
   | 'notMapped'
   | 'duplicateSequence'
   | 'sequenceMissing'
-  | 'stepIndexOutOfRange';
+  | 'stepIndexOutOfRange'
+  | 'duplicateState'
+  | 'stateMissing'
+  | 'baseStateProtected'
+  | 'transitionMissing';
 
 export class SlotEditError extends Error {
   override readonly name = 'SlotEditError';

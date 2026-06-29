@@ -30,6 +30,7 @@ export {
   featureFlowNodeSchema,
   featureFlowTransitionSchema,
   featureFlowCinematicSchema,
+  featureMatchSchema,
 } from './feature-flow-graph';
 export { tumbleChoreographySchema, rollupCurveSchema } from './tumble-choreography';
 

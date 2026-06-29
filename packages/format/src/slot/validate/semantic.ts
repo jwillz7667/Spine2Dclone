@@ -295,6 +295,63 @@ function checkVfxRefs(
   }
 }
 
+// Feature-flow graph integrity (format-contract section 15.4, phase-4 WP-4.9 TASK-4.9.4). Three closed
+// rules, each surfaced as a typed SlotSceneError at a JSON path:
+//   - flowMissingBase: `states.base` must exist (the single, mandatory entry node).
+//   - flowEntryInvalid: `entry` must be exactly 'base' (the single authored entry).
+//   - flowTransitionDangling: every transition's `from` and `to` must name an existing state.
+// Reachability is a nice-to-have and is NOT enforced here (the contract floor is base-present + no-dangling).
+// Iteration is array-based over `transitions` (the dangling check is per-transition, in array order) and the
+// states presence checks are keyed lookups, so the error SET never depends on Record iteration order.
+function checkFeatureFlow(doc: SlotSceneDocument, errors: SlotSceneError[]): void {
+  const flow = doc.scene.featureFlows;
+  const base = ['scene', 'featureFlows'] as const;
+  // base node must exist (keyed lookup, order-free).
+  if (!Object.prototype.hasOwnProperty.call(flow.states, 'base')) {
+    errors.push(
+      slotSceneError(
+        'flowMissingBase',
+        jsonPointer([...base, 'states']),
+        'featureFlows.states must contain a "base" node (the mandatory entry)',
+      ),
+    );
+  }
+  // entry must be exactly 'base'.
+  if (flow.entry !== 'base') {
+    errors.push(
+      slotSceneError(
+        'flowEntryInvalid',
+        jsonPointer([...base, 'entry']),
+        `featureFlows.entry must be "base", received "${flow.entry}"`,
+        { entry: flow.entry },
+      ),
+    );
+  }
+  // No transition to or from a missing state (per-transition, located at the transition's from/to path).
+  flow.transitions.forEach((transition, index) => {
+    if (!Object.prototype.hasOwnProperty.call(flow.states, transition.from)) {
+      errors.push(
+        slotSceneError(
+          'flowTransitionDangling',
+          jsonPointer([...base, 'transitions', index, 'from']),
+          `transition ${index} references missing source state "${transition.from}"`,
+          { index, from: transition.from },
+        ),
+      );
+    }
+    if (!Object.prototype.hasOwnProperty.call(flow.states, transition.to)) {
+      errors.push(
+        slotSceneError(
+          'flowTransitionDangling',
+          jsonPointer([...base, 'transitions', index, 'to']),
+          `transition ${index} references missing target state "${transition.to}"`,
+          { index, to: transition.to },
+        ),
+      );
+    }
+  });
+}
+
 // Run every slot semantic family over a structurally valid document and collect all errors.
 export function validateSlotSceneSemantic(
   doc: SlotSceneDocument,
@@ -307,5 +364,6 @@ export function validateSlotSceneSemantic(
   const { skeletonHashes, vfxHashes } = indexRefs(doc.refs);
   checkSymbolRefs(doc, skeletonHashes, resolver, errors);
   checkVfxRefs(doc, vfxHashes, resolver, errors);
+  checkFeatureFlow(doc, errors);
   return errors;
 }

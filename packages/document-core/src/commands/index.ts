@@ -159,6 +159,27 @@ export {
   SetEscalationThresholdCommand,
   setEscalationThresholdSpec,
 } from './set-escalation-threshold.command';
+// WP-4.9 feature + free-spin flow graph authoring
+export {
+  CreateFeatureFlowStateCommand,
+  createFeatureFlowStateSpec,
+} from './create-feature-flow-state.command';
+export {
+  AddFeatureFlowTransitionCommand,
+  addFeatureFlowTransitionSpec,
+} from './add-feature-flow-transition.command';
+export {
+  DeleteFeatureFlowStateCommand,
+  deleteFeatureFlowStateSpec,
+} from './delete-feature-flow-state.command';
+export {
+  RenameFeatureFlowStateCommand,
+  renameFeatureFlowStateSpec,
+} from './rename-feature-flow-state.command';
+export {
+  RemoveFeatureFlowTransitionCommand,
+  removeFeatureFlowTransitionSpec,
+} from './remove-feature-flow-transition.command';
 export {
   assertValidGridConfig,
   preset5x3ReelStrip,

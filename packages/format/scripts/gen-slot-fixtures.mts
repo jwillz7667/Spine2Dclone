@@ -271,6 +271,44 @@ function invalidCorpus(): Record<string, unknown> {
     out['refHashMismatch'] = d;
   }
 
+  // flowMissingBase: a featureFlows graph whose states record has no `base` node. The entry is also
+  // re-pointed at the surviving node so ONLY the missing-base fault fires (an entry of 'base' with no base
+  // node would additionally trip flowEntryInvalid is false; entry !== 'base' is the targeted single fault for
+  // flowEntryInvalid below, so here we keep entry at the present node to isolate flowMissingBase).
+  {
+    const d = clone(smallestDraft());
+    d.scene.featureFlows = {
+      states: { freeSpins: {} },
+      transitions: [],
+      entry: 'freeSpins',
+    };
+    out['flowMissingBase'] = d;
+  }
+
+  // flowEntryInvalid: a graph with a valid `base` node but an `entry` other than 'base'. `freeSpins` is a
+  // real node so no dangling/base fault fires; only the entry rule trips.
+  {
+    const d = clone(smallestDraft());
+    d.scene.featureFlows = {
+      states: { base: {}, freeSpins: {} },
+      transitions: [],
+      entry: 'freeSpins',
+    };
+    out['flowEntryInvalid'] = d;
+  }
+
+  // flowTransitionDangling: a transition whose `to` names a state not in the states record (the `from` is a
+  // real node and the graph is otherwise valid, so only the dangling-target fault fires).
+  {
+    const d = clone(smallestDraft());
+    d.scene.featureFlows = {
+      states: { base: {} },
+      transitions: [{ from: 'base', on: { type: 'freeSpinsAwarded' }, to: 'freeSpins' }],
+      entry: 'base',
+    };
+    out['flowTransitionDangling'] = d;
+  }
+
   // hashMismatch: a syntactically valid hash that does not match the content.
   {
     const d = clone(smallestDraft());

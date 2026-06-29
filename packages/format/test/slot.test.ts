@@ -10,6 +10,7 @@ import {
 } from '../src/slot/validate/manifest';
 import { slotSceneDocumentSchema } from '../src/slot/scene-document';
 import { winSequenceConfigSchema } from '../src/slot/win-sequence-config';
+import { featureFlowGraphSchema } from '../src/slot/feature-flow-graph';
 import { symbolId } from '../src/slot/symbol-id';
 import type { SceneResolver } from '../src/slot/validate/resolver';
 import type { SlotSceneDocument } from '../src/slot/scene-document';
@@ -193,6 +194,67 @@ describe('WinSequenceConfig schema (WP-4.8)', () => {
   });
 });
 
+// WP-4.9: the finalized FeatureFlowGraph schema (nodes with cinematics, transitions with a FeatureMatch
+// carrying an optional dataEquals predicate). The positive case validates; the closed unions / strict
+// objects reject malformed shapes (the graph-integrity rules are semantic, exercised by the corpus above).
+describe('FeatureFlowGraph schema (WP-4.9)', () => {
+  it('accepts a full free-spin graph with cinematics, transitions, and a dataEquals predicate', () => {
+    const graph = {
+      states: {
+        base: {},
+        freeSpinIntro: { cinematic: { vfxPreset: 'coinShower', animation: 'introBurst' } },
+        freeSpins: { cinematic: { animation: 'spinLoop' } },
+        freeSpinOutro: { cinematic: { vfxPreset: 'coinShower' } },
+      },
+      transitions: [
+        { from: 'base', on: { type: 'freeSpinsAwarded' }, to: 'freeSpinIntro' },
+        { from: 'freeSpinIntro', on: { type: 'freeSpinsStarted' }, to: 'freeSpins' },
+        {
+          from: 'freeSpins',
+          on: { type: 'multiplierApplied', dataEquals: { field: 'tier', equals: 'super' } },
+          to: 'freeSpins',
+        },
+        { from: 'freeSpins', on: { type: 'freeSpinsEnded' }, to: 'freeSpinOutro' },
+      ],
+      entry: 'base',
+    };
+    expect(featureFlowGraphSchema.safeParse(graph).success).toBe(true);
+  });
+
+  it('accepts the minimal-valid form (a single base node, no transitions)', () => {
+    const minimal = { states: { base: {} }, transitions: [], entry: 'base' };
+    expect(featureFlowGraphSchema.safeParse(minimal).success).toBe(true);
+  });
+
+  it.each([
+    ['unknown node key', { states: { base: { lol: 1 } }, transitions: [], entry: 'base' }],
+    [
+      'transition without on',
+      { states: { base: {} }, transitions: [{ from: 'base', to: 'base' }], entry: 'base' },
+    ],
+    [
+      'dataEquals with an array constant',
+      {
+        states: { base: {} },
+        transitions: [
+          { from: 'base', on: { type: 'x', dataEquals: { field: 'f', equals: [1] } }, to: 'base' },
+        ],
+        entry: 'base',
+      },
+    ],
+    [
+      'empty match type',
+      {
+        states: { base: {} },
+        transitions: [{ from: 'base', on: { type: '' }, to: 'base' }],
+        entry: 'base',
+      },
+    ],
+  ] as const)('rejects %s', (_label, bad) => {
+    expect(featureFlowGraphSchema.safeParse(bad).success).toBe(false);
+  });
+});
+
 const invalidFiles = readdirSync(invalidDir).filter((name) => name.endsWith('.json'));
 
 // Manifest-only codes are exercised by the manifest validator below, not the document corpus.
@@ -258,6 +320,24 @@ describe('slot scene invalid corpus', () => {
     const report = validateSlotScene(loadInvalid('versionMismatch.json'), corpusResolver());
     expect(errorCodes(report)).toContain('versionMismatch');
     expect(report.errors[0]?.path).toBe('/slotSceneFormatVersion');
+  });
+
+  it('locates a missing base node at the states path', () => {
+    const report = validateSlotScene(loadInvalid('flowMissingBase.json'), corpusResolver());
+    const error = report.errors.find((e) => e.code === 'flowMissingBase');
+    expect(error?.path).toBe('/scene/featureFlows/states');
+  });
+
+  it('locates an invalid entry at the entry path', () => {
+    const report = validateSlotScene(loadInvalid('flowEntryInvalid.json'), corpusResolver());
+    const error = report.errors.find((e) => e.code === 'flowEntryInvalid');
+    expect(error?.path).toBe('/scene/featureFlows/entry');
+  });
+
+  it('locates a dangling transition target at the transition to path', () => {
+    const report = validateSlotScene(loadInvalid('flowTransitionDangling.json'), corpusResolver());
+    const error = report.errors.find((e) => e.code === 'flowTransitionDangling');
+    expect(error?.path).toBe('/scene/featureFlows/transitions/0/to');
   });
 
   it('collects multiple independent faults in one pass', () => {

@@ -1,5 +1,6 @@
 import type { AtlasRef } from '@marionette/format/types';
 import type {
+  FeatureFlowGraph,
   GridConfig,
   SceneRefs,
   SymbolAnimSet,
@@ -32,6 +33,7 @@ import type {
 import { isBoneTimelineSetEmpty, isSlotTimelineSetEmpty } from './doc-state';
 import type { SlotSceneState } from './slot-scene';
 import {
+  cloneFeatureFlowGraph,
   cloneGridConfig,
   cloneSceneRefs,
   cloneSlotSceneState,
@@ -1329,6 +1331,16 @@ export class DocumentModelInternal implements DocumentReadModel {
   // setSlotGrid replaces the grid.
   setSlotWinSequencer(config: WinSequenceConfig): void {
     this.slotSceneValue = { ...this.slotSceneValue, winSequencer: cloneWinSequenceConfig(config) };
+    this.revisionValue += 1;
+  }
+
+  // Replace the feature-flow graph WHOLESALE (the WP-4.9 slot.flow.* commands). The graph is deep-copied so
+  // the model never aliases a command-held value, and a fresh scene object is allocated so a
+  // reference-equality selector sees one change. The graph is a single immutable value replaced atomically
+  // (there is no in-place batch path; a flow edit is a discrete authoring action, never a drag), mirroring
+  // how setSlotWinSequencer replaces the win sequencer.
+  setSlotFeatureFlows(graph: FeatureFlowGraph): void {
+    this.slotSceneValue = { ...this.slotSceneValue, featureFlows: cloneFeatureFlowGraph(graph) };
     this.revisionValue += 1;
   }
 

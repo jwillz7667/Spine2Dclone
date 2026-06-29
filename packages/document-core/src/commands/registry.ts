@@ -19,6 +19,11 @@ import { mapSymbolAnimSetSpec } from './map-symbol-anim-set.command';
 import { createWinSequenceSpec } from './create-win-sequence.command';
 import { setWinSequenceStepSpec } from './set-win-sequence-step.command';
 import { reorderWinSequenceStepSpec } from './reorder-win-sequence-step.command';
+import { createFeatureFlowStateSpec } from './create-feature-flow-state.command';
+import { addFeatureFlowTransitionSpec } from './add-feature-flow-transition.command';
+import { deleteFeatureFlowStateSpec } from './delete-feature-flow-state.command';
+import { renameFeatureFlowStateSpec } from './rename-feature-flow-state.command';
+import { removeFeatureFlowTransitionSpec } from './remove-feature-flow-transition.command';
 import { setEscalationThresholdSpec } from './set-escalation-threshold.command';
 import { setIkBendPositiveSpec } from './set-ik-bend-positive.command';
 import { setIkKeyframeSpec } from './set-ik-keyframe.command';
@@ -155,4 +160,10 @@ export const commandRegistry: readonly CommandSpec[] = [
   setWinSequenceStepSpec,
   reorderWinSequenceStepSpec,
   setEscalationThresholdSpec,
+  // WP-4.9 feature + free-spin flow graph authoring
+  createFeatureFlowStateSpec,
+  addFeatureFlowTransitionSpec,
+  deleteFeatureFlowStateSpec,
+  renameFeatureFlowStateSpec,
+  removeFeatureFlowTransitionSpec,
 ];

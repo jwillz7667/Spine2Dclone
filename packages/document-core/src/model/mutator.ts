@@ -1,5 +1,6 @@
 import type { AtlasRef } from '@marionette/format/types';
 import type {
+  FeatureFlowGraph,
   GridConfig,
   SceneRefs,
   SymbolAnimSet,
@@ -118,6 +119,7 @@ export interface Mutator extends DocumentReadModel {
   removeSymbolAnimSet(symbolId: SymbolId): void;
   setSceneRefs(refs: SceneRefs): void;
   setSlotWinSequencer(config: WinSequenceConfig): void;
+  setSlotFeatureFlows(graph: FeatureFlowGraph): void;
   setAtlas(atlas: AtlasRef): void;
 }
 
@@ -198,6 +200,7 @@ export function createMutator(model: DocumentModelInternal): Mutator {
     removeSymbolAnimSet: (symbolId) => model.removeSymbolAnimSet(symbolId),
     setSceneRefs: (refs) => model.setSceneRefs(refs),
     setSlotWinSequencer: (config) => model.setSlotWinSequencer(config),
+    setSlotFeatureFlows: (graph) => model.setSlotFeatureFlows(graph),
     setAtlas: (atlas) => model.setAtlas(atlas),
   };
 }

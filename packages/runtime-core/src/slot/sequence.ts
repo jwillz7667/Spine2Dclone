@@ -14,12 +14,14 @@
 // `emit*` stages between the marked seams below; each new stage appends to the SAME builder before the
 // single sort, so `seq` stays globally monotonic and the comparator stays total across all stages.
 
-import type { SpinResult, WinLine } from '@marionette/math-bridge/types';
+import type { SpinResult, WinLine, FeatureEvent } from '@marionette/math-bridge/types';
 import type {
   SlotScene,
   WinSequenceConfig,
   WinSequenceStep,
   EscalationTier,
+  FeatureFlowGraph,
+  FeatureMatch,
 } from '@marionette/format/slot-types';
 import type { PresentationDirective, PresentationTimeline } from './timeline';
 import type { CurveType } from './rollup';
@@ -294,6 +296,128 @@ function emitWinSequence(builder: DirectiveBuilder, result: SpinResult, scene: S
   }
 }
 
+// The feature TYPE that drives a Gates-class multiplier-orb display (TASK-4.9.3 / section 8.7). A feature
+// whose `type` equals this emits a `multiplierOrb` per orb value read from its `data` (independent of any
+// authored transition match): the multiplier is an engine outcome the presentation only DISPLAYS (LAW 1).
+const MULTIPLIER_FEATURE_TYPE = 'multiplierApplied';
+
+// The feature TYPE that re-enters the free-spins state (TASK-4.9.3): a retrigger re-shows the freeSpins
+// state if the authored graph has one, and treats the awarded count in `data` as display intent only.
+const RETRIGGER_FEATURE_TYPE = 'retrigger';
+// The state a retrigger re-enters (when present in the authored graph).
+const FREE_SPINS_STATE = 'freeSpins';
+
+// The screen anchor flow / orb directives use (TASK-4.9.3). Flow cinematics and multiplier orbs are
+// overlay-class visuals for the whole spin, anchored at the documented screen origin {0,0} (the same anchor
+// the win-sequence gridCenter rule uses); the renderer maps the screen anchor to its overlay layer.
+const FLOW_SCREEN_ANCHOR = { kind: 'screen', x: 0, y: 0 } as const;
+
+// The per-feature atMs step (TASK-4.9.3 atMs scheme). Flow directives for feature i share
+// atMs = i * FLOW_FEATURE_STEP_MS, an integer derived purely from the feature's ARRAY INDEX, so the
+// timeline is deterministic and the (atMs, seq) comparator stays total: same-feature directives tie on atMs
+// and are ordered by `seq` (push order), and later features sort strictly after earlier ones. The step is a
+// committed constant (one number, not a per-event field), keeping the cross-runtime golden byte-exact.
+const FLOW_FEATURE_STEP_MS = 1000;
+
+// Whether a FeatureMatch matches a FeatureEvent (TASK-4.9.3 matching rule, LAW 1). The match is a pure
+// equality test: the event `type` must equal `match.type`, AND if `match.dataEquals` is present, the event's
+// `data[field]` must STRICTLY EQUAL the authored constant. The predicate reads a FIELD NAME the author typed
+// and a constant the author typed; it never re-derives an outcome. A data value that is an array (the only
+// non-scalar `data` member) can never equal a scalar constant, so it simply fails the match (no throw).
+function matchesFeature(match: FeatureMatch, event: FeatureEvent): boolean {
+  if (event.type !== match.type) return false;
+  if (match.dataEquals === undefined) return true;
+  const actual = event.data[match.dataEquals.field];
+  return actual === match.dataEquals.equals;
+}
+
+// Read a numeric multiplier value from a FeatureEvent's data (TASK-4.9.3). The documented field is
+// `valueX`, falling back to `value`; the first that is a finite NUMBER wins. A multiplier feature whose data
+// carries NEITHER a numeric `valueX` nor a numeric `value` emits NO orb (skip, no throw) so a malformed
+// feature never fabricates an orb. Array / string / boolean data values are not numbers and are skipped.
+function readMultiplierValueX(event: FeatureEvent): number | null {
+  const candidate = event.data['valueX'] ?? event.data['value'];
+  return typeof candidate === 'number' ? candidate : null;
+}
+
+// Feature-flow phase (TASK-4.9.3, construction-order STAGE 4, section 5.4.1: emitted after win sequence
+// (stage 3) and before escalation (stage 6); cascades (stage 5) are WP-4.10). Walk `result.features` IN
+// ARRAY ORDER, maintaining a current state starting at `graph.entry` ('base'). For each FeatureEvent:
+//   1. Transition: find the FIRST transition (in `graph.transitions` ARRAY order) whose `from ===
+//      currentState` and whose `on` matches the event. On a match emit `flowExit{currentState}` then
+//      `flowEnter{to}`, then the `to` node's cinematic: a `cinematic.vfxPreset` emits a `vfxBurst{preset,
+//      anchor: screen 0,0}`; a `cinematic.animation` (animation-only) needs NO directive in this layer (the
+//      renderer reads the entered state's cinematic.animation directly), DOCUMENTED here. Then set
+//      currentState = to. The awarded count in a free-spin trigger is carried by the engine `data`; the flow
+//      layer never increments it (LAW 1), the directives only mark the state entry.
+//   2. Multiplier orbs: a feature whose `type === 'multiplierApplied'` emits a `multiplierOrb{valueX, anchor}`
+//      with `valueX` read from data (`valueX`, else `value`); skipped if neither is a finite number. This is
+//      INDEPENDENT of the transition match (an orb shows whenever the engine applies a multiplier).
+//   3. Retrigger: a feature whose `type === 'retrigger'` re-enters the `freeSpins` state IF the authored
+//      graph has one (emit `flowExit{currentState}` + `flowEnter{'freeSpins'}` and the freeSpins cinematic,
+//      then set currentState = 'freeSpins'); the awarded count from data is display intent only (no
+//      presentation-side increment, LAW 1). If the graph has no `freeSpins` state the retrigger emits nothing.
+// All directives for feature index i share atMs = i * FLOW_FEATURE_STEP_MS (integer, deterministic). When a
+// single feature both transitions AND is a multiplier (rare), the transition pair is pushed first, then the
+// orb (a documented same-atMs order pinned by `seq`). Multiple orbs from one feature are not produced (one
+// orb per multiplier feature, reading the single valueX/value field); the rule is one orb per multiplier
+// feature in feature-array order. The function reads `result.features` field names only and decides nothing.
+function emitFeatureFlow(builder: DirectiveBuilder, result: SpinResult, scene: SlotScene): void {
+  const graph: FeatureFlowGraph = scene.featureFlows;
+  let currentState = graph.entry;
+  result.features.forEach((event, index) => {
+    const atMs = index * FLOW_FEATURE_STEP_MS;
+
+    // 1. The first matching transition out of the current state, in transitions array order.
+    for (const transition of graph.transitions) {
+      if (transition.from !== currentState) continue;
+      if (!matchesFeature(transition.on, event)) continue;
+      builder.push({ kind: 'flowExit', state: currentState, atMs });
+      builder.push({ kind: 'flowEnter', state: transition.to, atMs });
+      emitNodeCinematic(builder, graph, transition.to, atMs);
+      currentState = transition.to;
+      break;
+    }
+
+    // 2. Multiplier-orb display (independent of any transition, Gates-class orbs).
+    if (event.type === MULTIPLIER_FEATURE_TYPE) {
+      const valueX = readMultiplierValueX(event);
+      if (valueX !== null) {
+        builder.push({ kind: 'multiplierOrb', valueX, anchor: FLOW_SCREEN_ANCHOR, atMs });
+      }
+    }
+
+    // 3. Retrigger: re-enter the freeSpins state if the authored graph has one.
+    if (
+      event.type === RETRIGGER_FEATURE_TYPE &&
+      Object.prototype.hasOwnProperty.call(graph.states, FREE_SPINS_STATE)
+    ) {
+      builder.push({ kind: 'flowExit', state: currentState, atMs });
+      builder.push({ kind: 'flowEnter', state: FREE_SPINS_STATE, atMs });
+      emitNodeCinematic(builder, graph, FREE_SPINS_STATE, atMs);
+      currentState = FREE_SPINS_STATE;
+    }
+  });
+}
+
+// Emit the entered node's cinematic directives (TASK-4.9.3). A `cinematic.vfxPreset` emits one
+// `vfxBurst{preset, anchor: screen 0,0}`; a `cinematic.animation` is animation-only and emits NO directive
+// in this layer (the renderer reads the entered state's animation directly from the graph). A node with no
+// cinematic, or an unknown state key, emits nothing.
+function emitNodeCinematic(
+  builder: DirectiveBuilder,
+  graph: FeatureFlowGraph,
+  state: string,
+  atMs: number,
+): void {
+  const node = graph.states[state];
+  if (node === undefined) return;
+  const preset = node.cinematic?.vfxPreset;
+  if (preset !== undefined) {
+    builder.push({ kind: 'vfxBurst', preset, anchor: FLOW_SCREEN_ANCHOR, atMs });
+  }
+}
+
 // Escalation phase (TASK-4.8.4, construction-order stage 6, section 5.4.1). Emit one `escalation{tier}`
 // directive for EACH crossed tier in ASCENDING tier order (big, then mega, then epic), driven PURELY by
 // `totalWin/bet` against the threshold table (the engine amount decides the tier; the author decides the
@@ -326,9 +450,13 @@ export function sequence(result: SpinResult, scene: SlotScene): PresentationTime
   // Stage 3: win sequence (WP-4.8): the selected sequence's animateWin / vfx / rollupStart directives
   // (the single line-win counterRollup, suppressed for cascade spins).
   emitWinSequence(builder, result, scene);
-  // SEAM: WP-4.9 feature flow (stage 4) and WP-4.10 cascades (stage 5) push their directives HERE, between
-  // stage 3 (win sequence) and stage 6 (escalation), before the single build()/sort. Each new stage appends
-  // to the same builder so `seq` remains globally monotonic and the comparator stays total.
+  // Stage 4: feature flow (WP-4.9): walk result.features, emit flowExit/flowEnter + entered-node cinematics
+  // for each matching transition, multiplierOrb for multiplier features, and a freeSpins re-entry for
+  // retriggers. Pushed AFTER win sequence (stage 3) and BEFORE escalation (stage 6).
+  emitFeatureFlow(builder, result, scene);
+  // SEAM: WP-4.10 cascades (stage 5) push their directives HERE, between stage 4 (feature flow) and stage 6
+  // (escalation), before the single build()/sort. Each new stage appends to the same builder so `seq`
+  // remains globally monotonic and the comparator stays total.
   // Stage 6: win-tier escalation (WP-4.8): one escalation{tier} per crossed tier in ascending order.
   emitEscalation(builder, result, scene);
 

@@ -521,9 +521,15 @@ export default tseslint.config(
               allow: ['mcp-server', 'document-core', 'format', 'runtime-core'],
             },
             // conformance is the cross-runtime behavioral-truth suite (conformance-and-ci.md A.1). It
-            // consumes the format contract and the pure solve core (runtime-core) only, so the fixtures
-            // stay a pure function of (rig, sample-spec, core); never the renderer/UI packages.
-            { from: ['conformance'], allow: ['conformance', 'format', 'runtime-core'] },
+            // consumes the format contract and the pure solve core (runtime-core), and (phase-4 WP-4.13, the
+            // slot golden-playback track) the math-bridge SpinResult VALUE TYPES + MockMathEngine outcomes:
+            // the slot golden locks `sequence(result, scene)`, whose input is an engine SpinResult, so the
+            // committed (SpinResult, SlotScene) pairs must validate via the math-bridge contract. The fixtures
+            // stay a pure function of (spin, scene, sample-spec, core); never the renderer/UI packages.
+            {
+              from: ['conformance'],
+              allow: ['conformance', 'format', 'runtime-core', 'math-bridge'],
+            },
             // editor-main hosts the headless MCP server (WP-M.1), which drives document-core commands
             // and reads runtime-core solves; it stays off the renderer/UI packages.
             {

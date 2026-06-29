@@ -1,0 +1,24 @@
+{
+  "spinId": "auth-multiplier-feature",
+  "bet": 100,
+  "initialGrid": [
+    ["scatter", "H1", "H2", "L1", "L2", "L3"],
+    ["H3", "L1", "L2", "H1", "H2", "H3"],
+    ["L1", "L2", "scatter", "L3", "H1", "H2"],
+    ["H2", "H3", "L1", "L2", "L3", "H1"],
+    ["L3", "H1", "H2", "H3", "L1", "scatter"]
+  ],
+  "grid": [
+    ["scatter", "H1", "H2", "L1", "L2", "L3"],
+    ["H3", "L1", "L2", "H1", "H2", "H3"],
+    ["L1", "L2", "scatter", "L3", "H1", "H2"],
+    ["H2", "H3", "L1", "L2", "L3", "H1"],
+    ["L3", "H1", "H2", "H3", "L1", "scatter"]
+  ],
+  "wins": [],
+  "totalWin": 0,
+  "features": [
+    { "type": "freeSpinsAwarded", "data": { "count": 10 } },
+    { "type": "multiplierApplied", "data": { "valueX": 3 } }
+  ]
+}

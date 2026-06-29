@@ -1,0 +1,642 @@
+{
+  "pairId": "pair-freespin-trigger",
+  "spinId": "mock-freespin-trigger",
+  "sceneId": "scene-scatterpay-feature",
+  "spinHash": "sha256:003ed928f7096795645e7db52b054ef269d0ee29126b1c557a0788e06e2786e9",
+  "sceneHash": "sha256:1156f50c48941e1373a40955d2e0dcf394c5b42044547e7f6a107b661dc8aaeb",
+  "specHash": "sha256:3b57ba2a101a556f879bc06a87bb25208640f6319b9d37411f31d0cfa8b89077",
+  "coreVersion": "runtime-core@0.0.0",
+  "toolchain": "node-22.13.1-v8",
+  "generatedBy": "generate-slot.ts",
+  "sampleMs": [
+    0,
+    500,
+    1000
+  ],
+  "timeline": {
+    "spinId": "mock-freespin-trigger",
+    "durationMs": 500,
+    "directives": [
+      {
+        "kind": "reelStop",
+        "col": 0,
+        "atMs": 0,
+        "seq": 0
+      },
+      {
+        "kind": "symbolLand",
+        "row": 0,
+        "col": 0,
+        "symbol": "scatter",
+        "atMs": 0,
+        "seq": 1
+      },
+      {
+        "kind": "symbolAnimate",
+        "row": 0,
+        "col": 0,
+        "set": "idle",
+        "atMs": 0,
+        "seq": 2
+      },
+      {
+        "kind": "symbolLand",
+        "row": 1,
+        "col": 0,
+        "symbol": "H3",
+        "atMs": 0,
+        "seq": 3
+      },
+      {
+        "kind": "symbolAnimate",
+        "row": 1,
+        "col": 0,
+        "set": "idle",
+        "atMs": 0,
+        "seq": 4
+      },
+      {
+        "kind": "symbolLand",
+        "row": 2,
+        "col": 0,
+        "symbol": "L1",
+        "atMs": 0,
+        "seq": 5
+      },
+      {
+        "kind": "symbolAnimate",
+        "row": 2,
+        "col": 0,
+        "set": "idle",
+        "atMs": 0,
+        "seq": 6
+      },
+      {
+        "kind": "symbolLand",
+        "row": 3,
+        "col": 0,
+        "symbol": "H2",
+        "atMs": 0,
+        "seq": 7
+      },
+      {
+        "kind": "symbolAnimate",
+        "row": 3,
+        "col": 0,
+        "set": "idle",
+        "atMs": 0,
+        "seq": 8
+      },
+      {
+        "kind": "symbolLand",
+        "row": 4,
+        "col": 0,
+        "symbol": "L3",
+        "atMs": 0,
+        "seq": 9
+      },
+      {
+        "kind": "symbolAnimate",
+        "row": 4,
+        "col": 0,
+        "set": "idle",
+        "atMs": 0,
+        "seq": 10
+      },
+      {
+        "kind": "flowExit",
+        "state": "base",
+        "atMs": 0,
+        "seq": 76
+      },
+      {
+        "kind": "flowEnter",
+        "state": "freeSpinIntro",
+        "atMs": 0,
+        "seq": 77
+      },
+      {
+        "kind": "vfxBurst",
+        "preset": "freeSpinIntroSweep",
+        "anchor": {
+          "kind": "screen",
+          "x": 0,
+          "y": 0
+        },
+        "atMs": 0,
+        "seq": 78
+      },
+      {
+        "kind": "reelStop",
+        "col": 1,
+        "atMs": 100,
+        "seq": 11
+      },
+      {
+        "kind": "symbolLand",
+        "row": 0,
+        "col": 1,
+        "symbol": "H1",
+        "atMs": 100,
+        "seq": 12
+      },
+      {
+        "kind": "symbolAnimate",
+        "row": 0,
+        "col": 1,
+        "set": "idle",
+        "atMs": 100,
+        "seq": 13
+      },
+      {
+        "kind": "symbolLand",
+        "row": 1,
+        "col": 1,
+        "symbol": "L1",
+        "atMs": 100,
+        "seq": 14
+      },
+      {
+        "kind": "symbolAnimate",
+        "row": 1,
+        "col": 1,
+        "set": "idle",
+        "atMs": 100,
+        "seq": 15
+      },
+      {
+        "kind": "symbolLand",
+        "row": 2,
+        "col": 1,
+        "symbol": "L2",
+        "atMs": 100,
+        "seq": 16
+      },
+      {
+        "kind": "symbolAnimate",
+        "row": 2,
+        "col": 1,
+        "set": "idle",
+        "atMs": 100,
+        "seq": 17
+      },
+      {
+        "kind": "symbolLand",
+        "row": 3,
+        "col": 1,
+        "symbol": "H3",
+        "atMs": 100,
+        "seq": 18
+      },
+      {
+        "kind": "symbolAnimate",
+        "row": 3,
+        "col": 1,
+        "set": "idle",
+        "atMs": 100,
+        "seq": 19
+      },
+      {
+        "kind": "symbolLand",
+        "row": 4,
+        "col": 1,
+        "symbol": "H1",
+        "atMs": 100,
+        "seq": 20
+      },
+      {
+        "kind": "symbolAnimate",
+        "row": 4,
+        "col": 1,
+        "set": "idle",
+        "atMs": 100,
+        "seq": 21
+      },
+      {
+        "kind": "reelStop",
+        "col": 2,
+        "atMs": 200,
+        "seq": 22
+      },
+      {
+        "kind": "symbolLand",
+        "row": 0,
+        "col": 2,
+        "symbol": "H2",
+        "atMs": 200,
+        "seq": 23
+      },
+      {
+        "kind": "symbolAnimate",
+        "row": 0,
+        "col": 2,
+        "set": "idle",
+        "atMs": 200,
+        "seq": 24
+      },
+      {
+        "kind": "symbolLand",
+        "row": 1,
+        "col": 2,
+        "symbol": "L2",
+        "atMs": 200,
+        "seq": 25
+      },
+      {
+        "kind": "symbolAnimate",
+        "row": 1,
+        "col": 2,
+        "set": "idle",
+        "atMs": 200,
+        "seq": 26
+      },
+      {
+        "kind": "symbolLand",
+        "row": 2,
+        "col": 2,
+        "symbol": "scatter",
+        "atMs": 200,
+        "seq": 27
+      },
+      {
+        "kind": "symbolAnimate",
+        "row": 2,
+        "col": 2,
+        "set": "idle",
+        "atMs": 200,
+        "seq": 28
+      },
+      {
+        "kind": "symbolLand",
+        "row": 3,
+        "col": 2,
+        "symbol": "L1",
+        "atMs": 200,
+        "seq": 29
+      },
+      {
+        "kind": "symbolAnimate",
+        "row": 3,
+        "col": 2,
+        "set": "idle",
+        "atMs": 200,
+        "seq": 30
+      },
+      {
+        "kind": "symbolLand",
+        "row": 4,
+        "col": 2,
+        "symbol": "H2",
+        "atMs": 200,
+        "seq": 31
+      },
+      {
+        "kind": "symbolAnimate",
+        "row": 4,
+        "col": 2,
+        "set": "idle",
+        "atMs": 200,
+        "seq": 32
+      },
+      {
+        "kind": "reelStop",
+        "col": 3,
+        "atMs": 300,
+        "seq": 33
+      },
+      {
+        "kind": "symbolLand",
+        "row": 0,
+        "col": 3,
+        "symbol": "L1",
+        "atMs": 300,
+        "seq": 34
+      },
+      {
+        "kind": "symbolAnimate",
+        "row": 0,
+        "col": 3,
+        "set": "idle",
+        "atMs": 300,
+        "seq": 35
+      },
+      {
+        "kind": "symbolLand",
+        "row": 1,
+        "col": 3,
+        "symbol": "H1",
+        "atMs": 300,
+        "seq": 36
+      },
+      {
+        "kind": "symbolAnimate",
+        "row": 1,
+        "col": 3,
+        "set": "idle",
+        "atMs": 300,
+        "seq": 37
+      },
+      {
+        "kind": "symbolLand",
+        "row": 2,
+        "col": 3,
+        "symbol": "L3",
+        "atMs": 300,
+        "seq": 38
+      },
+      {
+        "kind": "symbolAnimate",
+        "row": 2,
+        "col": 3,
+        "set": "idle",
+        "atMs": 300,
+        "seq": 39
+      },
+      {
+        "kind": "symbolLand",
+        "row": 3,
+        "col": 3,
+        "symbol": "L2",
+        "atMs": 300,
+        "seq": 40
+      },
+      {
+        "kind": "symbolAnimate",
+        "row": 3,
+        "col": 3,
+        "set": "idle",
+        "atMs": 300,
+        "seq": 41
+      },
+      {
+        "kind": "symbolLand",
+        "row": 4,
+        "col": 3,
+        "symbol": "H3",
+        "atMs": 300,
+        "seq": 42
+      },
+      {
+        "kind": "symbolAnimate",
+        "row": 4,
+        "col": 3,
+        "set": "idle",
+        "atMs": 300,
+        "seq": 43
+      },
+      {
+        "kind": "symbolAnimate",
+        "row": 0,
+        "col": 3,
+        "set": "anticipation",
+        "atMs": 300,
+        "seq": 66
+      },
+      {
+        "kind": "symbolAnimate",
+        "row": 1,
+        "col": 3,
+        "set": "anticipation",
+        "atMs": 300,
+        "seq": 67
+      },
+      {
+        "kind": "symbolAnimate",
+        "row": 2,
+        "col": 3,
+        "set": "anticipation",
+        "atMs": 300,
+        "seq": 68
+      },
+      {
+        "kind": "symbolAnimate",
+        "row": 3,
+        "col": 3,
+        "set": "anticipation",
+        "atMs": 300,
+        "seq": 69
+      },
+      {
+        "kind": "symbolAnimate",
+        "row": 4,
+        "col": 3,
+        "set": "anticipation",
+        "atMs": 300,
+        "seq": 70
+      },
+      {
+        "kind": "reelStop",
+        "col": 4,
+        "atMs": 400,
+        "seq": 44
+      },
+      {
+        "kind": "symbolLand",
+        "row": 0,
+        "col": 4,
+        "symbol": "L2",
+        "atMs": 400,
+        "seq": 45
+      },
+      {
+        "kind": "symbolAnimate",
+        "row": 0,
+        "col": 4,
+        "set": "idle",
+        "atMs": 400,
+        "seq": 46
+      },
+      {
+        "kind": "symbolLand",
+        "row": 1,
+        "col": 4,
+        "symbol": "H2",
+        "atMs": 400,
+        "seq": 47
+      },
+      {
+        "kind": "symbolAnimate",
+        "row": 1,
+        "col": 4,
+        "set": "idle",
+        "atMs": 400,
+        "seq": 48
+      },
+      {
+        "kind": "symbolLand",
+        "row": 2,
+        "col": 4,
+        "symbol": "H1",
+        "atMs": 400,
+        "seq": 49
+      },
+      {
+        "kind": "symbolAnimate",
+        "row": 2,
+        "col": 4,
+        "set": "idle",
+        "atMs": 400,
+        "seq": 50
+      },
+      {
+        "kind": "symbolLand",
+        "row": 3,
+        "col": 4,
+        "symbol": "L3",
+        "atMs": 400,
+        "seq": 51
+      },
+      {
+        "kind": "symbolAnimate",
+        "row": 3,
+        "col": 4,
+        "set": "idle",
+        "atMs": 400,
+        "seq": 52
+      },
+      {
+        "kind": "symbolLand",
+        "row": 4,
+        "col": 4,
+        "symbol": "L1",
+        "atMs": 400,
+        "seq": 53
+      },
+      {
+        "kind": "symbolAnimate",
+        "row": 4,
+        "col": 4,
+        "set": "idle",
+        "atMs": 400,
+        "seq": 54
+      },
+      {
+        "kind": "symbolAnimate",
+        "row": 0,
+        "col": 4,
+        "set": "anticipation",
+        "atMs": 400,
+        "seq": 71
+      },
+      {
+        "kind": "symbolAnimate",
+        "row": 1,
+        "col": 4,
+        "set": "anticipation",
+        "atMs": 400,
+        "seq": 72
+      },
+      {
+        "kind": "symbolAnimate",
+        "row": 2,
+        "col": 4,
+        "set": "anticipation",
+        "atMs": 400,
+        "seq": 73
+      },
+      {
+        "kind": "symbolAnimate",
+        "row": 3,
+        "col": 4,
+        "set": "anticipation",
+        "atMs": 400,
+        "seq": 74
+      },
+      {
+        "kind": "symbolAnimate",
+        "row": 4,
+        "col": 4,
+        "set": "anticipation",
+        "atMs": 400,
+        "seq": 75
+      },
+      {
+        "kind": "reelStop",
+        "col": 5,
+        "atMs": 500,
+        "seq": 55
+      },
+      {
+        "kind": "symbolLand",
+        "row": 0,
+        "col": 5,
+        "symbol": "L3",
+        "atMs": 500,
+        "seq": 56
+      },
+      {
+        "kind": "symbolAnimate",
+        "row": 0,
+        "col": 5,
+        "set": "idle",
+        "atMs": 500,
+        "seq": 57
+      },
+      {
+        "kind": "symbolLand",
+        "row": 1,
+        "col": 5,
+        "symbol": "H3",
+        "atMs": 500,
+        "seq": 58
+      },
+      {
+        "kind": "symbolAnimate",
+        "row": 1,
+        "col": 5,
+        "set": "idle",
+        "atMs": 500,
+        "seq": 59
+      },
+      {
+        "kind": "symbolLand",
+        "row": 2,
+        "col": 5,
+        "symbol": "H2",
+        "atMs": 500,
+        "seq": 60
+      },
+      {
+        "kind": "symbolAnimate",
+        "row": 2,
+        "col": 5,
+        "set": "idle",
+        "atMs": 500,
+        "seq": 61
+      },
+      {
+        "kind": "symbolLand",
+        "row": 3,
+        "col": 5,
+        "symbol": "H1",
+        "atMs": 500,
+        "seq": 62
+      },
+      {
+        "kind": "symbolAnimate",
+        "row": 3,
+        "col": 5,
+        "set": "idle",
+        "atMs": 500,
+        "seq": 63
+      },
+      {
+        "kind": "symbolLand",
+        "row": 4,
+        "col": 5,
+        "symbol": "scatter",
+        "atMs": 500,
+        "seq": 64
+      },
+      {
+        "kind": "symbolAnimate",
+        "row": 4,
+        "col": 5,
+        "set": "idle",
+        "atMs": 500,
+        "seq": 65
+      }
+    ]
+  },
+  "rollups": []
+}

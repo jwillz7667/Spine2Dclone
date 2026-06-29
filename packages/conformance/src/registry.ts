@@ -89,3 +89,93 @@ export const EFFECT_CONFORMANCE_PHASE = 3;
 export const LANDED_EFFECT_IDS: readonly EffectId[] = EFFECT_IDS.filter(
   (id) => EFFECT_PHASE[id] <= EFFECT_CONFORMANCE_PHASE,
 );
+
+// Slot golden-playback registry (phase-4-slot-composer.md WP-4.13, implements conformance WP-V.5). A THIRD
+// PARALLEL track to the skeleton RIG_IDS and the effects EFFECT_IDS: it locks the SLOT DETERMINISM CONTRACT
+// (LAW 1), the pure `sequence(result, scene) -> PresentationTimeline`. Each id names a committed
+// (SpinResult, SlotScene) PAIR: a committed `spins/<spinId>.spin.json` engine outcome and a committed
+// `scenes/<sceneId>.slotscene.json` authored scene. The generator runs `sequence` over the pair and pins
+// the full timeline plus per-sample `rollupValueAt` values; the golden test regenerates from runtime-core
+// and asserts an EXACT deep-equal (integer-ms + integer-unit data, no epsilon). It does NOT touch the six
+// Phase 2 skeleton rigs or the four Phase 3 effect rigs (separate corpora, separate locks).
+//
+// Provenance (L4): every scene is authored by us from first principles. The spins are the committed mock
+// engine outcomes (MOCK_SCENARIOS) or, for the one multiplier-feature coverage spin, hand-authored to carry
+// a `multiplierApplied` feature; no spin or scene contains Spine-derived data (CLAUDE.md Law 4). A SpinResult
+// is engine output (validated on load via validateSpinResult), NEVER authored game logic.
+export interface SlotPair {
+  readonly spinId: string;
+  readonly sceneId: string;
+  // The grid size validateSpinResult checks the committed spin against (the scene's grid dims).
+  readonly gridSize: { readonly rows: number; readonly cols: number };
+}
+
+// The committed pairs, in catalog order. The five MOCK_SCENARIOS each pair with a topology-matched scene; a
+// sixth hand-authored multiplier-feature spin pairs with the feature scene to cover the multiplierOrb kind
+// (no mock scenario carries a `multiplierApplied` feature). Each scene exercises a distinct directive set
+// (the coverage assertion in phase4-slot.test.ts maps every PresentationDirective.kind to a landed pair).
+export const SLOT_PAIRS: Readonly<Record<string, SlotPair>> = {
+  'pair-base-win': {
+    spinId: 'spin-base-win',
+    sceneId: 'scene-reelstrip-win',
+    gridSize: { rows: 3, cols: 5 },
+  },
+  'pair-mega-escalation': {
+    spinId: 'spin-mega-escalation',
+    sceneId: 'scene-scatterpay-mega',
+    gridSize: { rows: 5, cols: 6 },
+  },
+  'pair-freespin-trigger': {
+    spinId: 'spin-freespin-trigger',
+    sceneId: 'scene-scatterpay-feature',
+    gridSize: { rows: 5, cols: 6 },
+  },
+  'pair-retrigger': {
+    spinId: 'spin-retrigger',
+    sceneId: 'scene-scatterpay-feature',
+    gridSize: { rows: 5, cols: 6 },
+  },
+  'pair-multiplier-feature': {
+    spinId: 'spin-multiplier-feature',
+    sceneId: 'scene-scatterpay-feature',
+    gridSize: { rows: 5, cols: 6 },
+  },
+  'pair-tumble-cascade': {
+    spinId: 'spin-tumble-cascade',
+    sceneId: 'scene-scatterpay-tumble',
+    gridSize: { rows: 5, cols: 6 },
+  },
+};
+
+export const SLOT_PAIR_IDS = [
+  'pair-base-win',
+  'pair-mega-escalation',
+  'pair-freespin-trigger',
+  'pair-retrigger',
+  'pair-multiplier-feature',
+  'pair-tumble-cascade',
+] as const;
+
+export type SlotPairId = (typeof SLOT_PAIR_IDS)[number];
+
+// Phase in which each slot pair's golden is committed and the sequencer stages it exercises exist. The
+// generator/harness gate on `SLOT_PAIR_PHASE[id] <= SLOT_CONFORMANCE_PHASE`. All six land in Phase 4.
+export const SLOT_PAIR_PHASE: Readonly<Record<SlotPairId, number>> = {
+  'pair-base-win': 4,
+  'pair-mega-escalation': 4,
+  'pair-freespin-trigger': 4,
+  'pair-retrigger': 4,
+  'pair-multiplier-feature': 4,
+  'pair-tumble-cascade': 4,
+};
+
+// The committed current conformance phase for the slot track. Bumped per phase milestone in this file, NOT
+// read from the environment, so a feature branch cannot tamper with it to skip pairs. Phase 4 lands the slot
+// track; the skeleton (2) and effects (3) phases are independent constants.
+export const SLOT_CONFORMANCE_PHASE = 4;
+
+// The slot pair ids landed at the current slot-conformance phase, in catalog order. The single source the
+// generator and the test iterate, so they cannot disagree about which pairs are in scope.
+export const LANDED_SLOT_PAIR_IDS: readonly SlotPairId[] = SLOT_PAIR_IDS.filter(
+  (id) => SLOT_PAIR_PHASE[id] <= SLOT_CONFORMANCE_PHASE,
+);

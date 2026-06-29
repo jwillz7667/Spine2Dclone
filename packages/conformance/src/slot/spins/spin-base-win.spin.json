@@ -1,0 +1,28 @@
+{
+  "spinId": "mock-base-win",
+  "bet": 100,
+  "initialGrid": [
+    ["H2", "H3", "L1", "L2", "L3"],
+    ["H1", "H1", "H1", "L1", "L2"],
+    ["L3", "H2", "H3", "wild", "scatter"]
+  ],
+  "grid": [
+    ["H2", "H3", "L1", "L2", "L3"],
+    ["H1", "H1", "H1", "L1", "L2"],
+    ["L3", "H2", "H3", "wild", "scatter"]
+  ],
+  "wins": [
+    {
+      "symbol": "H1",
+      "positions": [
+        [1, 0],
+        [1, 1],
+        [1, 2]
+      ],
+      "amount": 200,
+      "lineIndex": 4
+    }
+  ],
+  "totalWin": 200,
+  "features": []
+}

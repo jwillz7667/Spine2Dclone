@@ -1,0 +1,69 @@
+{
+  "spinId": "mock-tumble-cascade",
+  "bet": 100,
+  "initialGrid": [
+    ["H1", "H2", "L1", "L2", "L3", "H3"],
+    ["H1", "L1", "L2", "H2", "H3", "L1"],
+    ["H1", "L2", "H1", "L3", "L1", "H2"],
+    ["L1", "H3", "L1", "H1", "H2", "L3"],
+    ["L1", "L2", "H2", "L1", "L3", "H1"]
+  ],
+  "grid": [
+    ["L3", "H2", "L1", "L2", "L3", "H3"],
+    ["L2", "L1", "L2", "H2", "H3", "L1"],
+    ["H2", "L2", "H1", "L3", "L1", "H2"],
+    ["H3", "H3", "L1", "H1", "H2", "L3"],
+    ["H1", "L2", "H2", "L1", "L3", "H1"]
+  ],
+  "wins": [
+    {
+      "symbol": "H1",
+      "positions": [
+        [0, 0],
+        [1, 0],
+        [2, 0]
+      ],
+      "amount": 100
+    }
+  ],
+  "totalWin": 400,
+  "features": [],
+  "cascades": [
+    {
+      "removed": [
+        [3, 0],
+        [4, 0]
+      ],
+      "refill": [
+        {
+          "col": 0,
+          "symbols": ["H2", "H3"]
+        }
+      ],
+      "stepWin": 100,
+      "cumulativeWin": 100
+    },
+    {
+      "removed": [[4, 0]],
+      "refill": [
+        {
+          "col": 0,
+          "symbols": ["L2"]
+        }
+      ],
+      "stepWin": 150,
+      "cumulativeWin": 250
+    },
+    {
+      "removed": [[4, 0]],
+      "refill": [
+        {
+          "col": 0,
+          "symbols": ["L3"]
+        }
+      ],
+      "stepWin": 150,
+      "cumulativeWin": 400
+    }
+  ]
+}

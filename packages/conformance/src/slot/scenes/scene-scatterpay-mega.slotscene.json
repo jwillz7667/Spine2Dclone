@@ -1,0 +1,67 @@
+{
+  "grid": {
+    "topology": "scatterPay",
+    "cols": 6,
+    "rows": 5,
+    "cellWidth": 120,
+    "cellHeight": 120,
+    "cellGap": 6,
+    "reelStopStaggerMs": 100,
+    "gravity": "column-down",
+    "anticipation": {
+      "triggerSymbols": ["scatter"],
+      "thresholdCount": 3,
+      "maxAnticipatingCols": 2
+    }
+  },
+  "symbols": {},
+  "winSequencer": {
+    "sequences": {
+      "default": {
+        "steps": [
+          { "atMs": 0, "target": { "kind": "allWinningCells" }, "action": { "kind": "animateWin" } }
+        ]
+      },
+      "mega": {
+        "steps": [
+          {
+            "atMs": 0,
+            "target": { "kind": "allWinningCells" },
+            "action": { "kind": "animateWin" }
+          },
+          {
+            "atMs": 300,
+            "target": { "kind": "allWinningCells" },
+            "action": { "kind": "vfx", "preset": "megaBurst", "anchorRule": "gridCenter" }
+          },
+          {
+            "atMs": 600,
+            "target": { "kind": "allWinningCells" },
+            "action": { "kind": "rollupStart", "curve": "easeOutQuad" }
+          },
+          {
+            "atMs": 600,
+            "target": { "kind": "allWinningCells" },
+            "action": { "kind": "escalationBanner", "tier": "mega" }
+          }
+        ]
+      }
+    },
+    "thresholds": { "big": 20, "mega": 50, "epic": 100 },
+    "defaultSequence": "default"
+  },
+  "featureFlows": {
+    "states": { "base": {} },
+    "transitions": [],
+    "entry": "base"
+  },
+  "tumble": {
+    "explodeMs": 0,
+    "dropMs": 0,
+    "dropEasing": "linear",
+    "refillStaggerMs": 0,
+    "settleMs": 0,
+    "stepGapMs": 0,
+    "rollupCurve": "linear"
+  }
+}

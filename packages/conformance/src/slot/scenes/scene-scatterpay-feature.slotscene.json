@@ -1,0 +1,56 @@
+{
+  "grid": {
+    "topology": "scatterPay",
+    "cols": 6,
+    "rows": 5,
+    "cellWidth": 120,
+    "cellHeight": 120,
+    "cellGap": 6,
+    "reelStopStaggerMs": 100,
+    "gravity": "column-down",
+    "anticipation": {
+      "triggerSymbols": ["scatter"],
+      "thresholdCount": 2,
+      "maxAnticipatingCols": 2
+    }
+  },
+  "symbols": {},
+  "winSequencer": {
+    "sequences": {
+      "default": { "steps": [] }
+    },
+    "thresholds": { "big": 20, "mega": 50, "epic": 100 },
+    "defaultSequence": "default"
+  },
+  "featureFlows": {
+    "states": {
+      "base": {},
+      "freeSpinIntro": {
+        "cinematic": { "vfxPreset": "freeSpinIntroSweep", "animation": "introCine" }
+      },
+      "freeSpins": { "cinematic": { "vfxPreset": "freeSpinAmbient" } }
+    },
+    "transitions": [
+      {
+        "from": "base",
+        "on": { "type": "freeSpinsAwarded" },
+        "to": "freeSpinIntro"
+      },
+      {
+        "from": "freeSpinIntro",
+        "on": { "type": "freeSpinsAwarded" },
+        "to": "freeSpins"
+      }
+    ],
+    "entry": "base"
+  },
+  "tumble": {
+    "explodeMs": 0,
+    "dropMs": 0,
+    "dropEasing": "linear",
+    "refillStaggerMs": 0,
+    "settleMs": 0,
+    "stepGapMs": 0,
+    "rollupCurve": "linear"
+  }
+}

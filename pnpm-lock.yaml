@@ -114,6 +114,9 @@ importers:
       '@marionette/format':
         specifier: workspace:*
         version: link:../format
+      '@marionette/math-bridge':
+        specifier: workspace:*
+        version: link:../math-bridge
       '@marionette/runtime-core':
         specifier: workspace:*
         version: link:../runtime-core

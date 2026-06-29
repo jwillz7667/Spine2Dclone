@@ -1,0 +1,27 @@
+{
+  "toolchain": "node-22.13.1-v8",
+  "files": {
+    "expected/pair-base-win.timeline.json": "d3a1cdb87dcea118b4960c3e0a9bd6e0da1e33b3c65c2904a90f8ee45fb47e35",
+    "expected/pair-freespin-trigger.timeline.json": "82a688ea3fa2ef0fdc5509a5794915333949cdb0b2f2183c2b8270acf1fc6c54",
+    "expected/pair-mega-escalation.timeline.json": "eda16f8aef95fef3eac00c6b7170e22f6e758826ae97c22a4da83fdd5ed565da",
+    "expected/pair-multiplier-feature.timeline.json": "49681ce0f3d3ef6f74aad79d9058f339e538eb236ddf37f62d549ede25de8b40",
+    "expected/pair-retrigger.timeline.json": "53bb017c437fa60db2e4efdb9bbee793c91b23ddad6fde951fe5dd70cc4eb75f",
+    "expected/pair-tumble-cascade.timeline.json": "ec48ad0bd3853eb6c9f5a9a76b490c6d506ad422ba6bb11b9c8204f1e6b12eb4",
+    "sample-spec/pair-base-win.sample-spec.json": "feca4c7e97a862372578298acb40d1d4e55b431b5a764196e16d83cb6354f998",
+    "sample-spec/pair-freespin-trigger.sample-spec.json": "3b57ba2a101a556f879bc06a87bb25208640f6319b9d37411f31d0cfa8b89077",
+    "sample-spec/pair-mega-escalation.sample-spec.json": "edca24454facdddb0769d3d08da23e762d39958f8ef2a1e7e04772bc091b4fdb",
+    "sample-spec/pair-multiplier-feature.sample-spec.json": "f96d6605347e631965daad7975f7c90ca67359868e8734f887003bd3091918da",
+    "sample-spec/pair-retrigger.sample-spec.json": "2fc9ba1ea9006ed276aa59592c3f57bec8aafa03c7e9788857aa3938d4a4520b",
+    "sample-spec/pair-tumble-cascade.sample-spec.json": "cda03399c6f507558bdd74f0a69782aed6f672cf5990fd5b124d6e766666aa1e",
+    "scenes/scene-reelstrip-win.slotscene.json": "98e68ac0ec5a2ca913342046164592ef93e5b41d0aa54974f5870c3ea8471cca",
+    "scenes/scene-scatterpay-feature.slotscene.json": "1156f50c48941e1373a40955d2e0dcf394c5b42044547e7f6a107b661dc8aaeb",
+    "scenes/scene-scatterpay-mega.slotscene.json": "24d7360e6c8d9ba2aa6700b61b491d7f5c2cd2ded96595ceb5bb3ccc3b3a3ba3",
+    "scenes/scene-scatterpay-tumble.slotscene.json": "13e41f7d5c990d3f1ff5c575782c23627126f4ad7f5fac4e13f01f93dabfe601",
+    "spins/spin-base-win.spin.json": "ab460ac7fecdefe90c518949f84950ed628cdfb2213a7ecd782092b866075e03",
+    "spins/spin-freespin-trigger.spin.json": "003ed928f7096795645e7db52b054ef269d0ee29126b1c557a0788e06e2786e9",
+    "spins/spin-mega-escalation.spin.json": "9554b0074d73dabed08fcaa979057f7e6501c3e9a726cb00027225b59e41be2c",
+    "spins/spin-multiplier-feature.spin.json": "11d26d4a7d5f8b92553847b42ae46be4dcb4351b3aaadb6952e03f332a24e6b7",
+    "spins/spin-retrigger.spin.json": "80483069eeca788c1088d27ff73e094bd51e6b7b0c1271b25f2092a77a3dd379",
+    "spins/spin-tumble-cascade.spin.json": "447faf936792a0a0a7ef1b8b155d130a454999ce3e7857b5897f49ba204d7618"
+  }
+}

@@ -15,10 +15,12 @@
     "test": "vitest run",
     "generate": "tsx src/generate.ts",
     "generate:effects": "tsx src/generate-effects.ts",
+    "generate:slot": "tsx src/generate-slot.ts",
     "phase3:acceptance": "tsx src/run-phase3-acceptance.ts"
   },
   "dependencies": {
     "@marionette/format": "workspace:*",
+    "@marionette/math-bridge": "workspace:*",
     "@marionette/runtime-core": "workspace:*",
     "zod": "3.23.8"
   },

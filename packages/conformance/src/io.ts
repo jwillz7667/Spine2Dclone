@@ -4,16 +4,24 @@ import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 import type { SkeletonDocument } from '@marionette/format/types';
 import type { EffectsDocument } from '@marionette/format/effects-types';
+import type { GridSize, SpinResult } from '@marionette/math-bridge';
+import type { SlotScene } from '@marionette/format/slot-types';
 import { validateRig } from './schema/rig';
 import { validateSampleSpec } from './schema/sample-spec';
 import { validateFixture } from './schema/fixture';
 import { validateEffectsRig } from './schema/effects-rig';
 import { validateEffectsSampleSpec } from './schema/effects-sample-spec';
 import { validateEffectsFixture } from './schema/effects-fixture';
+import { validateSlotSpin } from './schema/slot-spin';
+import { validateSlotSceneValue } from './schema/slot-scene';
+import { validateSlotSampleSpec } from './schema/slot-sample-spec';
+import { validateSlotFixture } from './schema/slot-fixture';
 import type { SampleSpec } from './schema/sample-spec';
 import type { Fixture } from './schema/fixture';
 import type { EffectsSampleSpec } from './schema/effects-sample-spec';
 import type { EffectsFixture } from './schema/effects-fixture';
+import type { SlotSampleSpec } from './schema/slot-sample-spec';
+import type { SlotFixture } from './schema/slot-fixture';
 
 // Filesystem plumbing for the conformance corpus: path resolution, validating loaders, deterministic
 // writers, and the sha256 used by the .fixtures.lock manifest. This is the only module in the package
@@ -102,6 +110,47 @@ export function loadEffectsSampleSpec(effectId: string): EffectsSampleSpec {
 
 export function loadEffectsFixture(effectId: string): EffectsFixture {
   return validateEffectsFixture(readJson(effectsFixturePath(effectId)));
+}
+
+// --- Slot golden-playback conformance corpus (phase-4-slot-composer.md WP-4.13) ---
+// A THIRD PARALLEL track to the skeleton + effects corpora. Committed SpinResult inputs are under
+// slot/spins/, authored SlotScene values under slot/scenes/, per-pair sample-specs under slot/sample-spec/,
+// and committed timeline goldens under slot/expected/ with their own .slot.fixtures.lock manifest. The
+// skeleton and effects paths are untouched.
+
+export function slotSpinPath(spinId: string): string {
+  return join(SRC_DIR, 'slot', 'spins', `${spinId}.spin.json`);
+}
+
+export function slotScenePath(sceneId: string): string {
+  return join(SRC_DIR, 'slot', 'scenes', `${sceneId}.slotscene.json`);
+}
+
+export function slotSpecPath(pairId: string): string {
+  return join(SRC_DIR, 'slot', 'sample-spec', `${pairId}.sample-spec.json`);
+}
+
+export function slotFixturePath(pairId: string): string {
+  return join(SRC_DIR, 'slot', 'expected', `${pairId}.timeline.json`);
+}
+
+// The slot drift-tripwire manifest path (A.6), a dotfile beside the slot timeline goldens it locks.
+export const SLOT_LOCK_PATH = join(SRC_DIR, 'slot', 'expected', '.slot.fixtures.lock');
+
+export function loadSlotSpin(spinId: string, gridSize: GridSize): SpinResult {
+  return validateSlotSpin(readJson(slotSpinPath(spinId)), gridSize);
+}
+
+export function loadSlotScene(sceneId: string): SlotScene {
+  return validateSlotSceneValue(readJson(slotScenePath(sceneId)));
+}
+
+export function loadSlotSampleSpec(pairId: string): SlotSampleSpec {
+  return validateSlotSampleSpec(readJson(slotSpecPath(pairId)));
+}
+
+export function loadSlotFixture(pairId: string): SlotFixture {
+  return validateSlotFixture(readJson(slotFixturePath(pairId)));
 }
 
 // --- Particle perf baseline (phase-3-vfx-particles.md WP-3.9, TASK-3.9.4/3.9.5) ---

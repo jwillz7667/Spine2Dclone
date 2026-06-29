@@ -27,3 +27,9 @@ packages/conformance/src/fixtures/
 # .effects-fixtures.lock drift gate is a byte-exact git diff; reformatting them would break that gate.
 # The hand-authored effects rigs and sample-specs alongside are prettier-owned and NOT excluded.
 packages/conformance/src/effects-fixtures/
+
+# Generated slot golden-playback timelines + lock manifest (phase-4-slot-composer.md WP-4.13). generate-slot.ts
+# owns their exact bytes and the .slot.fixtures.lock drift gate is a byte-exact git diff; reformatting them
+# would break that gate. The hand-authored spins, scenes, and sample-specs under slot/ (spins/, scenes/,
+# sample-spec/) are prettier-owned and intentionally NOT excluded.
+packages/conformance/src/slot/expected/

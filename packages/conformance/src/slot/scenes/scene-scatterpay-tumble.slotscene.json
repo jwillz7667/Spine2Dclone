@@ -1,0 +1,52 @@
+{
+  "grid": {
+    "topology": "scatterPay",
+    "cols": 6,
+    "rows": 5,
+    "cellWidth": 120,
+    "cellHeight": 120,
+    "cellGap": 6,
+    "reelStopStaggerMs": 100,
+    "gravity": "column-down",
+    "anticipation": {
+      "triggerSymbols": ["scatter"],
+      "thresholdCount": 3,
+      "maxAnticipatingCols": 2
+    }
+  },
+  "symbols": {},
+  "winSequencer": {
+    "sequences": {
+      "default": {
+        "steps": [
+          {
+            "atMs": 0,
+            "target": { "kind": "allWinningCells" },
+            "action": { "kind": "animateWin" }
+          },
+          {
+            "atMs": 0,
+            "target": { "kind": "allWinningCells" },
+            "action": { "kind": "rollupStart", "curve": "linear" }
+          }
+        ]
+      }
+    },
+    "thresholds": { "big": 20, "mega": 50, "epic": 100 },
+    "defaultSequence": "default"
+  },
+  "featureFlows": {
+    "states": { "base": {} },
+    "transitions": [],
+    "entry": "base"
+  },
+  "tumble": {
+    "explodeMs": 250,
+    "dropMs": 300,
+    "dropEasing": "easeOutQuad",
+    "refillStaggerMs": 40,
+    "settleMs": 150,
+    "stepGapMs": 100,
+    "rollupCurve": "easeInOutCubic"
+  }
+}

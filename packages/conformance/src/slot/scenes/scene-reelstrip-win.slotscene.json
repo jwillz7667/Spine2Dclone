@@ -1,0 +1,57 @@
+{
+  "grid": {
+    "topology": "reelStrip",
+    "cols": 5,
+    "rows": 3,
+    "cellWidth": 128,
+    "cellHeight": 128,
+    "cellGap": 4,
+    "reelStopStaggerMs": 120,
+    "gravity": "column-down",
+    "anticipation": {
+      "triggerSymbols": ["scatter"],
+      "thresholdCount": 3,
+      "maxAnticipatingCols": 2
+    }
+  },
+  "symbols": {},
+  "winSequencer": {
+    "sequences": {
+      "default": {
+        "steps": [
+          {
+            "atMs": 0,
+            "target": { "kind": "allWinningCells" },
+            "action": { "kind": "animateWin" }
+          },
+          {
+            "atMs": 200,
+            "target": { "kind": "allWinningCells" },
+            "action": { "kind": "vfx", "preset": "lineWinSpark", "anchorRule": "eachCell" }
+          },
+          {
+            "atMs": 400,
+            "target": { "kind": "allWinningCells" },
+            "action": { "kind": "rollupStart", "curve": "linear" }
+          }
+        ]
+      }
+    },
+    "thresholds": { "big": 10, "mega": 50, "epic": 100 },
+    "defaultSequence": "default"
+  },
+  "featureFlows": {
+    "states": { "base": {} },
+    "transitions": [],
+    "entry": "base"
+  },
+  "tumble": {
+    "explodeMs": 0,
+    "dropMs": 0,
+    "dropEasing": "linear",
+    "refillStaggerMs": 0,
+    "settleMs": 0,
+    "stepGapMs": 0,
+    "rollupCurve": "linear"
+  }
+}

@@ -28,6 +28,17 @@ export type { RegionTextureResolver } from './scene/region-textures';
 export { blendModeToPixi } from './scene/blend-mode';
 export { makeParticleRenderBatch, fillEmitterBatch } from './scene/particle-render-batch';
 export type { ParticleRenderBatch } from './scene/particle-render-batch';
+// Phase 4 slot TimelinePlayer (phase-4 WP-4.11): the pure, allocation-free directive cursor + pinned
+// counter-rollup display value (the non-GL heart of the player). The GL render path that consumes the
+// dispatched directives needs a WebGL context and is the remainder of WP-4.11.
+export {
+  makeTimelineCursor,
+  resetTimelineCursor,
+  advanceTimelineTo,
+  counterRollupDisplayValue,
+  currentRollupValue,
+} from './slot/timeline-cursor';
+export type { TimelineCursor } from './slot/timeline-cursor';
 export { loopTime } from './transport';
 // Headless sampling harness (TASK-1.10.4): samples the SAME runtime-core path the player renders,
 // with no GL/render context, so WP-1.13 can check editor-vs-runtime parity in plain Node/Vitest.

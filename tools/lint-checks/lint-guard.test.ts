@@ -85,6 +85,24 @@ describe('format types-only boundary (INV, format WP-F.9)', () => {
   });
 });
 
+describe('math/presentation boundary (LAW 1, phase-3 WP-3.4)', () => {
+  const EFFECTS = 'packages/runtime-core/src/effects/__guard__.ts';
+
+  it('bans the math-bridge value barrel in runtime-core/effects', async () => {
+    expect(
+      ruleIds(await lint(EFFECTS, "import { adaptSpin } from '@marionette/math-bridge';\n")),
+    ).toContain('no-restricted-imports');
+  });
+
+  it('bans a math-bridge deep path (a SpinResult type) in runtime-core/effects', async () => {
+    expect(
+      ruleIds(
+        await lint(EFFECTS, "import type { SpinResult } from '@marionette/math-bridge/types';\n"),
+      ),
+    ).toContain('no-restricted-imports');
+  });
+});
+
 describe('no any / no unjustified as in format + runtime-core (INV-4)', () => {
   it('bans explicit any in format', async () => {
     expect(ruleIds(await lint(FORMAT, 'export const x: any = 1;\n'))).toContain(

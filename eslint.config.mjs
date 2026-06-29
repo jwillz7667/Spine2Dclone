@@ -222,6 +222,12 @@ export default tseslint.config(
               message:
                 'runtime-core must not import runtime-web; the dependency direction is format <- runtime-core <- runtime-web.',
             },
+            {
+              name: '@marionette/math-bridge',
+              message:
+                'runtime-core (incl. effects) must not import math-bridge or any SpinResult type (LAW 1, ' +
+                'phase-3 WP-3.4): presentation is a pure function of inputs and never reads outcome.',
+            },
           ],
           patterns: [
             PIXI_PATTERN,
@@ -242,6 +248,15 @@ export default tseslint.config(
               ],
               message:
                 'runtime-core must not import runtime-web, and imports format types only (INV-1).',
+            },
+            {
+              // LAW 1 (phase-3 WP-3.4 TASK-3.4.6): no runtime-core/effects module may reach math-bridge
+              // or a SpinResult type. The deep-path pattern complements the bare-name path ban above so
+              // an import-graph gate, not reviewer trust, enforces the math/presentation boundary.
+              group: ['@marionette/math-bridge/*'],
+              message:
+                'runtime-core (incl. effects) must not import math-bridge or any SpinResult type (LAW 1, ' +
+                'phase-3 WP-3.4): presentation never reads outcome.',
             },
           ],
         },

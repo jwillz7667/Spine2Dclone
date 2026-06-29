@@ -57,11 +57,72 @@ export {
 } from './solve';
 export type { TransformMix, TransformOffset } from './solve';
 
-// Phase-3 effects solve primitives (phase-3-vfx-particles.md section 8.3, WP-3.1): the normative
-// seeded integer PRNG and the per-particle draw-order helper. PixiJS-free and math-bridge-free; the
-// cross-runtime determinism anchor (the PRNG golden vector locks the integer stream). The emitter
-// solve, sprite/ribbon solve, and EffectSystem land in WP-3.2 to WP-3.4 on top of these.
+// Phase-3 effects solve (phase-3-vfx-particles.md section 8, WP-3.1 to 3.4): the normative seeded
+// integer PRNG and per-particle draw order (3.1), the SoA particle pool + over-life curve eval and the
+// fixed-dt emitter solve (3.2), the sprite-animator + ribbon-trail solve (3.3), and the EffectSystem +
+// by-name trigger API + anchor model + bundles (3.4). PixiJS-free and math-bridge-free: the behavioral
+// source of truth runtime-web renders and Unity/Godot reimplement. The PRNG golden vector and the
+// integer step schedule lock the cross-runtime determinism (counts, spawnOrder, frame, alive are
+// integer-EXACT; positions/colors are on the float epsilon path).
 export { makePrng, nextU32, nextUnit, drawRange, hash32 } from './effects';
 export type { PrngState } from './effects';
 export { makeSpawnState, drawParticleInitialState, spawnDrawCount } from './effects';
 export type { SpawnDrawInputs, SpawnState } from './effects';
+export {
+  makeParticlePool,
+  makeParticlePoolState,
+  resetParticlePool,
+  acquireSlot,
+  releaseSlot,
+  makeTrailRing,
+  resetTrailRing,
+  pushTrailPoint,
+  makeTrailRings,
+  makeSpawnScratch,
+} from './effects';
+export type { ParticlePool, ParticlePoolState, TrailRing } from './effects';
+export {
+  prepareLifeCurveNumber,
+  prepareLifeCurveRgb,
+  evalLifeCurveNumber,
+  evalLifeCurveRgbInto,
+} from './effects';
+export type { PreparedLifeCurveNumber, PreparedLifeCurveRgb } from './effects';
+export {
+  prepareEmitter,
+  makeEmitterInstance,
+  stepEmitterOnce,
+  isEmitterDone,
+  DEG_TO_RAD,
+} from './effects';
+export type { PreparedEmitter, EmitterInstance } from './effects';
+export {
+  prepareSpriteAnimator,
+  makeSpriteAnimatorState,
+  stepSpriteAnimatorOnce,
+  isSpriteAnimatorDone,
+  screenCoverTransformInto,
+} from './effects';
+export type { PreparedSpriteAnimator, SpriteAnimatorState } from './effects';
+export { prepareRibbon, makeRibbonInstance, recordRibbonPoint, buildRibbonStrip } from './effects';
+export type { PreparedRibbon, RibbonInstance } from './effects';
+export { resolveAnchor, expandBundle } from './effects';
+export type { EffectAnchor, BoneAnchorResolver, ExpandedBundleItem } from './effects';
+export {
+  EffectSystem,
+  EffectNotFoundError,
+  BundleNotFoundError,
+  DEFAULT_MAX_LIVE_PARTICLES,
+} from './effects';
+export type {
+  EffectInstanceId,
+  EffectTrigger,
+  QualityTier,
+  SystemOptions,
+  BudgetWarning,
+  ReadonlyEffectFrame,
+  ReadonlyInstanceFrame,
+  ReadonlyEmitterView,
+  ReadonlySpriteView,
+  ReadonlyRibbonView,
+} from './effects';

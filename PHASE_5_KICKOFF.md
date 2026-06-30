@@ -36,6 +36,46 @@ identity, and an iPhone-class device.
 
 ---
 
+## 0.1 Progress on this branch (headless slices landed)
+
+The headless-CI-verifiable spine of Phase 5 is landed and green on this branch (all under the full turbo
+gate: typecheck, lint, build, and the per-package test suites):
+
+- **G5.8 (done):** `spinSeed(spinId: string): number` is pinned in `runtime-core` (FNV-1a-32 over UTF-8,
+  integer-only, ports bit-exactly to C#/GDScript) with a committed golden vector anchored on the published
+  FNV-1a-32 test vectors. The string-to-uint32 bridge feeding `hash32(spinSeed(spinId), effectInstanceIndex)`.
+- **WP-5.1 (done):** the MRNT binary codec in `packages/format` (`encodeBinary`/`decodeBinary`, container,
+  deduplicated string table, float64-lossless, CRC-32/ISO-HDLC pinned to 0xCBF43926, typed
+  `BinaryDecodeError`), plus the committed binary rig twins (`rigs/<rigId>.bin`) and their `.fixtures.lock`
+  entries, with round-trip / determinism / cross-loader-solve-parity tests.
+- **WP-5.0 (headless core done):** the Export Profile third store: `exportProfileSchema`,
+  `loadExportProfile`/`saveExportProfile`, the typed `ExportProfileError`, the disjoint-fields guard, and the
+  frozen ship `export-profile.json`. The fs-touching loader lives in the editor MAIN process (the renderer
+  is sandboxed). The Export Settings GUI panel (TASK-5.0.7) is deferred.
+- **WP-5.5 (TS side done):** the consolidated cross-language seed/PRNG/CRC golden vectors (the corpus the
+  native runtimes must reproduce bit-for-bit), regenerated from `runtime-core`/`format` in the test, plus the
+  `conformance-native.yml` scaffold (the cross-language job is real and green; the Unity/Godot/C#-core jobs
+  carry the exact path filters and skipped-as-success semantics, guarded to skip until the runtimes land).
+- **WP-5.2 (non-GPU part done):** the NORMATIVE texture-variant selector (`selectTextureVariant` +
+  `gpuCapabilitiesFromExtensions`) in `runtime-web`, the web reference the native loaders mirror. The GPU
+  transcode/decode and atlas packing-determinism are the GL-edge / exporter remainder.
+- **G5.3 (the compensating-control GATE done; extended catalog deferred):** the A.2 coverage meta-test exists
+  and gates every branch the current fixture schema OBSERVES (linear/stepped/bezier curves, IK both bend
+  directions, IK-then-transform order, weighted + unweighted LBS, deform-after-skin). The branches NOT yet
+  observable are enumerated as pending `it.todo` entries in that test, each blocked on named deferred work
+  (see G5.3 in section 2 and the deferred list below).
+
+**Deferred (needs real toolchains, hardware, or a reviewed format-contract change):** the native Unity/Godot
+runtimes (WP-5.3/5.4), three-runtime native CI (WP-5.5 native jobs), mobile device profiling (WP-5.6), the
+release/signing pipeline (WP-5.7), the ship integration (WP-5.8), the GPU transcode + atlas packing
+(WP-5.2 remainder), and the G5.3 EXTENDED rig catalog, which needs: (a) bone `transformMode` implemented in
+the `runtime-core` world-transform solve (the format already carries the field; the solve ignores it), and
+(b) a format MINOR bump (0.2.0 to 0.3.0) adding the `drawOrder` and `event` animation timelines (+ `EventDef`
+root) with a tested migration and an ADR, plus the fixture-schema/compare/capture extensions, before the
+`rig-transform-modes`, `rig-events-draworder`, `rig-blendmodes`, and `rig-events-loop` rigs can be authored.
+
+---
+
 ## 1. Milestone (the exit gate of the project)
 
 > One full reference game (hero rig + slot scene, driven by the real certified math engine) is exported to a
@@ -62,13 +102,18 @@ Phase 5 is blocked until every box is checked (Law 5). Current reality:
       determinism lock, the conformance fixtures for all three tracks).
 - [x] **G5.2** The `packages/conformance` web suite is green and gating (rigs, sample-spec, fixture schema,
       generator, committed fixtures, fixtures-lock gate, compare engine, single tolerance policy).
-- [~] **G5.3** AUDIT NEEDED before WP-5.3/5.4. `rig-2bone` and the six Phase 2 families
-      (`rig-rigid-mesh`, `rig-weighted-mesh`, `rig-one-bone-ik`, `rig-two-bone-ik`,
-      `rig-transform-constraint`, `rig-deform`) are committed and green. The plan's EXTENDED catalog
-      (events/draw-order, blend-mode, transform-mode, ik-into-transform, weighted-deform, events-loop rigs)
-      and the A.2 coverage meta-test are the SOLE compensating control for the shared C# core, so confirm
-      they exist and are green before the native runtimes are trusted. This is the highest-value pre-WP-5.3
-      task.
+- [~] **G5.3** PARTIAL. The A.2 coverage META-TEST now exists and is green
+      (`packages/conformance/test/a2-coverage.test.ts`): it gates every branch the current fixture schema
+      OBSERVES (all three curve types, IK both bend directions, IK-then-transform order, weighted +
+      unweighted LBS, deform-after-skin), all covered by the committed 7-rig catalog (`rig-2bone` plus the
+      six Phase 2 families). The branches NOT yet observable are recorded in that test as pending `it.todo`
+      entries, each blocked on named deferred work: bone `transformMode` in the solve (the field exists in
+      the format; the world-transform pass ignores it), and a format MINOR bump (0.2.0 to 0.3.0) adding the
+      `drawOrder` + `event` timelines with migration + ADR + fixture-schema/compare extensions, before the
+      EXTENDED rigs (`rig-transform-modes`, `rig-events-draworder`, `rig-blendmodes`, `rig-events-loop`,
+      `rig-ik-into-transform`, `rig-weighted-deform`) can lock those branches. The coverage gate is the
+      compensating control for the shared C# core; it MUST be fully green (no `it.todo`) before the native
+      runtimes are trusted.
 - [x] **G5.4** Slot-presentation determinism is a required check (Law 1): the golden-playback test asserts
       the same `SpinResult` yields an identical timeline (1000x byte-identical), and the sequencer reads no
       RNG/clock (lint-enforced).
@@ -80,10 +125,9 @@ Phase 5 is blocked until every box is checked (Law 5). Current reality:
 - [ ] **G5.7** Editor packageable: confirm `electron-builder` config exists and add a `--smoke` mode that
       loads a reference rig and renders one frame. `release.yml` is NOT a precondition (it is WP-5.7's
       deliverable). NEEDS WORK.
-- [ ] **G5.8** The particle seed derivation is pinned bit-exactly: `spinSeed(spinId: string): number` MUST be
-      defined in `runtime-core` (the oracle) and committed as a golden vector. If Phase 3/4 left it implicit
-      or "for example", that is a Phase 3/4 defect to fix FIRST (Phase 5 locks it, it does not invent it).
-      AUDIT + likely small fix. This is CI-verifiable and a good first headless task.
+- [x] **G5.8** DONE. `spinSeed(spinId: string): number` is defined in `runtime-core` (FNV-1a-32 over UTF-8,
+      integer-only) and committed as a golden vector (`test/golden/spin-seed-fnv1a.json`), anchored on the
+      published FNV-1a-32 test vectors and consolidated into the WP-5.5 cross-language corpus.
 
 If a box is unchecked, close it before the native/device work. G5.3 and G5.8 are the two real pre-conditions
 to resolve in a headless session.

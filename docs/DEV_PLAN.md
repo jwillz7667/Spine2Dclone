@@ -6,8 +6,11 @@
 >
 > Authoritative spec: `MARIONETTE_HANDOFF.md`. Session memory and the enforced rules: `CLAUDE.md`.
 > Status: Phases 0 to 4 complete and green in CI-verifiable form (their acceptance harnesses pass; see the
-> status tracker in section 9). Next action is Phase 5, starting at
-> `docs/plan/phase-5-production-hardening.md` (kickoff: `PHASE_5_KICKOFF.md`).
+> status tracker in section 9). Phase 5 is in progress: the headless-CI-verifiable spine is landed and green
+> (G5.8 spinSeed, WP-5.1 binary codec + twins, WP-5.0 export-profile core, WP-5.5 cross-language vectors +
+> native CI scaffold, WP-5.2 variant selector, the G5.3 A.2 coverage meta-test); the native-runtime,
+> device, release, and one reviewed format-contract change are the remainder. Continue at
+> `docs/plan/phase-5-production-hardening.md` (kickoff: `PHASE_5_KICKOFF.md`, section 0.1).
 
 ---
 
@@ -190,8 +193,19 @@ machine-ticked here. A box is ticked when the phase's CI-verifiable acceptance i
       working cascade. (The `math-bridge` engine boundary, the pure `sequence()` over all six stages, the
       `slot.*` commands, and the golden-playback determinism lock; the live real-engine step and the WebGL
       `TimelinePlayer` render are the non-headless remainder, validated by the committed golden fixtures.)
-- [ ] **Phase 5 gate:** one full game shipped to web and Unity with three-runtime conformance parity. (Not
-      started; see `docs/plan/phase-5-production-hardening.md` and `PHASE_5_KICKOFF.md`.)
+- [ ] **Phase 5 gate:** one full game shipped to web and Unity with three-runtime conformance parity. (In
+      progress: the headless-CI-verifiable spine is landed and green; the native/device/release work and one
+      reviewed format-contract change are the remainder. See `docs/plan/phase-5-production-hardening.md` and
+      `PHASE_5_KICKOFF.md` section 0.1.) Landed headless slices: G5.8 (the pinned `spinSeed` derivation +
+      golden vector), WP-5.1 (the MRNT binary codec + committed binary rig twins + lock), WP-5.0 (the Export
+      Profile schema + main-process loader + disjoint-fields guard + frozen ship profile), WP-5.5 TS side
+      (the cross-language seed/PRNG/CRC golden vectors + the `conformance-native.yml` scaffold), WP-5.2
+      non-GPU (the NORMATIVE texture-variant selector), and the G5.3 A.2 coverage meta-test (gating every
+      branch the current fixture schema observes; the unobserved branches are pending `it.todo` entries).
+      Deferred: the Unity/Godot native runtimes (WP-5.3/5.4), three-runtime native CI, mobile profiling
+      (WP-5.6), the release pipeline (WP-5.7), the ship integration (WP-5.8), the GPU/atlas-packing remainder
+      of WP-5.2, and the G5.3 extended rig catalog, which needs bone `transformMode` in the solve plus a
+      format MINOR bump (0.2.0 to 0.3.0) for the `drawOrder`/`event` timelines with migration + ADR.
 
 ## 10. Glossary
 

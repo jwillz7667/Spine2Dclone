@@ -1,0 +1,26 @@
+{
+  "exportProfileVersion": "1.0.0",
+  "atlasExport": {
+    "maxPageSize": 2048,
+    "padding": 2,
+    "allowRotation": true,
+    "blendBinning": true,
+    "textureTransport": "uastc-ktx2",
+    "compressionTargets": ["astc6x6", "bc7", "etc2"]
+  },
+  "particleProfiles": {
+    "mobile": {
+      "maxLiveParticles": 600,
+      "ambientQualityTier": "medium"
+    },
+    "desktop": {
+      "maxLiveParticles": 2000,
+      "ambientQualityTier": "high"
+    }
+  },
+  "coldStartBudgets": {
+    "unityIosNativeMs": 1500,
+    "webWarmFirstFrameMs": 1500,
+    "webColdInteractiveMs": 4000
+  }
+}

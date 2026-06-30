@@ -64,7 +64,7 @@ export type { TransformMix, TransformOffset } from './solve';
 // source of truth runtime-web renders and Unity/Godot reimplement. The PRNG golden vector and the
 // integer step schedule lock the cross-runtime determinism (counts, spawnOrder, frame, alive are
 // integer-EXACT; positions/colors are on the float epsilon path).
-export { makePrng, nextU32, nextUnit, drawRange, hash32 } from './effects';
+export { makePrng, nextU32, nextUnit, drawRange, hash32, spinSeed } from './effects';
 export type { PrngState } from './effects';
 export { makeSpawnState, drawParticleInitialState, spawnDrawCount } from './effects';
 export type { SpawnDrawInputs, SpawnState } from './effects';

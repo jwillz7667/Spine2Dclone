@@ -5,7 +5,7 @@
 // EffectSystem + trigger API + anchors + bundles (3.4).
 
 // WP-3.1: seeded integer PRNG and the normative per-particle draw order.
-export { makePrng, nextU32, nextUnit, drawRange, hash32 } from './prng';
+export { makePrng, nextU32, nextUnit, drawRange, hash32, spinSeed } from './prng';
 export type { PrngState } from './prng';
 export { makeSpawnState, drawParticleInitialState, spawnDrawCount } from './draw-order';
 export type { SpawnDrawInputs, SpawnState } from './draw-order';

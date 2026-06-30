@@ -57,3 +57,35 @@ export function hash32(a: number, b: number): number {
   h = Math.imul(h ^ (h >>> 13), 0xc2b2ae35) >>> 0;
   return (h ^ (h >>> 16)) >>> 0;
 }
+
+// The pinned string-to-uint32 derivation that turns a `SpinResult.spinId` (a string) into the uint32
+// trigger seed the integer PRNG and hash32 consume (phase-5 entry gate G5.8, phase-3 section 8.3 seed
+// provenance). hash32 takes two NUMBERS, but the slot trigger identity is a STRING spinId, so this
+// derivation bridges the two: the per-effect trigger seed is `hash32(spinSeed(spinId), effectInstanceIndex)`
+// (phase-4 section 7.3 / phase-3 section 8.3). It MUST live in runtime-core (the oracle, INV-2) and be
+// committed as a golden vector (phase-5 TASK-5.5.7), because particle emission parity across web, Unity,
+// and Godot rests on every runtime deriving the SAME uint32 from the SAME spinId.
+//
+// Algorithm: FNV-1a (32-bit) over the UTF-8 bytes of `spinId`. FNV-1a is integer-only (xor + a 32-bit
+// multiply per byte), so it is bit-reproducible across TS, C#, and GDScript with no float path. Operating
+// on UTF-8 BYTES (not UTF-16 code units) pins the derivation for non-ASCII spinIds too. Called once per
+// trigger, never per frame, so the one TextEncoder allocation is off the hot path.
+//
+// Reimplementation notes for native runtimes (the phase-5 contract):
+//   - Encode `spinId` as UTF-8 bytes (C#: `Encoding.UTF8.GetBytes`; GDScript: `spin_id.to_utf8_buffer()`).
+//   - Seed `h = 0x811c9dc5`; per byte: `h = (h ^ byte) >>> 0; h = imul(h, 0x01000193) >>> 0`.
+//   - C#: use `uint` with `unchecked`; GDScript: mask every intermediate with `& 0xFFFFFFFF`.
+//   - The 0x01000193 multiply is the 32-bit FNV prime; `Math.imul` is the 32-bit truncating multiply.
+const FNV1A_OFFSET_BASIS = 0x811c9dc5;
+const FNV1A_PRIME = 0x01000193;
+const SPIN_SEED_UTF8 = new TextEncoder();
+
+export function spinSeed(spinId: string): number {
+  const bytes = SPIN_SEED_UTF8.encode(spinId);
+  let h = FNV1A_OFFSET_BASIS >>> 0;
+  for (let i = 0; i < bytes.length; i += 1) {
+    h = (h ^ bytes[i]!) >>> 0;
+    h = Math.imul(h, FNV1A_PRIME) >>> 0;
+  }
+  return h >>> 0;
+}

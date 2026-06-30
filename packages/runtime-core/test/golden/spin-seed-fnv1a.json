@@ -1,0 +1,24 @@
+{
+  "algorithm": "fnv1a-32-over-utf8",
+  "note": "Reference golden vector for spinSeed (phase-5 entry gate G5.8, the string-to-uint32 derivation that turns SpinResult.spinId into the uint32 trigger seed). spinSeed is FNV-1a (32-bit) over the UTF-8 bytes of spinId. Computed from the runtime-core implementation; this is THE cross-runtime anchor Unity/Godot (and the WP-5.5 cross-language equivalence job, TASK-5.5.7) must reproduce exactly (integer-exact). The two anchor checks fnv1a-32('') = the offset basis 0x811c9dc5 and fnv1a-32('a') = 0xe40c292c are the canonical published FNV-1a-32 test vectors, so a port that matches these matches the algorithm. The triggerSeed0 column is hash32(spinSeed(spinId), 0): the per-effect trigger seed for effectInstanceIndex 0, locking the full spinId -> trigger-seed bridge. Regenerating this vector is a deliberate, reviewed act.",
+  "spinSeed": {
+    "": 2166136261,
+    "a": 3826002220,
+    "spin-1": 570265623,
+    "spin-base-win": 2256525858,
+    "spin-mega-escalation": 1538062888,
+    "spin-freespin-trigger": 847024755,
+    "spin-retrigger": 2474000379,
+    "spin-multiplier-feature": 632250732,
+    "spin-tumble-cascade": 3409899136,
+    "é✨": 202510037
+  },
+  "triggerSeed0": {
+    "spin-base-win": 152084580,
+    "spin-mega-escalation": 3285287953,
+    "spin-freespin-trigger": 678490781,
+    "spin-retrigger": 1381226042,
+    "spin-multiplier-feature": 263306573,
+    "spin-tumble-cascade": 2167820300
+  }
+}

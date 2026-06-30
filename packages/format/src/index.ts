@@ -35,5 +35,18 @@ export type { MigrationResult } from './version/migrate';
 export { MIGRATIONS } from './version/migrations';
 export type { MigrationStep } from './version/migrations';
 
+// MRNT binary codec (phase-5 WP-5.1): a compact, deterministic, lossless second serialization of the
+// SkeletonDocument logical schema. It carries the SAME formatVersion as the JSON and is validated by the
+// SAME validator after decode (section 6.1.2); the editor uses it to ENCODE only (its save format stays
+// JSON). The pinned CRC-32/ISO-HDLC is exported for the phase-5 cross-language equivalence golden vector.
+export {
+  encodeBinary,
+  decodeBinary,
+  crc32,
+  BinaryDecodeError,
+  BINARY_DECODE_ERROR_CODES,
+} from './binary';
+export type { BinaryDecodeErrorCode } from './binary';
+
 // The type-only contract surface (zero runtime); also available directly at @marionette/format/types.
 export type * from './types';

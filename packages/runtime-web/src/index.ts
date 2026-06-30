@@ -28,6 +28,16 @@ export type { RegionTextureResolver } from './scene/region-textures';
 export { blendModeToPixi } from './scene/blend-mode';
 export { makeParticleRenderBatch, fillEmitterBatch } from './scene/particle-render-batch';
 export type { ParticleRenderBatch } from './scene/particle-render-batch';
+// Phase 5 atlas texture-variant selection (phase-5 WP-5.2, TASK-5.2.8): the NORMATIVE selector mapping the
+// static GPU capability set to a compressed target (ASTC/BC7/ETC2) or the canonical PNG fallback, plus the
+// pure WebGL extension-to-capability mapping. Shared by web/Unity/Godot (this is the web reference); reads
+// only the static capability set, never frame rate (deterministic). The GPU transcode/decode is the GL edge.
+export { selectTextureVariant, gpuCapabilitiesFromExtensions } from './atlas/variant-select';
+export type {
+  TextureVariant,
+  CompressedTextureTarget,
+  GpuCapabilities,
+} from './atlas/variant-select';
 // Phase 4 slot TimelinePlayer (phase-4 WP-4.11): the pure, allocation-free directive cursor + pinned
 // counter-rollup display value (the non-GL heart of the player). The GL render path that consumes the
 // dispatched directives needs a WebGL context and is the remainder of WP-4.11.

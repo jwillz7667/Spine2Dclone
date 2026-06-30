@@ -2,6 +2,7 @@ import type { IkConstraint, SkeletonDocument, TransformConstraint } from '@mario
 import type { TransformMix, TransformOffset } from '../solve/transform-constraint';
 import { allocatePose, SETUP_STRIDE, SLOT_COLOR_STRIDE } from './pose';
 import type { Pose, ResolvedIkConstraint, ResolvedTransformConstraint } from './pose';
+import { transformModeToCode } from './transform-mode';
 
 // Build a Pose from a VALIDATED document (format-contract: validate on import, then the solve trusts
 // the result). It allocates the buffers once, captures each bone's setup transform and each slot's
@@ -48,6 +49,7 @@ export function buildPose(document: SkeletonDocument): Pose {
   for (let i = 0; i < boneCount; i += 1) {
     const bone = bones[i]!;
     pose.parentIndices[i] = bone.parent === null ? -1 : (indexByName.get(bone.parent) ?? -1);
+    pose.transformModes[i] = transformModeToCode(bone.transformMode);
     pose.boneLength[i] = bone.length;
     const base = i * SETUP_STRIDE;
     pose.setup[base] = bone.x;

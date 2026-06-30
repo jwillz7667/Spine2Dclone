@@ -1,6 +1,7 @@
 import { copyInto, identity, MAT2X3_STRIDE, multiplyInto } from '../math/affine';
 import type { Mat2x3 } from '../math/affine';
 import type { Pose } from '../skeleton/pose';
+import { TRANSFORM_MODE_NORMAL, worldFromParentByMode } from '../skeleton/transform-mode';
 
 // On-demand world resolution (ADR-0003 section 2). At solve-order step 3, a constraint needs the
 // would-be world matrix of a bone (its target, itself, its parent) while the authoritative forward
@@ -29,7 +30,7 @@ export function resolveWorld(
   out: Float64Array,
   outOffset: number,
 ): void {
-  const { parentIndices, local } = pose;
+  const { parentIndices, transformModes, local } = pose;
 
   // Walk root-ward, pushing indices: chainStack[0] = boneIndex, chainStack[depth-1] = root ancestor.
   let depth = 0;
@@ -40,12 +41,19 @@ export function resolveWorld(
     cursor = parentIndices[cursor]!;
   }
 
-  // Accumulate root-to-bone: start at the root ancestor's local, then left-multiply each descendant's
-  // local (world = parentWorld * childLocal). multiplyInto forbids aliasing its output with an input,
-  // so we ping-pong accumulator -> product -> accumulator.
+  // Accumulate root-to-bone: start at the root ancestor's local, then inherit each descendant's local
+  // under its transformMode (the SAME mode dispatch as step 4, so this on-demand world equals the
+  // forward-pass world for that bone). multiplyInto / worldFromParentByMode forbid aliasing their output
+  // with an input, so we ping-pong accumulator -> product -> accumulator.
   copyInto(accumulator, 0, local, chainStack[depth - 1]! * MAT2X3_STRIDE);
   for (let k = depth - 2; k >= 0; k -= 1) {
-    multiplyInto(product, 0, accumulator, 0, local, chainStack[k]! * MAT2X3_STRIDE);
+    const childIndex = chainStack[k]!;
+    const childOffset = childIndex * MAT2X3_STRIDE;
+    if (transformModes[childIndex] === TRANSFORM_MODE_NORMAL) {
+      multiplyInto(product, 0, accumulator, 0, local, childOffset);
+    } else {
+      worldFromParentByMode(product, 0, accumulator, 0, local, childOffset, transformModes[childIndex]!);
+    }
     copyInto(accumulator, 0, product, 0);
   }
 

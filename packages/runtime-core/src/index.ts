@@ -27,6 +27,20 @@ export type {
 export { SETUP_STRIDE, SLOT_COLOR_STRIDE } from './skeleton/pose';
 export { buildPose } from './skeleton/build-pose';
 export { resetToSetupPose, computeWorldTransforms } from './skeleton/world-transform';
+// Bone transformMode inheritance (handoff section 6): the integer mode codes, the format-string-to-code
+// map, and the shared mode-aware world compose used by BOTH the forward world pass and the on-demand
+// resolveWorld. `normal` is full inheritance (the existing multiplyInto path, unchanged); the four
+// non-normal modes selectively suppress the parent's rotation/scale/reflection. The shared C# core mirrors
+// worldFromParentByMode exactly; the A.2 rig-transform-modes fixture locks the semantics.
+export {
+  transformModeToCode,
+  worldFromParentByMode,
+  TRANSFORM_MODE_NORMAL,
+  TRANSFORM_MODE_ONLY_TRANSLATION,
+  TRANSFORM_MODE_NO_ROTATION_OR_REFLECTION,
+  TRANSFORM_MODE_NO_SCALE,
+  TRANSFORM_MODE_NO_SCALE_OR_REFLECTION,
+} from './skeleton/transform-mode';
 export { sampleSkeleton, AnimationNotFoundError } from './skeleton/sample';
 // Mesh-vertex sampling (solve-order step 5): skin + deform a mesh attachment into world space, reusing
 // a pose already solved by sampleSkeleton. The behavioral source of truth the conformance harness and

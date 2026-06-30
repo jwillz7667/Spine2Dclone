@@ -65,6 +65,10 @@ export interface Pose {
   // index -> parent bone index, or -1 for a root. Parent index is always strictly less than the
   // child index (the validated ordering invariant), so a single forward pass is correct.
   readonly parentIndices: Int32Array;
+  // index -> the bone's transformMode as an integer code (transform-mode.ts). The world pass reads this
+  // to decide how the bone inherits its parent's world transform (full for `normal`, selectively
+  // suppressed for the four non-normal modes). All-normal rigs leave this all zero.
+  readonly transformModes: Int8Array;
   // SETUP_STRIDE lanes per bone: the setup transform, the source for resetToSetupPose and the base
   // that animation channels add/multiply onto.
   readonly setup: Float64Array;
@@ -129,6 +133,7 @@ export function allocatePose(
     boneCount,
     boneNames,
     parentIndices: new Int32Array(boneCount),
+    transformModes: new Int8Array(boneCount),
     setup: new Float64Array(boneCount * SETUP_STRIDE),
     local: new Float64Array(boneCount * MAT2X3_STRIDE),
     world: new Float64Array(boneCount * MAT2X3_STRIDE),

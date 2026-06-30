@@ -1,0 +1,109 @@
+# Three-runtime conformance + cross-language equivalence (phase-5 WP-5.5, conformance-and-ci.md D.9/D.13).
+#
+# Status: SCAFFOLD. The cross-language equivalence job (TASK-5.5.7) is REAL and runs today: it proves the
+# TS integer determinism surface (spinSeed, hash32, the mulberry32 stream, CRC-32, the committed binary
+# twin CRCs) matches the committed cross-language golden, the corpus the native runtimes will reproduce.
+# The Unity / Godot / fast pure-C#-core jobs are wired with the EXACT path filters and skipped-as-success
+# semantics the plan fixes, but they are GUARDED to skip until the native runtimes exist (WP-5.3/5.4):
+# each runs only when its runtime project is present, so this workflow is green now and activates the
+# native jobs the moment the engines land. When they land, add conformance-unity / conformance-godot /
+# conformance-core-fast to the main ci.yml ci-pass needs list (TASK-5.5.6) so they gate merges.
+#
+# Required-check topology (R5): the single required check stays ci.yml's `ci-pass`. The cross-language
+# equivalence test ALSO runs inside the main `test` job (it is a conformance unit test), so it already
+# gates merges today; this workflow surfaces it as a named job and is where the native jobs attach.
+
+name: Conformance (native)
+
+on:
+  pull_request:
+    # Path filter (explicit, includes the transitive solve/codec owners so a core or codec change cannot
+    # skip the engine jobs through a missed trigger): runtimes, conformance corpus, the binary codec +
+    # container (packages/format), and the solve oracle the C# core mirrors (packages/runtime-core).
+    paths:
+      - 'runtimes/**'
+      - 'packages/conformance/**'
+      - 'packages/format/**'
+      - 'packages/runtime-core/**'
+      - '.github/workflows/conformance-native.yml'
+  push:
+    branches: [main]
+  schedule:
+    # Nightly: GameCI licenses + native runners are slow, so the engine jobs run nightly on main in
+    # addition to the path-filtered PR runs.
+    - cron: '0 4 * * *'
+
+env:
+  TURBO_TELEMETRY_DISABLED: '1'
+
+jobs:
+  # ALWAYS-ON per PR (TASK-5.5.7): the cross-language seed / PRNG / CRC equivalence. Real and green today;
+  # the native runtimes load the SAME committed golden and assert their outputs equal it.
+  cross-language-equivalence:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: TS cross-language vectors + binary twin CRCs (TASK-5.5.7, TASK-5.1.8)
+        run: pnpm --filter @marionette/conformance test -- cross-language-vectors binary-twins
+
+  # PATH-FILTERED / nightly (TASK-5.5.1): Unity conformance via GameCI batchmode, comparing the native
+  # dump against the committed fixtures within the single tolerance. Skips until WP-5.3 lands runtimes/unity.
+  conformance-unity:
+    runs-on: ubuntu-latest
+    if: ${{ hashFiles('runtimes/unity/**') != '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Unity conformance dump + compare (WP-5.3, TASK-5.5.1)
+        run: |
+          echo "TODO(WP-5.3): GameCI unity-test-runner -batchmode -nographics, ConformanceDump.Run,"
+          echo "validate dumps against fixture.schema.json, then mc-conformance compare within A.5."
+          exit 1
+
+  # PATH-FILTERED / nightly (TASK-5.5.2): Godot conformance through the real `godot --headless` engine
+  # path (DECISION-5.4), not a bare C# console. Skips until WP-5.4 lands runtimes/godot.
+  conformance-godot:
+    runs-on: ubuntu-latest
+    if: ${{ hashFiles('runtimes/godot/**') != '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Godot conformance dump + compare (WP-5.4, TASK-5.5.2)
+        run: |
+          echo "TODO(WP-5.4): pinned headless Godot container runs the dump through the engine path,"
+          echo "then mc-conformance compare within A.5."
+          exit 1
+
+  # ALWAYS-ON per PR once it exists (TASK-5.5.3): a FAST headless pure-C#-core dump (no Unity/Godot engine)
+  # so the slow engine jobs can stay path-filtered + nightly while core parity is checked cheaply per PR.
+  # Skips until the shared Marionette.Runtime.Core lands (WP-5.3).
+  conformance-core-fast:
+    runs-on: ubuntu-latest
+    if: ${{ hashFiles('runtimes/shared/**') != '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fast pure-C#-core dump + compare (WP-5.3, TASK-5.5.3)
+        run: |
+          echo "TODO(WP-5.3): load the committed binary twins via the shared decoder, dump via"
+          echo "Marionette.Runtime.Core, then mc-conformance compare within A.5."
+          exit 1
+
+  # Aggregator with skipped-as-success semantics (mirrors ci.yml ci-pass). A skipped native job (its
+  # runtime not present yet, or an unrelated PR outside the path filter) counts as success; a real failure
+  # turns this red. Once the native runtimes land this becomes a ci-pass dependency (TASK-5.5.6).
+  conformance-native-pass:
+    runs-on: ubuntu-latest
+    if: always()
+    needs: [cross-language-equivalence, conformance-unity, conformance-godot, conformance-core-fast]
+    steps:
+      - name: Verify no native conformance job failed (skipped counts as success)
+        run: |
+          if [ "${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}" = "true" ]; then
+            echo "A native conformance job failed."
+            exit 1
+          fi
+          echo "Native conformance checks passed (engine jobs skip until their runtimes land)."

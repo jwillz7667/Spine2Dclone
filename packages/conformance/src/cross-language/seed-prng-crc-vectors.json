@@ -1,0 +1,53 @@
+{
+  "note": "Cross-language seed / PRNG / CRC equivalence golden vectors (phase-5 WP-5.5, TASK-5.5.7). This is THE corpus that runtime-core (TS), Marionette.Runtime.Core (C#), and the GDScript fallback path MUST all reproduce bit-for-bit. Particle emission parity across web, Unity, and Godot rests entirely on this integer determinism surface (conformance compares solve output, not pixels, B.2), so it gets its own equivalence test, not just visual review. Every value here is an integer (uint32); there is no float path. Generated FROM runtime-core / format by the regeneration test (cross-language-vectors.test.ts), which asserts the committed values still match the source, so this file cannot silently drift from the implementation. A native runtime loads this file and asserts its own outputs equal these (the deferred conformance-native job). Regenerating is a deliberate, reviewed act.",
+  "spinSeed": {
+    "_algorithm": "FNV-1a-32 over UTF-8 (phase-5 G5.8)",
+    "spin-base-win": 2256525858,
+    "spin-mega-escalation": 1538062888,
+    "spin-freespin-trigger": 847024755,
+    "spin-retrigger": 2474000379,
+    "spin-multiplier-feature": 632250732,
+    "spin-tumble-cascade": 3409899136
+  },
+  "hash32": {
+    "_algorithm": "uint32 stream-seed mix (phase-3 section 8.3)",
+    "0,0": 493009611,
+    "12345,0": 472827831,
+    "12345,1": 1951834749,
+    "2256525858,0": 152084580,
+    "2256525858,3": 834070548
+  },
+  "instanceSeed": {
+    "_algorithm": "instanceSeed = hash32(triggerSeed, layerIndex); triggerSeed = hash32(spinSeed(spinId), 0)",
+    "samples": [
+      { "spinId": "spin-base-win", "triggerSeed": 152084580, "layerIndex": 0, "instanceSeed": 181986220 },
+      { "spinId": "spin-base-win", "triggerSeed": 152084580, "layerIndex": 1, "instanceSeed": 3451884930 },
+      { "spinId": "spin-base-win", "triggerSeed": 152084580, "layerIndex": 2, "instanceSeed": 1667948507 },
+      { "spinId": "spin-tumble-cascade", "triggerSeed": 2167820300, "layerIndex": 0, "instanceSeed": 418703933 },
+      { "spinId": "spin-tumble-cascade", "triggerSeed": 2167820300, "layerIndex": 1, "instanceSeed": 286252804 },
+      { "spinId": "spin-tumble-cascade", "triggerSeed": 2167820300, "layerIndex": 2, "instanceSeed": 1463774016 }
+    ]
+  },
+  "mulberry32": {
+    "_algorithm": "the normative seeded integer PRNG nextU32 stream (phase-3 section 8.3)",
+    "seedExpr": "hash32(spinSeed(\"spin-base-win\"), 0)",
+    "seed": 152084580,
+    "nextU32_first16": [
+      559882731, 437070857, 102642733, 1013990765, 290451314, 2215832505, 100222517, 3697493501,
+      3483804154, 3723094158, 2475493246, 163213419, 3589662750, 2582601757, 3694578173, 2201888526
+    ]
+  },
+  "crc32": {
+    "_algorithm": "CRC-32/ISO-HDLC (phase-5 section 6.1.5); twinBody is crc32 over each committed binary rig twin EXCLUDING its 4-byte trailer, which equals the trailer the C#/GDScript decoder must recompute and match",
+    "check_123456789": 3421780262,
+    "twinBody": {
+      "rig-2bone": 447191849,
+      "rig-rigid-mesh": 1496537246,
+      "rig-weighted-mesh": 1599977437,
+      "rig-one-bone-ik": 2065522014,
+      "rig-two-bone-ik": 800534493,
+      "rig-transform-constraint": 2474909684,
+      "rig-deform": 3629349657
+    }
+  }
+}

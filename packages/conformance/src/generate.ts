@@ -1,5 +1,6 @@
 import process from 'node:process';
 import { join } from 'node:path';
+import { encodeBinary } from '@marionette/format';
 import { buildFixture } from './build-fixture';
 import { validateRig } from './schema/rig';
 import { validateSampleSpec } from './schema/sample-spec';
@@ -12,9 +13,12 @@ import {
   readJson,
   readText,
   REPO_ROOT,
+  rigBinPath,
   rigPath,
   sha256Hex,
+  sha256HexBytes,
   specPath,
+  writeBytes,
   writeText,
 } from './io';
 
@@ -233,12 +237,20 @@ function main(): void {
     const fixtureText = serializeFixture(fixture);
     writeText(fixturePath(rigId), fixtureText);
 
+    // The committed binary rig twin (phase-5 WP-5.1, TASK-5.1.6): the MRNT encoding of THIS validated
+    // rig, the file the native runtimes load in conformance. encodeBinary is pure and deterministic, so
+    // regenerating yields zero diff; the twin bytes are toolchain-independent (a byte re-encoding of the
+    // rig's authored numbers), unlike the V8-sensitive solve fixtures above.
+    const twin = encodeBinary(document);
+    writeBytes(rigBinPath(rigId), twin);
+
     lockFiles[`rigs/${rigId}.json`] = sha256Hex(rigText);
+    lockFiles[`rigs/${rigId}.bin`] = sha256HexBytes(twin);
     lockFiles[`sample-spec/${rigId}.sample-spec.json`] = sha256Hex(specText);
     lockFiles[`fixtures/${rigId}.fixture.json`] = sha256Hex(fixtureText);
 
     process.stdout.write(
-      `generated fixtures/${rigId}.fixture.json (${fixture.samples.length} samples)\n`,
+      `generated fixtures/${rigId}.fixture.json (${fixture.samples.length} samples) + rigs/${rigId}.bin (${twin.length} bytes)\n`,
     );
   }
 

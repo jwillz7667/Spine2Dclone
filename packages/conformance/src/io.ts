@@ -38,6 +38,16 @@ export function rigPath(rigId: string): string {
   return join(SRC_DIR, 'rigs', `${rigId}.json`);
 }
 
+// The committed binary rig TWIN (phase-5 WP-5.1, TASK-5.1.6): the MRNT encoding of the JSON rig, beside
+// it under rigs/<rigId>.bin. These are the files the native runtimes load in conformance (WP-5.3/5.4),
+// proving the shipping binary load path, not just JSON. Unlike the solve fixtures (which store
+// V8-computed cos/sin as shortest round-trippable JSON and so are toolchain-pinned), the twin bytes are
+// a pure byte re-encoding of the rig's authored literal numbers, so they are toolchain-INDEPENDENT and
+// byte-exact on any Node.
+export function rigBinPath(rigId: string): string {
+  return join(SRC_DIR, 'rigs', `${rigId}.bin`);
+}
+
 export function specPath(rigId: string): string {
   return join(SRC_DIR, 'sample-spec', `${rigId}.sample-spec.json`);
 }
@@ -62,10 +72,25 @@ export function writeText(path: string, text: string): void {
   writeFileSync(path, text, 'utf8');
 }
 
+export function writeBytes(path: string, bytes: Uint8Array): void {
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, bytes);
+}
+
+export function readBytes(path: string): Uint8Array {
+  return readFileSync(path);
+}
+
 // Lowercase-hex sha256 of a UTF-8 string. Used for the file hashes in .fixtures.lock and the
 // rigHash/specHash provenance fields. Deterministic and content-addressed (A.6).
 export function sha256Hex(text: string): string {
   return createHash('sha256').update(text, 'utf8').digest('hex');
+}
+
+// Lowercase-hex sha256 of raw bytes. Used for the binary rig twin entry in .fixtures.lock (A.6); the
+// twin is binary, so it is hashed over its bytes, not as UTF-8 text.
+export function sha256HexBytes(bytes: Uint8Array): string {
+  return createHash('sha256').update(bytes).digest('hex');
 }
 
 export function loadRig(rigId: string): SkeletonDocument {

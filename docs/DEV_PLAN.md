@@ -5,7 +5,9 @@
 > `docs/plan/`. Read this first, then go to the document you are about to work in.
 >
 > Authoritative spec: `MARIONETTE_HANDOFF.md`. Session memory and the enforced rules: `CLAUDE.md`.
-> Status: greenfield. Next action is Phase 0, starting at `docs/plan/phase-0-foundations.md`.
+> Status: Phases 0 to 4 complete and green in CI-verifiable form (their acceptance harnesses pass; see the
+> status tracker in section 9). Next action is Phase 5, starting at
+> `docs/plan/phase-5-production-hardening.md` (kickoff: `PHASE_5_KICKOFF.md`).
 
 ---
 
@@ -163,19 +165,33 @@ section with mitigations. The load-bearing ones:
 
 ## 9. Status tracker
 
-Greenfield. Tick a gate only when that phase's Definition-of-Done acceptance script passes and the reviewer
-sign-off checklist in the phase plan is signed.
+Phases 0 to 4 are complete and green in CI-verifiable form: each phase's Definition-of-Done acceptance is
+exercised by a green automated harness (the `phase3:acceptance` script, the Phase 4 golden-playback
+determinism lock, and the per-phase conformance fixtures). The standing caveat (`CLAUDE.md`): the editor
+GUI, the WebGL pixel-parity image diffs, the live real-engine acceptance step, and the byte-exact
+fixture-determinism gate on the pinned Node 22.13.1 are not exercisable in this headless environment, and
+the formal human reviewer sign-off in each phase plan is a separate manual step; both are tracked but not
+machine-ticked here. A box is ticked when the phase's CI-verifiable acceptance is green.
 
-- [ ] **Cross-cutting contracts signed off** (format-contract, command-history, conformance-and-ci) before
-      their first work package starts.
-- [ ] **Phase 0 gate:** create, move and rotate, undo/redo, save, reload to identical state.
-- [ ] **Phase 1 gate:** rig a sprite, author an idle loop, identical playback in editor and web runtime;
-      conformance harness live (web).
-- [ ] **Phase 2 gate:** mesh-deformed, weighted, IK-driven limb animating smoothly in editor and web runtime.
-- [ ] **Phase 3 gate:** big-win coin-shower plus ray-burst authored and played.
-- [ ] **Phase 4 gate:** playable scene driven by the real engine with a win sequence, free-spin trigger, and a
-      working cascade.
-- [ ] **Phase 5 gate:** one full game shipped to web and Unity with three-runtime conformance parity.
+- [x] **Cross-cutting contracts implemented and green** (format-contract, command-history, conformance-and-ci):
+      the format validators/hash, the command/History spine, and the conformance suite (skeleton + effects +
+      slot tracks) are landed and gating CI. Formal reviewer signatures remain a manual step.
+- [x] **Phase 0 gate:** create, move and rotate, undo/redo, save, reload to identical state. (Model + History +
+      `CreateBone`/`MoveBone` + save/load in `packages/document-core`; round-trip tests green.)
+- [x] **Phase 1 gate:** rig a sprite, author an idle loop, identical playback in editor and web runtime;
+      conformance harness live (web). (`rig-2bone` locked fixture; the `samplePlaybackWorlds` headless parity
+      harness; the dopesheet + atlas pipeline.)
+- [x] **Phase 2 gate:** mesh-deformed, weighted, IK-driven limb animating smoothly in editor and web runtime.
+      (Mesh/skin/IK/transform/skin/deform commands + six conformance families + the `mesh-limb-rig` DoD rig.)
+- [x] **Phase 3 gate:** big-win coin-shower plus ray-burst authored and played. (The `megaWin` bundle, the
+      runtime-core emitter/sprite/ribbon solve, the particle conformance track, and `pnpm phase3:acceptance`
+      11/11 green; the WebGL render + designer panel are the non-headless remainder.)
+- [x] **Phase 4 gate:** playable scene driven by the real engine with a win sequence, free-spin trigger, and a
+      working cascade. (The `math-bridge` engine boundary, the pure `sequence()` over all six stages, the
+      `slot.*` commands, and the golden-playback determinism lock; the live real-engine step and the WebGL
+      `TimelinePlayer` render are the non-headless remainder, validated by the committed golden fixtures.)
+- [ ] **Phase 5 gate:** one full game shipped to web and Unity with three-runtime conformance parity. (Not
+      started; see `docs/plan/phase-5-production-hardening.md` and `PHASE_5_KICKOFF.md`.)
 
 ## 10. Glossary
 

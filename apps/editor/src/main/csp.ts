@@ -6,7 +6,13 @@
 export type BuildMode = 'dev' | 'prod';
 
 const BASE_DIRECTIVES = (mode: BuildMode): readonly string[] => {
-  const scriptSrc = mode === 'dev' ? "script-src 'self' 'unsafe-eval'" : "script-src 'self'";
+  // DEV needs 'unsafe-inline' AND 'unsafe-eval': the Vite dev server + React Fast Refresh inject an
+  // INLINE bootstrap/preamble script, and without 'unsafe-inline' the Electron window (which gets this
+  // policy as an HTTP header) blocks it and renders BLANK, even though a plain browser hitting the dev
+  // server still paints. Both relaxations are DEV-ONLY and never reach the prod policy (asserted by the
+  // csp test): prod ships strict 'self'-only scripts from the bundled assets.
+  const scriptSrc =
+    mode === 'dev' ? "script-src 'self' 'unsafe-inline' 'unsafe-eval'" : "script-src 'self'";
   const connectSrc =
     mode === 'dev'
       ? "connect-src 'self' ws://localhost:* http://localhost:*"

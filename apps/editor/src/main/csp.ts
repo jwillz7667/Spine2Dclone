@@ -17,6 +17,12 @@ const BASE_DIRECTIVES = (mode: BuildMode): readonly string[] => {
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data:",
     connectSrc,
+    // PixiJS v8 uploads textures on a background Worker it spins up from a blob: URL (the
+    // WorkerManager / texture-prepare path). Under default-src 'self' with no worker-src, that Worker is
+    // CSP-blocked, which breaks textured rendering in the viewport (bone Graphics still draw, but atlas
+    // sprites do not). worker-src 'self' blob: permits our own bundled workers and Pixi's blob worker
+    // WITHOUT loosening script-src (scripts stay 'self'-only, and 'unsafe-eval' remains dev-only).
+    "worker-src 'self' blob:",
     "object-src 'none'",
     "base-uri 'none'",
     "frame-src 'none'",

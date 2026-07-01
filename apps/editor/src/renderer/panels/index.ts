@@ -5,3 +5,5 @@ export { DopesheetPanel } from './dopesheet-panel';
 export { CurveEditorPanel } from './curve-editor-panel';
 export { AnimationPanel } from './animation-panel';
 export { AssetsPanel } from './assets-panel';
+export { EffectsPanel } from './effects-panel';
+export { SlotPanel } from './slot-panel';

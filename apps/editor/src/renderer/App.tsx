@@ -5,8 +5,10 @@ import {
   AssetsPanel,
   CurveEditorPanel,
   DopesheetPanel,
+  EffectsPanel,
   HierarchyPanel,
   InspectorPanel,
+  SlotPanel,
   ViewportPanel,
 } from './panels';
 import { attachKeybindings } from './viewport/keybindings';
@@ -18,6 +20,8 @@ const components = {
   assets: AssetsPanel,
   viewport: ViewportPanel,
   inspector: InspectorPanel,
+  effects: EffectsPanel,
+  slot: SlotPanel,
   animations: AnimationPanel,
   dopesheet: DopesheetPanel,
   curveeditor: CurveEditorPanel,
@@ -43,12 +47,28 @@ function onReady(event: DockviewReadyEvent): void {
     title: 'Assets',
     position: { referencePanel: hierarchy, direction: 'within' },
   });
+  // The Slot panel (phase-4 slot composer authoring) tabs alongside the Hierarchy/Assets group on the left:
+  // it drives the slotScene that is part of the same DocumentModel + single undo stack as the skeleton.
   event.api.addPanel({
+    id: 'slot',
+    component: 'slot',
+    title: 'Slot',
+    position: { referencePanel: hierarchy, direction: 'within' },
+  });
+  const inspector = event.api.addPanel({
     id: 'inspector',
     component: 'inspector',
     title: 'Inspector',
     position: { referencePanel: viewport, direction: 'right' },
     initialWidth: 320,
+  });
+  // The Effects panel (VFX designer, WP-3.7 editor surface) tabs alongside the Inspector in the right group:
+  // both are entity editors, and the effects library shares the same document + undo stack as the skeleton.
+  event.api.addPanel({
+    id: 'effects',
+    component: 'effects',
+    title: 'Effects',
+    position: { referencePanel: inspector, direction: 'within' },
   });
   // The animation manager (WP-1.9) anchors the bottom strip: it manages the named animations the dopesheet
   // and curve editor then author. The dopesheet docks to its right and the curve editor to the dopesheet's.

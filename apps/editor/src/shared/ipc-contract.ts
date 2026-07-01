@@ -12,6 +12,10 @@ export const IpcChannel = {
   fileSave: 'file:save',
   fileOpen: 'file:open',
   atlasImport: 'atlas:import',
+  // menu:action is the one MAIN -> RENDERER push channel (webContents.send): the native application menu
+  // lives in the main process, and a menu click dispatches one of the allowlisted MenuActionId strings to
+  // the renderer, which maps it to the same action a keybinding would (undo/redo/save/open/import/tool/mode).
+  menuAction: 'menu:action',
 } as const;
 
 export type IpcChannel = (typeof IpcChannel)[keyof typeof IpcChannel];
@@ -20,6 +24,33 @@ export const ALLOWED_CHANNELS: readonly IpcChannel[] = Object.freeze(Object.valu
 
 export function isAllowedChannel(channel: string): channel is IpcChannel {
   return (ALLOWED_CHANNELS as readonly string[]).includes(channel);
+}
+
+// The allowlisted application-menu actions (the single source shared by the main-process menu factory and
+// the renderer dispatcher, so the two can never disagree about which actions exist). Each menu click sends
+// one of these over IpcChannel.menuAction; the preload forwards ONLY these (an unknown string is dropped).
+export const MENU_ACTION_IDS = [
+  'file:new',
+  'file:open',
+  'file:save',
+  'file:importSprites',
+  'edit:undo',
+  'edit:redo',
+  'tool:select',
+  'tool:createBone',
+  'mode:setup',
+  'mode:animation',
+  'mode:toggleAutoKey',
+] as const;
+
+export type MenuActionId = (typeof MENU_ACTION_IDS)[number];
+
+const MENU_ACTION_SET: ReadonlySet<string> = new Set(MENU_ACTION_IDS);
+
+// True when `value` is a known menu action. The preload uses this to forward only allowlisted actions to
+// the renderer (defense in depth: a spoofed menu:action payload with an unknown id is ignored).
+export function isMenuActionId(value: unknown): value is MenuActionId {
+  return typeof value === 'string' && MENU_ACTION_SET.has(value);
 }
 
 // app:getVersion. No request payload; responds with the application version.
@@ -132,4 +163,8 @@ export interface MarionetteApi {
   // Import a directory of source sprites; main owns the directory dialog (no renderer path), packs the
   // atlas, and returns the packed AtlasRef or a canceled status.
   importAtlas(): Promise<IpcResult<AtlasImportResponse>>;
+  // Subscribe to application-menu clicks pushed from the main process (menu:action). The callback receives
+  // one allowlisted MenuActionId per click; returns an unsubscribe function. This is the only MAIN ->
+  // RENDERER push in the bridge; everything else is request/response.
+  onMenuAction(callback: (action: MenuActionId) => void): () => void;
 }

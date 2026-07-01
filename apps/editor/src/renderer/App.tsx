@@ -10,6 +10,7 @@ import {
   ViewportPanel,
 } from './panels';
 import { attachKeybindings } from './viewport/keybindings';
+import { attachMenuActions } from './menu-actions';
 import 'dockview/dist/styles/dockview.css';
 
 const components = {
@@ -76,8 +77,17 @@ function onReady(event: DockviewReadyEvent): void {
 
 export function App(): ReactElement {
   // Undo/redo and tool-switch keybindings are global (handoff 8.1): bound at the renderer root so they
-  // work regardless of which panel has focus, routed to the live document's History.
-  useEffect(() => attachKeybindings(), []);
+  // work regardless of which panel has focus, routed to the live document's History. The native
+  // application-menu clicks (File / Edit / View / Tools) are wired to the SAME actions here too, so the
+  // menu is a discoverable surface over the keybindings rather than a second code path.
+  useEffect(() => {
+    const detachKeys = attachKeybindings();
+    const detachMenu = attachMenuActions();
+    return () => {
+      detachKeys();
+      detachMenu();
+    };
+  }, []);
 
   return (
     <DockviewReact components={components} onReady={onReady} className="dockview-theme-abyss" />

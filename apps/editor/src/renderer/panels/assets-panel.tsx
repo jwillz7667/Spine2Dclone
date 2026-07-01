@@ -1,12 +1,9 @@
 import type { IDockviewPanelProps } from 'dockview';
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactElement } from 'react';
-import type { AtlasRef } from '@marionette/format/types';
-import { buildRegionTextures, makeRegionTextureResolver } from '@marionette/runtime-web';
-import { SetAtlasRefCommand, documentHost } from '../document';
-import { atlasTextureStore } from '../editor-state/atlas-texture-store';
+import { documentHost } from '../document';
+import { runSpriteImport } from '../actions/import-sprites';
 import { useDocumentRevision } from '../editor-state/use-document-revision';
 import { buildAtlasView } from './assets-atlas-view';
-import { loadPageTextures } from './atlas-textures';
 
 const ACCENT = '#5aa0ff';
 const NOTICE_DURATION_MS = 4000;
@@ -56,21 +53,13 @@ export function AssetsPanel(_props: IDockviewPanelProps): ReactElement {
   async function importSprites(): Promise<void> {
     setIsImporting(true);
     try {
-      const result = await window.marionette.importAtlas();
-      if (!result.ok) {
-        showNotice(result.error.message);
-        return;
-      }
-      if (result.data.status === 'canceled') return;
-      const atlas = result.data.atlas as AtlasRef;
-      const pages = result.data.pages;
-      documentHost.current().history.execute(new SetAtlasRefCommand(atlas));
-      try {
-        const pageTextures = await loadPageTextures(pages);
-        const resolver = makeRegionTextureResolver(buildRegionTextures(atlas, pageTextures));
-        atlasTextureStore.setResolver(resolver, [...pageTextures.values()]);
-      } catch (error) {
-        showNotice(error instanceof Error ? error.message : 'failed to load atlas page textures');
+      const outcome = await runSpriteImport();
+      if (outcome.kind === 'error') {
+        showNotice(outcome.message);
+      } else if (outcome.kind === 'imported' && outcome.regionCount === 0) {
+        // A silent empty atlas reads as "import did nothing"; explain it. Import decodes PNG only, so a
+        // folder of JPEG/WebP (or no images) packs to zero regions with no error otherwise.
+        showNotice('Imported 0 regions. Sprite import supports PNG files only; the chosen folder had no usable PNGs.');
       }
     } finally {
       setIsImporting(false);

@@ -45,6 +45,9 @@ function installApi(behavior: Behavior): { savedDocument: () => unknown } {
       ok: true,
       data: { status: 'canceled' },
     }),
+    // The MarionetteApi contract gained onMenuAction (menu:action push, application menu). These file
+    // actions never subscribe, so a no-op stub returning a no-op unsubscribe satisfies the contract.
+    onMenuAction: () => () => {},
   };
   vi.stubGlobal('window', { marionette: api });
   return { savedDocument: () => saved };

@@ -3,14 +3,22 @@
 // not on this module, so the process split holds. Zod is bundled into this file at build time
 // (the sandbox cannot require external modules at runtime).
 
-import { contextBridge, ipcRenderer } from 'electron';
-import { IpcChannel, type MarionetteApi } from '../shared';
+import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
+import { IpcChannel, isMenuActionId, type MarionetteApi } from '../shared';
 
 const api: MarionetteApi = {
   getVersion: () => ipcRenderer.invoke(IpcChannel.getVersion),
   saveDocument: (document) => ipcRenderer.invoke(IpcChannel.fileSave, { document }),
   openDocument: () => ipcRenderer.invoke(IpcChannel.fileOpen, undefined),
   importAtlas: () => ipcRenderer.invoke(IpcChannel.atlasImport, undefined),
+  onMenuAction: (callback) => {
+    // Forward ONLY allowlisted menu actions (defense in depth: an unknown or spoofed payload is dropped).
+    const listener = (_event: IpcRendererEvent, action: unknown): void => {
+      if (isMenuActionId(action)) callback(action);
+    };
+    ipcRenderer.on(IpcChannel.menuAction, listener);
+    return () => ipcRenderer.removeListener(IpcChannel.menuAction, listener);
+  },
 };
 
 contextBridge.exposeInMainWorld('marionette', api);

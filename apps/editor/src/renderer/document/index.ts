@@ -10,6 +10,7 @@ import { exportDocument, loadDocument, type Document } from '@marionette/documen
 import { createInitialDocument, createProductionEnvironment } from '../composition-root';
 import { atlasTextureStore } from '../editor-state/atlas-texture-store';
 import { useSelectionStore } from '../editor-state/selection-store';
+import { bridge } from '../ipc-bridge';
 
 // The renderer's single owner of the live Document. It holds the current Document (created at startup
 // through the composition root) and is the ONE place that reconciles the ephemeral selection store
@@ -54,6 +55,18 @@ class DocumentHost {
     atlasTextureStore.clear();
   }
 
+  // File > New: swap in a fresh, empty document (no bones, no atlas), the same atomic reconciler + cleared
+  // ephemeral state as load(). Not a command and resets undo/redo (a new document starts empty). The
+  // viewport shows nothing until the first CreateBone (the fresh document is genuinely empty).
+  newDocument(): void {
+    const next = createInitialDocument();
+    this.detachReconciler();
+    this.document = next;
+    this.detachReconciler = this.attachReconciler(next);
+    useSelectionStore.getState().clear();
+    atlasTextureStore.clear();
+  }
+
   private attachReconciler(document: Document): () => void {
     return document.history.subscribe((event) => {
       const selection = useSelectionStore.getState();
@@ -86,10 +99,15 @@ export async function saveCurrentDocument(): Promise<FileActionOutcome> {
   } catch (error) {
     return { kind: 'error', message: messageOf(error, 'export failed') };
   }
-  const result = await window.marionette.saveDocument(exported);
-  if (!result.ok) return { kind: 'error', message: result.error.message };
-  if (result.data.status === 'canceled') return { kind: 'canceled' };
-  return { kind: 'saved', path: result.data.path };
+  try {
+    const result = await bridge().saveDocument(exported);
+    if (!result.ok) return { kind: 'error', message: result.error.message };
+    if (result.data.status === 'canceled') return { kind: 'canceled' };
+    return { kind: 'saved', path: result.data.path };
+  } catch (error) {
+    // A missing bridge (failed preload) throws here; surface it instead of an opaque rejection.
+    return { kind: 'error', message: messageOf(error, 'save failed') };
+  }
 }
 
 // Open a document chosen in the main-process dialog and swap it in (WP-0.8). The main process reads and
@@ -97,15 +115,20 @@ export async function saveCurrentDocument(): Promise<FileActionOutcome> {
 // LAW 3). A load that throws (a malformed document that slipped past the first validation) is caught
 // and reported, leaving the current document untouched.
 export async function openDocumentFromDialog(): Promise<FileActionOutcome> {
-  const result = await window.marionette.openDocument();
-  if (!result.ok) return { kind: 'error', message: result.error.message };
-  if (result.data.status === 'canceled') return { kind: 'canceled' };
   try {
-    documentHost.load(result.data.document);
+    const result = await bridge().openDocument();
+    if (!result.ok) return { kind: 'error', message: result.error.message };
+    if (result.data.status === 'canceled') return { kind: 'canceled' };
+    try {
+      documentHost.load(result.data.document);
+    } catch (error) {
+      return { kind: 'error', message: messageOf(error, 'load failed') };
+    }
+    return { kind: 'opened', name: result.data.name };
   } catch (error) {
-    return { kind: 'error', message: messageOf(error, 'load failed') };
+    // A missing bridge (failed preload) throws here; surface it instead of an opaque rejection.
+    return { kind: 'error', message: messageOf(error, 'open failed') };
   }
-  return { kind: 'opened', name: result.data.name };
 }
 
 function messageOf(error: unknown, fallback: string): string {

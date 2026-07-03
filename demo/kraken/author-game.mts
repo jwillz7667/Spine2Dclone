@@ -689,7 +689,7 @@ await call('effect.layer.add', {
 // instead of blooming. setField takes the WHOLE rebuilt body (the field name is the coalesce key).
 async function tuneEmitter(
   effectId: string,
-  patch: (body: any) => void,
+  patch: (body: Record<string, unknown>) => void,
   field: string,
 ): Promise<void> {
   const detail = await call('effect.get', { documentId, effectId });

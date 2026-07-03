@@ -467,6 +467,32 @@ export default tseslint.config(
     },
   },
 
+  // render-preview: the headless CPU rasterizer (ADR-0006). It renders a document to PNG bytes for
+  // authoring feedback, consuming format (validate + types) and runtime-core (the solve) plus pngjs (a
+  // pure-JS codec) and Node's Buffer. It must stay a SECOND raster path that never becomes a renderer
+  // dependency and never drifts: no PixiJS, no runtime-web (which pulls PixiJS in), and no nondeterministic
+  // globals (Date.now / new Date / Math.random) so the byte-deterministic PNG contract holds. Node
+  // built-ins are intentionally NOT banned (it is a headless Node package: the codec and Buffer are fine).
+  {
+    files: ['packages/render-preview/src/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            PIXI_PATTERN,
+            {
+              group: ['@marionette/runtime-web', '@marionette/runtime-web/*'],
+              message:
+                'render-preview must not import runtime-web (it pulls PixiJS into the headless rasterizer, ADR-0006).',
+            },
+          ],
+        },
+      ],
+      'no-restricted-syntax': ['error', ...DETERMINISM_SYNTAX],
+    },
+  },
+
   // Editor process split (phase-0-foundations.md WP-0.1 matrix). eslint-plugin-boundaries
   // enforces the element-to-element edges; the per-element no-restricted-imports below add the
   // package-name and Node-built-in bans that boundaries (which classifies by file path) cannot.
@@ -483,6 +509,9 @@ export default tseslint.config(
         { type: 'math-bridge', pattern: 'packages/math-bridge/src/**' },
         { type: 'runtime-core', pattern: 'packages/runtime-core/src/**' },
         { type: 'runtime-web', pattern: 'packages/runtime-web/src/**' },
+        // render-preview is the headless CPU rasterizer (ADR-0006): it consumes format + runtime-core
+        // (the solve) and never runtime-web (which pulls in PixiJS).
+        { type: 'render-preview', pattern: 'packages/render-preview/src/**' },
         { type: 'document-core', pattern: 'packages/document-core/src/**' },
         { type: 'mcp-server', pattern: 'packages/mcp-server/src/**' },
         { type: 'conformance', pattern: 'packages/conformance/src/**' },
@@ -511,6 +540,9 @@ export default tseslint.config(
             // enforced by the no-restricted-imports blocks below.
             { from: ['runtime-core'], allow: ['runtime-core', 'format', 'math-bridge'] },
             { from: ['runtime-web'], allow: ['runtime-web', 'runtime-core', 'format'] },
+            // render-preview is the headless CPU rasterizer (ADR-0006): it consumes the format contract
+            // (validate + types) and the pure solve core (runtime-core), never runtime-web or any UI.
+            { from: ['render-preview'], allow: ['render-preview', 'format', 'runtime-core'] },
             // document-core is the renderer-agnostic command/history spine (ADR-0001). It consumes
             // only format (validate/hash/types) and, where a transform command needs it, runtime-core.
             { from: ['document-core'], allow: ['document-core', 'format', 'runtime-core'] },

@@ -20,6 +20,11 @@ const ALLOWED = {
     'document-core',
     'mcp-server',
     'conformance',
+    // render-preview is the headless CPU rasterizer for render-to-PNG authoring feedback (ADR-0006):
+    // pure TypeScript (format + runtime-core + pngjs), no GL, byte-deterministic. It is the render side
+    // of the LLM-authoring loop (the mcp-server render_frame tool consumes it) and depends on nothing
+    // beyond the sanctioned solve/format packages, so it joins the allowed set.
+    'render-preview',
     // math-bridge is introduced in Phase 4 (the engine OUTCOME boundary: SpinResult + MathEngine +
     // MockMathEngine + the non-transacting real adapter), per phase-4-slot-composer.md section 5.3. It
     // does not exist before Phase 4 (LAW 5); it lands with WP-4.1.

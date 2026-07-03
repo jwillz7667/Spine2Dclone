@@ -30,6 +30,7 @@
       "@marionette/format/effects-types": ["./packages/format/src/effects/types.ts"],
       "@marionette/runtime-core": ["./packages/runtime-core/src/index.ts"],
       "@marionette/runtime-web": ["./packages/runtime-web/src/index.ts"],
+      "@marionette/render-preview": ["./packages/render-preview/src/index.ts"],
       "@marionette/document-core": ["./packages/document-core/src/index.ts"],
       "@marionette/mcp-server": ["./packages/mcp-server/src/index.ts"],
       "@marionette/conformance": ["./packages/conformance/src/index.ts"]

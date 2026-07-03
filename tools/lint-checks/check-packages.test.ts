@@ -41,6 +41,8 @@ describe('findForbiddenPackages (LAW 5)', () => {
       'document-core',
       'mcp-server',
       'conformance',
+      // render-preview is the headless CPU rasterizer for render-to-PNG authoring feedback (ADR-0006).
+      'render-preview',
       // math-bridge is allowed from Phase 4 (the engine OUTCOME boundary, WP-4.1).
       'math-bridge',
     ]) {

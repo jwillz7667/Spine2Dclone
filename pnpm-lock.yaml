@@ -204,6 +204,31 @@ importers:
         specifier: ^2.1.8
         version: 2.1.9(@types/node@22.20.0)
 
+  packages/render-preview:
+    dependencies:
+      '@marionette/format':
+        specifier: workspace:*
+        version: link:../format
+      '@marionette/runtime-core':
+        specifier: workspace:*
+        version: link:../runtime-core
+      pngjs:
+        specifier: ^7.0.0
+        version: 7.0.0
+    devDependencies:
+      '@types/pngjs':
+        specifier: ^6.0.5
+        version: 6.0.5
+      tsx:
+        specifier: ^4.19.2
+        version: 4.22.4
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.8
+        version: 2.1.9(@types/node@22.20.0)
+
   packages/runtime-core:
     dependencies:
       '@marionette/format':

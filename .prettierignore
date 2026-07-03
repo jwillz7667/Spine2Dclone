@@ -33,3 +33,9 @@ packages/conformance/src/effects-fixtures/
 # would break that gate. The hand-authored spins, scenes, and sample-specs under slot/ (spins/, scenes/,
 # sample-spec/) are prettier-owned and intentionally NOT excluded.
 packages/conformance/src/slot/expected/
+
+# Generated AnimationState (anim-state) pose-capture goldens + lock manifest (ADR-0005). generate-anim-state.ts
+# owns their exact bytes (shortest round-trippable floats) and the .anim-state-fixtures.lock drift gate is a
+# byte-exact git diff; reformatting them would break that gate. The hand-authored rig and scenarios under
+# anim-state-rigs/ and anim-state-scenarios/ are prettier-owned and intentionally NOT excluded.
+packages/conformance/src/anim-state-fixtures/

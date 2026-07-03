@@ -20,12 +20,15 @@
   "dependencies": {
     "@marionette/document-core": "workspace:*",
     "@marionette/format": "workspace:*",
+    "@marionette/render-preview": "workspace:*",
     "@marionette/runtime-core": "workspace:*",
     "@modelcontextprotocol/sdk": "1.29.0",
+    "pngjs": "^7.0.0",
     "zod": "3.25.76"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
+    "@types/pngjs": "^6.0.5",
     "esbuild": "^0.24.2",
     "vitest": "^2.1.8"
   }

@@ -4,4 +4,8 @@
 export interface FileStore {
   read(path: string): Promise<string>;
   write(path: string, content: string): Promise<void>;
+  // Read a file as raw bytes (atlas page PNGs for the render_frame tool). Path policy is identical to
+  // `read`: the host resolves against the project root and rejects traversal, so binary reads cannot
+  // escape the sandbox either.
+  readBinary(path: string): Promise<Uint8Array>;
 }

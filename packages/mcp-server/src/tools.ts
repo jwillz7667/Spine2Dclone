@@ -50,6 +50,7 @@ import {
   RenameSlotCommand,
   ReorderSlotCommand,
   ReparentBoneCommand,
+  SetAtlasRefCommand,
   ReparentCycleError,
   RotateBoneCommand,
   ScaleBoneCommand,
@@ -162,6 +163,13 @@ import {
   computeWorldTransforms,
   resetToSetupPose,
 } from '@marionette/runtime-core';
+import {
+  RenderPreviewError,
+  renderFrame,
+  type AtlasPagePixels,
+  type RenderFrameResult,
+} from '@marionette/render-preview';
+import { PNG } from 'pngjs';
 import { z } from 'zod';
 import { McpToolError } from './errors';
 import type { FileStore } from './files';
@@ -2139,6 +2147,115 @@ const slotSceneTools: readonly ToolDefinition[] = [
   ),
 ];
 
+// ----- skeletal atlas (AtlasRef) schema: mirrors packages/format schema/atlas.ts at the MCP boundary.
+// The editor's atlas-pack pipeline produces this in the main process; atlas.set is the only legal path
+// that installs it on the live document (LAW 2, SetAtlasRefCommand). Sprite/mesh attachment `path`
+// references resolve against these region names, so setting the atlas unblocks a valid region attachment.
+const atlasRegionInputSchema = z
+  .object({
+    name: z.string(),
+    x: z.number().finite(),
+    y: z.number().finite(),
+    w: z.number().finite(),
+    h: z.number().finite(),
+    rotated: z.boolean(),
+    offsetX: z.number().finite(),
+    offsetY: z.number().finite(),
+    originalW: z.number().finite(),
+    originalH: z.number().finite(),
+  })
+  .strict();
+const atlasPageInputSchema = z
+  .object({
+    file: z.string(),
+    width: z.number().finite(),
+    height: z.number().finite(),
+    regions: z.array(atlasRegionInputSchema),
+  })
+  .strict();
+const atlasRefInputSchema = z.object({ pages: z.array(atlasPageInputSchema) }).strict();
+
+// ============================================================================
+// Headless render feedback (render_frame, ADR-0006): rasterize the CURRENT live document to a PNG so an
+// LLM authoring over MCP can SEE a frame. The render itself is the pure @marionette/render-preview CPU
+// rasterizer; the MCP layer's job is to (1) export the live document through the SAME LAW-3 boundary the
+// other read tools use, (2) resolve and decode the atlas page PNGs the document references from disk, and
+// (3) map the rasterizer's typed errors onto McpToolError codes. Atlas pages are located relative to the
+// project root the server was launched with: each AtlasPage.file is a project-relative path handed to the
+// host FileStore, which resolves it against the root and rejects traversal (PATH_FORBIDDEN).
+// ============================================================================
+
+const renderDimension = z.number().int().min(1).max(2048);
+
+// An explicit world rectangle to frame (fit != 'content'). w/h must be positive (a degenerate rect has no
+// area to frame); the rasterizer would otherwise reject it as INVALID_VIEWPORT, so validate at the boundary.
+const renderFitRectSchema = z
+  .object({
+    x: z.number().finite(),
+    y: z.number().finite(),
+    w: z.number().finite().positive(),
+    h: z.number().finite().positive(),
+  })
+  .strict();
+
+const renderFitSchema = z.union([z.literal('content'), renderFitRectSchema]);
+
+// Read one atlas page's bytes through the host FileStore. A path that escapes the project root is a typed
+// PATH_FORBIDDEN (surfaced verbatim); any other read failure means the referenced page file is absent or
+// unreadable on disk, which is a loud RENDER_ATLAS_PAGE_MISSING per ADR-0006 (the rasterizer's white
+// placeholder is only for an absent MAP entry, never for a page the document explicitly references).
+async function readAtlasPageBytes(files: FileStore, file: string): Promise<Uint8Array> {
+  try {
+    return await files.readBinary(file);
+  } catch (error) {
+    if (error instanceof McpToolError) throw error;
+    throw new McpToolError(
+      'RENDER_ATLAS_PAGE_MISSING',
+      `atlas page file "${file}" is missing or unreadable on disk`,
+      { file },
+    );
+  }
+}
+
+// Decode a page PNG into straight-alpha RGBA pixels for the rasterizer. A file that is not a valid PNG is a
+// loud RENDER_MALFORMED_ATLAS_PAGE (distinct from a missing file). pngjs decodes to non-premultiplied RGBA
+// of length width*height*4, exactly the AtlasPagePixels contract.
+function decodeAtlasPage(file: string, bytes: Uint8Array): AtlasPagePixels {
+  let png: PNG;
+  try {
+    png = PNG.sync.read(Buffer.from(bytes));
+  } catch {
+    throw new McpToolError(
+      'RENDER_MALFORMED_ATLAS_PAGE',
+      `atlas page file "${file}" is not a valid PNG`,
+      { file },
+    );
+  }
+  return { width: png.width, height: png.height, rgba: png.data };
+}
+
+// Map a render-preview typed error onto an McpToolError code. UNKNOWN_ANIMATION reuses the surface-wide
+// ANIMATION_NOT_FOUND code so a client branches identically regardless of which tool raised it; the rest
+// get render-scoped codes. Non render-preview errors (including a FormatValidationError from the internal
+// re-validate) propagate unchanged for the outer handler to classify.
+function mapRenderError(error: unknown): never {
+  if (error instanceof RenderPreviewError) {
+    switch (error.code) {
+      case 'UNKNOWN_ANIMATION':
+        throw new McpToolError('ANIMATION_NOT_FOUND', error.message);
+      case 'ZERO_CONTENT_FIT':
+        throw new McpToolError('RENDER_ZERO_CONTENT', error.message);
+      case 'INVALID_VIEWPORT':
+        throw new McpToolError('RENDER_INVALID_VIEWPORT', error.message);
+      case 'ROTATED_REGION_UNSUPPORTED':
+        throw new McpToolError('RENDER_ROTATED_REGION', error.message);
+      case 'MALFORMED_ATLAS_PAGE':
+        throw new McpToolError('RENDER_MALFORMED_ATLAS_PAGE', error.message);
+    }
+  }
+  throw error;
+}
+
 export const TOOLS: readonly ToolDefinition[] = [
   // ----- document lifecycle -----
   defineTool(
@@ -3913,6 +4030,91 @@ export const TOOLS: readonly ToolDefinition[] = [
         return { name, world: Array.from(pose.world.subarray(base, base + MAT2X3_STRIDE)) };
       });
       return { transforms };
+    },
+  ),
+  defineTool(
+    {
+      name: 'atlas.set',
+      title: 'Set atlas',
+      description:
+        'Install the document atlas (packed pages + regions) through the command history (LAW 2). The ' +
+        'editor atlas-pack pipeline produces the AtlasRef; this is the only legal path that sets it. ' +
+        'Region/mesh attachment `path` references resolve against the region names installed here.',
+      input: z.object({ documentId, atlas: atlasRefInputSchema }).strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      session.document.history.execute(new SetAtlasRefCommand(input.atlas));
+      return { revision: session.document.model.revision };
+    },
+  ),
+  defineTool(
+    {
+      name: 'atlas.get',
+      title: 'Get atlas',
+      description: 'Return the document current atlas ref (packed pages + regions).',
+      input: z.object({ documentId }).strict(),
+    },
+    (deps, input) => ({
+      atlas: deps.sessions.get(input.documentId).document.model.preserved().atlas,
+    }),
+  ),
+  defineTool(
+    {
+      name: 'render_frame',
+      title: 'Render frame',
+      description:
+        'Rasterize the current document to a PNG for headless authoring feedback (ADR-0006) and return ' +
+        'it base64-encoded. Renders the setup pose, or an animation sampled at `time` (clamped to the ' +
+        'animation duration). Atlas page PNGs referenced by the document are loaded from the project ' +
+        'root; a referenced page file that is missing on disk is a loud error. When the document has no ' +
+        'atlas pages at all, attachments render as tintable white placeholders and `placeholders` is true.',
+      input: z
+        .object({
+          documentId,
+          animation: z.string().min(1).optional(),
+          time: z.number().finite().optional(),
+          width: renderDimension.default(512),
+          height: renderDimension.default(512),
+          fit: renderFitSchema.default('content'),
+          background: rgbaSchema.optional(),
+        })
+        .strict(),
+    },
+    async (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      const document = exportOrThrow(session.document.model);
+
+      const pages = new Map<string, AtlasPagePixels>();
+      for (const page of document.atlas.pages) {
+        pages.set(
+          page.file,
+          decodeAtlasPage(page.file, await readAtlasPageBytes(deps.files, page.file)),
+        );
+      }
+      const placeholders = document.atlas.pages.length === 0;
+
+      let result: RenderFrameResult;
+      try {
+        result = renderFrame({
+          document,
+          ...(input.animation !== undefined ? { animation: input.animation } : {}),
+          ...(input.time !== undefined ? { time: input.time } : {}),
+          atlas: { pages },
+          viewport: { width: input.width, height: input.height, fit: input.fit },
+          ...(input.background !== undefined ? { background: input.background } : {}),
+        });
+      } catch (error) {
+        mapRenderError(error);
+      }
+
+      return {
+        pngBase64: Buffer.from(result.png).toString('base64'),
+        width: result.width,
+        height: result.height,
+        bytes: result.png.byteLength,
+        placeholders,
+      };
     },
   ),
 

@@ -184,12 +184,18 @@ importers:
       '@marionette/format':
         specifier: workspace:*
         version: link:../format
+      '@marionette/render-preview':
+        specifier: workspace:*
+        version: link:../render-preview
       '@marionette/runtime-core':
         specifier: workspace:*
         version: link:../runtime-core
       '@modelcontextprotocol/sdk':
         specifier: 1.29.0
         version: 1.29.0(zod@3.25.76)
+      pngjs:
+        specifier: ^7.0.0
+        version: 7.0.0
       zod:
         specifier: 3.25.76
         version: 3.25.76
@@ -197,6 +203,9 @@ importers:
       '@types/node':
         specifier: ^22.10.2
         version: 22.20.0
+      '@types/pngjs':
+        specifier: ^6.0.5
+        version: 6.0.5
       esbuild:
         specifier: ^0.24.2
         version: 0.24.2

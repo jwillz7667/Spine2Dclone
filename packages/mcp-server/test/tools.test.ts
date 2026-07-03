@@ -1,5 +1,6 @@
 import type { SkeletonDocument } from '@marionette/format/types';
 import { buildPose, sampleSkeleton, SLOT_COLOR_STRIDE } from '@marionette/runtime-core';
+import { PNG } from 'pngjs';
 import { describe, expect, it } from 'vitest';
 import { McpToolError, SessionRegistry, TOOLS, type FileStore, type ToolDeps } from '../src';
 
@@ -11,10 +12,16 @@ function call(deps: ToolDeps, name: string, input: unknown): Promise<unknown> {
   return tool.handler(deps, input);
 }
 
-function inMemoryFiles(): { store: FileStore; map: Map<string, string> } {
+function inMemoryFiles(): {
+  store: FileStore;
+  map: Map<string, string>;
+  binary: Map<string, Uint8Array>;
+} {
   const map = new Map<string, string>();
+  const binary = new Map<string, Uint8Array>();
   return {
     map,
+    binary,
     store: {
       read: async (path) => {
         const content = map.get(path);
@@ -23,6 +30,11 @@ function inMemoryFiles(): { store: FileStore; map: Map<string, string> } {
       },
       write: async (path, content) => {
         map.set(path, content);
+      },
+      readBinary: async (path) => {
+        const content = binary.get(path);
+        if (content === undefined) throw new Error(`no binary file ${path}`);
+        return content;
       },
     },
   };
@@ -1603,5 +1615,242 @@ describe('MCP tool catalog', () => {
     }
     // Tool names are unique across the whole catalog.
     expect(byName.size).toBe(TOOLS.length);
+  });
+});
+
+// A one-page atlas ref with a single named region that fills the page, the shape the editor atlas-pack
+// pipeline produces. `file` is the project-relative page path the render tool loads from disk.
+function oneRegionAtlas(file: string, region: string, size = 8): unknown {
+  return {
+    pages: [
+      {
+        file,
+        width: size,
+        height: size,
+        regions: [
+          {
+            name: region,
+            x: 0,
+            y: 0,
+            w: size,
+            h: size,
+            rotated: false,
+            offsetX: 0,
+            offsetY: 0,
+            originalW: size,
+            originalH: size,
+          },
+        ],
+      },
+    ],
+  };
+}
+
+// Skeletal atlas control surface (atlas.set / atlas.get): the AtlasRef the editor packs is installed on
+// the live document through the command history (LAW 2), unblocking a valid region attachment.
+describe('MCP atlas tools', () => {
+  it('sets an atlas, reads it back, and a region attachment referencing it validates', async () => {
+    const deps = makeDeps();
+    const { documentId } = asRecord(await call(deps, 'document.new', { name: 'atlas' }));
+
+    await call(deps, 'atlas.set', { documentId, atlas: oneRegionAtlas('atlas0.png', 'tile') });
+
+    const got = asRecord(await call(deps, 'atlas.get', { documentId }));
+    const pages = asRecord(got.atlas).pages as Array<{
+      file: string;
+      regions: Array<{ name: string }>;
+    }>;
+    expect(pages).toHaveLength(1);
+    expect(pages[0]!.regions.map((r) => r.name)).toEqual(['tile']);
+
+    // A region attachment referencing an installed region now validates for export (LAW 3).
+    const { boneId } = asRecord(
+      await call(deps, 'bone.create', { documentId, name: 'root', length: 50 }),
+    );
+    const { slotId } = asRecord(
+      await call(deps, 'slot.create', { documentId, boneId, name: 'body' }),
+    );
+    await call(deps, 'attach.region.add', {
+      documentId,
+      slotId,
+      name: 'body_img',
+      path: 'tile',
+      width: 64,
+      height: 64,
+    });
+    const validation = asRecord(await call(deps, 'document.validate', { documentId }));
+    expect(validation.ok).toBe(true);
+  });
+
+  it('rejects a malformed atlas loudly at the Zod boundary', async () => {
+    const deps = makeDeps();
+    const { documentId } = asRecord(await call(deps, 'document.new', { name: 'bad' }));
+
+    // A region missing the required numeric `w` field is a shape violation (INVALID_INPUT).
+    await expectToolError(
+      call(deps, 'atlas.set', {
+        documentId,
+        atlas: {
+          pages: [
+            {
+              file: 'p.png',
+              width: 8,
+              height: 8,
+              regions: [
+                {
+                  name: 'tile',
+                  x: 0,
+                  y: 0,
+                  h: 8,
+                  rotated: false,
+                  offsetX: 0,
+                  offsetY: 0,
+                  originalW: 8,
+                  originalH: 8,
+                },
+              ],
+            },
+          ],
+        },
+      }),
+      'INVALID_INPUT',
+    );
+  });
+});
+
+// render_frame (ADR-0006): the headless render-to-PNG feedback tool. An LLM authoring over MCP renders the
+// live document so it can SEE a frame, with or without atlas page pixels on disk.
+describe('MCP render_frame tool', () => {
+  // A one-page solid-RGBA PNG the way the editor's atlas packer would emit it, so the tool decodes a real
+  // page rather than a fabricated buffer.
+  function solidPagePng(
+    width: number,
+    height: number,
+    r: number,
+    g: number,
+    b: number,
+  ): Uint8Array {
+    const png = new PNG({ width, height });
+    for (let i = 0; i < width * height; i += 1) {
+      const base = i * 4;
+      png.data[base] = r;
+      png.data[base + 1] = g;
+      png.data[base + 2] = b;
+      png.data[base + 3] = 255;
+    }
+    return PNG.sync.write(png);
+  }
+
+  // Author a bone + slot riding it. No region attachment: a region attachment requires a matching atlas
+  // region (LAW 3, ATTACHMENT_REGION_MISSING), so the placeholder (atlas-less) path carries no drawable
+  // geometry and is framed with an explicit fit rect.
+  async function authorBareRig(deps: ToolDeps): Promise<string> {
+    const { documentId } = asRecord(await call(deps, 'document.new', { name: 'render' }));
+    const { boneId } = asRecord(
+      await call(deps, 'bone.create', { documentId, name: 'root', length: 100 }),
+    );
+    await call(deps, 'slot.create', { documentId, boneId, name: 'body' });
+    return documentId as string;
+  }
+
+  // Author a bone + slot + sized region attachment resolving against an installed one-region atlas whose
+  // page file is `pageFile`. Returns the document id; the caller decides whether the page pixels are on
+  // disk (real render) or absent (missing-page error).
+  async function authorTexturedRig(deps: ToolDeps, pageFile: string): Promise<string> {
+    const { documentId } = asRecord(await call(deps, 'document.new', { name: 'render' }));
+    await call(deps, 'atlas.set', { documentId, atlas: oneRegionAtlas(pageFile, 'tile') });
+    const { boneId } = asRecord(
+      await call(deps, 'bone.create', { documentId, name: 'root', length: 100 }),
+    );
+    const { slotId } = asRecord(
+      await call(deps, 'slot.create', { documentId, boneId, name: 'body' }),
+    );
+    await call(deps, 'attach.region.add', {
+      documentId,
+      slotId,
+      name: 'body_img',
+      path: 'tile',
+      width: 64,
+      height: 64,
+    });
+    await call(deps, 'slot.activeAttachment', { documentId, slotId, attachment: 'body_img' });
+    return documentId as string;
+  }
+
+  it('renders a placeholder frame at the requested size when the document has no atlas pages', async () => {
+    const deps = makeDeps();
+    const documentId = await authorBareRig(deps);
+
+    const result = asRecord(
+      await call(deps, 'render_frame', {
+        documentId,
+        width: 128,
+        height: 96,
+        fit: { x: -50, y: -50, w: 100, h: 100 },
+      }),
+    );
+
+    expect(result.placeholders).toBe(true);
+    expect(result.width).toBe(128);
+    expect(result.height).toBe(96);
+    expect(result.bytes).toBeGreaterThan(0);
+
+    const decoded = PNG.sync.read(Buffer.from(result.pngBase64 as string, 'base64'));
+    expect(decoded.width).toBe(128);
+    expect(decoded.height).toBe(96);
+  });
+
+  it('renders real atlas-page pixels deterministically across two calls', async () => {
+    const files = inMemoryFiles();
+    const deps: ToolDeps = { sessions: new SessionRegistry(), files: files.store };
+
+    const documentId = await authorTexturedRig(deps, 'atlas0.png');
+    files.binary.set('atlas0.png', solidPagePng(8, 8, 200, 40, 40));
+
+    const first = asRecord(await call(deps, 'render_frame', { documentId, width: 64, height: 64 }));
+    const second = asRecord(
+      await call(deps, 'render_frame', { documentId, width: 64, height: 64 }),
+    );
+
+    expect(first.placeholders).toBe(false);
+    expect(first.width).toBe(64);
+    expect(first.height).toBe(64);
+    const decoded = PNG.sync.read(Buffer.from(first.pngBase64 as string, 'base64'));
+    expect(decoded.width).toBe(64);
+    expect(decoded.height).toBe(64);
+    // Byte-determinism (ADR-0006): same document + inputs => byte-identical PNG.
+    expect(second.pngBase64).toBe(first.pngBase64);
+  });
+
+  it('rejects an unknown animation with ANIMATION_NOT_FOUND', async () => {
+    const files = inMemoryFiles();
+    const deps: ToolDeps = { sessions: new SessionRegistry(), files: files.store };
+    const documentId = await authorTexturedRig(deps, 'atlas0.png');
+    files.binary.set('atlas0.png', solidPagePng(8, 8, 10, 20, 30));
+
+    await expectToolError(
+      call(deps, 'render_frame', { documentId, animation: 'does_not_exist' }),
+      'ANIMATION_NOT_FOUND',
+    );
+  });
+
+  it('rejects an out-of-range width at the Zod boundary', async () => {
+    const deps = makeDeps();
+    const documentId = await authorBareRig(deps);
+
+    await expectToolError(call(deps, 'render_frame', { documentId, width: 5000 }), 'INVALID_INPUT');
+  });
+
+  it('fails loudly when a referenced atlas page file is missing on disk', async () => {
+    const files = inMemoryFiles();
+    const deps: ToolDeps = { sessions: new SessionRegistry(), files: files.store };
+
+    // The atlas references 'missing.png', but no page pixels are seeded on disk.
+    const documentId = await authorTexturedRig(deps, 'missing.png');
+
+    await expectToolError(
+      call(deps, 'render_frame', { documentId, width: 64, height: 64 }),
+      'RENDER_ATLAS_PAGE_MISSING',
+    );
   });
 });

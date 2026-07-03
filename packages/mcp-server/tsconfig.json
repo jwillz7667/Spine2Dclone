@@ -17,6 +17,7 @@
   "references": [
     { "path": "../format" },
     { "path": "../runtime-core" },
-    { "path": "../document-core" }
+    { "path": "../document-core" },
+    { "path": "../render-preview" }
   ]
 }

@@ -547,10 +547,12 @@ export default tseslint.config(
             // only format (validate/hash/types) and, where a transform command needs it, runtime-core.
             { from: ['document-core'], allow: ['document-core', 'format', 'runtime-core'] },
             // mcp-server exposes document-core commands as MCP tools (WP-M.1). It drives the same
-            // commands the GUI does and reads runtime-core solves; never the renderer/UI packages.
+            // commands the GUI does and reads runtime-core solves; never the renderer/UI packages. It also
+            // consumes render-preview (the headless CPU rasterizer, ADR-0006) for the render_frame tool: the
+            // rasterizer is renderer-free (no PixiJS), so it does not breach the no-renderer boundary.
             {
               from: ['mcp-server'],
-              allow: ['mcp-server', 'document-core', 'format', 'runtime-core'],
+              allow: ['mcp-server', 'document-core', 'format', 'runtime-core', 'render-preview'],
             },
             // conformance is the cross-runtime behavioral-truth suite (conformance-and-ci.md A.1). It
             // consumes the format contract and the pure solve core (runtime-core), and (phase-4 WP-4.13, the

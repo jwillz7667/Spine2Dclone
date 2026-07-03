@@ -26,5 +26,7 @@ export function createNodeFileStore(projectRoot: string): FileStore {
   return {
     read: async (path) => readFile(confine(path), 'utf8'),
     write: async (path, content) => writeFile(confine(path), content, 'utf8'),
+    // No encoding => a Buffer (a Uint8Array), the raw page bytes the PNG decoder consumes.
+    readBinary: async (path) => readFile(confine(path)),
   };
 }

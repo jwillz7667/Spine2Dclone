@@ -1,3 +1,4 @@
+import { gridFill } from './grid-fill';
 import { MeshError } from './mesh-error';
 import { triangulate } from './triangulate';
 import type { Point } from './point';
@@ -43,12 +44,7 @@ export function addInteriorVertex(geometry: MeshTopology, point: Point): Topolog
     );
   }
 
-  const [ia, ib, ic] = containing.triangle;
-  const { wa, wb, wc } = containing.weights;
-  const uvs = geometry.uvs;
-  const u = wa * uvs[ia * 2]! + wb * uvs[ib * 2]! + wc * uvs[ic * 2]!;
-  const v = wa * uvs[ia * 2 + 1]! + wb * uvs[ib * 2 + 1]! + wc * uvs[ic * 2 + 1]!;
-
+  const [u, v] = interpolateUvAt(geometry, containing);
   const vertices = [...geometry.vertices, point.x, point.y];
   return {
     uvs: [...geometry.uvs, u, v],
@@ -87,6 +83,44 @@ export function deleteInteriorVertex(
   };
 }
 
+// AUTO grid-fill over the CURRENT hull (TASK-2.1.5, the inspector's one-click regular interior grid):
+// keep the hull ring and its uvs, replace the interior with grid samples at `cellSize` spacing, and
+// interpolate each sample's uv barycentrically from the current mesh so the texture mapping is
+// preserved. A sample that falls inside the hull polygon but outside every current triangle (a numeric
+// sliver at an edge) is skipped rather than given a guessed uv. Returns the full replacement geometry
+// the AutoGridFillMesh command consumes; the hull length is unchanged by construction.
+export function autoGridFillGeometry(geometry: MeshTopology, cellSize: number): TopologyEditResult {
+  const hull: Point[] = [];
+  for (let i = 0; i < geometry.hullLength; i += 1) {
+    hull.push({ x: geometry.vertices[i * 2]!, y: geometry.vertices[i * 2 + 1]! });
+  }
+
+  const filled = gridFill(hull, cellSize);
+  const vertices: number[] = [];
+  const uvs: number[] = [];
+  const kept: Point[] = [];
+  for (let i = 0; i < filled.hullLength; i += 1) {
+    vertices.push(hull[i]!.x, hull[i]!.y);
+    uvs.push(geometry.uvs[i * 2]!, geometry.uvs[i * 2 + 1]!);
+  }
+  for (let i = filled.hullLength; i < filled.vertices.length; i += 1) {
+    const point = filled.vertices[i]!;
+    const containing = findContainingTriangle(geometry, point);
+    if (containing === null) continue;
+    const [u, v] = interpolateUvAt(geometry, containing);
+    kept.push(point);
+    vertices.push(point.x, point.y);
+    uvs.push(u, v);
+  }
+
+  return {
+    uvs,
+    // Re-triangulate over the kept set: skipping a sliver sample must not leave dangling indices.
+    triangles: triangulate(hull, kept),
+    vertices,
+  };
+}
+
 // Deterministic re-triangulation over the hull-first flat vertex array (the one triangulation seam,
 // TASK-2.1.4; the runtime never re-triangulates, it consumes the committed result).
 function retriangulate(vertices: readonly number[], hullLength: number): number[] {
@@ -103,6 +137,20 @@ function retriangulate(vertices: readonly number[], hullLength: number): number[
 interface ContainingTriangle {
   readonly triangle: readonly [number, number, number];
   readonly weights: { readonly wa: number; readonly wb: number; readonly wc: number };
+}
+
+// The barycentric uv interpolation shared by add-vertex and grid-fill.
+function interpolateUvAt(
+  geometry: MeshTopology,
+  containing: ContainingTriangle,
+): readonly [number, number] {
+  const [ia, ib, ic] = containing.triangle;
+  const { wa, wb, wc } = containing.weights;
+  const uvs = geometry.uvs;
+  return [
+    wa * uvs[ia * 2]! + wb * uvs[ib * 2]! + wc * uvs[ic * 2]!,
+    wa * uvs[ia * 2 + 1]! + wb * uvs[ib * 2 + 1]! + wc * uvs[ic * 2 + 1]!,
+  ];
 }
 
 // The first current triangle whose barycentric coordinates contain the point (within EDGE_EPSILON), with

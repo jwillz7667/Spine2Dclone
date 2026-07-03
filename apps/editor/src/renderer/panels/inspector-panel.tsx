@@ -14,6 +14,7 @@ import {
   SetSlotColorCommand,
   documentHost,
   type AttachmentEntity,
+  type MeshAttachmentEntity,
   type RegionAttachmentEntity,
   type RegionTransform,
   type SlotEntity,
@@ -22,6 +23,10 @@ import {
 import { useSelectionStore } from '../editor-state/selection-store';
 import { useSlotSelectionStore } from '../editor-state/slot-selection-store';
 import { useDocumentRevision } from '../editor-state/use-document-revision';
+import { MeshError } from '../modules/mesh/mesh-error';
+import { autoGridFillMesh, generateMeshFromRegion } from '../modules/mesh/mesh-tool';
+import { regionToMeshInit } from '../modules/mesh/region-to-mesh';
+import { autoGridFillGeometry } from '../modules/mesh/topology-edit';
 import {
   nextSlotAfterDelete,
   parseChannel,
@@ -459,15 +464,11 @@ function AttachmentRow(props: AttachmentRowProps): ReactElement {
     );
   }
 
-  // Mesh attachments (WP-2.1) are listed read-only here: the document model and commands edit them, but
-  // their dedicated authoring surface is the viewport mesh tooling, not this region transform grid.
+  // Mesh attachments (WP-2.1): vertex editing lives in the viewport mesh tool (M); this row carries the
+  // one-click topology actions. Grid fill replaces the interior with a regular grid (topology-locked:
+  // disabled for a weighted mesh, which must be unbound first).
   if (attachment.kind === 'mesh') {
-    return (
-      <div style={attachmentRowStyle}>
-        <span style={rowNameStyle}>{attachment.name}</span>
-        <span style={rowBoneStyle}>{attachment.path} (mesh)</span>
-      </div>
-    );
+    return <MeshAttachmentRow slotId={slotId} name={attachment.name} mesh={attachment} />;
   }
 
   function commitField(field: TransformField, raw: string): boolean {
@@ -485,6 +486,14 @@ function AttachmentRow(props: AttachmentRowProps): ReactElement {
       <div style={attachmentRowStyle}>
         <span style={rowNameStyle}>{attachment.name}</span>
         <span style={rowBoneStyle}>{attachment.path}</span>
+        <button
+          type="button"
+          style={smallButtonStyle}
+          title="Convert to an editable mesh (WP-2.1); the quad renders identically, then edit vertices with the Mesh tool (M)"
+          onClick={() => convertRegionToMesh(slotId, attachment)}
+        >
+          To Mesh
+        </button>
         <button
           type="button"
           style={smallButtonStyle}
@@ -535,6 +544,101 @@ function AttachmentRow(props: AttachmentRowProps): ReactElement {
       </div>
     </div>
   );
+}
+
+interface MeshAttachmentRowProps {
+  readonly slotId: SlotId;
+  readonly name: string;
+  readonly mesh: MeshAttachmentEntity;
+}
+
+// The mesh row: vertex/hull counts, weighted state, and the one-click grid fill (TASK-2.1.5) whose cell
+// size is a local input (ephemeral UI state, not document state). The fill dispatches ONE undoable
+// command through the WP-2.1 glue; a weighted mesh disables it (topology lock: unbind first).
+function MeshAttachmentRow(props: MeshAttachmentRowProps): ReactElement {
+  const { slotId, name, mesh } = props;
+  const [cellSize, setCellSize] = useState('16');
+  const weighted = mesh.bones !== undefined && mesh.bones.length > 0;
+  const vertexCount = mesh.vertices.length / 2;
+
+  return (
+    <div style={attachmentBlockStyle}>
+      <div style={attachmentRowStyle}>
+        <span style={rowNameStyle}>{name}</span>
+        <span style={rowBoneStyle}>
+          {mesh.path} (mesh, {weighted ? 'weighted, ' : ''}
+          {vertexCount} verts, hull {mesh.hullLength})
+        </span>
+        <button
+          type="button"
+          style={smallButtonStyle}
+          title="Remove attachment"
+          onClick={() => removeAttachment(slotId, name)}
+        >
+          Remove
+        </button>
+      </div>
+      <div style={detailRowStyle}>
+        <span style={labelStyle}>Grid cell</span>
+        <input
+          style={cellSizeInputStyle}
+          value={cellSize}
+          inputMode="numeric"
+          onChange={(event) => setCellSize(event.target.value)}
+        />
+        <button
+          type="button"
+          style={smallButtonStyle}
+          disabled={weighted}
+          title={
+            weighted
+              ? 'Topology is locked while the mesh is weighted; unbind it first'
+              : 'Replace the interior with a regular grid at this cell size (one undo step)'
+          }
+          onClick={() => gridFillMeshAttachment(slotId, name, parseFinite(cellSize, 16))}
+        >
+          Grid Fill
+        </button>
+        <span style={rowBoneStyle}>edit vertices with the Mesh tool (M)</span>
+      </div>
+    </div>
+  );
+}
+
+// Convert a region attachment to a pixel-identical 4-vertex quad mesh (TASK-2.1.1) as one undo step.
+// The entity carries exactly the RegionSource fields regionToMeshInit consumes.
+function convertRegionToMesh(slotId: SlotId, region: RegionAttachmentEntity): void {
+  generateMeshFromRegion(
+    documentHost.current().history,
+    slotId,
+    region.name,
+    regionToMeshInit(region),
+  );
+}
+
+// One-click grid fill over the CURRENT hull (TASK-2.1.5): pure geometry (uv-preserving) then one
+// command through the glue. Rejections (degenerate hull, a cell size producing an invalid mesh) are
+// typed MeshErrors surfaced once at this boundary.
+function gridFillMeshAttachment(slotId: SlotId, name: string, cellSize: number): void {
+  const doc = documentHost.current();
+  const live = doc.model.getAttachment(slotId, name);
+  if (live === undefined || live.kind !== 'mesh') return;
+  if (cellSize <= 0) return;
+  try {
+    const result = autoGridFillGeometry(live, cellSize);
+    autoGridFillMesh(doc.history, slotId, name, {
+      uvs: result.uvs,
+      triangles: result.triangles,
+      hullLength: live.hullLength,
+      vertices: result.vertices,
+    });
+  } catch (error) {
+    if (error instanceof MeshError) {
+      console.error(`[marionette] grid fill rejected: ${error.message}`);
+      return;
+    }
+    throw error;
+  }
 }
 
 interface AddRegionControlProps {
@@ -892,6 +996,16 @@ const smallButtonStyle: CSSProperties = {
   border: '1px solid #444444',
   borderRadius: 4,
   cursor: 'pointer',
+};
+
+const cellSizeInputStyle: CSSProperties = {
+  flex: '0 0 48px',
+  padding: '3px 6px',
+  fontSize: 11,
+  color: '#dddddd',
+  background: '#1e1e1e',
+  border: '1px solid #444444',
+  borderRadius: 4,
 };
 
 const buttonDisabledStyle: CSSProperties = {

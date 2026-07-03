@@ -1,9 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { MeshError } from './mesh-error';
-import { addInteriorVertex, deleteInteriorVertex, type MeshTopology } from './topology-edit';
+import {
+  addInteriorVertex,
+  autoGridFillGeometry,
+  deleteInteriorVertex,
+  type MeshTopology,
+} from './topology-edit';
 
 // TASK-2.1.2: interior add (uv-interpolated, re-triangulated) and interior delete (hull forbidden),
-// the pure geometry the AddMeshVertex / DeleteMeshVertex commands consume.
+// plus the TASK-2.1.5 uv-preserving grid fill: the pure geometry the AddMeshVertex / DeleteMeshVertex /
+// AutoGridFillMesh commands consume.
 
 // A unit quad hull (0,0)-(4,0)-(4,4)-(0,4) with full-region uvs, 2 triangles, no interior points.
 function quad(): MeshTopology {
@@ -94,5 +100,42 @@ describe('deleteInteriorVertex', () => {
     } catch (error) {
       expect((error as MeshError).code).toBe('outsideMesh');
     }
+  });
+});
+
+describe('autoGridFillGeometry', () => {
+  it('keeps the hull ring and its uvs, fills the interior at the cell size, and interpolates uvs', () => {
+    const result = autoGridFillGeometry(quad(), 1);
+
+    // The hull is unchanged, first.
+    expect(result.vertices.slice(0, 8)).toEqual([0, 0, 4, 0, 4, 4, 0, 4]);
+    expect(result.uvs.slice(0, 8)).toEqual([0, 0, 1, 0, 1, 1, 0, 1]);
+    // A 4x4 quad at cell size 1 has a 3x3 strictly-interior grid.
+    expect(result.vertices.length / 2).toBe(4 + 9);
+    // Every interior uv is the barycentric interpolation, which for this quad is position / 4.
+    for (let i = 4; i < result.vertices.length / 2; i += 1) {
+      expect(result.uvs[i * 2]).toBeCloseTo(result.vertices[i * 2]! / 4, 12);
+      expect(result.uvs[i * 2 + 1]).toBeCloseTo(result.vertices[i * 2 + 1]! / 4, 12);
+    }
+    // The triangulation covers hull + interior with in-range indices.
+    expect(result.triangles.length).toBeGreaterThan(6);
+    for (const index of result.triangles) {
+      expect(index).toBeGreaterThanOrEqual(0);
+      expect(index).toBeLessThan(result.vertices.length / 2);
+    }
+  });
+
+  it('replaces existing interior points instead of accumulating them', () => {
+    const withCenter = addInteriorVertex(quad(), { x: 2, y: 2 });
+    const result = autoGridFillGeometry({ ...withCenter, hullLength: 4 }, 2);
+    // Cell size 2 on the 4x4 quad leaves exactly one strictly-interior sample (2,2).
+    expect(result.vertices.length / 2).toBe(5);
+    expect(result.vertices.slice(8)).toEqual([2, 2]);
+  });
+
+  it('scales vertex count with cell size (smaller cells, more vertices)', () => {
+    const coarse = autoGridFillGeometry(quad(), 2);
+    const fine = autoGridFillGeometry(quad(), 0.5);
+    expect(fine.vertices.length).toBeGreaterThan(coarse.vertices.length);
   });
 });

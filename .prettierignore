@@ -39,3 +39,11 @@ packages/conformance/src/slot/expected/
 # byte-exact git diff; reformatting them would break that gate. The hand-authored rig and scenarios under
 # anim-state-rigs/ and anim-state-scenarios/ are prettier-owned and intentionally NOT excluded.
 packages/conformance/src/anim-state-fixtures/
+
+# Generated demo artifacts (heavy, machine-written)
+demo/kraken/atlas/
+demo/kraken/renders/
+demo/kraken/source/
+demo/kraken/player/index.html
+demo/kraken/krakens-hoard.rig.json
+slot-assets/

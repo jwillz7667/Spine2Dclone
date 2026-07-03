@@ -1,8 +1,19 @@
-import type { SkeletonDocument } from '@marionette/format/types';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import type { AtlasRef, SkeletonDocument } from '@marionette/format/types';
+import { makeSpritePng } from '@marionette/atlas-pack/testing';
 import { buildPose, sampleSkeleton, SLOT_COLOR_STRIDE } from '@marionette/runtime-core';
 import { PNG } from 'pngjs';
 import { describe, expect, it } from 'vitest';
-import { McpToolError, SessionRegistry, TOOLS, type FileStore, type ToolDeps } from '../src';
+import {
+  McpToolError,
+  SessionRegistry,
+  TOOLS,
+  createNodeFileStore,
+  type FileStore,
+  type ToolDeps,
+} from '../src';
 
 const byName = new Map(TOOLS.map((tool) => [tool.name, tool]));
 
@@ -35,6 +46,19 @@ function inMemoryFiles(): {
         const content = binary.get(path);
         if (content === undefined) throw new Error(`no binary file ${path}`);
         return content;
+      },
+      writeBinary: async (path, data) => {
+        binary.set(path, data);
+      },
+      listDir: async (dir) => {
+        const prefix = dir.endsWith('/') ? dir : `${dir}/`;
+        const names = new Set<string>();
+        for (const key of [...map.keys(), ...binary.keys()]) {
+          if (!key.startsWith(prefix)) continue;
+          const rest = key.slice(prefix.length);
+          if (rest.length > 0 && !rest.includes('/')) names.add(rest);
+        }
+        return [...names].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
       },
     },
   };
@@ -1852,5 +1876,144 @@ describe('MCP render_frame tool', () => {
       call(deps, 'render_frame', { documentId, width: 64, height: 64 }),
       'RENDER_ATLAS_PAGE_MISSING',
     );
+  });
+});
+
+// atlas.pack (ADR-0007): the headless pack tool runs the shared deterministic pipeline through the host
+// FileStore. This is the full LLM-authoring loop headless: pack source PNGs -> attach a packed region ->
+// render real textured pixels, plus the confinement and empty-source negatives.
+describe('MCP atlas.pack tool', () => {
+  // Seed N synthetic source PNGs (each an opaque content box on transparency, so trim yields a real
+  // region) under sourceDir in the in-memory FileStore, exactly as the tool will list and read them.
+  function seedSprites(
+    files: ReturnType<typeof inMemoryFiles>,
+    sourceDir: string,
+    names: readonly string[],
+  ): void {
+    names.forEach((name, index) => {
+      files.binary.set(
+        `${sourceDir}/${name}.png`,
+        makeSpritePng({
+          width: 16,
+          height: 16,
+          contentX: 1,
+          contentY: 1,
+          contentW: 12 + index,
+          contentH: 12,
+          seed: index + 1,
+        }),
+      );
+    });
+  }
+
+  it('packs source PNGs, installs the AtlasRef, and renders real pixels end to end', async () => {
+    const files = inMemoryFiles();
+    const deps: ToolDeps = { sessions: new SessionRegistry(), files: files.store };
+    seedSprites(files, 'sprites', ['torso', 'arm', 'head']);
+
+    const { documentId } = asRecord(await call(deps, 'document.new', { name: 'packed' }));
+    const { boneId } = asRecord(
+      await call(deps, 'bone.create', { documentId, name: 'root', length: 100 }),
+    );
+    const { slotId } = asRecord(
+      await call(deps, 'slot.create', { documentId, boneId, name: 'body' }),
+    );
+
+    const packed = asRecord(
+      await call(deps, 'atlas.pack', {
+        documentId,
+        sourceDir: 'sprites',
+        outputDir: 'atlas',
+      }),
+    );
+
+    // The command ran on the live History (a revision advance) and installed a one-page atlas whose
+    // regions are the three source base names.
+    expect(typeof packed.revision).toBe('number');
+    const atlas = packed.atlas as AtlasRef;
+    expect(atlas.pages).toHaveLength(1);
+    const page = atlas.pages[0];
+    expect(page).toBeDefined();
+    if (page === undefined) throw new Error('expected a packed page');
+    expect(page.file).toBe('atlas/atlas-0.png');
+    expect(page.regions.map((region) => region.name).sort()).toEqual(['arm', 'head', 'torso']);
+
+    // The page PNG was written under outputDir through the FileStore, at the project-relative path the
+    // AtlasRef records (so render_frame reads it back).
+    expect(files.binary.has('atlas/atlas-0.png')).toBe(true);
+
+    // atlas.get reflects the installed atlas, and the document validates.
+    const got = asRecord(await call(deps, 'atlas.get', { documentId }));
+    expect((got.atlas as AtlasRef).pages).toHaveLength(1);
+
+    // A region attachment referencing a packed region validates (the region resolves in the atlas).
+    await call(deps, 'attach.region.add', {
+      documentId,
+      slotId,
+      name: 'body_img',
+      path: 'torso',
+      width: 64,
+      height: 64,
+    });
+    await call(deps, 'slot.activeAttachment', { documentId, slotId, attachment: 'body_img' });
+    const validation = asRecord(await call(deps, 'document.validate', { documentId }));
+    expect(validation.ok).toBe(true);
+
+    // render_frame renders NON-placeholder output from the packed pages read back off the FileStore.
+    const frame = asRecord(await call(deps, 'render_frame', { documentId, width: 64, height: 64 }));
+    expect(frame.placeholders).toBe(false);
+    const decoded = PNG.sync.read(Buffer.from(frame.pngBase64 as string, 'base64'));
+    expect(decoded.width).toBe(64);
+    expect(decoded.height).toBe(64);
+  });
+
+  it('honors maxPageSize and padding config', async () => {
+    const files = inMemoryFiles();
+    const deps: ToolDeps = { sessions: new SessionRegistry(), files: files.store };
+    seedSprites(files, 'sprites', ['a', 'b']);
+    const { documentId } = asRecord(await call(deps, 'document.new', { name: 'cfg' }));
+
+    const packed = asRecord(
+      await call(deps, 'atlas.pack', {
+        documentId,
+        sourceDir: 'sprites',
+        outputDir: 'atlas',
+        maxPageSize: 256,
+        padding: 4,
+      }),
+    );
+    const page = (packed.atlas as AtlasRef).pages[0];
+    if (page === undefined) throw new Error('expected a packed page');
+    expect(page.width).toBe(256);
+    expect(page.height).toBe(256);
+  });
+
+  it('rejects an empty source directory with ATLAS_PACK_EMPTY_SOURCE', async () => {
+    const deps = makeDeps();
+    const { documentId } = asRecord(await call(deps, 'document.new', { name: 'empty' }));
+
+    await expectToolError(
+      call(deps, 'atlas.pack', { documentId, sourceDir: 'nothing', outputDir: 'atlas' }),
+      'ATLAS_PACK_EMPTY_SOURCE',
+    );
+  });
+
+  it('rejects a source directory that escapes the project root with PATH_FORBIDDEN', async () => {
+    let root = '';
+    try {
+      root = await mkdtemp(join(tmpdir(), 'marionette-atlas-pack-'));
+      const deps: ToolDeps = {
+        sessions: new SessionRegistry(),
+        files: createNodeFileStore(root),
+      };
+      const { documentId } = asRecord(await call(deps, 'document.new', { name: 'escape' }));
+
+      await expectToolError(
+        call(deps, 'atlas.pack', { documentId, sourceDir: '../outside', outputDir: 'atlas' }),
+        'PATH_FORBIDDEN',
+      );
+    } finally {
+      if (root) await rm(root, { recursive: true, force: true });
+    }
   });
 });

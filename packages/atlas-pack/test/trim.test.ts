@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { isAtlasError } from './errors';
-import { makeRgba } from './synthetic';
-import { trimSprite } from './trim';
+import { isAtlasError } from '../src/errors';
+import { makeRgba } from '../src/synthetic';
+import { trimSprite } from '../src/trim';
 
 describe('trimSprite', () => {
   it('trims a known transparent border to the expected bounding box', () => {

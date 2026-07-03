@@ -18,6 +18,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@marionette/atlas-pack": "workspace:*",
     "@marionette/document-core": "workspace:*",
     "@marionette/format": "workspace:*",
     "@marionette/render-preview": "workspace:*",

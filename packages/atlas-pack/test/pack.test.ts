@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { decodedPagePixelHash, encodePng } from './png';
-import { isAtlasError } from './errors';
-import { packAtlas } from './pack';
-import type { TrimmedSprite } from './pack';
+import { decodedPagePixelHash, encodePng } from '../src/png';
+import { isAtlasError } from '../src/errors';
+import { packAtlas } from '../src/pack';
+import type { TrimmedSprite } from '../src/pack';
 
 function sprite(name: string, w: number, h: number, seed = 1): TrimmedSprite {
   const pixels = new Uint8Array(w * h * 4);

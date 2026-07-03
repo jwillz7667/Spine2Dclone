@@ -25,12 +25,12 @@ describe('export acceptance (WP-1.10)', () => {
   it('computes the content hash only in the exporter, never in the atlas pipeline', () => {
     // Hash ownership lives in exportDocument: it stamps the hash exactly once via computeContentHash.
     // The atlas packer is a pure geometry/pixel step and must NOT compute a hash. This reads the pack
-    // source as TEXT (not an import: a document-core -> editor-main import is forbidden by the boundary
-    // lint, and the contract here is about the absence of a call, not behavior), so a future
-    // `computeContentHash` call in the packer fails this gate. It lives in document-core because hash
-    // ownership is the exporter's contract.
+    // source as TEXT (not an import: the contract here is about the absence of a call, not behavior), so
+    // a future `computeContentHash` call in the packer fails this gate. It lives in document-core because
+    // hash ownership is the exporter's contract. The packer moved to the shared @marionette/atlas-pack
+    // package (ADR-0007), so the gate reads it there rather than from the editor main process.
     const packSource = readFileSync(
-      join(repoRoot(), 'apps', 'editor', 'src', 'main', 'atlas', 'pack.ts'),
+      join(repoRoot(), 'packages', 'atlas-pack', 'src', 'pack.ts'),
       'utf8',
     );
 

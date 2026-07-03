@@ -1,7 +1,11 @@
-// Typed error surface for the atlas pack service. Every failure path throws an AtlasError carrying a
-// stable machine-readable code (never a bare string), so the IPC layer that later calls this service
-// can map it onto the shared IpcResult error model without inspecting message text. The code/message
-// pair is intentionally IpcResult-shaped (a code plus a human-readable message).
+// Typed error surface for the atlas pack pipeline. Every failure path throws an AtlasError carrying a
+// stable machine-readable code (never a bare string), so a consumer (the editor IPC layer, or the MCP
+// atlas.pack tool) can map it onto its own error model without inspecting message text. The code/message
+// pair is intentionally shaped like a code plus a human-readable message.
+//
+// The ATLAS_REMBG_* codes belong to the editor-only, env-gated background-removal step (apps/editor's
+// rembg.ts, which stays out of this package per ADR-0007); rembg reuses this shared AtlasError class, so
+// its codes live in the same union rather than a parallel error type.
 
 export type AtlasErrorCode =
   // Configuration the caller controls is invalid (page size, padding, concurrency, page count).

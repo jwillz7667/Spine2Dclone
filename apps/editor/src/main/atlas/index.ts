@@ -1,31 +1,10 @@
-// Public surface of the main-process atlas pack service (WP-1.3). The IPC layer imports only from this
-// barrel. The pack step (packAtlas) is pure and deterministic and shells out to nothing; rembg lives in a
-// separate, env-gated asset-prep function the pack path never calls.
+// The editor main-process atlas surface. The deterministic pack pipeline (import -> alpha-trim -> pack ->
+// emit) now lives in the shared @marionette/atlas-pack package (ADR-0007) so both the editor main process
+// and the headless MCP server can pack. This barrel re-exports that package unchanged and keeps rembg
+// (editor-only, env-gated background removal that the pack path never calls) local. The IPC layer imports
+// only from this barrel, so the extraction changed no call site.
 
-export { AtlasError, isAtlasError } from './errors';
-export type { AtlasErrorCode } from './errors';
-
-export { createNodeFileStore } from './file-store';
-export type { AtlasFileStore } from './file-store';
-
-export { mapWithConcurrency } from './concurrency';
-
-export { decodePng, encodePng, decodedPagePixelHash } from './png';
-export type { DecodedImage } from './png';
-
-export { trimSprite } from './trim';
-export type { TrimResult } from './trim';
-
-export { packAtlas } from './pack';
-export type { PackConfig, TrimmedSprite, PackResult, PageBitmap } from './pack';
-
-export { importSprites, MAX_IMPORT_CONCURRENCY } from './import-sprites';
-export type { ImportedSprite } from './import-sprites';
-
-export { emitAtlas, MAX_EMIT_CONCURRENCY } from './emit';
-
-export { runAtlasPipeline } from './pipeline';
-export type { RunAtlasPipelineParams } from './pipeline';
+export * from '@marionette/atlas-pack';
 
 export { REMBG_ENV, resolveRembgConfig, requireRembgConfig, removeBackground } from './rembg';
 export type { RembgConfig } from './rembg';

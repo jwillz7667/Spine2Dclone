@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { decodePng, decodedPagePixelHash, encodePng } from './png';
-import { isAtlasError } from './errors';
-import { makeRgba } from './synthetic';
+import { decodePng, decodedPagePixelHash, encodePng } from '../src/png';
+import { isAtlasError } from '../src/errors';
+import { makeRgba } from '../src/synthetic';
 
 describe('png codec', () => {
   it('round-trips RGBA pixels through encode then decode', () => {

@@ -155,8 +155,14 @@ import {
   type MapSymbolAnimSetInit,
 } from '@marionette/document-core';
 import { FormatValidationError } from '@marionette/format';
-import type { SkeletonDocument } from '@marionette/format/types';
+import type { AtlasRef, SkeletonDocument } from '@marionette/format/types';
 import type { SymbolId } from '@marionette/format/slot-types';
+import {
+  isAtlasError,
+  runAtlasPipeline,
+  type AtlasFileStore,
+  type PackConfig,
+} from '@marionette/atlas-pack';
 import {
   MAT2X3_STRIDE,
   buildPose,
@@ -2175,6 +2181,46 @@ const atlasPageInputSchema = z
   .strict();
 const atlasRefInputSchema = z.object({ pages: z.array(atlasPageInputSchema) }).strict();
 
+// ----- headless atlas packing (atlas.pack, ADR-0007) -----
+// Run the shared deterministic atlas-pack pipeline (import -> alpha-trim -> maxrects pack -> emit) with
+// the host FileStore as its AtlasFileStore seam, so an LLM authoring over MCP can PRODUCE an atlas, not
+// just install a pre-baked one. Both directories are project-relative and confined to the project root by
+// the FileStore (a traversal is PATH_FORBIDDEN before any disk access, identical to the render_frame page
+// reads). The pipeline reads source PNGs via readBinary/listDir and writes page PNGs via writeBinary; the
+// emitted AtlasRef is then installed through SetAtlasRefCommand on the live History (LAW 2).
+
+// Adapt the MCP FileStore onto the pipeline's AtlasFileStore. The three methods map one-to-one and inherit
+// the FileStore's root confinement, so the pipeline cannot read or write outside the project.
+function atlasFileStoreFrom(files: FileStore): AtlasFileStore {
+  return {
+    readBytes: (path) => files.readBinary(path),
+    writeBytes: (path, data) => files.writeBinary(path, data),
+    listDir: (path) => files.listDir(path),
+  };
+}
+
+// Record a packed page path project-relative (output-directory-prefixed) so render_frame reads it back
+// through the same FileStore. This must mirror the path the pipeline's emit step wrote to
+// (join(outputDir, page.file)); page.file is a bare basename with no separators, so a forward-slash join
+// is the portable, deterministic form (the FileStore resolves it against the project root on read).
+function joinProjectPath(dir: string, file: string): string {
+  const trimmed = dir.replace(/[\\/]+$/, '');
+  return trimmed.length === 0 ? file : `${trimmed}/${file}`;
+}
+
+// Map a pipeline AtlasError onto an ATLAS_PACK_* McpToolError. The AtlasError code (e.g. ATLAS_SPRITE_TOO_LARGE)
+// becomes ATLAS_PACK_SPRITE_TOO_LARGE, so a client branches on a stable, loud, pack-scoped code while the
+// original code is preserved in `detail`. A PATH_FORBIDDEN from the confined FileStore is surfaced verbatim.
+function mapAtlasPackError(error: unknown): never {
+  if (error instanceof McpToolError) throw error;
+  if (isAtlasError(error)) {
+    throw new McpToolError(`ATLAS_PACK_${error.code.replace(/^ATLAS_/, '')}`, error.message, {
+      atlasCode: error.code,
+    });
+  }
+  throw error;
+}
+
 // ============================================================================
 // Headless render feedback (render_frame, ADR-0006): rasterize the CURRENT live document to a PNG so an
 // LLM authoring over MCP can SEE a frame. The render itself is the pure @marionette/render-preview CPU
@@ -4030,6 +4076,80 @@ export const TOOLS: readonly ToolDefinition[] = [
         return { name, world: Array.from(pose.world.subarray(base, base + MAT2X3_STRIDE)) };
       });
       return { transforms };
+    },
+  ),
+  defineTool(
+    {
+      name: 'atlas.pack',
+      title: 'Pack atlas',
+      description:
+        'Pack the source PNGs in a project directory into a deterministic atlas (import -> alpha-trim -> ' +
+        'maxrects pack -> emit, ADR-0007) and install it through the command history (LAW 2). `sourceDir` ' +
+        'and `outputDir` are project-relative and confined to the project root; page PNGs are written under ' +
+        '`outputDir` and the returned AtlasRef records each page path project-relative so render_frame can ' +
+        'read it back. Region names are the source file base names; region/mesh attachment `path` resolves ' +
+        'against them.',
+      input: z
+        .object({
+          documentId,
+          sourceDir: z.string().min(1),
+          outputDir: z.string().min(1),
+          maxPageSize: z.number().int().min(1).max(4096).optional(),
+          padding: z.number().int().nonnegative().optional(),
+        })
+        .strict(),
+    },
+    async (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      const store = atlasFileStoreFrom(deps.files);
+
+      // Validate the source directory up front so a missing/empty/pngless dir is a loud ATLAS_PACK_*
+      // before any pack work, and a traversal surfaces PATH_FORBIDDEN from the confined FileStore.
+      let entries: readonly string[];
+      try {
+        entries = await store.listDir(input.sourceDir);
+      } catch (error) {
+        if (error instanceof McpToolError) throw error; // PATH_FORBIDDEN
+        throw new McpToolError(
+          'ATLAS_PACK_SOURCE_MISSING',
+          `atlas source directory "${input.sourceDir}" is missing or unreadable`,
+          { sourceDir: input.sourceDir },
+        );
+      }
+      if (!entries.some((name) => name.toLowerCase().endsWith('.png'))) {
+        throw new McpToolError(
+          'ATLAS_PACK_EMPTY_SOURCE',
+          `atlas source directory "${input.sourceDir}" contains no PNG sprites`,
+          { sourceDir: input.sourceDir },
+        );
+      }
+
+      const config: PackConfig = {
+        ...(input.maxPageSize !== undefined ? { maxPageSize: input.maxPageSize } : {}),
+        ...(input.padding !== undefined ? { padding: input.padding } : {}),
+      };
+
+      let packed: AtlasRef;
+      try {
+        packed = await runAtlasPipeline({
+          sourceDir: input.sourceDir,
+          outputDir: input.outputDir,
+          fileStore: store,
+          config,
+        });
+      } catch (error) {
+        mapAtlasPackError(error);
+      }
+
+      const atlas: AtlasRef = {
+        pages: packed.pages.map((page) => ({
+          ...page,
+          file: joinProjectPath(input.outputDir, page.file),
+        })),
+      };
+
+      session.document.history.execute(new SetAtlasRefCommand(atlas));
+      return { revision: session.document.model.revision, atlas };
     },
   ),
   defineTool(

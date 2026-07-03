@@ -21,7 +21,10 @@ const deps: ToolDeps = {
 };
 const byName = new Map(TOOLS.map((t) => [t.name, t]));
 
-async function call(name: string, input: Record<string, unknown>): Promise<any> {
+async function call(
+  name: string,
+  input: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
   const tool = byName.get(name);
   if (tool === undefined) throw new Error(`no such tool: ${name}`);
   try {
@@ -38,7 +41,10 @@ const WHITE = { r: 1, g: 1, b: 1, a: 1 };
 const { documentId } = await call('document.new', { name: 'krakens-hoard' });
 const atlasRef = JSON.parse(readFileSync(join(here, 'atlas', 'atlas-ref.json'), 'utf8'));
 // Page files are project-relative for the render tool; the atlas dir holds them.
-atlasRef.pages = atlasRef.pages.map((p: any) => ({ ...p, file: join('atlas', p.file) }));
+atlasRef.pages = atlasRef.pages.map((p: { file: string; [key: string]: unknown }) => ({
+  ...p,
+  file: join('atlas', p.file),
+}));
 await call('atlas.set', { documentId, atlas: atlasRef });
 
 // Region pixel sizes (trimmed) by name, for authored attachment sizing at native aspect.

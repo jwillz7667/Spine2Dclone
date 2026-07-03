@@ -493,6 +493,32 @@ export default tseslint.config(
     },
   },
 
+  // atlas-pack: the shared deterministic atlas pipeline (ADR-0007). Two consumers pack through it: the
+  // editor main process and the headless MCP atlas.pack tool. It is a leaf over the format contract
+  // (AtlasRef types) plus pngjs (a pure-JS codec) and maxrects-packer, and it runs in Node (it reads
+  // source PNGs and writes page PNGs via an injected AtlasFileStore, so node:fs/path/crypto are allowed).
+  // It must stay renderer-free (no PixiJS, no runtime-web, no React) and deterministic: identical sprites
+  // in => byte-identical pages out, so Date.now / new Date / Math.random are banned (no clock, no RNG).
+  {
+    files: ['packages/atlas-pack/src/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            PIXI_PATTERN,
+            {
+              group: ['react', 'react-dom', '@marionette/runtime-web', '@marionette/runtime-web/*'],
+              message:
+                'atlas-pack is a renderer-free leaf over format: no PixiJS, runtime-web, or React (ADR-0007).',
+            },
+          ],
+        },
+      ],
+      'no-restricted-syntax': ['error', ...DETERMINISM_SYNTAX],
+    },
+  },
+
   // Editor process split (phase-0-foundations.md WP-0.1 matrix). eslint-plugin-boundaries
   // enforces the element-to-element edges; the per-element no-restricted-imports below add the
   // package-name and Node-built-in bans that boundaries (which classifies by file path) cannot.
@@ -509,6 +535,9 @@ export default tseslint.config(
         { type: 'math-bridge', pattern: 'packages/math-bridge/src/**' },
         { type: 'runtime-core', pattern: 'packages/runtime-core/src/**' },
         { type: 'runtime-web', pattern: 'packages/runtime-web/src/**' },
+        // atlas-pack is the shared deterministic atlas pipeline (ADR-0007): a leaf over format consumed
+        // by the editor main process and the headless MCP atlas.pack tool.
+        { type: 'atlas-pack', pattern: 'packages/atlas-pack/src/**' },
         // render-preview is the headless CPU rasterizer (ADR-0006): it consumes format + runtime-core
         // (the solve) and never runtime-web (which pulls in PixiJS).
         { type: 'render-preview', pattern: 'packages/render-preview/src/**' },
@@ -540,6 +569,9 @@ export default tseslint.config(
             // enforced by the no-restricted-imports blocks below.
             { from: ['runtime-core'], allow: ['runtime-core', 'format', 'math-bridge'] },
             { from: ['runtime-web'], allow: ['runtime-web', 'runtime-core', 'format'] },
+            // atlas-pack is a leaf over the format contract (AtlasRef types): the deterministic pipeline
+            // packs region coordinates into an AtlasRef and imports nothing else in-repo (ADR-0007).
+            { from: ['atlas-pack'], allow: ['atlas-pack', 'format'] },
             // render-preview is the headless CPU rasterizer (ADR-0006): it consumes the format contract
             // (validate + types) and the pure solve core (runtime-core), never runtime-web or any UI.
             { from: ['render-preview'], allow: ['render-preview', 'format', 'runtime-core'] },
@@ -552,7 +584,17 @@ export default tseslint.config(
             // rasterizer is renderer-free (no PixiJS), so it does not breach the no-renderer boundary.
             {
               from: ['mcp-server'],
-              allow: ['mcp-server', 'document-core', 'format', 'runtime-core', 'render-preview'],
+              allow: [
+                'mcp-server',
+                'document-core',
+                'format',
+                'runtime-core',
+                'render-preview',
+                // atlas-pack (ADR-0007): the atlas.pack tool runs the shared deterministic pipeline
+                // headlessly through a FileStore-backed AtlasFileStore adapter. The pipeline is
+                // renderer-free (no PixiJS), so it does not breach the no-renderer boundary.
+                'atlas-pack',
+              ],
             },
             // conformance is the cross-runtime behavioral-truth suite (conformance-and-ci.md A.1). It
             // consumes the format contract and the pure solve core (runtime-core), and (phase-4 WP-4.13, the
@@ -575,6 +617,9 @@ export default tseslint.config(
                 'document-core',
                 'format',
                 'runtime-core',
+                // atlas-pack (ADR-0007): the main-process atlas import handler runs the shared pipeline;
+                // rembg (editor-only) stays in editor-main and reuses the package's AtlasError.
+                'atlas-pack',
               ],
             },
             { from: ['editor-preload'], allow: ['editor-preload', 'editor-shared'] },

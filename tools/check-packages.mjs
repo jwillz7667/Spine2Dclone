@@ -20,6 +20,11 @@ const ALLOWED = {
     'document-core',
     'mcp-server',
     'conformance',
+    // atlas-pack is the shared deterministic atlas pipeline (import -> alpha-trim -> maxrects pack ->
+    // emit) extracted from apps/editor so BOTH the editor main process AND the headless MCP atlas.pack
+    // tool can pack (ADR-0007). It is a leaf over format (AtlasRef types) plus pngjs + maxrects-packer;
+    // rembg (background removal) stays editor-only.
+    'atlas-pack',
     // render-preview is the headless CPU rasterizer for render-to-PNG authoring feedback (ADR-0006):
     // pure TypeScript (format + runtime-core + pngjs), no GL, byte-deterministic. It is the render side
     // of the LLM-authoring loop (the mcp-server render_frame tool consumes it) and depends on nothing

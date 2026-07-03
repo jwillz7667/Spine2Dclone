@@ -16,6 +16,7 @@
   "include": ["src/**/*.ts"],
   "references": [
     { "path": "../format" },
+    { "path": "../atlas-pack" },
     { "path": "../runtime-core" },
     { "path": "../document-core" },
     { "path": "../render-preview" }

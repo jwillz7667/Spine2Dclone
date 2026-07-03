@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { createMemoryFileStore } from './memory-file-store';
-import { decodePng, decodedPagePixelHash } from './png';
-import { runAtlasPipeline } from './pipeline';
-import { trimSprite } from './trim';
-import { bytesEqual, cropRgba, defined, makeRgba, makeSpritePng } from './synthetic';
-import type { SyntheticSpriteSpec } from './synthetic';
+import { createMemoryFileStore } from '../src/memory-file-store';
+import { decodePng, decodedPagePixelHash } from '../src/png';
+import { runAtlasPipeline } from '../src/pipeline';
+import { trimSprite } from '../src/trim';
+import { bytesEqual, cropRgba, defined, makeRgba, makeSpritePng } from '../src/synthetic';
+import type { SyntheticSpriteSpec } from '../src/synthetic';
 
 interface NamedSpec extends SyntheticSpriteSpec {
   readonly name: string;

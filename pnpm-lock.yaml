@@ -47,6 +47,9 @@ importers:
 
   apps/editor:
     dependencies:
+      '@marionette/atlas-pack':
+        specifier: workspace:*
+        version: link:../../packages/atlas-pack
       '@marionette/document-core':
         specifier: workspace:*
         version: link:../../packages/document-core
@@ -62,15 +65,9 @@ importers:
       dockview:
         specifier: ^1.17.0
         version: 1.17.2
-      maxrects-packer:
-        specifier: ^2.7.3
-        version: 2.7.3
       pixi.js:
         specifier: 8.19.0
         version: 8.19.0
-      pngjs:
-        specifier: ^7.0.0
-        version: 7.0.0
       react:
         specifier: ^18.3.1
         version: 18.3.1
@@ -84,9 +81,6 @@ importers:
         specifier: ^5.0.14
         version: 5.0.14(@types/react@18.3.31)(react@18.3.1)
     devDependencies:
-      '@types/pngjs':
-        specifier: ^6.0.5
-        version: 6.0.5
       '@types/react':
         specifier: ^18.3.12
         version: 18.3.31
@@ -108,6 +102,28 @@ importers:
       vitest:
         specifier: ^2.1.8
         version: 2.1.9(@types/node@20.19.43)
+
+  packages/atlas-pack:
+    dependencies:
+      '@marionette/format':
+        specifier: workspace:*
+        version: link:../format
+      maxrects-packer:
+        specifier: ^2.7.3
+        version: 2.7.3
+      pngjs:
+        specifier: ^7.0.0
+        version: 7.0.0
+    devDependencies:
+      '@types/pngjs':
+        specifier: ^6.0.5
+        version: 6.0.5
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.8
+        version: 2.1.9(@types/node@22.20.0)
 
   packages/conformance:
     dependencies:
@@ -178,6 +194,9 @@ importers:
 
   packages/mcp-server:
     dependencies:
+      '@marionette/atlas-pack':
+        specifier: workspace:*
+        version: link:../atlas-pack
       '@marionette/document-core':
         specifier: workspace:*
         version: link:../document-core

@@ -1,4 +1,4 @@
-import { readFile, writeFile } from 'node:fs/promises';
+import { readFile, readdir, writeFile } from 'node:fs/promises';
 import { isAbsolute, relative, resolve, sep } from 'node:path';
 import { McpToolError } from './errors';
 import type { FileStore } from './files';
@@ -28,5 +28,10 @@ export function createNodeFileStore(projectRoot: string): FileStore {
     write: async (path, content) => writeFile(confine(path), content, 'utf8'),
     // No encoding => a Buffer (a Uint8Array), the raw page bytes the PNG decoder consumes.
     readBinary: async (path) => readFile(confine(path)),
+    writeBinary: async (path, data) => writeFile(confine(path), data),
+    listDir: async (path) => {
+      const entries = await readdir(confine(path), { withFileTypes: true });
+      return entries.filter((entry) => entry.isFile()).map((entry) => entry.name);
+    },
   };
 }

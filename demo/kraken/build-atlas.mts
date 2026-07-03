@@ -1,10 +1,11 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createNodeFileStore, runAtlasPipeline } from '../../apps/editor/src/main/atlas/index';
+import { createNodeFileStore, runAtlasPipeline } from '../../packages/atlas-pack/src/index';
 
 // Demo step 1: pack the Kraken's Hoard source art into deterministic atlas pages + an AtlasRef, using
-// the EXACT pipeline the editor's Assets panel runs (import -> trim -> pack -> emit). The AtlasRef JSON
+// the EXACT shared pipeline the editor's Assets panel and the MCP atlas.pack tool run (import -> trim ->
+// pack -> emit, ADR-0007). The AtlasRef JSON
 // is consumed by the authoring script (step 2), the page PNGs by the render step (step 3).
 
 const here = dirname(fileURLToPath(import.meta.url));

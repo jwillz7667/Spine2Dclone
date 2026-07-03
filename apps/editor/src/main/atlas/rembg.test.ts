@@ -1,9 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { isAtlasError } from './errors';
+import { isAtlasError, runAtlasPipeline } from '@marionette/atlas-pack';
+import { bytesEqual, createMemoryFileStore, makeSpritePng } from '@marionette/atlas-pack/testing';
 import { REMBG_ENV, removeBackground, requireRembgConfig, resolveRembgConfig } from './rembg';
-import { runAtlasPipeline } from './pipeline';
-import { createMemoryFileStore } from './memory-file-store';
-import { bytesEqual, makeSpritePng } from './synthetic';
 
 const MISSING_BIN = '/marionette/no/such/rembg-binary';
 

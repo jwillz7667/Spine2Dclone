@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { MAX_IMPORT_CONCURRENCY, importSprites } from './import-sprites';
-import { createMemoryFileStore } from './memory-file-store';
-import { makeSpritePng } from './synthetic';
-import type { AtlasFileStore } from './file-store';
+import { MAX_IMPORT_CONCURRENCY, importSprites } from '../src/import-sprites';
+import { createMemoryFileStore } from '../src/memory-file-store';
+import { makeSpritePng } from '../src/synthetic';
+import type { AtlasFileStore } from '../src/file-store';
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));

@@ -28,6 +28,8 @@
       "@marionette/format/types": ["./packages/format/src/types.ts"],
       "@marionette/format/effects": ["./packages/format/src/effects/index.ts"],
       "@marionette/format/effects-types": ["./packages/format/src/effects/types.ts"],
+      "@marionette/atlas-pack": ["./packages/atlas-pack/src/index.ts"],
+      "@marionette/atlas-pack/testing": ["./packages/atlas-pack/src/testing.ts"],
       "@marionette/runtime-core": ["./packages/runtime-core/src/index.ts"],
       "@marionette/runtime-web": ["./packages/runtime-web/src/index.ts"],
       "@marionette/render-preview": ["./packages/render-preview/src/index.ts"],

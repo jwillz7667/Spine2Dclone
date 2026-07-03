@@ -14,6 +14,7 @@
   // depends on ^build, so these declarations exist before the editor is typechecked.
   "references": [
     { "path": "../../packages/format" },
+    { "path": "../../packages/atlas-pack" },
     { "path": "../../packages/runtime-core" },
     { "path": "../../packages/runtime-web" },
     { "path": "../../packages/document-core" }

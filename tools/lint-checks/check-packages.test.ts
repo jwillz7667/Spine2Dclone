@@ -41,6 +41,9 @@ describe('findForbiddenPackages (LAW 5)', () => {
       'document-core',
       'mcp-server',
       'conformance',
+      // atlas-pack is the shared deterministic atlas pipeline extracted so the editor main process and
+      // the headless MCP atlas.pack tool can both pack (ADR-0007); a leaf over format.
+      'atlas-pack',
       // render-preview is the headless CPU rasterizer for render-to-PNG authoring feedback (ADR-0006).
       'render-preview',
       // math-bridge is allowed from Phase 4 (the engine OUTCOME boundary, WP-4.1).

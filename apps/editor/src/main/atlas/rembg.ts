@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import { statSync } from 'node:fs';
-import { AtlasError } from './errors';
+import { AtlasError } from '@marionette/atlas-pack';
 
 // TASK-1.3.2 Background removal: an ASSET-PREP step, strictly separate from the deterministic pack. The
 // pack pipeline (import -> trim -> pack -> emit) never imports or calls anything in this file, so pack

@@ -16,6 +16,7 @@
     "generate": "tsx src/generate.ts",
     "generate:effects": "tsx src/generate-effects.ts",
     "generate:slot": "tsx src/generate-slot.ts",
+    "generate:anim-state": "tsx src/generate-anim-state.ts",
     "phase3:acceptance": "tsx src/run-phase3-acceptance.ts"
   },
   "dependencies": {

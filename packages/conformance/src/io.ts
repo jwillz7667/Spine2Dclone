@@ -16,6 +16,10 @@ import { validateSlotSpin } from './schema/slot-spin';
 import { validateSlotSceneValue } from './schema/slot-scene';
 import { validateSlotSampleSpec } from './schema/slot-sample-spec';
 import { validateSlotFixture } from './schema/slot-fixture';
+import { validateAnimStateScenario } from './schema/anim-state-scenario';
+import type { AnimStateScenario } from './schema/anim-state-scenario';
+import { validateAnimStateFixture } from './schema/anim-state-fixture';
+import type { AnimStateFixture } from './schema/anim-state-fixture';
 import type { SampleSpec } from './schema/sample-spec';
 import type { Fixture } from './schema/fixture';
 import type { EffectsSampleSpec } from './schema/effects-sample-spec';
@@ -176,6 +180,43 @@ export function loadSlotSampleSpec(pairId: string): SlotSampleSpec {
 
 export function loadSlotFixture(pairId: string): SlotFixture {
   return validateSlotFixture(readJson(slotFixturePath(pairId)));
+}
+
+// --- AnimationState conformance corpus (ADR-0005) ---
+// A PARALLEL track to the skeleton + effects + slot corpora. The one shared rig lives under
+// anim-state-rigs/, the ordered call scripts under anim-state-scenarios/, and the committed pose-capture
+// goldens under anim-state-fixtures/ with their own .anim-state-fixtures.lock manifest. The other corpora
+// are untouched.
+
+export function animStateRigPath(rigId: string): string {
+  return join(SRC_DIR, 'anim-state-rigs', `${rigId}.json`);
+}
+
+export function animStateScenarioPath(scenarioId: string): string {
+  return join(SRC_DIR, 'anim-state-scenarios', `${scenarioId}.scenario.json`);
+}
+
+export function animStateFixturePath(scenarioId: string): string {
+  return join(SRC_DIR, 'anim-state-fixtures', `${scenarioId}.fixture.json`);
+}
+
+// The anim-state drift-tripwire manifest path (A.6), a dotfile beside the fixtures it locks.
+export const ANIM_STATE_LOCK_PATH = join(
+  SRC_DIR,
+  'anim-state-fixtures',
+  '.anim-state-fixtures.lock',
+);
+
+export function loadAnimStateRig(rigId: string): SkeletonDocument {
+  return validateRig(readJson(animStateRigPath(rigId)));
+}
+
+export function loadAnimStateScenario(scenarioId: string): AnimStateScenario {
+  return validateAnimStateScenario(readJson(animStateScenarioPath(scenarioId)));
+}
+
+export function loadAnimStateFixture(scenarioId: string): AnimStateFixture {
+  return validateAnimStateFixture(readJson(animStateFixturePath(scenarioId)));
 }
 
 // --- Particle perf baseline (phase-3-vfx-particles.md WP-3.9, TASK-3.9.4/3.9.5) ---

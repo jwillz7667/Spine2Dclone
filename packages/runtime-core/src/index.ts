@@ -42,6 +42,22 @@ export {
   TRANSFORM_MODE_NO_SCALE_OR_REFLECTION,
 } from './skeleton/transform-mode';
 export { sampleSkeleton, AnimationNotFoundError } from './skeleton/sample';
+// AnimationState (ADR-0005): the game-facing multi-animation layer (tracks, crossfade, additive layering,
+// queueing) built on the single-animation sampler. makeAnimationState/setAnimation/crossfadeTo/
+// queueAnimation/clearTrack/getTrackEntry mutate the tracks; updateAnimationState advances them by an
+// explicit dt (no clock, no random); applyAnimationState runs the locked solve with a blended step 2.
+export {
+  makeAnimationState,
+  setAnimation,
+  crossfadeTo,
+  queueAnimation,
+  clearTrack,
+  getTrackEntry,
+  updateAnimationState,
+  applyAnimationState,
+  AnimationStateArgumentError,
+} from './skeleton/animation-state';
+export type { AnimationState, TrackEntry } from './skeleton/animation-state';
 // Mesh-vertex sampling (solve-order step 5): skin + deform a mesh attachment into world space, reusing
 // a pose already solved by sampleSkeleton. The behavioral source of truth the conformance harness and
 // runtime-web mesh rendering build on.

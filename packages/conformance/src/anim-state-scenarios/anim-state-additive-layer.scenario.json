@@ -1,0 +1,16 @@
+{
+  "scenarioId": "anim-state-additive-layer",
+  "rigId": "anim-state-rig",
+  "ops": [
+    { "op": "set", "track": 0, "animation": "spinA", "loop": true },
+    { "op": "set", "track": 1, "animation": "wave", "loop": true, "additive": true },
+    { "op": "advance", "dt": 0.25 },
+    { "op": "capture", "label": "base+additive-0.25" },
+    { "op": "advance", "dt": 0.25 },
+    { "op": "capture", "label": "base+additive-0.50" },
+    { "op": "advance", "dt": 0.25 },
+    { "op": "capture", "label": "base+additive-0.75" },
+    { "op": "advance", "dt": 0.25 },
+    { "op": "capture", "label": "base+additive-wrap" }
+  ]
+}

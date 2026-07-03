@@ -75,6 +75,19 @@ export interface Pose {
   // MAT2X3_STRIDE lanes per bone: the local (parent-relative) matrix, written by resetToSetupPose and
   // overwritten for animated bones by sampleSkeleton.
   readonly local: Float64Array;
+  // SETUP_STRIDE lanes per bone: the per-channel blended LOCAL COMPONENTS (x, y, rotation, scaleX,
+  // scaleY, shearX, shearY) the animation-blend layer (ADR-0005) writes into. It is initialized to the
+  // setup transform each frame (beginBlend) and each track lerps its keyed channels toward their sampled
+  // value here BEFORE the single compose into `local`; blending the decomposed components (not the
+  // composed matrix) is what keeps shortest-arc rotation, componentwise scale/shear, and additive layering
+  // well defined, and what the step-3 constraint solve reads. The single-animation path (alpha 1, no mix)
+  // writes each channel's sampled value verbatim, so composing from here is bit-identical to composing
+  // straight from the sampled values (the byte-locked conformance fixtures prove that neutrality).
+  readonly blendLocal: Float64Array;
+  // One flag per bone: set when any track keyed a channel of the bone this frame, so only touched bones
+  // are recomposed from `blendLocal` into `local` after the track loop (untouched bones keep the
+  // reset-to-setup local resetToSetupPose already wrote). Cleared each frame by beginBlend.
+  readonly boneTouched: Uint8Array;
   // MAT2X3_STRIDE lanes per bone: the world matrix, written by computeWorldTransforms.
   readonly world: Float64Array;
   // index -> bone.length (the bone's setup length along its local X axis). Captured at build time and
@@ -91,6 +104,14 @@ export interface Pose {
   readonly slotSetupColor: Float64Array;
   // SLOT_COLOR_STRIDE lanes per slot: the resolved color written by sampleSkeleton (replaces setup).
   readonly slotColor: Float64Array;
+  // One f64 per slot: the greatest track weight that has written this slot's active attachment this
+  // frame (the discrete greater-weight-wins winner weight, ADR-0005 rule 5). Reset to -1 each frame by
+  // beginBlend so any keying track (even weight 0) beats "nothing"; a later-applied track with an equal
+  // weight overwrites (ties go to the incoming entry, which is applied after the outgoing).
+  readonly slotAttachmentWinWeight: Float64Array;
+  // One f64 per IK constraint: the discrete greater-weight-wins winner weight for that constraint's
+  // sampled bendPositive flag this frame (ADR-0005 rule 5), reset to -1 by beginBlend.
+  readonly ikBendWinWeight: Float64Array;
   // index -> the setup-pose active attachment name (or null). The renderer resolves the name to
   // geometry through the default skin; runtime-core carries the NAME only, keeping geometry out of the
   // platform-agnostic core.
@@ -136,6 +157,8 @@ export function allocatePose(
     transformModes: new Int8Array(boneCount),
     setup: new Float64Array(boneCount * SETUP_STRIDE),
     local: new Float64Array(boneCount * MAT2X3_STRIDE),
+    blendLocal: new Float64Array(boneCount * SETUP_STRIDE),
+    boneTouched: new Uint8Array(boneCount),
     world: new Float64Array(boneCount * MAT2X3_STRIDE),
     boneLength: new Float64Array(boneCount),
     slotCount,
@@ -143,6 +166,8 @@ export function allocatePose(
     slotBoneIndices: new Int32Array(slotCount),
     slotSetupColor: new Float64Array(slotCount * SLOT_COLOR_STRIDE),
     slotColor: new Float64Array(slotCount * SLOT_COLOR_STRIDE),
+    slotAttachmentWinWeight: new Float64Array(slotCount),
+    ikBendWinWeight: new Float64Array(ikConstraints.length),
     slotSetupAttachment: new Array<string | null>(slotCount).fill(null),
     slotAttachment: new Array<string | null>(slotCount).fill(null),
     ikConstraints,

@@ -90,6 +90,50 @@ export const LANDED_EFFECT_IDS: readonly EffectId[] = EFFECT_IDS.filter(
   (id) => EFFECT_PHASE[id] <= EFFECT_CONFORMANCE_PHASE,
 );
 
+// AnimationState registry (ADR-0005 conformance family). A PARALLEL track to the skeleton RIG_IDS, the
+// effects EFFECT_IDS, and the slot SLOT_PAIRS: it locks the multi-animation MIXING contract (tracks,
+// crossfade, additive layering, discrete greater-weight-wins, queue timing) as scenario-driven pose
+// captures, never a single-animation sample. Each id names a committed scenario (an ordered AnimationState
+// call script under anim-state-scenarios/) replayed against the shared anim-state-rig; the generator runs
+// AnimationState over it and the golden test regenerates from runtime-core and asserts bones within the
+// A.5 tolerance and slot attachments EXACTLY. It shares nothing with (and does not regenerate) the other
+// three corpora: its own rig, scenarios, fixtures, and .anim-state-fixtures.lock.
+//
+// Provenance (L4): the rig and every scenario are authored by us from first principles; no Spine-derived
+// data. The ADR-0005 conformance set is (a) mid-crossfade poses at fixed fractions, (b) an additive layer
+// over a base loop, (c) a discrete winner flip across the 50% crossing, (d) a queue start across a loop
+// boundary; each maps to one scenario below.
+export const ANIM_STATE_IDS = [
+  'anim-state-crossfade-fractions',
+  'anim-state-additive-layer',
+  'anim-state-discrete-flip',
+  'anim-state-queue-loop-boundary',
+] as const;
+
+export type AnimStateId = (typeof ANIM_STATE_IDS)[number];
+
+// The rig every anim-state scenario replays against (one shared rig, catalog-style).
+export const ANIM_STATE_RIG_ID = 'anim-state-rig';
+
+// Phase in which each scenario's fixture is committed and the AnimationState features it exercises exist.
+// All four land with ADR-0005 (Phase 5 hardening window); gated on ANIM_STATE_CONFORMANCE_PHASE.
+export const ANIM_STATE_PHASE: Readonly<Record<AnimStateId, number>> = {
+  'anim-state-crossfade-fractions': 5,
+  'anim-state-additive-layer': 5,
+  'anim-state-discrete-flip': 5,
+  'anim-state-queue-loop-boundary': 5,
+};
+
+// The committed current conformance phase for the anim-state track. Bumped per phase milestone in this
+// file, NOT read from the environment, so a feature branch cannot tamper with it to skip scenarios.
+export const ANIM_STATE_CONFORMANCE_PHASE = 5;
+
+// The scenario ids landed at the current anim-state-conformance phase, in catalog order. The single source
+// the generator and the test iterate, so they cannot disagree about which scenarios are in scope.
+export const LANDED_ANIM_STATE_IDS: readonly AnimStateId[] = ANIM_STATE_IDS.filter(
+  (id) => ANIM_STATE_PHASE[id] <= ANIM_STATE_CONFORMANCE_PHASE,
+);
+
 // Slot golden-playback registry (phase-4-slot-composer.md WP-4.13, implements conformance WP-V.5). A THIRD
 // PARALLEL track to the skeleton RIG_IDS and the effects EFFECT_IDS: it locks the SLOT DETERMINISM CONTRACT
 // (LAW 1), the pure `sequence(result, scene) -> PresentationTimeline`. Each id names a committed

@@ -14,6 +14,17 @@ export type { RigId } from './registry';
 export { EFFECT_IDS, EFFECT_PHASE, EFFECT_CONFORMANCE_PHASE, LANDED_EFFECT_IDS } from './registry';
 export type { EffectId } from './registry';
 
+// AnimationState conformance registry + landed gating (ADR-0005). A parallel track to the skeleton rigs;
+// scenario-driven multi-animation MIXING captures (crossfade, additive layering, discrete flip, queue).
+export {
+  ANIM_STATE_IDS,
+  ANIM_STATE_RIG_ID,
+  ANIM_STATE_PHASE,
+  ANIM_STATE_CONFORMANCE_PHASE,
+  LANDED_ANIM_STATE_IDS,
+} from './registry';
+export type { AnimStateId } from './registry';
+
 // Schemas + typed boundary validators (A.3, A.4, Law 3).
 export { validateRig } from './schema/rig';
 export { validateFixture, FixtureValidationError, fixtureSchema } from './schema/fixture';
@@ -48,6 +59,24 @@ export {
 } from './schema/effects-sample-spec';
 export type { EffectsSampleSpec } from './schema/effects-sample-spec';
 
+// AnimationState conformance schemas + typed boundary validators (ADR-0005, Law 3).
+export {
+  validateAnimStateScenario,
+  AnimStateScenarioValidationError,
+  animStateScenarioSchema,
+} from './schema/anim-state-scenario';
+export type { AnimStateScenario, AnimStateOp } from './schema/anim-state-scenario';
+export {
+  validateAnimStateFixture,
+  AnimStateFixtureValidationError,
+  animStateFixtureSchema,
+} from './schema/anim-state-fixture';
+export type {
+  AnimStateFixture,
+  AnimStateFixtureSample,
+  AnimStateAffine,
+} from './schema/anim-state-fixture';
+
 // The single tolerance source (A.5) and the parity comparison engine (B.5).
 export {
   WORLD_TRANSLATION,
@@ -80,6 +109,11 @@ export type { FixtureProvenance } from './build-fixture';
 export { buildEffectsFixture, buildEffectsSamples, selectEffect } from './build-effects-fixture';
 export type { EffectsFixtureProvenance } from './build-effects-fixture';
 
+// The pure anim-state fixture builder (ADR-0005, INV-2): runtime-core AnimationState + format types only,
+// no I/O, no clock, no random. Replays a scenario and captures the solved pose per capture op.
+export { buildAnimStateFixture, buildAnimStateSamples } from './build-anim-state-fixture';
+export type { AnimStateProvenance } from './build-anim-state-fixture';
+
 // Filesystem-backed loaders for the committed corpus (the rig loader / fixture loader of A.1).
 export {
   loadRig,
@@ -96,6 +130,13 @@ export {
   effectsSpecPath,
   effectsFixturePath,
   EFFECTS_LOCK_PATH,
+  loadAnimStateRig,
+  loadAnimStateScenario,
+  loadAnimStateFixture,
+  animStateRigPath,
+  animStateScenarioPath,
+  animStateFixturePath,
+  ANIM_STATE_LOCK_PATH,
   loadPerfBaseline,
   PERF_BASELINE_PATH,
 } from './io';

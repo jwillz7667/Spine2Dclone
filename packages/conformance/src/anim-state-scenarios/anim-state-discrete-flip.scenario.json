@@ -1,0 +1,15 @@
+{
+  "scenarioId": "anim-state-discrete-flip",
+  "rigId": "anim-state-rig",
+  "ops": [
+    { "op": "set", "track": 0, "animation": "spinA", "loop": true },
+    { "op": "crossfade", "track": 0, "animation": "spinB", "loop": true, "mixDuration": 1.0 },
+    { "op": "capture", "label": "mix-0.00-iconA" },
+    { "op": "advance", "dt": 0.25 },
+    { "op": "capture", "label": "mix-0.25-iconA" },
+    { "op": "advance", "dt": 0.25 },
+    { "op": "capture", "label": "mix-0.50-iconB" },
+    { "op": "advance", "dt": 0.25 },
+    { "op": "capture", "label": "mix-0.75-iconB" }
+  ]
+}

@@ -1,0 +1,166 @@
+{
+  "formatVersion": "0.2.0",
+  "name": "anim-state-rig",
+  "hash": "",
+  "bones": [
+    {
+      "name": "root",
+      "parent": null,
+      "length": 100,
+      "x": 0,
+      "y": 0,
+      "rotation": 0,
+      "scaleX": 1,
+      "scaleY": 1,
+      "shearX": 0,
+      "shearY": 0,
+      "transformMode": "normal"
+    },
+    {
+      "name": "arm",
+      "parent": "root",
+      "length": 100,
+      "x": 100,
+      "y": 0,
+      "rotation": 0,
+      "scaleX": 1,
+      "scaleY": 1,
+      "shearX": 0,
+      "shearY": 0,
+      "transformMode": "normal"
+    }
+  ],
+  "slots": [
+    {
+      "name": "badge",
+      "bone": "root",
+      "color": { "r": 1, "g": 1, "b": 1, "a": 1 },
+      "attachment": "iconA",
+      "blendMode": "normal"
+    }
+  ],
+  "skins": [
+    {
+      "name": "default",
+      "attachments": {
+        "badge": {
+          "iconA": {
+            "type": "region",
+            "path": "iconA_tex",
+            "x": 0,
+            "y": 0,
+            "rotation": 0,
+            "scaleX": 1,
+            "scaleY": 1,
+            "width": 32,
+            "height": 32,
+            "color": { "r": 1, "g": 1, "b": 1, "a": 1 }
+          },
+          "iconB": {
+            "type": "region",
+            "path": "iconB_tex",
+            "x": 0,
+            "y": 0,
+            "rotation": 0,
+            "scaleX": 1,
+            "scaleY": 1,
+            "width": 32,
+            "height": 32,
+            "color": { "r": 1, "g": 1, "b": 1, "a": 1 }
+          }
+        }
+      }
+    }
+  ],
+  "ikConstraints": [],
+  "transformConstraints": [],
+  "animations": {
+    "spinA": {
+      "duration": 1.0,
+      "bones": {
+        "root": {
+          "rotate": [
+            { "time": 0.0, "value": { "angle": 0 }, "curve": "linear" },
+            { "time": 1.0, "value": { "angle": 60 }, "curve": "linear" }
+          ]
+        }
+      },
+      "slots": { "badge": { "attachment": [{ "time": 0.0, "name": "iconA" }] } },
+      "ik": {},
+      "transform": {},
+      "deform": {}
+    },
+    "spinB": {
+      "duration": 1.0,
+      "bones": {
+        "root": {
+          "rotate": [
+            { "time": 0.0, "value": { "angle": 0 }, "curve": "linear" },
+            { "time": 1.0, "value": { "angle": -60 }, "curve": "linear" }
+          ]
+        },
+        "arm": {
+          "rotate": [
+            { "time": 0.0, "value": { "angle": 0 }, "curve": "linear" },
+            { "time": 1.0, "value": { "angle": 90 }, "curve": "linear" }
+          ]
+        }
+      },
+      "slots": { "badge": { "attachment": [{ "time": 0.0, "name": "iconB" }] } },
+      "ik": {},
+      "transform": {},
+      "deform": {}
+    },
+    "wave": {
+      "duration": 1.0,
+      "bones": {
+        "arm": {
+          "rotate": [
+            { "time": 0.0, "value": { "angle": 0 }, "curve": "linear" },
+            { "time": 0.5, "value": { "angle": 40 }, "curve": "linear" },
+            { "time": 1.0, "value": { "angle": 0 }, "curve": "linear" }
+          ]
+        }
+      },
+      "slots": {},
+      "ik": {},
+      "transform": {},
+      "deform": {}
+    }
+  },
+  "atlas": {
+    "pages": [
+      {
+        "file": "anim-state-atlas.png",
+        "width": 64,
+        "height": 32,
+        "regions": [
+          {
+            "name": "iconA_tex",
+            "x": 0,
+            "y": 0,
+            "w": 32,
+            "h": 32,
+            "rotated": false,
+            "offsetX": 0,
+            "offsetY": 0,
+            "originalW": 32,
+            "originalH": 32
+          },
+          {
+            "name": "iconB_tex",
+            "x": 32,
+            "y": 0,
+            "w": 32,
+            "h": 32,
+            "rotated": false,
+            "offsetX": 0,
+            "offsetY": 0,
+            "originalW": 32,
+            "originalH": 32
+          }
+        ]
+      }
+    ]
+  }
+}

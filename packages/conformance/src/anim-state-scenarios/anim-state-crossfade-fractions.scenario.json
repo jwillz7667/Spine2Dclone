@@ -1,0 +1,19 @@
+{
+  "scenarioId": "anim-state-crossfade-fractions",
+  "rigId": "anim-state-rig",
+  "ops": [
+    { "op": "set", "track": 0, "animation": "spinA", "loop": false },
+    { "op": "advance", "dt": 0.5 },
+    { "op": "capture", "label": "spinA-mid" },
+    { "op": "crossfade", "track": 0, "animation": "spinB", "loop": false, "mixDuration": 1.0 },
+    { "op": "capture", "label": "mix-0.00" },
+    { "op": "advance", "dt": 0.25 },
+    { "op": "capture", "label": "mix-0.25" },
+    { "op": "advance", "dt": 0.25 },
+    { "op": "capture", "label": "mix-0.50" },
+    { "op": "advance", "dt": 0.25 },
+    { "op": "capture", "label": "mix-0.75" },
+    { "op": "advance", "dt": 0.25 },
+    { "op": "capture", "label": "mix-1.00" }
+  ]
+}

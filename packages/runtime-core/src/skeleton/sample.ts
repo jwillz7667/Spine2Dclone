@@ -1,6 +1,7 @@
 import type { Animation, SkeletonDocument } from '@marionette/format/types';
 import { composeInto, MAT2X3_STRIDE } from '../math/affine';
 import { resolveWorld, solveIkOneBone, solveIkTwoBone, solveTransformConstraint } from '../solve';
+import type { TransformMix } from '../solve/transform-constraint';
 import { SETUP_STRIDE, SLOT_COLOR_STRIDE } from './pose';
 import type { Pose, ResolvedTransformConstraint } from './pose';
 import type {
@@ -69,16 +70,19 @@ export function sampleSkeleton(
   const prepared = getPreparedAnimation(outPose, animation);
 
   // Step 1: reset to setup pose (bones write their local matrices; slots reset color + attachment;
-  // constraints reset their sampled mix/bendPositive to the constraint definition's base values).
+  // constraints reset their sampled mix/bendPositive to the constraint definition's base values), then
+  // arm the blend scratch (blendLocal <- setup, touched cleared, discrete winner weights reset).
   resetToSetupPose(outPose);
   resetSlotsToSetup(outPose);
   resetConstraintsToBase(outPose);
+  beginBlend(outPose);
 
-  // Step 2: apply animation timelines onto the reset setup pose, including the ik/transform constraint
-  // mix channels (the values step 3 reads).
-  applyBoneChannels(prepared, outPose, t);
-  applySlotChannels(prepared, outPose, t);
-  applyConstraintChannels(prepared, outPose, t);
+  // Step 2: apply the single animation at full weight (alpha 1, non-additive, discrete channels win).
+  // This is the SAME internal path AnimationState drives per track; at (1, false, true) the blend math
+  // short-circuits to write each sampled channel verbatim, so composing from blendLocal below is
+  // bit-identical to the historical direct composition (the byte-locked fixtures gate that neutrality).
+  applyAnimationAt(outPose, prepared, t, 1, false, true);
+  composeTouchedBones(outPose);
 
   // Step 3: solve constraints: ALL IK constraints first, then ALL transform constraints, each in
   // document array order (ADR-0003 section 3). Constraints write LOCAL only.
@@ -89,13 +93,88 @@ export function sampleSkeleton(
   computeWorldTransforms(outPose);
 }
 
+// Arm the per-frame blend scratch (ADR-0005). blendLocal starts at the setup transform (the base every
+// track lerps its keyed channels away from), no bone is touched yet, and every discrete winner weight is
+// reset to -1 so the first keying track wins. Allocation-free: a typed-array copy and two fills into the
+// pre-allocated pose scratch. Must run AFTER resetToSetupPose (both read pose.setup; order is irrelevant
+// but the reset also writes local for the untouched bones the compose pass leaves alone).
+export function beginBlend(pose: Pose): void {
+  pose.blendLocal.set(pose.setup);
+  pose.boneTouched.fill(0);
+  pose.slotAttachmentWinWeight.fill(-1);
+  pose.ikBendWinWeight.fill(-1);
+}
+
+// Compose each bone the track loop touched from its blended local components (blendLocal) into the
+// local matrix (pose.local). Untouched bones keep the reset-to-setup local resetToSetupPose wrote, so a
+// single-animation frame recomposes exactly the animated bones, identical to the historical path.
+// Allocation-free: composeInto writes into the pre-allocated local buffer.
+export function composeTouchedBones(pose: Pose): void {
+  const { blendLocal, boneTouched, local, boneCount } = pose;
+  for (let i = 0; i < boneCount; i += 1) {
+    if (boneTouched[i] === 0) continue;
+    const s = i * SETUP_STRIDE;
+    composeInto(
+      local,
+      i * MAT2X3_STRIDE,
+      blendLocal[s]!,
+      blendLocal[s + 1]!,
+      blendLocal[s + 2]!,
+      blendLocal[s + 3]!,
+      blendLocal[s + 4]!,
+      blendLocal[s + 5]!,
+      blendLocal[s + 6]!,
+    );
+  }
+}
+
+// Normalize an angle delta (degrees) into the half-open interval (-180, 180], the shortest signed arc.
+// -180 maps to +180 (the interval is open on the left, closed on the right). Used by rotation blending
+// so a replace-toward or additive rotation takes the short way around, never the long way (ADR-0005
+// rules 2 and 3). Pure arithmetic (a single modulo plus one conditional add), no trig, so every runtime
+// reproduces it bit-for-bit.
+function normalizeDeltaDeg(delta: number): number {
+  let r = delta % 360;
+  if (r > 180) r -= 360;
+  else if (r <= -180) r += 360;
+  return r;
+}
+
+// Replace-toward blend for a linear (componentwise) channel: lerp current toward the animation's sampled
+// value by weight w (ADR-0005 rule 2). w >= 1 returns `sampled` VERBATIM (the single-animation and
+// fully-faded-in cases), which is what makes the refactor bit-neutral; w <= 0 leaves current untouched.
+function blendReplaceLinear(current: number, sampled: number, w: number): number {
+  if (w >= 1) return sampled;
+  if (w <= 0) return current;
+  return current + (sampled - current) * w;
+}
+
+// Replace-toward blend for rotation (degrees): lerp along the SHORTEST arc (ADR-0005 rule 2). w >= 1
+// returns `sampled` verbatim (bit-neutral full weight); otherwise walk the normalized short delta by w.
+function blendReplaceRotation(current: number, sampled: number, w: number): number {
+  if (w >= 1) return sampled;
+  if (w <= 0) return current;
+  return current + normalizeDeltaDeg(sampled - current) * w;
+}
+
+// Additive blend for a linear channel: add the animation's delta-from-setup, scaled by w, onto the
+// running (lower-layer) value (ADR-0005 rule 3). Never taken by the single-animation path.
+function blendAddLinear(current: number, setupValue: number, sampled: number, w: number): number {
+  return current + (sampled - setupValue) * w;
+}
+
+// Additive blend for rotation: add the normalized short delta-from-setup, scaled by w (ADR-0005 rule 3).
+function blendAddRotation(current: number, setupValue: number, sampled: number, w: number): number {
+  return current + normalizeDeltaDeg(sampled - setupValue) * w;
+}
+
 // Solve step 3 (ADR-0003 section 3): IK constraints first (document array order), then transform
 // constraints (document array order). IK reads the target world position (origin of resolveWorld) and
 // writes LOCAL rotation; transform reads/blends in world and writes LOCAL. A constraint with an
 // unresolved bone/target index (-1) is skipped rather than crashing (build-pose captures -1 for a name
 // the rig does not contain). Allocation-free: target world goes into the module scratch, and the
 // per-constraint sampled mix/bendPositive were written into pose-owned scratch in step 2.
-function solveConstraints(pose: Pose): void {
+export function solveConstraints(pose: Pose): void {
   const { ikConstraints, transformConstraints } = pose;
 
   for (let i = 0; i < ikConstraints.length; i += 1) {
@@ -153,7 +232,7 @@ function solveConstraints(pose: Pose): void {
 // constraint analogue of resetSlotsToSetup. Step 2 then overlays the keyed channels; a constraint or
 // channel an animation does not key keeps its base. Allocation-free: it mutates the pose-owned scratch
 // objects in place (no array or object is created), so a constraint-free rig does nothing here.
-function resetConstraintsToBase(pose: Pose): void {
+export function resetConstraintsToBase(pose: Pose): void {
   const { ikConstraints, transformConstraints } = pose;
   for (let i = 0; i < ikConstraints.length; i += 1) {
     const constraint = ikConstraints[i]!;
@@ -166,46 +245,9 @@ function resetConstraintsToBase(pose: Pose): void {
   }
 }
 
-// Step 2 for constraints: overlay the keyed ik/transform mix channels onto the base values reset above.
-// IK mix interpolates by its curve; bendPositive is stepped (ADR-0003 section 7). For a transform
-// constraint, each present mix channel overrides the base; an absent channel keeps the (already-reset)
-// base value. A channel resolved to a constraint the pose lacks (constraintIndex -1) is ignored.
-function applyConstraintChannels(prepared: PreparedAnimation, pose: Pose, t: number): void {
-  const { ikChannels, transformChannels } = prepared;
-  const { ikConstraints, transformConstraints } = pose;
-
-  for (let c = 0; c < ikChannels.length; c += 1) {
-    const channel: PreparedIkChannel = ikChannels[c]!;
-    const index = channel.constraintIndex;
-    if (index < 0) continue;
-    const sampled = ikConstraints[index]!.sampled;
-    if (channel.mix !== null) {
-      sampled.mix = sampleScalar(channel.mix, t, sampled.mix);
-    }
-    if (channel.bendPositive !== null) {
-      sampled.bendPositive = sampleStepBool(channel.bendPositive, t);
-    }
-  }
-
-  for (let c = 0; c < transformChannels.length; c += 1) {
-    const channel: PreparedTransformChannel = transformChannels[c]!;
-    const index = channel.constraintIndex;
-    if (index < 0) continue;
-    const mix = transformConstraints[index]!.sampledMix;
-    mix.rotate = sampleScalar(channel.mixRotate, t, mix.rotate);
-    mix.x = sampleScalar(channel.mixX, t, mix.x);
-    mix.y = sampleScalar(channel.mixY, t, mix.y);
-    mix.scaleX = sampleScalar(channel.mixScaleX, t, mix.scaleX);
-    mix.scaleY = sampleScalar(channel.mixScaleY, t, mix.scaleY);
-    mix.shearY = sampleScalar(channel.mixShearY, t, mix.shearY);
-  }
-}
-
-// Sample a single-component track at t, or return the fallback when there is no track for the channel
-// (the absent-channel / base-value path). Reuses the shared segment lookup so the curve handling
+// Sample a single-component track at t. Reuses the shared segment lookup so the curve handling
 // (linear/stepped/bezier and the single-period clamp) matches every other channel.
-function sampleScalar(track: PreparedTrack | null, t: number, fallback: number): number {
-  if (track === null) return fallback;
+function sampleScalarTrack(track: PreparedTrack, t: number): number {
   const i = findSegmentIndex(track.times, track.keyCount, t);
   const f = segmentFraction(track, i, t);
   return segmentComponent(track, i, f, 0);
@@ -225,7 +267,7 @@ function copyTransformMix(
 
 // Reset every slot's resolved color to its setup color and its active attachment to its setup name.
 // Allocation-free: the typed-array copy reuses slotColor, the name loop writes string refs in place.
-function resetSlotsToSetup(pose: Pose): void {
+export function resetSlotsToSetup(pose: Pose): void {
   const { slotColor, slotSetupColor, slotAttachment, slotSetupAttachment, slotCount } = pose;
   slotColor.set(slotSetupColor);
   for (let i = 0; i < slotCount; i += 1) {
@@ -233,68 +275,129 @@ function resetSlotsToSetup(pose: Pose): void {
   }
 }
 
-// Apply bone transform channels onto the reset setup pose, per the normative rule (TASK-1.4.3):
-// rotate ADDS to setup rotation, translate ADDS to setup translation, scale MULTIPLIES setup scale
-// componentwise, shear ADDS to setup shear. Only animated bones are recomposed; bones without channels
-// keep their reset-from-setup local matrix. The segment index and fraction are computed once per
-// channel (vec2 channels share them across both components).
-function applyBoneChannels(prepared: PreparedAnimation, pose: Pose, t: number): void {
+// Apply ONE prepared animation at time t and blend weight `alpha` onto the running blend scratch, the
+// single internal step-2 path both sampleSkeleton (one call at alpha 1) and AnimationState (one call per
+// track/mix entry) drive (ADR-0005 implementation shape). It blends the LOCAL COMPONENTS (blendLocal),
+// slot color, and constraint mix like continuous channels, and resolves attachment / bendPositive as
+// discrete greater-weight-wins channels; it never composes matrices or solves constraints (the caller
+// composes touched bones after the last entry, then solves). Semantics:
+//   - non-additive (rule 2): each keyed channel lerps blendLocal toward the animation's sampled value by
+//     alpha; rotation lerps along the shortest arc, everything else componentwise. At alpha 1 the sampled
+//     value is written verbatim, so the single-animation path is bit-identical to the historical compose.
+//   - additive (rule 3): each keyed continuous channel adds (sampled - setup) * alpha; rotation adds the
+//     normalized short delta. `discreteWins` is false for additive tracks (they ignore discrete channels).
+//   - discrete (rule 5): attachment and IK bendPositive are written only when discreteWins is set and this
+//     entry's alpha is >= the running winner weight, so the greatest-weight entry wins and a tie (equal
+//     weight) goes to the later-applied entry (the incoming side of a crossfade, applied after outgoing).
+// Only KEYED channels are touched; unkeyed lanes stay as lower layers left them (rule 2). Allocation-free:
+// every write targets pre-allocated pose scratch.
+export function applyAnimationAt(
+  pose: Pose,
+  prepared: PreparedAnimation,
+  t: number,
+  alpha: number,
+  additive: boolean,
+  discreteWins: boolean,
+): void {
+  applyBoneEntry(pose, prepared, t, alpha, additive);
+  applySlotEntry(pose, prepared, t, alpha, additive, discreteWins);
+  applyConstraintEntry(pose, prepared, t, alpha, additive, discreteWins);
+}
+
+// Blend one animation's keyed bone channels into blendLocal (ADR-0005 rules 2/3). rotate blends the
+// rotation lane, translate the x/y lanes, scale the scaleX/scaleY lanes, shear the shearX/shearY lanes;
+// each keyed bone is marked touched so composeTouchedBones recomposes exactly the animated bones. The
+// segment index and fraction are computed once per channel (vec2 channels share them across components).
+function applyBoneEntry(
+  pose: Pose,
+  prepared: PreparedAnimation,
+  t: number,
+  alpha: number,
+  additive: boolean,
+): void {
   const { boneChannels } = prepared;
-  const { setup, local } = pose;
+  const { setup, blendLocal, boneTouched } = pose;
   for (let bc = 0; bc < boneChannels.length; bc += 1) {
     const channels: PreparedBoneChannels = boneChannels[bc]!;
     const boneIndex = channels.boneIndex;
     if (boneIndex < 0) continue;
 
     const s = boneIndex * SETUP_STRIDE;
-    let x = setup[s]!;
-    let y = setup[s + 1]!;
-    let rotation = setup[s + 2]!;
-    let scaleX = setup[s + 3]!;
-    let scaleY = setup[s + 4]!;
-    let shearX = setup[s + 5]!;
-    let shearY = setup[s + 6]!;
+    let touched = false;
 
     const rotate = channels.rotate;
     if (rotate !== null) {
       const i = findSegmentIndex(rotate.times, rotate.keyCount, t);
       const f = segmentFraction(rotate, i, t);
-      rotation += segmentComponent(rotate, i, f, 0);
+      const sampled = setup[s + 2]! + segmentComponent(rotate, i, f, 0);
+      blendLocal[s + 2] = additive
+        ? blendAddRotation(blendLocal[s + 2]!, setup[s + 2]!, sampled, alpha)
+        : blendReplaceRotation(blendLocal[s + 2]!, sampled, alpha);
+      touched = true;
     }
 
     const translate = channels.translate;
     if (translate !== null) {
       const i = findSegmentIndex(translate.times, translate.keyCount, t);
       const f = segmentFraction(translate, i, t);
-      x += segmentComponent(translate, i, f, 0);
-      y += segmentComponent(translate, i, f, 1);
+      const sx = setup[s]! + segmentComponent(translate, i, f, 0);
+      const sy = setup[s + 1]! + segmentComponent(translate, i, f, 1);
+      blendLocal[s] = additive
+        ? blendAddLinear(blendLocal[s]!, setup[s]!, sx, alpha)
+        : blendReplaceLinear(blendLocal[s]!, sx, alpha);
+      blendLocal[s + 1] = additive
+        ? blendAddLinear(blendLocal[s + 1]!, setup[s + 1]!, sy, alpha)
+        : blendReplaceLinear(blendLocal[s + 1]!, sy, alpha);
+      touched = true;
     }
 
     const scale = channels.scale;
     if (scale !== null) {
       const i = findSegmentIndex(scale.times, scale.keyCount, t);
       const f = segmentFraction(scale, i, t);
-      scaleX *= segmentComponent(scale, i, f, 0);
-      scaleY *= segmentComponent(scale, i, f, 1);
+      const sx = setup[s + 3]! * segmentComponent(scale, i, f, 0);
+      const sy = setup[s + 4]! * segmentComponent(scale, i, f, 1);
+      blendLocal[s + 3] = additive
+        ? blendAddLinear(blendLocal[s + 3]!, setup[s + 3]!, sx, alpha)
+        : blendReplaceLinear(blendLocal[s + 3]!, sx, alpha);
+      blendLocal[s + 4] = additive
+        ? blendAddLinear(blendLocal[s + 4]!, setup[s + 4]!, sy, alpha)
+        : blendReplaceLinear(blendLocal[s + 4]!, sy, alpha);
+      touched = true;
     }
 
     const shear = channels.shear;
     if (shear !== null) {
       const i = findSegmentIndex(shear.times, shear.keyCount, t);
       const f = segmentFraction(shear, i, t);
-      shearX += segmentComponent(shear, i, f, 0);
-      shearY += segmentComponent(shear, i, f, 1);
+      const sx = setup[s + 5]! + segmentComponent(shear, i, f, 0);
+      const sy = setup[s + 6]! + segmentComponent(shear, i, f, 1);
+      blendLocal[s + 5] = additive
+        ? blendAddLinear(blendLocal[s + 5]!, setup[s + 5]!, sx, alpha)
+        : blendReplaceLinear(blendLocal[s + 5]!, sx, alpha);
+      blendLocal[s + 6] = additive
+        ? blendAddLinear(blendLocal[s + 6]!, setup[s + 6]!, sy, alpha)
+        : blendReplaceLinear(blendLocal[s + 6]!, sy, alpha);
+      touched = true;
     }
 
-    composeInto(local, boneIndex * MAT2X3_STRIDE, x, y, rotation, scaleX, scaleY, shearX, shearY);
+    if (touched) boneTouched[boneIndex] = 1;
   }
 }
 
-// Apply slot channels onto the reset setup pose: color REPLACES setup color (per-component RGBA lerp
-// across the segment per its curve), attachment is stepped (hold the active name until the next key).
-function applySlotChannels(prepared: PreparedAnimation, pose: Pose, t: number): void {
+// Blend one animation's slot channels: color REPLACES/adds like a continuous channel (rule 2/3, per-
+// component RGBA); attachment is the discrete greater-weight-wins swap (rule 5), written only when this
+// entry participates in discrete resolution and its weight wins/ties the running winner for the slot.
+function applySlotEntry(
+  pose: Pose,
+  prepared: PreparedAnimation,
+  t: number,
+  alpha: number,
+  additive: boolean,
+  discreteWins: boolean,
+): void {
   const { slotChannels } = prepared;
-  const { slotColor, slotAttachment } = pose;
+  const { slotColor, slotSetupColor, slotAttachment, slotAttachmentWinWeight } = pose;
   for (let sc = 0; sc < slotChannels.length; sc += 1) {
     const channels: PreparedSlotChannels = slotChannels[sc]!;
     const slotIndex = channels.slotIndex;
@@ -305,17 +408,87 @@ function applySlotChannels(prepared: PreparedAnimation, pose: Pose, t: number): 
       const i = findSegmentIndex(color.times, color.keyCount, t);
       const f = segmentFraction(color, i, t);
       const base = slotIndex * SLOT_COLOR_STRIDE;
-      slotColor[base] = segmentComponent(color, i, f, 0);
-      slotColor[base + 1] = segmentComponent(color, i, f, 1);
-      slotColor[base + 2] = segmentComponent(color, i, f, 2);
-      slotColor[base + 3] = segmentComponent(color, i, f, 3);
+      for (let k = 0; k < SLOT_COLOR_STRIDE; k += 1) {
+        const sampled = segmentComponent(color, i, f, k);
+        slotColor[base + k] = additive
+          ? blendAddLinear(slotColor[base + k]!, slotSetupColor[base + k]!, sampled, alpha)
+          : blendReplaceLinear(slotColor[base + k]!, sampled, alpha);
+      }
     }
 
     const attachment = channels.attachment;
-    if (attachment !== null) {
+    if (attachment !== null && discreteWins && alpha >= slotAttachmentWinWeight[slotIndex]!) {
       slotAttachment[slotIndex] = sampleAttachmentName(attachment, t);
+      slotAttachmentWinWeight[slotIndex] = alpha;
     }
   }
+}
+
+// Blend one animation's constraint mix channels (ADR-0005 rule 7: continuous, blended like locals) and
+// resolve the discrete IK bendPositive (rule 5). Each present transform mix sub-channel blends toward its
+// sampled value; an absent sub-channel keeps whatever lower layers left (the reset base for track 0). A
+// channel resolved to a constraint the pose lacks (constraintIndex -1) is ignored.
+function applyConstraintEntry(
+  pose: Pose,
+  prepared: PreparedAnimation,
+  t: number,
+  alpha: number,
+  additive: boolean,
+  discreteWins: boolean,
+): void {
+  const { ikChannels, transformChannels } = prepared;
+  const { ikConstraints, transformConstraints, ikBendWinWeight } = pose;
+
+  for (let c = 0; c < ikChannels.length; c += 1) {
+    const channel: PreparedIkChannel = ikChannels[c]!;
+    const index = channel.constraintIndex;
+    if (index < 0) continue;
+    const sampled = ikConstraints[index]!.sampled;
+    if (channel.mix !== null) {
+      const value = sampleScalarTrack(channel.mix, t);
+      sampled.mix = additive
+        ? blendAddLinear(sampled.mix, ikConstraints[index]!.baseMix, value, alpha)
+        : blendReplaceLinear(sampled.mix, value, alpha);
+    }
+    if (channel.bendPositive !== null && discreteWins && alpha >= ikBendWinWeight[index]!) {
+      sampled.bendPositive = sampleStepBool(channel.bendPositive, t);
+      ikBendWinWeight[index] = alpha;
+    }
+  }
+
+  for (let c = 0; c < transformChannels.length; c += 1) {
+    const channel: PreparedTransformChannel = transformChannels[c]!;
+    const index = channel.constraintIndex;
+    if (index < 0) continue;
+    const constraint = transformConstraints[index]!;
+    const mix = constraint.sampledMix;
+    const base = constraint.baseMix;
+    blendTransformMix(mix, base, 'rotate', channel.mixRotate, t, alpha, additive);
+    blendTransformMix(mix, base, 'x', channel.mixX, t, alpha, additive);
+    blendTransformMix(mix, base, 'y', channel.mixY, t, alpha, additive);
+    blendTransformMix(mix, base, 'scaleX', channel.mixScaleX, t, alpha, additive);
+    blendTransformMix(mix, base, 'scaleY', channel.mixScaleY, t, alpha, additive);
+    blendTransformMix(mix, base, 'shearY', channel.mixShearY, t, alpha, additive);
+  }
+}
+
+// Blend one transform-constraint mix sub-channel in place. A null track means the sub-channel is absent
+// from this animation (leave the running value); otherwise blend toward the sampled factor by alpha
+// (additive adds the delta from the constraint's base factor).
+function blendTransformMix(
+  mix: TransformMix,
+  base: TransformMix,
+  key: keyof TransformMix,
+  track: PreparedTrack | null,
+  t: number,
+  alpha: number,
+  additive: boolean,
+): void {
+  if (track === null) return;
+  const value = sampleScalarTrack(track, t);
+  mix[key] = additive
+    ? blendAddLinear(mix[key], base[key], value, alpha)
+    : blendReplaceLinear(mix[key], value, alpha);
 }
 
 // Fetch (building and caching on first use) the prepared form of an animation for this pose. The cache

@@ -3,14 +3,17 @@ import { parseDocument, type ValidateOptions } from '@marionette/format';
 import type { RegionAttachment, SkeletonDocument, Skin } from '@marionette/format/types';
 import {
   AnimationNotFoundError,
+  applyAnimationState,
   buildPose,
   computeWorldTransforms,
+  getTrackEntry,
   MAT2X3_STRIDE,
   resetToSetupPose,
   sampleMeshVertices,
   sampleSkeleton,
   skinMeshInto,
   SLOT_COLOR_STRIDE,
+  type AnimationState,
   type Mat2x3,
   type Pose,
 } from '@marionette/runtime-core';
@@ -222,6 +225,29 @@ export class SkeletonView {
     const animation = document.animations[animationId];
     if (animation === undefined) throw new AnimationNotFoundError(animationId);
     this.syncAnimated(document, animationId, loopTime(elapsed, animation.duration));
+  }
+
+  // Solve and render a multi-track AnimationState (ADR-0005) through the SAME render-from-pose path the
+  // single-animation player uses. applyAnimationState runs the locked solve with a blended step 2 into the
+  // cached pose (bones, slot color, discrete attachments), then renderFromPose draws it. `document` MUST be
+  // the same validated document the state was built from (state.document); the view trusts it, exactly as
+  // syncAnimated does. The pose is built once per document and reused, so a steady-state frame allocates
+  // only the region products.
+  //
+  // Mesh DEFORM scoping (v1): ADR-0005 does not define cross-track deform blending, so deform under
+  // AnimationState is sampled from the TRACK-0 current entry's animation and trackTime ONLY (the base
+  // layer), on top of the state-solved skin. A crossfade on track 0 uses its incoming (current) entry.
+  // When track 0 is empty, meshes render as the pure skin of the state-solved pose (no deform). This is a
+  // deliberate, documented scope, NOT invented cross-track deform math.
+  syncState(document: SkeletonDocument, state: AnimationState): void {
+    const scene = this.ensureScene(document);
+    applyAnimationState(state, scene.pose);
+    const track0 = getTrackEntry(state, 0);
+    if (track0 === null) {
+      this.renderFromPose(scene, null, 0);
+    } else {
+      this.renderFromPose(scene, track0.animationId, track0.trackTime);
+    }
   }
 
   // A read-only snapshot of the current scene for tests and tooling (no WebGL needed). Computed from

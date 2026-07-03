@@ -1,0 +1,15 @@
+{
+  "scenarioId": "anim-state-queue-loop-boundary",
+  "rigId": "anim-state-rig",
+  "ops": [
+    { "op": "set", "track": 0, "animation": "spinA", "loop": true },
+    { "op": "queue", "track": 0, "animation": "spinB", "loop": false, "delay": 0.0 },
+    { "op": "capture", "label": "spinA-start-iconA" },
+    { "op": "advance", "dt": 0.5 },
+    { "op": "capture", "label": "spinA-mid-iconA" },
+    { "op": "advance", "dt": 0.5 },
+    { "op": "capture", "label": "queued-spinB-start-iconB" },
+    { "op": "advance", "dt": 0.25 },
+    { "op": "capture", "label": "spinB-0.25-iconB" }
+  ]
+}

@@ -3,5 +3,11 @@ packages:
   - 'apps/*'
   - 'tools/*'
 allowBuilds:
-  electron: true
-  esbuild: true
+  electron: false
+  esbuild: false
+# Dependencies allowed to run install/build scripts. pnpm 11 blocks build scripts by default and
+# hard-errors (ERR_PNPM_IGNORED_BUILDS) on any that are neither approved here nor ignored. This is the
+# pnpm 11 home for the setting (package.json's `pnpm` field is no longer read).
+onlyBuiltDependencies:
+  - electron
+  - esbuild

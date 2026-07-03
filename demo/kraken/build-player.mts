@@ -42,6 +42,9 @@ const bundle = buildSync({
 }).outputFiles[0]!.text;
 
 const gameDocument = readFileSync(join(here, 'krakens-hoard.rig.json'), 'utf8');
+// The effects library is saved separately from the skeleton rig; the player builds a live EffectSystem
+// from it to display the pearlShower particles.
+const effectsDocument = readFileSync(join(here, 'krakens-hoard.effects.json'), 'utf8');
 const atlasRef = JSON.parse(readFileSync(join(here, 'atlas', 'atlas-ref.json'), 'utf8'));
 const pages: Record<string, string> = {};
 for (const page of atlasRef.pages) {
@@ -56,19 +59,27 @@ const html = `<!doctype html>
 <title>Leviathan's Deep - Kraken's Hoard demo</title>
 <style>
   html, body { margin: 0; height: 100%; overflow: hidden; background: #04121a; }
-  #celebrate {
+  #controls {
     position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 16px; z-index: 10;
+  }
+  #controls button {
     padding: 14px 42px; font: 700 20px/1 Georgia, serif; letter-spacing: 1px;
     color: #2b1c04; background: linear-gradient(#ffe9a8, #d9a52c); border: 2px solid #8a6516;
-    border-radius: 10px; cursor: pointer; box-shadow: 0 4px 18px rgba(0,0,0,0.55); z-index: 10;
+    border-radius: 10px; cursor: pointer; box-shadow: 0 4px 18px rgba(0,0,0,0.55);
   }
-  #celebrate:hover { filter: brightness(1.08); }
+  #controls button:hover { filter: brightness(1.08); }
+  #controls button:disabled { filter: grayscale(0.5) brightness(0.8); cursor: default; }
 </style>
 </head>
 <body>
-<button id="celebrate" type="button">Celebrate</button>
+<div id="controls">
+  <button id="spin" type="button">Spin</button>
+  <button id="celebrate" type="button">Celebrate</button>
+</div>
 <script>
 const GAME_DOCUMENT = ${gameDocument};
+const EFFECTS_DOCUMENT = ${effectsDocument};
 const ATLAS_PAGES = ${JSON.stringify(pages)};
 </script>
 <script>${bundle}</script>

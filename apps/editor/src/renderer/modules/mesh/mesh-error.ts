@@ -8,7 +8,9 @@ export type MeshErrorCode =
   | 'degenerate' // the input polygon has < 3 non-collinear points (no positive area to triangulate)
   | 'collinear' // every point lies on one line (a special, common degenerate case worth its own code)
   | 'notSimple' // ear-clipping made no progress: a self-intersecting / non-simple polygon
-  | 'emptyMask'; // the silhouette trace found no opaque pixel above threshold (nothing to trace)
+  | 'emptyMask' // the silhouette trace found no opaque pixel above threshold (nothing to trace)
+  | 'outsideMesh' // an add/delete targets a point or vertex index outside the mesh (TASK-2.1.2)
+  | 'hullVertex'; // a delete targets a hull vertex, which would open the polygon (TASK-2.1.2)
 
 export class MeshError extends Error {
   readonly code: MeshErrorCode;

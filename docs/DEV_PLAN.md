@@ -168,6 +168,27 @@ section with mitigations. The load-bearing ones:
 
 ## 9. Status tracker
 
+**Remainder execution order (recorded 2026-07-02, grounded in the verified gap map
+`docs/audit/spine-pro-parity-audit.md`).** The Phases 0-4 boxes below were ticked on their CI-verifiable
+acceptance with the GUI and WebGL render explicitly carved out as the non-headless remainder. That
+remainder is now the active work, executed in phase order BEFORE the remaining Phase 5
+native/device/release packages, because a usable authoring artifact per phase (Law 5) requires it:
+
+1. **Phase 2 remainder:** mesh attachment rendering in `runtime-web` and the editor viewport (the
+   WP-2.11 renderer slice; every mesh authoring tool is invisible without it), then the authoring
+   surfaces over the already-complete command layer: WP-2.1 (mesh tool UI), WP-2.3/2.4 (binding +
+   weight painting), WP-2.6/2.7 (constraint authoring + gizmos), WP-2.8 (skins UI), WP-2.9 (deform
+   authoring), closing with the WP-2.11 DoD rig visible end to end.
+2. **Phase 3 remainder:** GL particle rendering (WP-3.5 remainder) and the designer-panel completion.
+3. **Phase 4 remainder:** the GL slot renderer (WP-4.11 remainder) and the scene preview.
+4. **Phase 5 continues as planned** (format 0.3.0 with migration + ADR, Unity/Godot runtimes, native
+   conformance, device profiling, release pipeline).
+
+Two capabilities the audit found in NO plan document enter through the normal governance process, not
+ad hoc: an AnimationState (tracks, crossfade, additive layering) for `runtime-core`/`runtime-web` needs
+an ADR plus a work-package home before code, and the parity-depth items (path constraints, physics
+constraints, linked meshes, sequences) are format-contract changes gated by `format-contract.md` section 10.
+
 Phases 0 to 4 are complete and green in CI-verifiable form: each phase's Definition-of-Done acceptance is
 exercised by a green automated harness (the `phase3:acceptance` script, the Phase 4 golden-playback
 determinism lock, and the per-phase conformance fixtures). The standing caveat (`CLAUDE.md`): the editor

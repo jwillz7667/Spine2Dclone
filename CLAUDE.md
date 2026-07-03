@@ -8,13 +8,19 @@ Armature 2D authors presentation only. **Status: Phases 0, 1, 2 (Rigging), 3 (VF
 composer) complete and green in CI-verifiable form (the document model + commands + runtime-core solve, the
 effects subsystem, the slot subsystem with the `math-bridge` engine boundary, conformance fixtures for all
 three tracks, MCP tools, the Phase 3 `phase3:acceptance` harness, and the Phase 4 golden-playback
-determinism lock). Phase 5 (Production hardening: binary export, atlas optimization, Unity + Godot runtimes,
-three-runtime conformance, mobile profiling, release pipeline) is NOT started; start at
-`docs/plan/phase-5-production-hardening.md` and `PHASE_5_KICKOFF.md`. NOTE: the editor GUI, the WebGL pixel
-parity, the live real-engine acceptance step, and the byte-exact fixture-determinism gate on the pinned
-Node 22.13.1 are not exercisable in a headless container; they are covered by pure-logic + parity +
-tolerance tests and the committed golden fixtures instead.** Build phase by phase, do not scaffold
-everything at once.
+determinism lock). Phase 5 is IN PROGRESS: the headless-CI-verifiable spine is landed and green (MRNT binary
+codec + twins, Export Profile core, cross-language vectors + native CI, texture-variant selector,
+transformMode in the solve); see `docs/plan/phase-5-production-hardening.md` and `PHASE_5_KICKOFF.md`.
+ACTIVE WORK (the current execution order, `docs/DEV_PLAN.md` section 9): finish the earlier phases'
+non-headless remainders in phase order BEFORE the remaining Phase 5 native/device/release work, because the
+authoring UI and playback renderer trail the backend by roughly one phase (the verified gap map is
+`docs/audit/spine-pro-parity-audit.md`): first the Phase 2 GUI remainder (mesh rendering in runtime-web +
+viewport, then the WP-2.1/2.3/2.4/2.6/2.7/2.8/2.9 authoring surfaces over the already-complete command
+layer), then the Phase 3 remainder (GL particle rendering + designer panel), then the Phase 4 remainder
+(GL slot render + scene preview), then Phase 5 continues as planned. NOTE: the WebGL pixel parity, the
+live real-engine acceptance step, and the byte-exact fixture-determinism gate on the pinned Node 22.13.1
+are not exercisable in a headless container; they are covered by pure-logic + parity + tolerance tests and
+the committed golden fixtures instead.** Build phase by phase, do not scaffold everything at once.
 The authoritative spec is `MARIONETTE_HANDOFF.md`. The plan of record lives in `docs/plan/`; the master index
 and dependency graph are in `docs/DEV_PLAN.md`.
 

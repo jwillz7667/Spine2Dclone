@@ -1243,6 +1243,328 @@ describe('MCP deform tools (WP-2.9)', () => {
   });
 });
 
+// Build a one-page VFX atlas resolving the named regions (every layer `region` reference must resolve or
+// SetEffectsAtlas / export rejects it). Each region is a distinct 16x16 tile.
+function atlasWith(regions: readonly string[]): unknown {
+  return {
+    pages: [
+      {
+        file: 'vfx.png',
+        width: 256,
+        height: 256,
+        regions: regions.map((name, index) => ({
+          name,
+          x: index * 16,
+          y: 0,
+          w: 16,
+          h: 16,
+          rotated: false,
+          offsetX: 0,
+          offsetY: 0,
+          originalW: 16,
+          originalH: 16,
+        })),
+      },
+    ],
+  };
+}
+
+// Effects (VFX / particles, Phase 3) tools: an LLM authors a particle effect through the SAME command
+// spine the GUI uses (LAW 2). Covers a full authoring flow, undo, and the typed failure modes (LAW 3).
+describe('MCP effects tools', () => {
+  it('lets an AI author a particle effect, layer, life curve, and bundle end to end', async () => {
+    const deps = makeDeps();
+    const { documentId } = asRecord(await call(deps, 'document.new', { name: 'bigwin' }));
+
+    await call(deps, 'effect.setAtlas', { documentId, atlas: atlasWith(['coin']) });
+    const { effectId } = asRecord(
+      await call(deps, 'effect.create', { documentId, name: 'coinShower', blendMode: 'additive' }),
+    );
+    expect(typeof effectId).toBe('string');
+
+    const { layerId } = asRecord(
+      await call(deps, 'effect.layer.add', {
+        documentId,
+        effectId,
+        kind: 'emitter',
+        blendMode: 'additive',
+        region: 'coin',
+      }),
+    );
+    expect(typeof layerId).toBe('string');
+
+    // Read the layer body back, patch one field, and set it through the coalescing setField command.
+    const got = asRecord(await call(deps, 'effect.get', { documentId, effectId }));
+    const effect = asRecord(got.effect);
+    const layers = effect.layers as Array<{ id: string; body: Record<string, unknown> }>;
+    const layer = layers.find((l) => l.id === layerId)!;
+    await call(deps, 'effect.layer.setField', {
+      documentId,
+      effectId,
+      layerId,
+      field: 'drag',
+      body: { ...layer.body, drag: 0.75 },
+    });
+
+    await call(deps, 'effect.lifeStop.add', {
+      documentId,
+      effectId,
+      layerId,
+      field: 'alphaOverLife',
+      t: 0.5,
+      value: 0.5,
+    });
+
+    const after = asRecord(await call(deps, 'effect.get', { documentId, effectId }));
+    const afterEffect = asRecord(after.effect);
+    const afterLayer = (
+      afterEffect.layers as Array<{
+        id: string;
+        body: { drag?: number };
+        curves: Array<{ field: string; stops: unknown[] }>;
+      }>
+    ).find((l) => l.id === layerId)!;
+    expect(afterLayer.body.drag).toBe(0.75);
+    expect(afterLayer.curves.find((c) => c.field === 'alphaOverLife')!.stops).toHaveLength(3);
+
+    // A bundle composing the effect (a coin-shower playlist item).
+    await call(deps, 'bundle.create', { documentId, name: 'megaWin' });
+    await call(deps, 'bundle.item.add', {
+      documentId,
+      name: 'megaWin',
+      item: { effect: effectId, startOffset: 0.5, anchorRole: 'left', seedSalt: 9 },
+    });
+    const bundle = asRecord(
+      asRecord(await call(deps, 'bundle.get', { documentId, name: 'megaWin' })).bundle,
+    );
+    expect((bundle.items as unknown[]).length).toBe(1);
+
+    const list = asRecord(await call(deps, 'effect.list', { documentId }));
+    expect((list.effects as unknown[]).length).toBe(1);
+  });
+
+  it('undoes an effect creation through the shared history', async () => {
+    const deps = makeDeps();
+    const { documentId } = asRecord(await call(deps, 'document.new', { name: 'undo' }));
+
+    await call(deps, 'effect.create', { documentId, name: 'sparkle' });
+    expect(
+      (asRecord(await call(deps, 'effect.list', { documentId })).effects as unknown[]).length,
+    ).toBe(1);
+
+    await call(deps, 'history.undo', { documentId });
+
+    expect(
+      (asRecord(await call(deps, 'effect.list', { documentId })).effects as unknown[]).length,
+    ).toBe(0);
+  });
+
+  it('rejects an unknown effect, a mismatched layer body, a dangling atlas, and a missing bundle effect', async () => {
+    const deps = makeDeps();
+    const { documentId } = asRecord(await call(deps, 'document.new', { name: 'neg' }));
+
+    await expectToolError(
+      call(deps, 'effect.get', { documentId, effectId: 'nope' }),
+      'EFFECT_NOT_FOUND',
+    );
+
+    await call(deps, 'effect.setAtlas', { documentId, atlas: atlasWith(['coin']) });
+    const { effectId } = asRecord(
+      await call(deps, 'effect.create', { documentId, name: 'coinShower' }),
+    );
+    const { layerId } = asRecord(
+      await call(deps, 'effect.layer.add', {
+        documentId,
+        effectId,
+        kind: 'emitter',
+        region: 'coin',
+      }),
+    );
+
+    // A sprite-animator body cannot replace an emitter layer body (boundary guard).
+    await expectToolError(
+      call(deps, 'effect.layer.setField', {
+        documentId,
+        effectId,
+        layerId,
+        field: 'region',
+        body: {
+          type: 'spriteAnimator',
+          name: 'sprite',
+          region: 'coin',
+          anchorSpace: 'world',
+          rotationDegPerSec: 0,
+          loop: true,
+          layerDuration: 1,
+        },
+      }),
+      'INVALID_INPUT',
+    );
+
+    // Swapping to an atlas that drops the still-referenced 'coin' region fails loudly.
+    await expectToolError(
+      call(deps, 'effect.setAtlas', { documentId, atlas: atlasWith(['other']) }),
+      'EFFECTS_ATLAS_DANGLING_REGION',
+    );
+
+    // A bundle item referencing a non-existent effect is rejected by the command guard.
+    await call(deps, 'bundle.create', { documentId, name: 'megaWin' });
+    await expectToolError(
+      call(deps, 'bundle.item.add', {
+        documentId,
+        name: 'megaWin',
+        item: { effect: 'ghost', startOffset: 0, anchorRole: 'center', seedSalt: 1 },
+      }),
+      'EFFECT_EDIT',
+    );
+  });
+});
+
+// Slot composer (Phase 4) tools: an LLM authors slot-game composition (grid, symbol mapping, win
+// sequence, feature flow, tumble) through the SAME command spine the GUI uses (LAW 2).
+describe('MCP slot composer tools', () => {
+  it('lets an AI compose a slot scene grid, symbol, win sequence, feature flow, and tumble', async () => {
+    const deps = makeDeps();
+    const { documentId } = asRecord(await call(deps, 'document.new', { name: 'slot' }));
+
+    await call(deps, 'slot.grid.preset', { documentId, preset: 'scatterPay6x5' });
+    const grid = asRecord(asRecord(await call(deps, 'slot.grid.get', { documentId })).grid);
+    expect(grid.topology).toBe('scatterPay');
+    expect(grid.cols).toBe(6);
+    expect(grid.rows).toBe(5);
+
+    await call(deps, 'slot.symbol.map', {
+      documentId,
+      symbolId: 'sym_wild',
+      animSet: { skeletonRef: 'hero', idle: 'idle', land: 'land', win: 'win' },
+      skeletonAnimationNames: ['idle', 'land', 'win'],
+    });
+    const symbol = asRecord(
+      await call(deps, 'slot.symbol.get', { documentId, symbolId: 'sym_wild' }),
+    );
+    expect(asRecord(symbol.animSet).skeletonRef).toBe('hero');
+    const scene = asRecord(asRecord(await call(deps, 'slot.scene.get', { documentId })).scene);
+    expect((scene.skeletons as Array<{ name: string }>).some((s) => s.name === 'hero')).toBe(true);
+
+    await call(deps, 'slot.winseq.create', { documentId, name: 'bonus' });
+    await call(deps, 'slot.winseq.setStep', {
+      documentId,
+      sequenceName: 'bonus',
+      index: 0,
+      step: { atMs: 0, target: { kind: 'allWinningCells' }, action: { kind: 'animateWin' } },
+    });
+    await call(deps, 'slot.winseq.setThresholds', {
+      documentId,
+      thresholds: { big: 10, mega: 25, epic: 100 },
+    });
+    const winSeq = asRecord(
+      asRecord(await call(deps, 'slot.winseq.get', { documentId })).winSequencer,
+    );
+    expect(asRecord(asRecord(winSeq.sequences).bonus).steps).toHaveLength(1);
+    expect(asRecord(winSeq.thresholds).epic).toBe(100);
+
+    await call(deps, 'slot.flow.createState', { documentId, name: 'freeSpins' });
+    await call(deps, 'slot.flow.addTransition', {
+      documentId,
+      transition: { from: 'base', on: { type: 'freeSpinsAwarded' }, to: 'freeSpins' },
+    });
+    const flow = asRecord(asRecord(await call(deps, 'slot.flow.get', { documentId })).featureFlows);
+    expect('freeSpins' in asRecord(flow.states)).toBe(true);
+    expect((flow.transitions as unknown[]).length).toBe(1);
+
+    await call(deps, 'slot.tumble.set', {
+      documentId,
+      tumble: {
+        explodeMs: 120,
+        dropMs: 200,
+        dropEasing: 'easeOutQuad',
+        refillStaggerMs: 40,
+        settleMs: 80,
+        stepGapMs: 150,
+        rollupCurve: 'easeInOutCubic',
+      },
+    });
+    const tumble = asRecord(asRecord(await call(deps, 'slot.tumble.get', { documentId })).tumble);
+    expect(tumble.dropMs).toBe(200);
+  });
+
+  it('undoes a win-sequence creation through the shared history', async () => {
+    const deps = makeDeps();
+    const { documentId } = asRecord(await call(deps, 'document.new', { name: 'slot-undo' }));
+
+    await call(deps, 'slot.winseq.create', { documentId, name: 'bonus' });
+    const before = asRecord(
+      asRecord(await call(deps, 'slot.winseq.get', { documentId })).winSequencer,
+    );
+    expect('bonus' in asRecord(before.sequences)).toBe(true);
+
+    await call(deps, 'history.undo', { documentId });
+
+    const after = asRecord(
+      asRecord(await call(deps, 'slot.winseq.get', { documentId })).winSequencer,
+    );
+    expect('bonus' in asRecord(after.sequences)).toBe(false);
+  });
+
+  it('rejects a duplicate sequence, the protected base state, a missing sequence, and a bad grid', async () => {
+    const deps = makeDeps();
+    const { documentId } = asRecord(await call(deps, 'document.new', { name: 'slot-neg' }));
+
+    // 'base' is the default sequence; recreating it is a duplicate.
+    await expectToolError(
+      call(deps, 'slot.winseq.create', { documentId, name: 'base' }),
+      'SLOT_EDIT',
+    );
+
+    // The mandatory base feature-flow state cannot be deleted.
+    await expectToolError(
+      call(deps, 'slot.flow.deleteState', { documentId, name: 'base' }),
+      'SLOT_EDIT',
+    );
+
+    // Setting a step on a non-existent sequence is rejected by the command guard.
+    await expectToolError(
+      call(deps, 'slot.winseq.setStep', {
+        documentId,
+        sequenceName: 'ghost',
+        index: 0,
+        step: { atMs: 0, target: { kind: 'allWinningCells' }, action: { kind: 'animateWin' } },
+      }),
+      'SLOT_EDIT',
+    );
+
+    // A cluster grid must be square; a 7x5 cluster is rejected at the command boundary.
+    await expectToolError(
+      call(deps, 'slot.grid.set', {
+        documentId,
+        grid: {
+          topology: 'cluster',
+          cols: 7,
+          rows: 5,
+          cellWidth: 100,
+          cellHeight: 100,
+          cellGap: 4,
+          reelStopStaggerMs: 0,
+          gravity: 'cluster-down',
+          anticipation: { triggerSymbols: ['scatter'], thresholdCount: 3, maxAnticipatingCols: 2 },
+        },
+      }),
+      'SLOT_EDIT',
+    );
+
+    // A symbol mapping whose chosen animation is not in the injected skeleton animation names fails.
+    await expectToolError(
+      call(deps, 'slot.symbol.map', {
+        documentId,
+        symbolId: 'sym_bad',
+        animSet: { skeletonRef: 'hero', idle: 'idle', land: 'land', win: 'win' },
+        skeletonAnimationNames: ['idle', 'land'],
+      }),
+      'SLOT_EDIT',
+    );
+  });
+});
+
 // A guard test enumerating the full tool catalog, so adding or removing a tool is a deliberate, reviewed
 // change (and the WP-2.6 to WP-2.9 tools are pinned present). The list mirrors TOOLS exactly.
 describe('MCP tool catalog', () => {

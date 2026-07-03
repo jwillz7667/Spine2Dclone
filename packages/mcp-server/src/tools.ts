@@ -72,6 +72,46 @@ import {
   SetTransformKeyframeCommand,
   SkinError,
   UnbindMeshCommand,
+  // Effects (VFX / particles, Phase 3) command surface (WP-3.7) and its typed errors.
+  CreateEffectCommand,
+  DeleteEffectCommand,
+  RenameEffectCommand,
+  SetEffectMetaCommand,
+  SetEffectsAtlasCommand,
+  AddLayerCommand,
+  RemoveLayerCommand,
+  ReorderLayersCommand,
+  SetLayerFieldCommand,
+  SetLayerBlendModeCommand,
+  AddLifeStopCommand,
+  RemoveLifeStopCommand,
+  MoveLifeStopCommand,
+  SetLifeStopValueCommand,
+  SetLifeStopCurveCommand,
+  CreateBundleCommand,
+  DeleteBundleCommand,
+  AddBundleItemCommand,
+  RemoveBundleItemCommand,
+  ReorderBundleItemsCommand,
+  SetBundleItemCommand,
+  EffectEditError,
+  EffectsAtlasDanglingRegionError,
+  findEffectSnapshot,
+  findBundleSnapshot,
+  // Slot-composer (Phase 4) command surface and its typed errors.
+  SetGridConfigCommand,
+  MapSymbolAnimSetCommand,
+  CreateWinSequenceCommand,
+  SetWinSequenceStepCommand,
+  ReorderWinSequenceStepCommand,
+  SetEscalationThresholdCommand,
+  CreateFeatureFlowStateCommand,
+  AddFeatureFlowTransitionCommand,
+  DeleteFeatureFlowStateCommand,
+  RenameFeatureFlowStateCommand,
+  RemoveFeatureFlowTransitionCommand,
+  SetTumbleChoreographyCommand,
+  SlotEditError,
   exportDocument,
   type AnimationEntity,
   type AnimationId,
@@ -99,9 +139,23 @@ import {
   type TransformConstraintParams,
   type TransformKeyframeMix,
   type WeightDab,
+  type EffectId,
+  type EffectLayerId,
+  type LifeStopId,
+  type BundleItemId,
+  type EffectEntity,
+  type EffectLayerEntity,
+  type BundleEntity,
+  type EffectLayerBody,
+  type EffectMetaPatch,
+  type BundleItemInit,
+  type BundleItemPatch,
+  type NewLayerKind,
+  type MapSymbolAnimSetInit,
 } from '@marionette/document-core';
 import { FormatValidationError } from '@marionette/format';
 import type { SkeletonDocument } from '@marionette/format/types';
+import type { SymbolId } from '@marionette/format/slot-types';
 import {
   MAT2X3_STRIDE,
   buildPose,
@@ -703,6 +757,1387 @@ const skinRegionAttachmentSchema = z
     color: rgbaSchema.default({ r: 1, g: 1, b: 1, a: 1 }),
   })
   .strict();
+
+// ============================================================================
+// Effects (VFX / particles, Phase 3, WP-3.7) and slot-composer (Phase 4) control surface. Each
+// mutating tool drives the SAME document-core command the GUI uses, on the live per-document History
+// (LAW 2): effect edits share the ONE project undo stack with skeleton edits. Every input is validated
+// at the boundary and every typed document-core failure (EffectEditError / SlotEditError /
+// EffectsAtlasDanglingRegionError) is surfaced as a typed McpToolError carrying its reason (LAW 3).
+// ============================================================================
+
+const effectId = z.string().min(1);
+const effectLayerId = z.string().min(1);
+const lifeStopId = z.string().min(1);
+const bundleItemId = z.string().min(1);
+const bundleName = z.string().min(1);
+
+// Brand a client-supplied id string; the id is validated against the live effects model by the require*
+// helpers, so a non-existent id is a typed *_NOT_FOUND rather than a silent no-op (mirrors asBoneId).
+function asEffectId(id: string): EffectId {
+  return id as EffectId;
+}
+function asEffectLayerId(id: string): EffectLayerId {
+  return id as EffectLayerId;
+}
+function asLifeStopId(id: string): LifeStopId {
+  return id as LifeStopId;
+}
+function asBundleItemId(id: string): BundleItemId {
+  return id as BundleItemId;
+}
+
+function requireEffect(session: Session, id: string): EffectEntity {
+  const effect = session.document.effects.getEffect(asEffectId(id));
+  if (effect === undefined) {
+    throw new McpToolError('EFFECT_NOT_FOUND', `no effect with id "${id}"`);
+  }
+  return effect;
+}
+
+function requireLayer(session: Session, effect: string, layer: string): EffectLayerEntity {
+  const found = session.document.effects.getLayer(asEffectId(effect), asEffectLayerId(layer));
+  if (found === undefined) {
+    throw new McpToolError('EFFECT_LAYER_NOT_FOUND', `no layer "${layer}" on effect "${effect}"`);
+  }
+  return found;
+}
+
+function requireBundle(session: Session, name: string): BundleEntity {
+  const bundle = session.document.effects.getBundle(name);
+  if (bundle === undefined) {
+    throw new McpToolError('BUNDLE_NOT_FOUND', `no bundle "${name}"`);
+  }
+  return bundle;
+}
+
+// Execute an effect-editing command, converting the effects guards into typed tool errors. An
+// EffectEditError carries its reason (a missing entity, a bad simulationDt, a life-curve floor, a stop
+// order break, a value-shape mismatch, a missing bundle effect); a SetEffectsAtlas that drops a still
+// referenced region carries the cross-reference report. The guards throw BEFORE any mutation, so a
+// rejected edit changes nothing and pushes no history entry.
+function executeEffectEdit(session: Session, cmd: Command): number {
+  try {
+    session.document.history.execute(cmd);
+  } catch (error) {
+    if (error instanceof EffectEditError) {
+      throw new McpToolError('EFFECT_EDIT', error.message, { reason: error.reason });
+    }
+    if (error instanceof EffectsAtlasDanglingRegionError) {
+      throw new McpToolError('EFFECTS_ATLAS_DANGLING_REGION', error.message, {
+        errors: error.report.errors,
+      });
+    }
+    throw error;
+  }
+  return session.document.effects.revision;
+}
+
+// Execute a slot-scene-editing command (grid / symbol / win-sequence / feature-flow / tumble),
+// converting the SlotEditError guard into a typed SLOT_EDIT tool error carrying the reason. The guard
+// throws BEFORE any mutation, so a rejected edit changes nothing and pushes no history entry.
+function executeSlotEdit(session: Session, cmd: Command): number {
+  try {
+    session.document.history.execute(cmd);
+  } catch (error) {
+    if (error instanceof SlotEditError) {
+      throw new McpToolError('SLOT_EDIT', error.message, { reason: error.reason });
+    }
+    throw error;
+  }
+  return session.document.model.revision;
+}
+
+// ----- effects value schemas (mirror the format effects layer contract at the MCP boundary) -----
+// The effects layer sub-schemas are internal to the format package (they are not on its public barrel,
+// and the document-core layer BODY drops the promoted life curves and trail curves), so the boundary
+// contract is re-declared here as the exact shape of a document-core EffectLayerBody (effects-state.ts).
+
+const effectsRangeSchema = z
+  .object({ min: z.number().finite(), max: z.number().finite() })
+  .strict();
+const effectsVec2Schema = z.object({ x: z.number().finite(), y: z.number().finite() }).strict();
+const effectsRgbSchema = z
+  .object({ r: colorComponent, g: colorComponent, b: colorComponent })
+  .strict();
+
+const spawnConfigSchema = z.discriminatedUnion('mode', [
+  z
+    .object({ mode: z.literal('rate'), particlesPerSecond: z.number().finite().nonnegative() })
+    .strict(),
+  z
+    .object({
+      mode: z.literal('burst'),
+      count: z.number().int().nonnegative(),
+      atTime: z.number().finite().nonnegative(),
+    })
+    .strict(),
+  z
+    .object({
+      mode: z.literal('bursts'),
+      bursts: z
+        .array(
+          z
+            .object({
+              atTime: z.number().finite().nonnegative(),
+              count: z.number().int().nonnegative(),
+            })
+            .strict(),
+        )
+        .min(1),
+    })
+    .strict(),
+]);
+
+const emitterShapeSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('point') }).strict(),
+  z
+    .object({
+      kind: z.literal('line'),
+      x1: z.number().finite(),
+      y1: z.number().finite(),
+      x2: z.number().finite(),
+      y2: z.number().finite(),
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal('circle'),
+      radius: z.number().finite().nonnegative(),
+      edgeOnly: z.boolean(),
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal('rect'),
+      width: z.number().finite().nonnegative(),
+      height: z.number().finite().nonnegative(),
+    })
+    .strict(),
+]);
+
+const particleTextureSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('static'), region: z.string().min(1) }).strict(),
+  z
+    .object({
+      kind: z.literal('animated'),
+      regions: z.array(z.string().min(1)).min(1),
+      fps: z.number().finite().positive(),
+      mode: z.enum(['loop', 'overLife', 'once']),
+    })
+    .strict(),
+]);
+
+// The emitter's particle trail MINUS its two over-length life curves (those are promoted into the
+// layer's curve set and edited through the life-stop tools); null when the emitter has no trail.
+const emitterTrailBodySchema = z
+  .object({
+    region: z.string().min(1),
+    maxSegments: z.number().int().min(1),
+    segmentSpacing: z.number().finite().positive(),
+  })
+  .strict();
+
+const emitterLayerBodySchema = z
+  .object({
+    type: z.literal('emitter'),
+    name: z.string().min(1),
+    maxParticles: z.number().int().min(1),
+    spawn: spawnConfigSchema,
+    shape: emitterShapeSchema,
+    lifetime: effectsRangeSchema,
+    startSpeed: effectsRangeSchema,
+    emissionAngle: effectsRangeSchema,
+    startRotation: effectsRangeSchema,
+    angularVelocity: effectsRangeSchema,
+    startScale: effectsRangeSchema,
+    gravity: effectsVec2Schema,
+    acceleration: effectsVec2Schema,
+    drag: z.number().finite().nonnegative(),
+    texture: particleTextureSchema,
+    trail: emitterTrailBodySchema.nullable(),
+  })
+  .strict();
+
+const spriteAnimatorLayerBodySchema = z
+  .object({
+    type: z.literal('spriteAnimator'),
+    name: z.string().min(1),
+    region: z.string().min(1),
+    anchorSpace: z.enum(['world', 'screen']),
+    rotationDegPerSec: z.number().finite(),
+    loop: z.boolean(),
+    layerDuration: z.number().finite().positive(),
+  })
+  .strict();
+
+const ribbonTrailLayerBodySchema = z
+  .object({
+    type: z.literal('ribbonTrail'),
+    name: z.string().min(1),
+    region: z.string().min(1),
+    anchorRef: z.string().min(1),
+    maxSegments: z.number().int().min(1),
+    segmentSpacing: z.number().finite().positive(),
+  })
+  .strict();
+
+const layerBodySchema = z.discriminatedUnion('type', [
+  emitterLayerBodySchema,
+  spriteAnimatorLayerBodySchema,
+  ribbonTrailLayerBodySchema,
+]);
+
+const newLayerKindSchema = z.enum(['emitter', 'spriteAnimator', 'ribbonTrail']);
+
+// The eight life-curve fields a layer can carry (effects-state.ts LifeCurveField).
+const lifeCurveFieldSchema = z.enum([
+  'scaleOverLife',
+  'colorOverLife',
+  'alphaOverLife',
+  'widthOverLength',
+  'colorOverLength',
+  'alphaOverLength',
+  'trailWidthOverLength',
+  'trailAlphaOverLength',
+]);
+
+// A life-curve stop value: a scalar (scale/alpha curves) or an RGB color (color curves). The command
+// rejects a value whose shape does not match the target curve (lifeStopValueShape) at execute time.
+const lifeStopValueSchema = z.union([z.number().finite(), effectsRgbSchema]);
+
+// The effects atlas (AtlasRef): pages of packed regions. Mirrors the skeletal atlas schema; SetEffectsAtlas
+// re-validates every layer's region reference against the candidate atlas and fails loudly on a dangling one.
+const effectsAtlasRegionSchema = z
+  .object({
+    name: z.string(),
+    x: z.number().finite(),
+    y: z.number().finite(),
+    w: z.number().finite(),
+    h: z.number().finite(),
+    rotated: z.boolean(),
+    offsetX: z.number().finite(),
+    offsetY: z.number().finite(),
+    originalW: z.number().finite(),
+    originalH: z.number().finite(),
+  })
+  .strict();
+const effectsAtlasPageSchema = z
+  .object({
+    file: z.string(),
+    width: z.number().finite(),
+    height: z.number().finite(),
+    regions: z.array(effectsAtlasRegionSchema),
+  })
+  .strict();
+const effectsAtlasSchema = z.object({ pages: z.array(effectsAtlasPageSchema) }).strict();
+
+// A bundle item's editable fields (the format BundleItem minus its id, with `effect` an EffectId string).
+const bundleItemInitSchema = z
+  .object({
+    effect: effectId,
+    startOffset: z.number().finite(),
+    anchorRole: z.string().min(1),
+    seedSalt: z.number().int(),
+  })
+  .strict();
+
+// Project an effect entity to a list summary (the layer detail lives in `effect.get`).
+function effectSummary(effect: EffectEntity): Record<string, unknown> {
+  return {
+    id: effect.id,
+    name: effect.name,
+    duration: effect.duration,
+    deterministic: effect.deterministic,
+    simulationDt: effect.simulationDt,
+    blendMode: effect.blendMode,
+    layerCount: effect.layerOrder.length,
+  };
+}
+
+function bundleSummary(bundle: BundleEntity): Record<string, unknown> {
+  return { name: bundle.name, itemCount: bundle.itemOrder.length };
+}
+
+// The slot-scene composer tools address symbols by SymbolId (a validated non-empty string brand). The
+// input is bounded non-empty at the boundary; the phantom brand exists only in the type system.
+const symbolIdInput = z.string().min(1);
+function asSymbolId(id: string): SymbolId {
+  return id as SymbolId;
+}
+
+// ----- slot-composer value schemas (mirror the format slot contract at the MCP boundary) -----
+// The format slot sub-schemas resolve to a different Zod version than mcp-server (they cannot compose
+// with mcp-server's Zod at the type level), so the boundary contract is re-declared here as the exact
+// shape of each authored slot type (format-contract section 15.3); the commands re-validate semantics.
+const symbolIdValueSchema = z
+  .string()
+  .min(1)
+  .transform((value): SymbolId => value as SymbolId);
+
+const gridTopologySchema = z.enum(['reelStrip', 'scatterPay', 'cluster']);
+const gravityRuleSchema = z.enum(['column-down', 'cluster-down']);
+const gridDimensionSchema = z.number().int().min(1).max(12);
+const anticipationConfigSchema = z
+  .object({
+    triggerSymbols: z.array(symbolIdValueSchema),
+    thresholdCount: z.number().int().finite(),
+    maxAnticipatingCols: z.number().int().finite(),
+  })
+  .strict();
+const gridConfigSchema = z
+  .object({
+    topology: gridTopologySchema,
+    cols: gridDimensionSchema,
+    rows: gridDimensionSchema,
+    cellWidth: z.number().int().positive(),
+    cellHeight: z.number().int().positive(),
+    cellGap: z.number().int().nonnegative(),
+    reelStopStaggerMs: z.number().int().nonnegative(),
+    gravity: gravityRuleSchema,
+    anticipation: anticipationConfigSchema,
+  })
+  .strict();
+
+const symbolAnimSetSchema = z
+  .object({
+    skeletonRef: z.string().min(1),
+    idle: z.string().min(1),
+    land: z.string().min(1),
+    win: z.string().min(1),
+    anticipation: z.string().min(1).optional(),
+  })
+  .strict();
+
+const rollupCurveSchema = z.enum(['linear', 'easeInQuad', 'easeOutQuad', 'easeInOutCubic']);
+const escalationTierSchema = z.enum(['big', 'mega', 'epic']);
+const winTargetRuleSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('allWinningCells') }).strict(),
+  z.object({ kind: z.literal('byLine'), index: z.number().int().nonnegative() }).strict(),
+  z.object({ kind: z.literal('bySymbol'), symbol: symbolIdValueSchema }).strict(),
+]);
+const winStepActionSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('animateWin') }).strict(),
+  z
+    .object({
+      kind: z.literal('vfx'),
+      preset: z.string().min(1),
+      anchorRule: z.enum(['eachCell', 'gridCenter']),
+    })
+    .strict(),
+  z.object({ kind: z.literal('rollupStart'), curve: rollupCurveSchema }).strict(),
+  z.object({ kind: z.literal('escalationBanner'), tier: escalationTierSchema }).strict(),
+]);
+const winSequenceStepSchema = z
+  .object({
+    atMs: z.number().int().nonnegative(),
+    target: winTargetRuleSchema,
+    action: winStepActionSchema,
+  })
+  .strict();
+const escalationThresholdsSchema = z
+  .object({
+    big: z.number().nonnegative().finite(),
+    mega: z.number().nonnegative().finite(),
+    epic: z.number().nonnegative().finite(),
+  })
+  .strict();
+
+const featureMatchSchema = z
+  .object({
+    type: z.string().min(1),
+    dataEquals: z
+      .object({ field: z.string().min(1), equals: z.union([z.number(), z.string(), z.boolean()]) })
+      .strict()
+      .optional(),
+  })
+  .strict();
+const featureFlowCinematicSchema = z
+  .object({ vfxPreset: z.string().min(1).optional(), animation: z.string().min(1).optional() })
+  .strict();
+const featureFlowNodeSchema = z
+  .object({ cinematic: featureFlowCinematicSchema.optional() })
+  .strict();
+const featureFlowTransitionSchema = z
+  .object({ from: z.string().min(1), on: featureMatchSchema, to: z.string().min(1) })
+  .strict();
+
+const durationMsSchema = z.number().int().nonnegative();
+const tumbleChoreographySchema = z
+  .object({
+    explodeMs: durationMsSchema,
+    dropMs: durationMsSchema,
+    dropEasing: rollupCurveSchema,
+    refillStaggerMs: durationMsSchema,
+    settleMs: durationMsSchema,
+    stepGapMs: durationMsSchema,
+    rollupCurve: rollupCurveSchema,
+  })
+  .strict();
+
+const effectsTools: readonly ToolDefinition[] = [
+  // ----- effects: library + effect meta (each drives the WP-3.7 command on the shared History, LAW 2) -----
+  defineTool(
+    {
+      name: 'effect.create',
+      title: 'Create effect',
+      description:
+        'Create a new, layer-less effect in the VFX library and return its id. Add layers with ' +
+        'effect.layer.add.',
+      input: z
+        .object({
+          documentId,
+          name: z.string().min(1),
+          duration: z.number().finite().nullable().default(null),
+          deterministic: z.boolean().default(true),
+          simulationDt: z
+            .number()
+            .finite()
+            .positive()
+            .default(1 / 60),
+          blendMode: blendModeSchema.default('normal'),
+        })
+        .strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      const command = new CreateEffectCommand({
+        name: input.name,
+        duration: input.duration,
+        deterministic: input.deterministic,
+        simulationDt: input.simulationDt,
+        blendMode: input.blendMode,
+      });
+      executeEffectEdit(session, command);
+      return { effectId: command.createdId };
+    },
+  ),
+  defineTool(
+    {
+      name: 'effect.delete',
+      title: 'Delete effect',
+      description:
+        'Delete an effect and cascade-remove every bundle item that references it (one undo step).',
+      input: z.object({ documentId, effectId }).strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireEffect(session, input.effectId);
+      return {
+        revision: executeEffectEdit(session, new DeleteEffectCommand(asEffectId(input.effectId))),
+      };
+    },
+  ),
+  defineTool(
+    {
+      name: 'effect.rename',
+      title: 'Rename effect',
+      description:
+        'Rename an effect (identity is the id, so bundle-item references are unaffected).',
+      input: z.object({ documentId, effectId, name: z.string().min(1) }).strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireEffect(session, input.effectId);
+      return {
+        revision: executeEffectEdit(
+          session,
+          new RenameEffectCommand(asEffectId(input.effectId), input.name),
+        ),
+      };
+    },
+  ),
+  defineTool(
+    {
+      name: 'effect.setMeta',
+      title: 'Set effect meta',
+      description:
+        'Set an effect duration (null = endless), deterministic flag, and/or simulationDt (must be > 0). ' +
+        'Only the provided fields change.',
+      input: z
+        .object({
+          documentId,
+          effectId,
+          duration: z.number().finite().nullable().optional(),
+          deterministic: z.boolean().optional(),
+          simulationDt: z.number().finite().positive().optional(),
+        })
+        .strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireEffect(session, input.effectId);
+      const patch: EffectMetaPatch = {
+        ...(input.duration !== undefined ? { duration: input.duration } : {}),
+        ...(input.deterministic !== undefined ? { deterministic: input.deterministic } : {}),
+        ...(input.simulationDt !== undefined ? { simulationDt: input.simulationDt } : {}),
+      };
+      return {
+        revision: executeEffectEdit(
+          session,
+          new SetEffectMetaCommand(asEffectId(input.effectId), patch),
+        ),
+      };
+    },
+  ),
+  defineTool(
+    {
+      name: 'effect.setAtlas',
+      title: 'Set effects atlas',
+      description:
+        'Replace the VFX atlas. Rejects (EFFECTS_ATLAS_DANGLING_REGION) any swap that drops a region a ' +
+        'layer still references.',
+      input: z.object({ documentId, atlas: effectsAtlasSchema }).strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      return { revision: executeEffectEdit(session, new SetEffectsAtlasCommand(input.atlas)) };
+    },
+  ),
+
+  // ----- effects: layers -----
+  defineTool(
+    {
+      name: 'effect.layer.add',
+      title: 'Add effect layer',
+      description:
+        'Append a default layer (emitter / spriteAnimator / ribbonTrail) to an effect and return its id. ' +
+        '`region` must resolve in the effects atlas or export will fail.',
+      input: z
+        .object({
+          documentId,
+          effectId,
+          kind: newLayerKindSchema,
+          blendMode: blendModeSchema.default('additive'),
+          region: z.string().min(1),
+        })
+        .strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireEffect(session, input.effectId);
+      const command = new AddLayerCommand(
+        asEffectId(input.effectId),
+        input.kind satisfies NewLayerKind,
+        input.blendMode,
+        input.region,
+      );
+      executeEffectEdit(session, command);
+      return { layerId: command.createdLayerId };
+    },
+  ),
+  defineTool(
+    {
+      name: 'effect.layer.remove',
+      title: 'Remove effect layer',
+      description:
+        'Remove a layer from an effect (one undo step restores it at its prior z position).',
+      input: z.object({ documentId, effectId, layerId: effectLayerId }).strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireLayer(session, input.effectId, input.layerId);
+      return {
+        revision: executeEffectEdit(
+          session,
+          new RemoveLayerCommand(asEffectId(input.effectId), asEffectLayerId(input.layerId)),
+        ),
+      };
+    },
+  ),
+  defineTool(
+    {
+      name: 'effect.layer.reorder',
+      title: 'Reorder effect layers',
+      description:
+        'Reorder an effect layers by an explicit ordered layer-id list (a permutation of the current ' +
+        'layer ids; z order, first is bottom).',
+      input: z.object({ documentId, effectId, order: z.array(effectLayerId).min(1) }).strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireEffect(session, input.effectId);
+      return {
+        revision: executeEffectEdit(
+          session,
+          new ReorderLayersCommand(asEffectId(input.effectId), input.order.map(asEffectLayerId)),
+        ),
+      };
+    },
+  ),
+  defineTool(
+    {
+      name: 'effect.layer.setField',
+      title: 'Set effect layer field',
+      description:
+        'Replace a layer body with a full rebuilt body (the caller patches one field and passes the whole ' +
+        'body). `field` is the coalesce key. The body `type` must match the existing layer type.',
+      input: z
+        .object({
+          documentId,
+          effectId,
+          layerId: effectLayerId,
+          field: z.string().min(1),
+          body: layerBodySchema,
+        })
+        .strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      const layer = requireLayer(session, input.effectId, input.layerId);
+      if (input.body.type !== layer.body.type) {
+        throw new McpToolError(
+          'INVALID_INPUT',
+          `body type "${input.body.type}" does not match the layer type "${layer.body.type}"`,
+        );
+      }
+      const body: EffectLayerBody = input.body;
+      return {
+        revision: executeEffectEdit(
+          session,
+          new SetLayerFieldCommand(
+            asEffectId(input.effectId),
+            asEffectLayerId(input.layerId),
+            input.field,
+            body,
+          ),
+        ),
+      };
+    },
+  ),
+  defineTool(
+    {
+      name: 'effect.layer.setBlendMode',
+      title: 'Set effect layer blend mode',
+      description: 'Set a layer per-layer blend mode.',
+      input: z
+        .object({ documentId, effectId, layerId: effectLayerId, blendMode: blendModeSchema })
+        .strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireLayer(session, input.effectId, input.layerId);
+      return {
+        revision: executeEffectEdit(
+          session,
+          new SetLayerBlendModeCommand(
+            asEffectId(input.effectId),
+            asEffectLayerId(input.layerId),
+            input.blendMode,
+          ),
+        ),
+      };
+    },
+  ),
+
+  // ----- effects: life curves (per-layer scale/color/alpha over life or over length) -----
+  defineTool(
+    {
+      name: 'effect.lifeStop.add',
+      title: 'Add life-curve stop',
+      description:
+        'Insert an interior stop (t in (0,1)) into a layer life curve, keeping t strictly ascending. ' +
+        '`value` is a scalar or an {r,g,b} matching the curve field.',
+      input: z
+        .object({
+          documentId,
+          effectId,
+          layerId: effectLayerId,
+          field: lifeCurveFieldSchema,
+          t: z.number().finite(),
+          value: lifeStopValueSchema,
+          curve: curveSchema.default('linear'),
+        })
+        .strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireLayer(session, input.effectId, input.layerId);
+      return {
+        revision: executeEffectEdit(
+          session,
+          new AddLifeStopCommand(
+            asEffectId(input.effectId),
+            asEffectLayerId(input.layerId),
+            input.field,
+            input.t,
+            input.value,
+            input.curve,
+          ),
+        ),
+      };
+    },
+  ),
+  defineTool(
+    {
+      name: 'effect.lifeStop.remove',
+      title: 'Remove life-curve stop',
+      description:
+        'Remove an interior stop from a layer life curve. The t=0 / t=1 anchors and the two-stop floor ' +
+        'are protected (EFFECT_EDIT lifeCurveMinStops).',
+      input: z
+        .object({ documentId, effectId, layerId: effectLayerId, stopId: lifeStopId })
+        .strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireLayer(session, input.effectId, input.layerId);
+      return {
+        revision: executeEffectEdit(
+          session,
+          new RemoveLifeStopCommand(
+            asEffectId(input.effectId),
+            asEffectLayerId(input.layerId),
+            asLifeStopId(input.stopId),
+          ),
+        ),
+      };
+    },
+  ),
+  defineTool(
+    {
+      name: 'effect.lifeStop.move',
+      title: 'Move life-curve stop',
+      description:
+        'Move a stop to a new t, keeping strict-ascending order and the t=0 / t=1 anchor positions.',
+      input: z
+        .object({
+          documentId,
+          effectId,
+          layerId: effectLayerId,
+          stopId: lifeStopId,
+          t: z.number().finite(),
+        })
+        .strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireLayer(session, input.effectId, input.layerId);
+      return {
+        revision: executeEffectEdit(
+          session,
+          new MoveLifeStopCommand(
+            asEffectId(input.effectId),
+            asEffectLayerId(input.layerId),
+            asLifeStopId(input.stopId),
+            input.t,
+          ),
+        ),
+      };
+    },
+  ),
+  defineTool(
+    {
+      name: 'effect.lifeStop.setValue',
+      title: 'Set life-curve stop value',
+      description: 'Set a stop value (a scalar or an {r,g,b} matching the curve field shape).',
+      input: z
+        .object({
+          documentId,
+          effectId,
+          layerId: effectLayerId,
+          stopId: lifeStopId,
+          value: lifeStopValueSchema,
+        })
+        .strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireLayer(session, input.effectId, input.layerId);
+      return {
+        revision: executeEffectEdit(
+          session,
+          new SetLifeStopValueCommand(
+            asEffectId(input.effectId),
+            asEffectLayerId(input.layerId),
+            asLifeStopId(input.stopId),
+            input.value,
+          ),
+        ),
+      };
+    },
+  ),
+  defineTool(
+    {
+      name: 'effect.lifeStop.setCurve',
+      title: 'Set life-curve stop easing',
+      description: 'Set a stop outgoing easing (linear / stepped / a cubic bezier).',
+      input: z
+        .object({
+          documentId,
+          effectId,
+          layerId: effectLayerId,
+          stopId: lifeStopId,
+          curve: curveSchema,
+        })
+        .strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireLayer(session, input.effectId, input.layerId);
+      return {
+        revision: executeEffectEdit(
+          session,
+          new SetLifeStopCurveCommand(
+            asEffectId(input.effectId),
+            asEffectLayerId(input.layerId),
+            asLifeStopId(input.stopId),
+            input.curve,
+          ),
+        ),
+      };
+    },
+  ),
+
+  // ----- effects: bundles (composed effect playlists, e.g. a big-win coin shower + ray burst) -----
+  defineTool(
+    {
+      name: 'bundle.create',
+      title: 'Create bundle',
+      description: 'Create a new, empty, named effect bundle.',
+      input: z.object({ documentId, name: bundleName }).strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      executeEffectEdit(session, new CreateBundleCommand(input.name));
+      return { name: input.name };
+    },
+  ),
+  defineTool(
+    {
+      name: 'bundle.delete',
+      title: 'Delete bundle',
+      description: 'Delete a named bundle and all its items (one undo step).',
+      input: z.object({ documentId, name: bundleName }).strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireBundle(session, input.name);
+      return { revision: executeEffectEdit(session, new DeleteBundleCommand(input.name)) };
+    },
+  ),
+  defineTool(
+    {
+      name: 'bundle.item.add',
+      title: 'Add bundle item',
+      description:
+        'Append an item (a referenced effect + startOffset + anchorRole + seedSalt) to a bundle. The ' +
+        'referenced effect must exist (EFFECT_EDIT bundleEffectMissing).',
+      input: z.object({ documentId, name: bundleName, item: bundleItemInitSchema }).strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireBundle(session, input.name);
+      const init: BundleItemInit = {
+        effect: asEffectId(input.item.effect),
+        startOffset: input.item.startOffset,
+        anchorRole: input.item.anchorRole,
+        seedSalt: input.item.seedSalt,
+      };
+      return { revision: executeEffectEdit(session, new AddBundleItemCommand(input.name, init)) };
+    },
+  ),
+  defineTool(
+    {
+      name: 'bundle.item.remove',
+      title: 'Remove bundle item',
+      description: 'Remove an item from a bundle by its item id.',
+      input: z.object({ documentId, name: bundleName, itemId: bundleItemId }).strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireBundle(session, input.name);
+      return {
+        revision: executeEffectEdit(
+          session,
+          new RemoveBundleItemCommand(input.name, asBundleItemId(input.itemId)),
+        ),
+      };
+    },
+  ),
+  defineTool(
+    {
+      name: 'bundle.item.reorder',
+      title: 'Reorder bundle items',
+      description: 'Reorder a bundle items by an explicit ordered item-id list (a permutation).',
+      input: z
+        .object({ documentId, name: bundleName, order: z.array(bundleItemId).min(1) })
+        .strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireBundle(session, input.name);
+      return {
+        revision: executeEffectEdit(
+          session,
+          new ReorderBundleItemsCommand(input.name, input.order.map(asBundleItemId)),
+        ),
+      };
+    },
+  ),
+  defineTool(
+    {
+      name: 'bundle.item.set',
+      title: 'Set bundle item',
+      description:
+        'Patch a bundle item fields (effect / startOffset / anchorRole / seedSalt). Only the provided ' +
+        'fields change; a new effect reference must exist.',
+      input: z
+        .object({
+          documentId,
+          name: bundleName,
+          itemId: bundleItemId,
+          effect: effectId.optional(),
+          startOffset: z.number().finite().optional(),
+          anchorRole: z.string().min(1).optional(),
+          seedSalt: z.number().int().optional(),
+        })
+        .strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireBundle(session, input.name);
+      const patch: BundleItemPatch = {
+        ...(input.effect !== undefined ? { effect: asEffectId(input.effect) } : {}),
+        ...(input.startOffset !== undefined ? { startOffset: input.startOffset } : {}),
+        ...(input.anchorRole !== undefined ? { anchorRole: input.anchorRole } : {}),
+        ...(input.seedSalt !== undefined ? { seedSalt: input.seedSalt } : {}),
+      };
+      return {
+        revision: executeEffectEdit(
+          session,
+          new SetBundleItemCommand(input.name, asBundleItemId(input.itemId), patch),
+        ),
+      };
+    },
+  ),
+
+  // ----- effects: read (so an LLM can see the current library / atlas / bundles) -----
+  defineTool(
+    {
+      name: 'effect.getSnapshot',
+      title: 'Get effects snapshot',
+      description:
+        'Return the deterministic snapshot of the whole effects library (effects, atlas, bundles).',
+      input: z.object({ documentId }).strict(),
+    },
+    (deps, input) => ({
+      snapshot: deps.sessions.get(input.documentId).document.effects.snapshot(),
+    }),
+  ),
+  defineTool(
+    {
+      name: 'effect.list',
+      title: 'List effects',
+      description: 'List the effects (id, name, meta, layer count) in library order.',
+      input: z.object({ documentId }).strict(),
+    },
+    (deps, input) => ({
+      effects: deps.sessions.get(input.documentId).document.effects.effects().map(effectSummary),
+    }),
+  ),
+  defineTool(
+    {
+      name: 'effect.get',
+      title: 'Get effect',
+      description: 'Get one effect with all its layers, bodies, and life curves by id.',
+      input: z.object({ documentId, effectId }).strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireEffect(session, input.effectId);
+      return {
+        effect: findEffectSnapshot(session.document.effects.snapshot(), input.effectId),
+      };
+    },
+  ),
+  defineTool(
+    {
+      name: 'effect.getAtlas',
+      title: 'Get effects atlas',
+      description: 'Return the current VFX atlas (pages and regions).',
+      input: z.object({ documentId }).strict(),
+    },
+    (deps, input) => ({ atlas: deps.sessions.get(input.documentId).document.effects.atlas() }),
+  ),
+  defineTool(
+    {
+      name: 'bundle.list',
+      title: 'List bundles',
+      description: 'List the effect bundles (name, item count) in bundle order.',
+      input: z.object({ documentId }).strict(),
+    },
+    (deps, input) => ({
+      bundles: deps.sessions.get(input.documentId).document.effects.bundles().map(bundleSummary),
+    }),
+  ),
+  defineTool(
+    {
+      name: 'bundle.get',
+      title: 'Get bundle',
+      description: 'Get one bundle with all its items by name.',
+      input: z.object({ documentId, name: bundleName }).strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireBundle(session, input.name);
+      return { bundle: findBundleSnapshot(session.document.effects.snapshot(), input.name) };
+    },
+  ),
+];
+
+const slotSceneTools: readonly ToolDefinition[] = [
+  // ----- slot composer: grid (each drives the WP-4.5+ command on the shared History, LAW 2) -----
+  defineTool(
+    {
+      name: 'slot.grid.set',
+      title: 'Set slot grid',
+      description:
+        'Set the slot grid config (topology + dimensions + gravity, optional anticipation). Rejects an ' +
+        'invalid topology/shape combination (SLOT_EDIT).',
+      input: z.object({ documentId, grid: gridConfigSchema }).strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      return { revision: executeSlotEdit(session, new SetGridConfigCommand(input.grid)) };
+    },
+  ),
+  defineTool(
+    {
+      name: 'slot.grid.preset',
+      title: 'Apply slot grid preset',
+      description:
+        'Apply a canonical grid preset in one call: reelStrip5x3, scatterPay6x5, or cluster7x7.',
+      input: z
+        .object({
+          documentId,
+          preset: z.enum(['reelStrip5x3', 'scatterPay6x5', 'cluster7x7']),
+        })
+        .strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      const command =
+        input.preset === 'reelStrip5x3'
+          ? SetGridConfigCommand.reelStrip5x3()
+          : input.preset === 'scatterPay6x5'
+            ? SetGridConfigCommand.scatterPay6x5()
+            : SetGridConfigCommand.cluster7x7();
+      return { revision: executeSlotEdit(session, command) };
+    },
+  ),
+
+  // ----- slot composer: symbol library -----
+  defineTool(
+    {
+      name: 'slot.symbol.map',
+      title: 'Map symbol anim set',
+      description:
+        'Map a SymbolId to a skeleton + idle/land/win(/anticipation) animation set, adding the skeletonRef ' +
+        'to the scene refs. Provide `skeletonAnimationNames` to enforce that the chosen names exist.',
+      input: z
+        .object({
+          documentId,
+          symbolId: symbolIdInput,
+          animSet: symbolAnimSetSchema,
+          skeletonAnimationNames: z.array(z.string()).optional(),
+          skeletonHash: z.string().optional(),
+        })
+        .strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      const init: MapSymbolAnimSetInit = {
+        animSet: input.animSet,
+        ...(input.skeletonAnimationNames !== undefined
+          ? { skeletonAnimationNames: input.skeletonAnimationNames }
+          : {}),
+        ...(input.skeletonHash !== undefined ? { skeletonHash: input.skeletonHash } : {}),
+      };
+      return {
+        revision: executeSlotEdit(
+          session,
+          new MapSymbolAnimSetCommand(asSymbolId(input.symbolId), init),
+        ),
+      };
+    },
+  ),
+  defineTool(
+    {
+      name: 'slot.symbol.unmap',
+      title: 'Unmap symbol',
+      description:
+        'Remove a SymbolId mapping, pruning its skeletonRef when no remaining symbol references it. ' +
+        'Rejects an unmapped symbol (SLOT_EDIT notMapped).',
+      input: z.object({ documentId, symbolId: symbolIdInput }).strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      return {
+        revision: executeSlotEdit(
+          session,
+          new MapSymbolAnimSetCommand(asSymbolId(input.symbolId), { animSet: null }),
+        ),
+      };
+    },
+  ),
+
+  // ----- slot composer: win sequencer -----
+  defineTool(
+    {
+      name: 'slot.winseq.create',
+      title: 'Create win sequence',
+      description: 'Create a new, empty, named win sequence. Rejects a duplicate name (SLOT_EDIT).',
+      input: z.object({ documentId, name: z.string().min(1) }).strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      return { revision: executeSlotEdit(session, new CreateWinSequenceCommand(input.name)) };
+    },
+  ),
+  defineTool(
+    {
+      name: 'slot.winseq.setStep',
+      title: 'Set win sequence step',
+      description:
+        'Set or append a step (atMs + target + action) at an index in a named sequence. An index equal to ' +
+        'the step count appends; a smaller index replaces. The step shape is validated at the boundary.',
+      input: z
+        .object({
+          documentId,
+          sequenceName: z.string().min(1),
+          index: z.number().int().nonnegative(),
+          step: winSequenceStepSchema,
+        })
+        .strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      return {
+        revision: executeSlotEdit(
+          session,
+          new SetWinSequenceStepCommand(input.sequenceName, input.index, input.step),
+        ),
+      };
+    },
+  ),
+  defineTool(
+    {
+      name: 'slot.winseq.reorderSteps',
+      title: 'Reorder win sequence steps',
+      description:
+        'Reorder a sequence steps by an explicit new-order array of current step indices (a permutation).',
+      input: z
+        .object({
+          documentId,
+          sequenceName: z.string().min(1),
+          order: z.array(z.number().int().nonnegative()),
+        })
+        .strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      return {
+        revision: executeSlotEdit(
+          session,
+          new ReorderWinSequenceStepCommand(input.sequenceName, input.order),
+        ),
+      };
+    },
+  ),
+  defineTool(
+    {
+      name: 'slot.winseq.setThresholds',
+      title: 'Set escalation thresholds',
+      description:
+        'Set the big/mega/epic win escalation thresholds (finite, non-negative). Coalesces on the session.',
+      input: z.object({ documentId, thresholds: escalationThresholdsSchema }).strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      return {
+        revision: executeSlotEdit(session, new SetEscalationThresholdCommand(input.thresholds)),
+      };
+    },
+  ),
+
+  // ----- slot composer: feature flow graph -----
+  defineTool(
+    {
+      name: 'slot.flow.createState',
+      title: 'Create feature flow state',
+      description:
+        'Add a named feature-flow state (optional cinematic node). Rejects a duplicate or empty name (SLOT_EDIT).',
+      input: z
+        .object({ documentId, name: z.string().min(1), node: featureFlowNodeSchema.optional() })
+        .strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      const command =
+        input.node !== undefined
+          ? new CreateFeatureFlowStateCommand(input.name, input.node)
+          : new CreateFeatureFlowStateCommand(input.name);
+      return { revision: executeSlotEdit(session, command) };
+    },
+  ),
+  defineTool(
+    {
+      name: 'slot.flow.deleteState',
+      title: 'Delete feature flow state',
+      description:
+        'Delete a named state and every transition incident to it (one undo step). The mandatory "base" ' +
+        'state cannot be deleted (SLOT_EDIT baseStateProtected).',
+      input: z.object({ documentId, name: z.string().min(1) }).strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      return { revision: executeSlotEdit(session, new DeleteFeatureFlowStateCommand(input.name)) };
+    },
+  ),
+  defineTool(
+    {
+      name: 'slot.flow.renameState',
+      title: 'Rename feature flow state',
+      description:
+        'Rename a state and rewrite every transition that references it. "base" cannot be renamed and the ' +
+        'new name must not collide (SLOT_EDIT).',
+      input: z.object({ documentId, from: z.string().min(1), to: z.string().min(1) }).strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      return {
+        revision: executeSlotEdit(session, new RenameFeatureFlowStateCommand(input.from, input.to)),
+      };
+    },
+  ),
+  defineTool(
+    {
+      name: 'slot.flow.addTransition',
+      title: 'Add feature flow transition',
+      description:
+        'Append a transition (from + on match + to) to the feature-flow graph. The shape is validated at ' +
+        'the boundary; endpoint existence is an import-time validator concern.',
+      input: z.object({ documentId, transition: featureFlowTransitionSchema }).strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      return {
+        revision: executeSlotEdit(session, new AddFeatureFlowTransitionCommand(input.transition)),
+      };
+    },
+  ),
+  defineTool(
+    {
+      name: 'slot.flow.removeTransition',
+      title: 'Remove feature flow transition',
+      description: 'Remove one transition by its index in the graph transition list.',
+      input: z.object({ documentId, index: z.number().int().nonnegative() }).strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      return {
+        revision: executeSlotEdit(session, new RemoveFeatureFlowTransitionCommand(input.index)),
+      };
+    },
+  ),
+
+  // ----- slot composer: tumble / cascade choreography -----
+  defineTool(
+    {
+      name: 'slot.tumble.set',
+      title: 'Set tumble choreography',
+      description:
+        'Set the tumble/cascade timing (explode/drop/refill/settle/step ms as non-negative integers) plus ' +
+        'the drop easing and rollup curve. Coalesces on the session.',
+      input: z.object({ documentId, tumble: tumbleChoreographySchema }).strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      return { revision: executeSlotEdit(session, new SetTumbleChoreographyCommand(input.tumble)) };
+    },
+  ),
+
+  // ----- slot composer: read (so an LLM can see the current scene state) -----
+  defineTool(
+    {
+      name: 'slot.scene.get',
+      title: 'Get slot scene',
+      description:
+        'Return the whole slot-scene snapshot (grid, symbol library, win sequencer, feature flows, tumble, refs).',
+      input: z.object({ documentId }).strict(),
+    },
+    (deps, input) => ({
+      scene: deps.sessions.get(input.documentId).document.model.snapshot().slotScene,
+    }),
+  ),
+  defineTool(
+    {
+      name: 'slot.grid.get',
+      title: 'Get slot grid',
+      description: 'Return the current slot grid config.',
+      input: z.object({ documentId }).strict(),
+    },
+    (deps, input) => ({ grid: deps.sessions.get(input.documentId).document.model.slotGrid() }),
+  ),
+  defineTool(
+    {
+      name: 'slot.symbol.list',
+      title: 'List mapped symbols',
+      description: 'List the mapped symbols (SymbolId + anim set) in id order.',
+      input: z.object({ documentId }).strict(),
+    },
+    (deps, input) => ({
+      symbols: deps.sessions.get(input.documentId).document.model.snapshot().slotScene.symbols,
+    }),
+  ),
+  defineTool(
+    {
+      name: 'slot.symbol.get',
+      title: 'Get mapped symbol',
+      description:
+        'Return the anim set mapped to one SymbolId, or null when the symbol is unmapped.',
+      input: z.object({ documentId, symbolId: symbolIdInput }).strict(),
+    },
+    (deps, input) => ({
+      animSet:
+        deps.sessions
+          .get(input.documentId)
+          .document.model.getSymbolAnimSet(asSymbolId(input.symbolId)) ?? null,
+    }),
+  ),
+  defineTool(
+    {
+      name: 'slot.winseq.get',
+      title: 'Get win sequencer',
+      description: 'Return the win-sequencer config (sequences, thresholds, default sequence).',
+      input: z.object({ documentId }).strict(),
+    },
+    (deps, input) => ({
+      winSequencer: deps.sessions.get(input.documentId).document.model.slotScene().winSequencer,
+    }),
+  ),
+  defineTool(
+    {
+      name: 'slot.flow.get',
+      title: 'Get feature flow graph',
+      description: 'Return the feature-flow graph (states, transitions, entry).',
+      input: z.object({ documentId }).strict(),
+    },
+    (deps, input) => ({
+      featureFlows: deps.sessions.get(input.documentId).document.model.slotScene().featureFlows,
+    }),
+  ),
+  defineTool(
+    {
+      name: 'slot.tumble.get',
+      title: 'Get tumble choreography',
+      description: 'Return the tumble/cascade choreography.',
+      input: z.object({ documentId }).strict(),
+    },
+    (deps, input) => ({ tumble: deps.sessions.get(input.documentId).document.model.slotTumble() }),
+  ),
+];
 
 export const TOOLS: readonly ToolDefinition[] = [
   // ----- document lifecycle -----
@@ -2797,4 +4232,8 @@ export const TOOLS: readonly ToolDefinition[] = [
       return { revision: session.document.model.revision };
     },
   ),
+
+  // ----- effects (VFX / particles, Phase 3) + slot composer (Phase 4) -----
+  ...effectsTools,
+  ...slotSceneTools,
 ];

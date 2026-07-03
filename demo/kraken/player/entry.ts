@@ -68,6 +68,8 @@ const ANTICIPATION_EXTRA_MS = 2200; // reels 4 and 5 keep spinning this much lon
 const SCATTER_LAND_MS = 500; // the pop before the bonus intro takes over track 0
 const BONUS_INTRO_MS = 2500; // matches the authored bonus_intro duration
 const SPIN_SPEED = 1650; // world units/second the strips scroll while spinning
+const SPIN_STRETCH = 1.18; // vertical motion-stretch on the strip symbols at full speed (eases back at stop)
+const REEL_SETTLE_MS = 150; // the strip stays up this long after a reel stops so the stretch eases back in view
 const STRIP_COUNT = 5; // sprites per column strip (covers the 3-cell window with margin)
 const WINDOW_TOP = ROWS[0]! - CELL / 2;
 const WINDOW_BOTTOM = ROWS[2]! + CELL / 2;
@@ -83,6 +85,7 @@ interface Reel {
   readonly container: Container;
   readonly sprites: readonly Sprite[];
   scrolling: boolean;
+  stretch: number; // current vertical motion-stretch, lerped toward SPIN_STRETCH / 1 each frame
 }
 
 async function main(): Promise<void> {
@@ -103,6 +106,9 @@ async function main(): Promise<void> {
   }
   const regionTextures = buildRegionTextures(document.atlas, pageTextures);
   const resolver = makeRegionTextureResolver(regionTextures);
+  // Particles draw from the SEPARATE effects atlas (glow/spark/bubble/mote), sliced from the same inlined
+  // page textures (build-player inlines both atlases into ATLAS_PAGES keyed by page path).
+  const fxRegionTextures = buildRegionTextures(effectsDocument.atlas, pageTextures);
 
   const view = new SkeletonView();
   view.setTextureResolver(resolver);
@@ -149,7 +155,7 @@ async function main(): Promise<void> {
     container.mask = mask;
 
     reelsLayer.addChild(container);
-    reels.push({ container, sprites, scrolling: false });
+    reels.push({ container, sprites, scrolling: false, stretch: 1 });
   }
 
   // The gold anticipation vignette over the two remaining reels (cols 3 and 4), pulsing while armed.
@@ -190,7 +196,7 @@ async function main(): Promise<void> {
     let used = 0;
     for (const instance of frame.instances) {
       for (const emitter of instance.emitters) {
-        const texture = regionTextures.get(emitterRegion(emitter));
+        const texture = fxRegionTextures.get(emitterRegion(emitter));
         if (texture === undefined) continue;
         const blend = blendModeToPixi(emitter.layer.blendMode);
         const count = fillEmitterBatch(particleBatch, emitter);
@@ -246,9 +252,14 @@ async function main(): Promise<void> {
   };
 
   const stopReel = (c: number): void => {
-    reels[c]!.scrolling = false;
-    reels[c]!.container.visible = false; // reveal the skeleton cells beneath (the crafted outcome)
-    playReelBounce();
+    const reel = reels[c]!;
+    reel.scrolling = false; // stop the scroll; the vertical stretch now eases back to 1 in the ticker
+    // Hold the strip up for a brief settle so the stretch relaxing reads as the reel catching, THEN reveal
+    // the outcome cells beneath and play the authored (ease-out-back overshoot) bounce.
+    window.setTimeout(() => {
+      reel.container.visible = false;
+      playReelBounce();
+    }, REEL_SETTLE_MS);
   };
 
   const buttons = {
@@ -259,7 +270,7 @@ async function main(): Promise<void> {
 
   // The spin cycle: reels scroll, stop left to right at the authored stagger; the 2nd scatter (reel 3)
   // arms the anticipation and extends reels 4-5; the 3rd trigger (reel 5) fires scatter_land -> bonus_intro
-  // with the pearlShower particles, then everything settles back to idle. Story-fixed to the crafted board.
+  // with the megaCelebration particles, then everything settles back to idle. Story-fixed to the board.
   const runSpin = async (): Promise<void> => {
     if (busy) return;
     busy = true;
@@ -291,7 +302,7 @@ async function main(): Promise<void> {
 
     crossfadeTo(state, 0, 'bonus_intro', false, 0.3);
     system.triggerBundle(
-      'megaWin',
+      'megaCelebration',
       Math.floor(Math.random() * 0xffffff),
       { gridCenter: { space: 'world', x: GRID_CENTER.x, y: GRID_CENTER.y, rotation: 0 } },
       0,
@@ -327,17 +338,24 @@ async function main(): Promise<void> {
     updateAnimationState(state, dt);
     view.syncState(document, state);
 
-    // Scroll the spinning strips; wrap any sprite past the bottom back to the top with a fresh symbol.
+    // Scroll the spinning strips; wrap any sprite past the bottom back to the top with a fresh symbol. Each
+    // strip also carries a vertical motion-stretch that eases toward SPIN_STRETCH at speed and back to 1 as
+    // it stops, so the reel reads as a real fast blur that settles.
     const advance = SPIN_SPEED * dt;
+    const stretchLerp = Math.min(1, dt * 9);
     for (const reel of reels) {
-      if (!reel.scrolling) continue;
+      const target = reel.scrolling ? SPIN_STRETCH : 1;
+      reel.stretch += (target - reel.stretch) * stretchLerp;
       for (const sprite of reel.sprites) {
-        sprite.position.y += advance;
-        if (sprite.position.y > WRAP_LIMIT) {
-          sprite.position.y -= STRIP_COUNT * ROW_PITCH;
-          sprite.texture = regionTextures.get(randomSymbol()) ?? Texture.EMPTY;
-          fitSprite(sprite);
+        if (reel.scrolling) {
+          sprite.position.y += advance;
+          if (sprite.position.y > WRAP_LIMIT) {
+            sprite.position.y -= STRIP_COUNT * ROW_PITCH;
+            sprite.texture = regionTextures.get(randomSymbol()) ?? Texture.EMPTY;
+            fitSprite(sprite);
+          }
         }
+        sprite.scale.y = sprite.scale.x * reel.stretch; // stretch is vertical only; x stays at fit scale
       }
     }
 

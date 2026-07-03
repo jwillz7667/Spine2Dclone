@@ -43,13 +43,20 @@ const bundle = buildSync({
 
 const gameDocument = readFileSync(join(here, 'krakens-hoard.rig.json'), 'utf8');
 // The effects library is saved separately from the skeleton rig; the player builds a live EffectSystem
-// from it to display the pearlShower particles.
+// from it to display the megaCelebration particles.
 const effectsDocument = readFileSync(join(here, 'krakens-hoard.effects.json'), 'utf8');
 const atlasRef = JSON.parse(readFileSync(join(here, 'atlas', 'atlas-ref.json'), 'utf8'));
 const pages: Record<string, string> = {};
 for (const page of atlasRef.pages) {
   const bytes = readFileSync(join(here, 'atlas', page.file));
   pages[join('atlas', page.file)] = `data:image/png;base64,${bytes.toString('base64')}`;
+}
+// Also inline the SEPARATE effects atlas pages (glow/spark/bubble/mote), keyed by the project-relative
+// page path the effects document references, so the player can slice particle textures from it.
+const effectsAtlas = JSON.parse(effectsDocument).atlas;
+for (const page of effectsAtlas.pages) {
+  const bytes = readFileSync(join(here, page.file));
+  pages[page.file] = `data:image/png;base64,${bytes.toString('base64')}`;
 }
 
 const html = `<!doctype html>

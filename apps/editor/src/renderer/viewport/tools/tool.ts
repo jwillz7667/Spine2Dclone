@@ -11,6 +11,9 @@ export interface ViewportPointer {
   readonly worldX: number;
   readonly worldY: number;
   readonly camera: Camera;
+  // Shift held at the event (WP-2.1: the mesh tool's add-vertex modifier). Carried on the pointer so a
+  // tool never reads the DOM event itself, keeping tools unit-testable with plain pointer values.
+  readonly shiftKey: boolean;
 }
 
 // A viewport tool consumes one pointer gesture (down, then moves, then up). The input router binds the

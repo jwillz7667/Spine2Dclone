@@ -5,14 +5,19 @@ import type { SkeletonDocument } from '@marionette/format/types';
 import { documentHost, exportDocument } from '../document';
 import { atlasTextureStore } from '../editor-state/atlas-texture-store';
 import { useCameraStore } from '../editor-state/camera-store';
+import { useMeshEditStore } from '../editor-state/mesh-edit-store';
 import { useSelectionStore } from '../editor-state/selection-store';
+import { useSlotSelectionStore } from '../editor-state/slot-selection-store';
 import { usePlaybackStore } from '../editor-state/playback-store';
 import { useToolStore, type ToolId } from '../editor-state/tool-store';
 import { attachCameraController, type CameraControls } from './camera-controller';
 import { createViewportLayers } from './layers';
 import { MoveRotateGizmo } from './gizmo/move-rotate-gizmo';
+import { resolveMeshEditTarget } from './mesh-edit';
+import { MeshEditOverlay } from './mesh-overlay';
 import { attachToolInput } from './tool-input';
 import { CreateBoneTool } from './tools/create-bone-tool';
+import { MeshTool } from './tools/mesh-tool';
 import { SelectMoveTool } from './tools/select-move-tool';
 import { renderTargetsEqual, resolveRenderTarget, type RenderTarget } from './render-target';
 import type { ViewportTool } from './tools/tool';
@@ -49,6 +54,9 @@ export function ViewportPanelContent(): ReactElement {
     let unsubscribeCamera: (() => void) | null = null;
     let unsubscribeSelection: (() => void) | null = null;
     let unsubscribeTextures: (() => void) | null = null;
+    let unsubscribeSlotSelection: (() => void) | null = null;
+    let unsubscribeMeshEdit: (() => void) | null = null;
+    let unsubscribeTool: (() => void) | null = null;
 
     void (async () => {
       const created = new Application();
@@ -74,11 +82,19 @@ export function ViewportPanelContent(): ReactElement {
       layers.content.addChild(view.root);
       const gizmo = new MoveRotateGizmo();
       layers.overlay.addChild(gizmo.container);
+      const meshOverlay = new MeshEditOverlay();
+      layers.overlay.addChild(meshOverlay.container);
+
+      // The mesh overlay redraws on document revision, slot/vertex selection, tool, and zoom changes
+      // (event-driven, never per idle frame); the tick applies it below, mirroring the gizmo pattern.
+      let meshOverlayDirty = true;
 
       const applyCamera = (camera: Camera): void => {
         layers.world.position.set(camera.x, camera.y);
         layers.world.scale.set(camera.zoom);
         gizmo.applyZoom(camera.zoom); // keep handles a constant pixel size as zoom changes
+        meshOverlay.applyZoom(camera.zoom);
+        meshOverlayDirty = true;
       };
       applyCamera(useCameraStore.getState());
       unsubscribeCamera = useCameraStore.subscribe(applyCamera);
@@ -97,6 +113,7 @@ export function ViewportPanelContent(): ReactElement {
       const tools: Record<ToolId, ViewportTool> = {
         select: new SelectMoveTool(gizmo),
         createBone: new CreateBoneTool(),
+        mesh: new MeshTool(),
       };
       detachTool = attachToolInput(app.canvas, {
         getCamera: () => useCameraStore.getState(),
@@ -107,6 +124,15 @@ export function ViewportPanelContent(): ReactElement {
       let gizmoDirty = true;
       unsubscribeSelection = useSelectionStore.subscribe(() => {
         gizmoDirty = true;
+      });
+      unsubscribeSlotSelection = useSlotSelectionStore.subscribe(() => {
+        meshOverlayDirty = true;
+      });
+      unsubscribeMeshEdit = useMeshEditStore.subscribe(() => {
+        meshOverlayDirty = true;
+      });
+      unsubscribeTool = useToolStore.subscribe(() => {
+        meshOverlayDirty = true;
       });
 
       // The region texture resolver is ephemeral editor state (the atlas pixels are loaded per import
@@ -211,6 +237,16 @@ export function ViewportPanelContent(): ReactElement {
           gizmo.refresh(model);
           gizmoDirty = false;
         }
+
+        if (revisionChanged) meshOverlayDirty = true;
+        if (meshOverlayDirty) {
+          const meshTarget =
+            useToolStore.getState().tool === 'mesh'
+              ? resolveMeshEditTarget(model, useSlotSelectionStore.getState().selectedSlotId)
+              : null;
+          meshOverlay.refresh(meshTarget, useMeshEditStore.getState().selectedVertex);
+          meshOverlayDirty = false;
+        }
       };
       app.ticker.add(tick);
     })();
@@ -222,6 +258,9 @@ export function ViewportPanelContent(): ReactElement {
       unsubscribeCamera?.();
       unsubscribeSelection?.();
       unsubscribeTextures?.();
+      unsubscribeSlotSelection?.();
+      unsubscribeMeshEdit?.();
+      unsubscribeTool?.();
       if (app !== null) {
         app.destroy({ removeView: true }, { children: true });
         app = null;
@@ -287,6 +326,7 @@ function ViewportToolbar(): ReactElement {
     <div style={toolbarStyle}>
       {toolButton('select', 'Select (V)')}
       {toolButton('createBone', 'Create Bone (B)')}
+      {toolButton('mesh', 'Mesh (M)')}
       <span style={dividerStyle} />
       <button
         type="button"

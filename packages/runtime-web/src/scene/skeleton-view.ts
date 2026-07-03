@@ -7,7 +7,9 @@ import {
   computeWorldTransforms,
   MAT2X3_STRIDE,
   resetToSetupPose,
+  sampleMeshVertices,
   sampleSkeleton,
+  skinMeshInto,
   SLOT_COLOR_STRIDE,
   type Mat2x3,
   type Pose,
@@ -15,9 +17,14 @@ import {
 import { applyWorldToTarget, mapWorldToDisplay, type DisplayTransform } from './map-transform';
 import { drawBone } from './bone-graphics';
 import { createAttachmentSprite, packTint, sizeForTexture } from './attachment-sprites';
+import { createMeshDisplay, markMeshPositionsDirty, type MeshDisplay } from './mesh-display';
 import { computeRegionSized, placeRegion } from './region-placement';
 import type { RegionTextureResolver } from './region-textures';
 import { loopTime } from '../transport';
+
+// The one skin the view renders (skin switching is a later Phase 2 authoring surface; the solve and the
+// records resolve attachments through this name, matching the headless parity sampler).
+const DEFAULT_SKIN_NAME = 'default';
 
 // The headless description of a built scene. SkeletonView records this alongside the live PixiJS
 // objects so tests (and the editor) can read the mapped transforms without a WebGL context, while the
@@ -40,9 +47,23 @@ export interface AttachmentRender {
   readonly worldPosition: readonly [number, number];
 }
 
+// The headless snapshot of one rendered MESH attachment (WP-2.11 renderer slice). `vertices` is a copy
+// of the final world-space position lanes the geometry buffer holds ([x0, y0, x1, y1, ...]), which is
+// exactly the runtime-core solve output (skinned, plus deform when animated), so tests can assert the
+// rendered geometry against a direct sampleMeshVertices call without a WebGL context.
+export interface MeshRender {
+  readonly slot: string;
+  readonly attachment: string;
+  readonly vertexCount: number;
+  readonly tint: number; // 0xRRGGBB
+  readonly alpha: number;
+  readonly vertices: readonly number[];
+}
+
 export interface SceneDescription {
   readonly bones: readonly BoneRender[];
   readonly attachments: readonly AttachmentRender[];
+  readonly meshes: readonly MeshRender[];
 }
 
 // One bone's render binding: its pooled graphic plus its index into the pose's world buffer. Geometry
@@ -67,16 +88,23 @@ interface RegionEntry {
   readonly sizedForSprite: Mat2x3;
 }
 
-// One slot's render binding. A slot gets a record (and a pooled sprite) when its SETUP attachment
-// resolves to a region in the default skin; `regionsByName` holds every region attachment under the
-// slot so an authored attachment swap (Phase 2+) can re-resolve the active geometry per frame with no
-// structural change. The mutable fields are the per-frame resolved state the scene description reads.
+// One slot's render binding. A slot gets a record when its SETUP attachment resolves to a region OR a
+// mesh in the default skin; `regionsByName` and `meshesByName` hold every region / mesh attachment
+// under the slot so an authored attachment swap can re-resolve the active geometry per frame with no
+// structural change (including a region-to-mesh swap: the sprite and the mesh displays coexist, one
+// visible at a time). The pooled sprite serves the region path; each mesh attachment owns its scene-built
+// Mesh display (mesh-display.ts). `activeMesh` tracks the currently shown mesh so swapping away hides it
+// in O(1) without iterating the map per frame. The mutable fields are the per-frame resolved state the
+// scene description reads; `kind` says which lane (attachments or meshes) the record renders into.
 interface AttachmentRecord {
   readonly slot: string;
   readonly slotIndex: number;
   readonly boneIndex: number;
   readonly sprite: Sprite;
   readonly regionsByName: ReadonlyMap<string, RegionEntry>;
+  readonly meshesByName: ReadonlyMap<string, MeshDisplay>;
+  activeMesh: MeshDisplay | null;
+  kind: 'region' | 'mesh';
   visible: boolean;
   attachment: string;
   width: number;
@@ -111,6 +139,12 @@ export class SkeletonView {
   // Display objects reused across syncs, index-aligned with the current bone and attachment records.
   private readonly boneGraphics: Graphics[] = [];
   private readonly attachmentSprites: Sprite[] = [];
+
+  // The current scene's mesh displays (flat, for teardown). Unlike the sprite pool these are built per
+  // scene, because a mesh's geometry (uvs, triangles, vertex count) is document-specific; the per-frame
+  // path only writes into their position buffers, so scene-build-time construction still satisfies the
+  // no-per-frame-allocation rule.
+  private readonly meshDisplays: MeshDisplay[] = [];
 
   // The document-keyed solve + render bindings, or null when nothing is mounted.
   private cached: CachedScene | null = null;
@@ -163,7 +197,9 @@ export class SkeletonView {
     resetSlotsToSetup(scene.pose);
     computeWorldTransforms(scene.pose);
 
-    this.renderFromPose(scene);
+    // No animation context: meshes render as the pure skin of the setup pose (deform is a timeline
+    // concept and is zero at setup by definition).
+    this.renderFromPose(scene, null, 0);
   }
 
   // Sample `animationId` at single-period time `t` (seconds, in [0, duration]; this method does NOT
@@ -174,7 +210,7 @@ export class SkeletonView {
   syncAnimated(document: SkeletonDocument, animationId: string, t: number): void {
     const scene = this.ensureScene(document);
     sampleSkeleton(document, animationId, t, scene.pose);
-    this.renderFromPose(scene);
+    this.renderFromPose(scene, animationId, t);
   }
 
   // Convenience for a looping player: fold elapsed playback time into one period of the animation and
@@ -192,7 +228,7 @@ export class SkeletonView {
   // (animated color/attachment included), not the document's setup values.
   describe(): SceneDescription {
     const scene = this.cached;
-    if (scene === null) return { bones: [], attachments: [] };
+    if (scene === null) return { bones: [], attachments: [], meshes: [] };
 
     const world = scene.pose.world;
     const bones: BoneRender[] = [];
@@ -210,8 +246,21 @@ export class SkeletonView {
     }
 
     const attachments: AttachmentRender[] = [];
+    const meshes: MeshRender[] = [];
     for (const record of scene.attachmentRecords) {
       if (!record.visible) continue;
+      if (record.kind === 'mesh') {
+        const active = record.activeMesh!;
+        meshes.push({
+          slot: record.slot,
+          attachment: record.attachment,
+          vertexCount: active.vertexCount,
+          tint: record.tint,
+          alpha: record.alpha,
+          vertices: Array.from(active.positions),
+        });
+        continue;
+      }
       const transform = mapWorldToDisplay(record.spriteWorld);
       attachments.push({
         slot: record.slot,
@@ -224,7 +273,7 @@ export class SkeletonView {
         worldPosition: [transform.x, transform.y],
       });
     }
-    return { bones, attachments };
+    return { bones, attachments, meshes };
   }
 
   // Clear the scene to empty: release every bone graphic and attachment sprite (resize the pools to
@@ -234,11 +283,14 @@ export class SkeletonView {
   clear(): void {
     this.resizeBones(0);
     this.resizeAttachments(0);
+    this.releaseMeshDisplays();
     this.cached = null;
   }
 
-  // Tear down the container tree and release every display object.
+  // Tear down the container tree and release every display object. Mesh geometries are released first
+  // (we own their buffers; root.destroy would drop the displays but not the geometry).
   destroy(): void {
+    this.releaseMeshDisplays();
     this.root.destroy({ children: true });
     this.boneGraphics.length = 0;
     this.attachmentSprites.length = 0;
@@ -275,12 +327,15 @@ export class SkeletonView {
     return records;
   }
 
-  // Build one record (and pooled sprite) per slot whose SETUP attachment resolves to a region in the
-  // default skin, in slot (draw) order. This is exactly the Phase-0 visible set, so the pool size and
-  // ordering are unchanged. `regionsByName` captures every region attachment under the slot so a future
-  // swap timeline can re-resolve geometry per frame without growing the pool; null or an unresolved
-  // active name hides the sprite (renderFromPose). The document is validated, so references resolve.
+  // Build one record (and pooled sprite) per slot whose SETUP attachment resolves to a region or a mesh
+  // in the default skin, in slot (draw) order. `regionsByName` and `meshesByName` capture every region /
+  // mesh attachment under the slot so a swap timeline can re-resolve the active geometry per frame
+  // without any structural change; null or an unresolved active name hides the slot (renderFromPose).
+  // The document is validated, so references resolve. After the sprite pool is sized, the layer children
+  // are re-appended in record order, each slot's sprite and mesh displays adjacent, so the layer's child
+  // order IS the draw order whichever kind a slot currently shows.
   private buildAttachmentRecords(document: SkeletonDocument, pose: Pose): AttachmentRecord[] {
+    this.releaseMeshDisplays();
     const defaultSkin = findDefaultSkin(document);
     if (defaultSkin === undefined) {
       this.resizeAttachments(0);
@@ -296,22 +351,33 @@ export class SkeletonView {
       const bySlot = defaultSkin.attachments[slot.name];
       if (bySlot === undefined || slot.attachment === null) continue;
       const setupAttachment = bySlot[slot.attachment];
-      if (setupAttachment === undefined || setupAttachment.type !== 'region') continue;
+      if (
+        setupAttachment === undefined ||
+        (setupAttachment.type !== 'region' && setupAttachment.type !== 'mesh')
+      ) {
+        continue;
+      }
 
       const regionsByName = new Map<string, RegionEntry>();
+      const meshesByName = new Map<string, MeshDisplay>();
       for (const [name, attachment] of Object.entries(bySlot)) {
-        if (attachment.type !== 'region') continue;
-        // Resolve the region's texture now (constant per scene). Normalize the unit-quad sizing by the
-        // ACTUAL texture dimensions, using Texture.WHITE's dimensions when there is no resolved texture,
-        // so the placeholder and a real texture land the quad in the same world place (handoff 8.9).
-        const texture = this.resolver?.(attachment.path) ?? null;
-        const source = texture ?? Texture.WHITE;
-        const sizedForSprite = sizeForTexture(
-          computeRegionSized(attachment),
-          source.width,
-          source.height,
-        );
-        regionsByName.set(name, { region: attachment, texture, sizedForSprite });
+        if (attachment.type === 'region') {
+          // Resolve the region's texture now (constant per scene). Normalize the unit-quad sizing by the
+          // ACTUAL texture dimensions, using Texture.WHITE's dimensions when there is no resolved texture,
+          // so the placeholder and a real texture land the quad in the same world place (handoff 8.9).
+          const texture = this.resolver?.(attachment.path) ?? null;
+          const source = texture ?? Texture.WHITE;
+          const sizedForSprite = sizeForTexture(
+            computeRegionSized(attachment),
+            source.width,
+            source.height,
+          );
+          regionsByName.set(name, { region: attachment, texture, sizedForSprite });
+        } else if (attachment.type === 'mesh') {
+          const entry = createMeshDisplay(attachment, this.resolver?.(attachment.path) ?? null);
+          meshesByName.set(name, entry);
+          this.meshDisplays.push(entry);
+        }
       }
 
       drafts.push({
@@ -319,6 +385,9 @@ export class SkeletonView {
         slotIndex,
         boneIndex,
         regionsByName,
+        meshesByName,
+        activeMesh: null,
+        kind: 'region',
         visible: false,
         attachment: '',
         width: 0,
@@ -330,16 +399,29 @@ export class SkeletonView {
     }
 
     this.resizeAttachments(drafts.length);
-    return drafts.map((draft, i) => ({ ...draft, sprite: this.attachmentSprites[i]! }));
+    const records = drafts.map((draft, i) => ({ ...draft, sprite: this.attachmentSprites[i]! }));
+
+    // Re-append in draw order (addChild moves an existing child to the end, so this is a pure reorder).
+    for (const record of records) {
+      this.attachmentsLayer.addChild(record.sprite);
+      for (const entry of record.meshesByName.values()) {
+        this.attachmentsLayer.addChild(entry.display);
+      }
+    }
+    return records;
   }
 
   // Render the cached scene from its pose: bone diamonds at their world transforms, then each slot's
-  // attachment at its world transform with the resolved per-slot color and active attachment. The pose
-  // already carries the solve output (setup or sampled); this method reads it and never solves. The
-  // only per-frame allocation is the region product matrix from runtime-core's multiply (the affine
-  // library exposes no in-place product to this layer); the pose, records, and display objects are all
-  // reused.
-  private renderFromPose(scene: CachedScene): void {
+  // attachment with the resolved per-slot color and active attachment: a region as its sprite at the
+  // bone world transform, a mesh as its display with the solve's world-space vertices written into the
+  // geometry's position buffer in place (solve-order steps 5 and 6). The pose already carries the
+  // skeleton solve output (setup or sampled); the mesh vertex solve runs here through the SAME public
+  // runtime-core symbols the parity harness asserts (skinMeshInto at setup, sampleMeshVertices when
+  // animated), so what the renderer draws is by construction the parity-tested output. `animationId`
+  // null means setup pose (skin only; deform is zero at setup). The only per-frame allocation is the
+  // region product matrix from runtime-core's multiply (the affine library exposes no in-place product
+  // to this layer); the pose, records, display objects, and mesh position buffers are all reused.
+  private renderFromPose(scene: CachedScene, animationId: string | null, t: number): void {
     const world = scene.pose.world;
 
     for (const record of scene.boneRecords) {
@@ -364,6 +446,22 @@ export class SkeletonView {
         activeName === null || activeName === undefined
           ? undefined
           : record.regionsByName.get(activeName);
+      const meshEntry =
+        entry !== undefined || activeName === null || activeName === undefined
+          ? undefined
+          : record.meshesByName.get(activeName);
+
+      // Swapping away from a mesh (to a region, another mesh, or nothing) hides the old display in O(1).
+      if (record.activeMesh !== null && record.activeMesh !== meshEntry) {
+        record.activeMesh.display.visible = false;
+        record.activeMesh = null;
+      }
+
+      if (meshEntry !== undefined && activeName !== null && activeName !== undefined) {
+        this.renderMesh(scene, record, meshEntry, activeName, animationId, t);
+        continue;
+      }
+
       if (entry === undefined || activeName === null || activeName === undefined) {
         record.visible = false;
         record.sprite.visible = false;
@@ -409,6 +507,7 @@ export class SkeletonView {
       sprite.tint = tint;
       sprite.alpha = alpha;
 
+      record.kind = 'region';
       record.visible = true;
       record.attachment = activeName;
       record.width = region.width;
@@ -417,6 +516,73 @@ export class SkeletonView {
       record.alpha = alpha;
       record.spriteWorld = spriteWorld;
     }
+  }
+
+  // Render one slot's active MESH attachment: solve its world-space vertices into the geometry's own
+  // position buffer (in place, zero allocation), mark the buffer dirty, and apply the slot-times-mesh
+  // color. Setup pose (animationId null) is the pure skin of the current bone worlds; an animated frame
+  // adds the sampled deform on top via sampleMeshVertices, the exact call site the WP-2.11 parity test
+  // asserts against. The mesh display's local transform stays identity: the vertices ARE world space.
+  private renderMesh(
+    scene: CachedScene,
+    record: AttachmentRecord,
+    entry: MeshDisplay,
+    activeName: string,
+    animationId: string | null,
+    t: number,
+  ): void {
+    if (animationId === null) {
+      skinMeshInto(entry.mesh, scene.pose, record.boneIndex, entry.positions);
+    } else {
+      sampleMeshVertices(
+        scene.document,
+        animationId,
+        t,
+        scene.pose,
+        DEFAULT_SKIN_NAME,
+        record.slot,
+        activeName,
+        entry.positions,
+      );
+    }
+    markMeshPositionsDirty(entry);
+
+    const slotColor = scene.pose.slotColor;
+    const colorBase = record.slotIndex * SLOT_COLOR_STRIDE;
+    const meshColor = entry.mesh.color;
+    const tint = packTint(
+      slotColor[colorBase]! * meshColor.r,
+      slotColor[colorBase + 1]! * meshColor.g,
+      slotColor[colorBase + 2]! * meshColor.b,
+    );
+    const alpha = slotColor[colorBase + 3]! * meshColor.a;
+
+    record.sprite.visible = false;
+    entry.display.visible = true;
+    entry.display.tint = tint;
+    entry.display.alpha = alpha;
+    record.activeMesh = entry;
+
+    record.kind = 'mesh';
+    record.visible = true;
+    record.attachment = activeName;
+    record.width = entry.mesh.width;
+    record.height = entry.mesh.height;
+    record.tint = tint;
+    record.alpha = alpha;
+  }
+
+  // Remove and destroy the current scene's mesh displays (scene teardown / rebuild). The geometry is
+  // ours (its buffers were built in createMeshDisplay), so it is destroyed explicitly; the texture is a
+  // view over the host's atlas page and is never destroyed here (region-textures.ts lifecycle).
+  private releaseMeshDisplays(): void {
+    for (const entry of this.meshDisplays) {
+      const geometry = entry.display.geometry;
+      this.attachmentsLayer.removeChild(entry.display);
+      entry.display.destroy();
+      geometry.destroy(true);
+    }
+    this.meshDisplays.length = 0;
   }
 
   // Grow or shrink the pooled bone graphics to exactly `count`, adding to / removing from the layer.

@@ -1,6 +1,7 @@
 import type {
   Animation,
   Bone,
+  MeshAttachment,
   RegionAttachment,
   RGBA,
   SkeletonDocument,
@@ -63,8 +64,28 @@ export function slot(
   };
 }
 
-// Default-skin attachment map: slot name -> attachment name -> region attachment.
-export type SkinMap = Record<string, Record<string, RegionAttachment>>;
+// An UNWEIGHTED unit-quad mesh (4 hull vertices, 2 triangles) in slot-bone space, scaled to
+// width x height around the bone origin. Weighted-mesh render tests use the committed mesh-limb-rig
+// asset instead (a document-core-authored rig); this builder covers the structural render path.
+export function mesh(path: string, overrides: Partial<MeshAttachment> = {}): MeshAttachment {
+  const w = overrides.width ?? 64;
+  const h = overrides.height ?? 64;
+  return {
+    type: 'mesh',
+    path,
+    uvs: [0, 0, 1, 0, 1, 1, 0, 1],
+    triangles: [0, 1, 2, 2, 3, 0],
+    hullLength: 4,
+    width: w,
+    height: h,
+    color: { ...WHITE },
+    vertices: [-w / 2, -h / 2, w / 2, -h / 2, w / 2, h / 2, -w / 2, h / 2],
+    ...overrides,
+  };
+}
+
+// Default-skin attachment map: slot name -> attachment name -> region or mesh attachment.
+export type SkinMap = Record<string, Record<string, RegionAttachment | MeshAttachment>>;
 
 export interface DocumentParts {
   readonly bones: Bone[];

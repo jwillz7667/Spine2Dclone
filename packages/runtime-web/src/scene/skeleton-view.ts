@@ -16,6 +16,7 @@ import {
 } from '@marionette/runtime-core';
 import { applyWorldToTarget, mapWorldToDisplay, type DisplayTransform } from './map-transform';
 import { drawBone } from './bone-graphics';
+import { blendModeToPixi } from './blend-mode';
 import { createAttachmentSprite, packTint, sizeForTexture } from './attachment-sprites';
 import { createMeshDisplay, markMeshPositionsDirty, type MeshDisplay } from './mesh-display';
 import { computeRegionSized, placeRegion } from './region-placement';
@@ -401,10 +402,17 @@ export class SkeletonView {
     this.resizeAttachments(drafts.length);
     const records = drafts.map((draft, i) => ({ ...draft, sprite: this.attachmentSprites[i]! }));
 
-    // Re-append in draw order (addChild moves an existing child to the end, so this is a pure reorder).
+    // Re-append in draw order (addChild moves an existing child to the end, so this is a pure reorder),
+    // and stamp the slot's blend mode onto its displays. Blend mode is per-slot document state (not
+    // animatable in this format version), so build time is the one place it is assigned; the mapping is
+    // the same blendModeToPixi the particle renderer uses (phase-3 section 7.4: no second blend path).
+    // Sprites are pooled across documents, so the assignment must not be skipped on rebuild.
     for (const record of records) {
+      const pixiBlend = blendModeToPixi(document.slots[record.slotIndex]!.blendMode);
+      record.sprite.blendMode = pixiBlend;
       this.attachmentsLayer.addChild(record.sprite);
       for (const entry of record.meshesByName.values()) {
+        entry.display.blendMode = pixiBlend;
         this.attachmentsLayer.addChild(entry.display);
       }
     }

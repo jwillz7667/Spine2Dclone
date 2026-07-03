@@ -1,10 +1,11 @@
 import { parseDocument, type ValidateOptions } from '@marionette/format';
 import { AtlasIndex, type AtlasPixelSource } from './atlas';
 import { TRANSPARENT, type Color } from './color';
-import { gatherDrawItems, type DrawItem } from './draw-items';
+import { gatherDrawItems } from './draw-items';
 import { encodePng } from './png';
-import { Framebuffer, rasterizeTriangle, type RasterTriangle } from './raster';
-import { projectX, projectY, resolveWorldToImage, WorldBounds, type Viewport } from './viewport';
+import { Framebuffer } from './raster';
+import { rasterizeWorldItem } from './raster-items';
+import { resolveWorldToImage, WorldBounds, type Viewport } from './viewport';
 
 // The render-preview entry point (ADR-0006). All inputs are values; the function is a pure, deterministic
 // function of them (no file IO, no clock, no randomness). The host resolves atlas page pixels and passes
@@ -58,40 +59,10 @@ export function renderFrame(options: RenderFrameOptions): RenderFrameResult {
   );
 
   for (const item of items) {
-    rasterizeItem(fb, item, transform);
+    rasterizeWorldItem(fb, item, transform);
   }
 
   const rgba = fb.toStraightRgba8();
   const png = encodePng(rgba, options.viewport.width, options.viewport.height);
   return { png, width: options.viewport.width, height: options.viewport.height };
-}
-
-function rasterizeItem(
-  fb: Framebuffer,
-  item: DrawItem,
-  transform: { scale: number; offsetX: number; offsetY: number },
-): void {
-  const positions = item.worldPositions;
-  const uvs = item.uvs;
-  const triangles = item.triangles;
-  for (let t = 0; t < triangles.length; t += 3) {
-    const i0 = triangles[t]!;
-    const i1 = triangles[t + 1]!;
-    const i2 = triangles[t + 2]!;
-    const tri: RasterTriangle = {
-      x0: projectX(transform, positions[i0 * 2]!),
-      y0: projectY(transform, positions[i0 * 2 + 1]!),
-      u0: uvs[i0 * 2]!,
-      v0: uvs[i0 * 2 + 1]!,
-      x1: projectX(transform, positions[i1 * 2]!),
-      y1: projectY(transform, positions[i1 * 2 + 1]!),
-      u1: uvs[i1 * 2]!,
-      v1: uvs[i1 * 2 + 1]!,
-      x2: projectX(transform, positions[i2 * 2]!),
-      y2: projectY(transform, positions[i2 * 2 + 1]!),
-      u2: uvs[i2 * 2]!,
-      v2: uvs[i2 * 2 + 1]!,
-    };
-    rasterizeTriangle(fb, tri, item.sampler, item.tint, item.alpha, item.blend);
-  }
 }

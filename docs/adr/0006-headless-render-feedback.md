@@ -45,8 +45,32 @@ smoke tests later) can SEE a frame.
   sampling, straight-alpha over-compositing, deterministic scanline triangle fill with a pinned
   top-left rule so output is byte-identical across platforms.
 - Output: PNG bytes.
-- Out of scope for v1 (documented, not silently missing): particles/effects frames, clipping masks,
-  tint-black, the slot-scene composition. Each lands as a follow-up scope extension of this package.
+- Out of scope for v1 (documented, not silently missing): clipping masks, tint-black, the slot-scene
+  composition. Each lands as a follow-up scope extension of this package.
+
+### Scope extension: effects and composed frames
+
+`renderEffectFrame` and `renderComposedFrame` extend this package to particle EFFECT / BUNDLE frames and
+composed skeleton+effect frames, through the SAME framebuffer, samplers, viewport transform, blend
+equations, and PNG codec. The effects SOLVE stays 100% in `runtime-core`: the renderer constructs an
+`EffectSystem`, triggers by name with a seed, steps it deterministically from 0 to `time` at the effect's
+`simulationDt` (exactly as the phase-3 acceptance harness does), and READS `readState()`; no emission or
+motion math is re-implemented. Emitter particles render as textured quads (per-particle position via the
+anchor, rotation = particle rotation + anchor rotation, scale = solved `outScale` sized to the region's
+base pixel size, tint = `outR/outG/outB`, alpha = `outAlpha`) mirroring runtime-web's
+`particle-render-batch.ts` mapping; world sprite-animator layers as one quad; `anchorSpace: 'screen'`
+sprites (the screen flash) as a full-viewport composite via `screenCoverTransformInto`; and ribbon trails
+as triangle strips from `buildRibbonStrip`.
+
+- Now covered (removed from the out-of-scope list above): particles/effects frames.
+- Extension caveats (documented, not silently missing): (1) the rasterizer shades per triangle with one
+  tint/alpha, so a ribbon's per-vertex color/alpha taper is approximated by the older-vertex value (a flat
+  over-length curve is exact; the runtime interpolates per vertex); (2) screen-space placement depends on
+  the viewport size, a render input excluded from the cross-runtime conformance rig (section 8.9), so it
+  is a preview convenience, not a conformance surface; (3) across effect instances the composite order
+  follows readState's live-array order (deterministic for a given trigger + step count; bundle layers are
+  additive presentation where order is visually order-independent); within one instance, layers composite
+  in authored array order.
 
 ### The MCP tool
 

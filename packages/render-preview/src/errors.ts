@@ -8,7 +8,8 @@ export type RenderPreviewErrorCode =
   | 'ZERO_CONTENT_FIT'
   | 'UNKNOWN_ANIMATION'
   | 'ROTATED_REGION_UNSUPPORTED'
-  | 'MALFORMED_ATLAS_PAGE';
+  | 'MALFORMED_ATLAS_PAGE'
+  | 'INVALID_EFFECT_TRIGGER';
 
 export class RenderPreviewError extends Error {
   readonly code: RenderPreviewErrorCode;
@@ -67,5 +68,15 @@ export class MalformedAtlasPageError extends RenderPreviewError {
   ) {
     super('MALFORMED_ATLAS_PAGE', `atlas page "${file}": ${message}`);
     this.name = 'MalformedAtlasPageError';
+  }
+}
+
+// An effect frame trigger that names neither an effect nor a bundle, or names BOTH. Exactly one of
+// `effect`/`bundle` must be supplied so the render target is unambiguous. Unknown effect/bundle NAMES
+// surface as runtime-core's typed EffectNotFoundError / BundleNotFoundError from the trigger call.
+export class EffectTriggerError extends RenderPreviewError {
+  constructor(message: string) {
+    super('INVALID_EFFECT_TRIGGER', message);
+    this.name = 'EffectTriggerError';
   }
 }

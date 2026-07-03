@@ -155,4 +155,16 @@ export class AtlasIndex {
     if (page === undefined) return WHITE_SAMPLER;
     return new RegionSampler(page, entry.region);
   }
+
+  // The base pixel size of a region (its packed w x h), resolved from the document atlas alone (never
+  // needs the page pixels). Effect particle/sprite quads size their world quad as this base size times
+  // the solved scale, mirroring how runtime-web sizes a particle sprite to the region's texture size
+  // (particle-render-batch.ts: "the renderer multiplies by the region's base size"). Returns null for an
+  // unknown region name; the effects validator (EFFECT_REGION_MISSING) makes that unreachable for a
+  // validated document, but callers stay defensive.
+  regionSize(path: string): { readonly width: number; readonly height: number } | null {
+    const entry = this.regions.get(path);
+    if (entry === undefined) return null;
+    return { width: entry.region.w, height: entry.region.h };
+  }
 }

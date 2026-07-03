@@ -1,18 +1,7 @@
 import type { IDockviewPanelProps } from 'dockview';
-import {
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type CSSProperties,
-  type ReactElement,
-} from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactElement } from 'react';
 import { symbolId } from '@marionette/format/slot';
-import type {
-  GridConfig,
-  SymbolAnimSet,
-  TumbleChoreography,
-} from '@marionette/format/slot-types';
+import type { GridConfig, SymbolAnimSet, TumbleChoreography } from '@marionette/format/slot-types';
 import {
   CreateWinSequenceCommand,
   MapSymbolAnimSetCommand,

@@ -41,7 +41,15 @@ export function computeWorldTransforms(pose: Pose): void {
     } else if (transformModes[i] === TRANSFORM_MODE_NORMAL) {
       multiplyInto(world, offset, world, parent * MAT2X3_STRIDE, local, offset);
     } else {
-      worldFromParentByMode(world, offset, world, parent * MAT2X3_STRIDE, local, offset, transformModes[i]!);
+      worldFromParentByMode(
+        world,
+        offset,
+        world,
+        parent * MAT2X3_STRIDE,
+        local,
+        offset,
+        transformModes[i]!,
+      );
     }
   }
 }

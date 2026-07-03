@@ -59,7 +59,9 @@ export function AssetsPanel(_props: IDockviewPanelProps): ReactElement {
       } else if (outcome.kind === 'imported' && outcome.regionCount === 0) {
         // A silent empty atlas reads as "import did nothing"; explain it. Import decodes PNG only, so a
         // folder of JPEG/WebP (or no images) packs to zero regions with no error otherwise.
-        showNotice('Imported 0 regions. Sprite import supports PNG files only; the chosen folder had no usable PNGs.');
+        showNotice(
+          'Imported 0 regions. Sprite import supports PNG files only; the chosen folder had no usable PNGs.',
+        );
       }
     } finally {
       setIsImporting(false);

@@ -164,7 +164,9 @@ function removeLayer(effectId: EffectId, layerId: EffectLayerId): void {
 }
 
 function setLayerBlend(effectId: EffectId, layerId: EffectLayerId, blendMode: BlendMode): void {
-  documentHost.current().history.execute(new SetLayerBlendModeCommand(effectId, layerId, blendMode));
+  documentHost
+    .current()
+    .history.execute(new SetLayerBlendModeCommand(effectId, layerId, blendMode));
 }
 
 // Resolve a select value to a BlendMode without an unsafe cast (the options are exactly BLEND_MODES).
@@ -220,7 +222,11 @@ function EffectDetail(props: EffectDetailProps): ReactElement {
     [effect],
   );
   const atlasRegions = useMemo(
-    () => documentHost.current().effects.atlas().pages.flatMap((page) => page.regions),
+    () =>
+      documentHost
+        .current()
+        .effects.atlas()
+        .pages.flatMap((page) => page.regions),
     // The atlas is read live per render; the parent re-renders on every revision, so no extra dep is needed.
     [effect],
   );
@@ -316,7 +322,10 @@ function EffectDetail(props: EffectDetailProps): ReactElement {
 
       <div style={detailRowStyle}>
         <span style={labelStyle}>Blend</span>
-        <span style={readonlyValueStyle} title="The effect-level default blend mode (set at create time)">
+        <span
+          style={readonlyValueStyle}
+          title="The effect-level default blend mode (set at create time)"
+        >
           {effect.blendMode}
         </span>
       </div>
@@ -329,12 +338,12 @@ function EffectDetail(props: EffectDetailProps): ReactElement {
       </div>
 
       {layers.length === 0 && (
-        <div style={emptyStyle}>No layers. Add an emitter, sprite animator, or ribbon trail below.</div>
+        <div style={emptyStyle}>
+          No layers. Add an emitter, sprite animator, or ribbon trail below.
+        </div>
       )}
       {layers.map((layer) =>
-        layer === undefined ? null : (
-          <LayerRow key={layer.id} effectId={effect.id} layer={layer} />
-        ),
+        layer === undefined ? null : <LayerRow key={layer.id} effectId={effect.id} layer={layer} />,
       )}
 
       <div style={detailRowStyle}>

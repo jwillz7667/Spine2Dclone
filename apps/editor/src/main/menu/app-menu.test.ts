@@ -57,13 +57,13 @@ describe('buildAppMenuTemplate', () => {
     const { template, dispatch } = build(false);
     const file = submenuOf(template, 'File');
     const labels = file.map((i) => i.label);
-    expect(labels).toEqual(expect.arrayContaining(['New', 'Open...', 'Save...', 'Import Sprites...']));
-
-    file.find((i) => i.label === 'Save...')?.click?.(
-      undefined as never,
-      undefined,
-      undefined as never,
+    expect(labels).toEqual(
+      expect.arrayContaining(['New', 'Open...', 'Save...', 'Import Sprites...']),
     );
+
+    file
+      .find((i) => i.label === 'Save...')
+      ?.click?.(undefined as never, undefined, undefined as never);
     expect(dispatch).toHaveBeenCalledWith('file:save');
   });
 

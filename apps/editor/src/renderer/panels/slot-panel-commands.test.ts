@@ -136,9 +136,7 @@ describe('SlotPanel summary-affordance wiring', () => {
     const before = doc.model.slotScene().tumble;
     expect(before.dropEasing).toBe('linear');
 
-    doc.history.execute(
-      new SetTumbleChoreographyCommand({ ...before, dropEasing: 'easeOutQuad' }),
-    );
+    doc.history.execute(new SetTumbleChoreographyCommand({ ...before, dropEasing: 'easeOutQuad' }));
     expect(doc.model.slotScene().tumble.dropEasing).toBe('easeOutQuad');
 
     doc.history.undo();

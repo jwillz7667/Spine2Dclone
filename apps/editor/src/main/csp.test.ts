@@ -20,7 +20,8 @@ describe('cspForMode', () => {
       const policy = cspForMode(mode);
       expect(policy).toContain("worker-src 'self' blob:");
       // The blob: allowance is scoped to workers only; the script directive stays blob-free.
-      const scriptDirective = policy.split(';').find((d) => d.trim().startsWith('script-src')) ?? '';
+      const scriptDirective =
+        policy.split(';').find((d) => d.trim().startsWith('script-src')) ?? '';
       expect(scriptDirective).not.toContain('blob:');
     }
   });

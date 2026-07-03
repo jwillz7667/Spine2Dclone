@@ -20,12 +20,42 @@
   "instanceSeed": {
     "_algorithm": "instanceSeed = hash32(triggerSeed, layerIndex); triggerSeed = hash32(spinSeed(spinId), 0)",
     "samples": [
-      { "spinId": "spin-base-win", "triggerSeed": 152084580, "layerIndex": 0, "instanceSeed": 181986220 },
-      { "spinId": "spin-base-win", "triggerSeed": 152084580, "layerIndex": 1, "instanceSeed": 3451884930 },
-      { "spinId": "spin-base-win", "triggerSeed": 152084580, "layerIndex": 2, "instanceSeed": 1667948507 },
-      { "spinId": "spin-tumble-cascade", "triggerSeed": 2167820300, "layerIndex": 0, "instanceSeed": 418703933 },
-      { "spinId": "spin-tumble-cascade", "triggerSeed": 2167820300, "layerIndex": 1, "instanceSeed": 286252804 },
-      { "spinId": "spin-tumble-cascade", "triggerSeed": 2167820300, "layerIndex": 2, "instanceSeed": 1463774016 }
+      {
+        "spinId": "spin-base-win",
+        "triggerSeed": 152084580,
+        "layerIndex": 0,
+        "instanceSeed": 181986220
+      },
+      {
+        "spinId": "spin-base-win",
+        "triggerSeed": 152084580,
+        "layerIndex": 1,
+        "instanceSeed": 3451884930
+      },
+      {
+        "spinId": "spin-base-win",
+        "triggerSeed": 152084580,
+        "layerIndex": 2,
+        "instanceSeed": 1667948507
+      },
+      {
+        "spinId": "spin-tumble-cascade",
+        "triggerSeed": 2167820300,
+        "layerIndex": 0,
+        "instanceSeed": 418703933
+      },
+      {
+        "spinId": "spin-tumble-cascade",
+        "triggerSeed": 2167820300,
+        "layerIndex": 1,
+        "instanceSeed": 286252804
+      },
+      {
+        "spinId": "spin-tumble-cascade",
+        "triggerSeed": 2167820300,
+        "layerIndex": 2,
+        "instanceSeed": 1463774016
+      }
     ]
   },
   "mulberry32": {

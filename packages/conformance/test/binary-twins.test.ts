@@ -68,7 +68,10 @@ describe('binary rig twins (WP-5.1)', () => {
     (rigId) => {
       const spec = loadSampleSpec(rigId);
       const fromJson = buildFixtureSamples(loadRig(rigId), spec);
-      const fromBinary = buildFixtureSamples(validateRig(decodeBinary(readBytes(rigBinPath(rigId)))), spec);
+      const fromBinary = buildFixtureSamples(
+        validateRig(decodeBinary(readBytes(rigBinPath(rigId)))),
+        spec,
+      );
       // The solve output is integer-exact-equal (same document, same code path); the binary loader is
       // proven not to perturb the solve.
       expect(fromBinary).toEqual(fromJson);

@@ -69,7 +69,11 @@ function rigFeatures(rigId: RigId): RigFeatures {
   }
   let hasDeform = false;
   for (const animation of Object.values(doc.animations)) {
-    if (isRecord(animation) && isRecord(animation['deform']) && Object.keys(animation['deform']).length > 0) {
+    if (
+      isRecord(animation) &&
+      isRecord(animation['deform']) &&
+      Object.keys(animation['deform']).length > 0
+    ) {
       hasDeform = true;
     }
   }
@@ -141,7 +145,9 @@ describe('A.2 reference-rig coverage (phase-5 TASK-5.5.8, the shared-core compen
   // (the format schema already carries bone.transformMode; the solve currently ignores it, so every bone
   // resolves as 'normal'). Then author rig-transform-modes and assert each non-normal mode differs from
   // 'normal' by > 1e-2 under a rotated, non-uniformly-scaled parent.
-  it.todo('every non-normal transformMode (onlyTranslation/noRotationOrReflection/noScale/noScaleOrReflection) is observably exercised');
+  it.todo(
+    'every non-normal transformMode (onlyTranslation/noRotationOrReflection/noScale/noScaleOrReflection) is observably exercised',
+  );
 
   // Blocked on: a format MINOR bump (0.2.0 -> 0.3.0) adding the drawOrder animation timeline + the
   // fixture-schema drawOrder capture + the compare-engine drawOrder check, then a rig-events-draworder.

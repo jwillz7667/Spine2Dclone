@@ -14,9 +14,7 @@
 import { z } from 'zod';
 
 // Semver of THIS schema, validated by pattern. INDEPENDENT of SkeletonDocument.formatVersion.
-const semver = z
-  .string()
-  .regex(/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.]+)?$/, 'must be a semver string');
+const semver = z.string().regex(/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.]+)?$/, 'must be a semver string');
 
 const deviceParticleProfile = z.object({
   // The Phase 3 per-scene MAX_LIVE_PARTICLES budget (section 8.8) for this profile.

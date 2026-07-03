@@ -40,7 +40,8 @@ describe('cross-language seed/PRNG/CRC vectors (WP-5.5, TASK-5.5.7)', () => {
     expect(hash32(spinSeed('spin-base-win'), 0)).toBe(golden.mulberry32.seed);
     const state = makePrng(golden.mulberry32.seed);
     const produced: number[] = [];
-    for (let i = 0; i < golden.mulberry32.nextU32_first16.length; i += 1) produced.push(nextU32(state));
+    for (let i = 0; i < golden.mulberry32.nextU32_first16.length; i += 1)
+      produced.push(nextU32(state));
     expect(produced).toEqual(golden.mulberry32.nextU32_first16);
   });
 

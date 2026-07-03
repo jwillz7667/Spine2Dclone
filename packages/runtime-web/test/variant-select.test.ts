@@ -1,8 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  gpuCapabilitiesFromExtensions,
-  selectTextureVariant,
-} from '../src/atlas/variant-select';
+import { gpuCapabilitiesFromExtensions, selectTextureVariant } from '../src/atlas/variant-select';
 import type { GpuCapabilities } from '../src/atlas/variant-select';
 
 // WP-5.2 TASK-5.2.8 (the non-GL part): the NORMATIVE texture-variant selector returns the EXPECTED target
@@ -41,7 +38,9 @@ describe('texture-variant selection (WP-5.2, TASK-5.2.8)', () => {
   describe('gpuCapabilitiesFromExtensions (WebGL extension mapping)', () => {
     it('maps the ASTC extension (and its vendor-prefixed form)', () => {
       expect(gpuCapabilitiesFromExtensions(['WEBGL_compressed_texture_astc']).astc).toBe(true);
-      expect(gpuCapabilitiesFromExtensions(['WEBKIT_WEBGL_compressed_texture_astc']).astc).toBe(true);
+      expect(gpuCapabilitiesFromExtensions(['WEBKIT_WEBGL_compressed_texture_astc']).astc).toBe(
+        true,
+      );
     });
 
     it('maps the BC7 (BPTC) extension', () => {
@@ -64,7 +63,10 @@ describe('texture-variant selection (WP-5.2, TASK-5.2.8)', () => {
     });
 
     it('end-to-end: a desktop WebGL context with only BPTC selects BC7', () => {
-      const c = gpuCapabilitiesFromExtensions(['EXT_texture_compression_bptc', 'OES_texture_float']);
+      const c = gpuCapabilitiesFromExtensions([
+        'EXT_texture_compression_bptc',
+        'OES_texture_float',
+      ]);
       expect(selectTextureVariant(c)).toBe('bc7');
     });
 

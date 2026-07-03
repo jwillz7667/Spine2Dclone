@@ -52,7 +52,15 @@ export function resolveWorld(
     if (transformModes[childIndex] === TRANSFORM_MODE_NORMAL) {
       multiplyInto(product, 0, accumulator, 0, local, childOffset);
     } else {
-      worldFromParentByMode(product, 0, accumulator, 0, local, childOffset, transformModes[childIndex]!);
+      worldFromParentByMode(
+        product,
+        0,
+        accumulator,
+        0,
+        local,
+        childOffset,
+        transformModes[childIndex]!,
+      );
     }
     copyInto(accumulator, 0, product, 0);
   }

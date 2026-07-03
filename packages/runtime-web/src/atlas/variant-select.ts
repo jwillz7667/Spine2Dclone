@@ -51,7 +51,9 @@ const ETC2_EXTENSIONS: readonly string[] = [
 
 // Map a WebGL context's supported-extension list to the static GpuCapabilities. Pure: the caller passes
 // `gl.getSupportedExtensions()` (or a mock); this function does no GL work, so it is fully headless-testable.
-export function gpuCapabilitiesFromExtensions(supportedExtensions: readonly string[]): GpuCapabilities {
+export function gpuCapabilitiesFromExtensions(
+  supportedExtensions: readonly string[],
+): GpuCapabilities {
   const supported = new Set(supportedExtensions);
   const anyOf = (names: readonly string[]): boolean => names.some((name) => supported.has(name));
   return {

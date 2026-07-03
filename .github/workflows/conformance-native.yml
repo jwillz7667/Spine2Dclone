@@ -52,11 +52,32 @@ jobs:
       - name: TS cross-language vectors + binary twin CRCs (TASK-5.5.7, TASK-5.1.8)
         run: pnpm --filter @marionette/conformance test -- cross-language-vectors binary-twins
 
+  # Presence probe for the native runtimes. hashFiles() is a runner-side function and is NOT valid in a
+  # job-level `if` (the service rejects the whole workflow file with "Unrecognized function: hashFiles"
+  # before creating any job, which made every push record a 0s failure), so this job checks the tree once
+  # and the engine jobs gate on its outputs.
+  detect-runtimes:
+    runs-on: ubuntu-latest
+    outputs:
+      unity: ${{ steps.probe.outputs.unity }}
+      godot: ${{ steps.probe.outputs.godot }}
+      shared: ${{ steps.probe.outputs.shared }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: probe
+        run: |
+          {
+            echo "unity=$([ -d runtimes/unity ] && echo true || echo false)"
+            echo "godot=$([ -d runtimes/godot ] && echo true || echo false)"
+            echo "shared=$([ -d runtimes/shared ] && echo true || echo false)"
+          } >> "$GITHUB_OUTPUT"
+
   # PATH-FILTERED / nightly (TASK-5.5.1): Unity conformance via GameCI batchmode, comparing the native
   # dump against the committed fixtures within the single tolerance. Skips until WP-5.3 lands runtimes/unity.
   conformance-unity:
     runs-on: ubuntu-latest
-    if: ${{ hashFiles('runtimes/unity/**') != '' }}
+    needs: detect-runtimes
+    if: ${{ needs.detect-runtimes.outputs.unity == 'true' }}
     steps:
       - uses: actions/checkout@v4
       - name: Unity conformance dump + compare (WP-5.3, TASK-5.5.1)
@@ -69,7 +90,8 @@ jobs:
   # path (DECISION-5.4), not a bare C# console. Skips until WP-5.4 lands runtimes/godot.
   conformance-godot:
     runs-on: ubuntu-latest
-    if: ${{ hashFiles('runtimes/godot/**') != '' }}
+    needs: detect-runtimes
+    if: ${{ needs.detect-runtimes.outputs.godot == 'true' }}
     steps:
       - uses: actions/checkout@v4
       - name: Godot conformance dump + compare (WP-5.4, TASK-5.5.2)
@@ -83,7 +105,8 @@ jobs:
   # Skips until the shared Marionette.Runtime.Core lands (WP-5.3).
   conformance-core-fast:
     runs-on: ubuntu-latest
-    if: ${{ hashFiles('runtimes/shared/**') != '' }}
+    needs: detect-runtimes
+    if: ${{ needs.detect-runtimes.outputs.shared == 'true' }}
     steps:
       - uses: actions/checkout@v4
       - name: Fast pure-C#-core dump + compare (WP-5.3, TASK-5.5.3)
@@ -98,7 +121,14 @@ jobs:
   conformance-native-pass:
     runs-on: ubuntu-latest
     if: always()
-    needs: [cross-language-equivalence, conformance-unity, conformance-godot, conformance-core-fast]
+    needs:
+      [
+        detect-runtimes,
+        cross-language-equivalence,
+        conformance-unity,
+        conformance-godot,
+        conformance-core-fast,
+      ]
     steps:
       - name: Verify no native conformance job failed (skipped counts as success)
         run: |

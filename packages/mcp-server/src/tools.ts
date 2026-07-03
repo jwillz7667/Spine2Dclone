@@ -22,6 +22,9 @@ import {
   DeleteIkConstraintCommand,
   DeleteIkKeyframeCommand,
   DeleteKeyframeCommand,
+  SetAttachmentKeyframeCommand,
+  DeleteAttachmentKeyframeCommand,
+  CommandTargetMissingError,
   DeleteMeshVertexCommand,
   DeleteSkinCommand,
   DeleteSlotCommand,
@@ -114,6 +117,8 @@ import {
   SetTumbleChoreographyCommand,
   SlotEditError,
   exportDocument,
+  exportEffects,
+  EffectsExportValidationError,
   type AnimationEntity,
   type AnimationId,
   type AttachmentEntity,
@@ -153,9 +158,11 @@ import {
   type BundleItemPatch,
   type NewLayerKind,
   type MapSymbolAnimSetInit,
+  type EffectsReadModel,
 } from '@marionette/document-core';
 import { FormatValidationError } from '@marionette/format';
 import type { AtlasRef, SkeletonDocument } from '@marionette/format/types';
+import type { EffectsDocument } from '@marionette/format/effects-types';
 import type { SymbolId } from '@marionette/format/slot-types';
 import {
   isAtlasError,
@@ -168,12 +175,16 @@ import {
   buildPose,
   computeWorldTransforms,
   resetToSetupPose,
+  EffectNotFoundError,
+  BundleNotFoundError,
 } from '@marionette/runtime-core';
 import {
   RenderPreviewError,
   renderFrame,
+  renderComposedFrame,
   type AtlasPagePixels,
   type RenderFrameResult,
+  type EffectAnchorInput,
 } from '@marionette/render-preview';
 import { PNG } from 'pngjs';
 import { z } from 'zod';
@@ -2246,6 +2257,33 @@ const renderFitRectSchema = z
 
 const renderFitSchema = z.union([z.literal('content'), renderFitRectSchema]);
 
+// The optional effects overlay for render_frame. When present, render_frame exports the live effects
+// library, solves the named effect/bundle (runtime-core's EffectSystem, inside renderComposedFrame), and
+// draws it AFTER the skeleton into the same framebuffer so an authored big-win moment (scene + coin shower)
+// previews as one PNG. Exactly one of `effect` / `bundle` names the trigger target: the render-preview
+// EffectTriggerError rejects zero or both as RENDER_INVALID_EFFECT_TRIGGER (validated by the solver, not
+// duplicated here). `seed` drives the deterministic solve. `time` defaults to the skeleton `time` (or 0 at
+// setup pose). Anchors are WORLD-space only in this pass: a bone anchor (resolveBone) is intentionally NOT
+// wired here, so an anchor is an {x, y, rotation?} point keyed by role (a single effect reads the 'default'
+// role; a bundle resolves each item's anchorRole).
+const renderEffectAnchorSchema = z
+  .object({
+    x: z.number().finite(),
+    y: z.number().finite(),
+    rotation: z.number().finite().optional(),
+  })
+  .strict();
+
+const renderEffectSchema = z
+  .object({
+    effect: z.string().min(1).optional(),
+    bundle: z.string().min(1).optional(),
+    seed: z.number().int(),
+    time: z.number().finite().nonnegative().optional(),
+    anchors: z.record(z.string().min(1), renderEffectAnchorSchema).optional(),
+  })
+  .strict();
+
 // Read one atlas page's bytes through the host FileStore. A path that escapes the project root is a typed
 // PATH_FORBIDDEN (surfaced verbatim); any other read failure means the referenced page file is absent or
 // unreadable on disk, which is a loud RENDER_ATLAS_PAGE_MISSING per ADR-0006 (the rasterizer's white
@@ -2280,11 +2318,36 @@ function decodeAtlasPage(file: string, bytes: Uint8Array): AtlasPagePixels {
   return { width: png.width, height: png.height, rgba: png.data };
 }
 
+// Resolve and decode every page of an AtlasRef into the rasterizer's page-pixel map, keyed by
+// AtlasPage.file. Shared by the skeleton atlas and the effects overlay atlas: each page file is read
+// through the confined host FileStore (traversal => PATH_FORBIDDEN, absent => RENDER_ATLAS_PAGE_MISSING)
+// and decoded (non-PNG => RENDER_MALFORMED_ATLAS_PAGE). An atlas with no pages yields an empty map, which
+// the AtlasIndex renders as tintable white placeholders.
+async function loadAtlasPages(
+  files: FileStore,
+  atlas: AtlasRef,
+): Promise<Map<string, AtlasPagePixels>> {
+  const pages = new Map<string, AtlasPagePixels>();
+  for (const page of atlas.pages) {
+    pages.set(page.file, decodeAtlasPage(page.file, await readAtlasPageBytes(files, page.file)));
+  }
+  return pages;
+}
+
 // Map a render-preview typed error onto an McpToolError code. UNKNOWN_ANIMATION reuses the surface-wide
 // ANIMATION_NOT_FOUND code so a client branches identically regardless of which tool raised it; the rest
-// get render-scoped codes. Non render-preview errors (including a FormatValidationError from the internal
-// re-validate) propagate unchanged for the outer handler to classify.
+// get render-scoped codes. The effects overlay adds three more: an ambiguous/empty trigger
+// (EffectTriggerError, INVALID_EFFECT_TRIGGER) and an unknown effect/bundle NAME, which runtime-core's
+// EffectSystem raises as EffectNotFoundError / BundleNotFoundError from inside renderComposedFrame. Non
+// render-preview errors (including a FormatValidationError from the internal re-validate) propagate
+// unchanged for the outer handler to classify.
 function mapRenderError(error: unknown): never {
+  if (error instanceof EffectNotFoundError) {
+    throw new McpToolError('RENDER_EFFECT_NOT_FOUND', error.message);
+  }
+  if (error instanceof BundleNotFoundError) {
+    throw new McpToolError('RENDER_BUNDLE_NOT_FOUND', error.message);
+  }
   if (error instanceof RenderPreviewError) {
     switch (error.code) {
       case 'UNKNOWN_ANIMATION':
@@ -2297,9 +2360,33 @@ function mapRenderError(error: unknown): never {
         throw new McpToolError('RENDER_ROTATED_REGION', error.message);
       case 'MALFORMED_ATLAS_PAGE':
         throw new McpToolError('RENDER_MALFORMED_ATLAS_PAGE', error.message);
+      case 'INVALID_EFFECT_TRIGGER':
+        throw new McpToolError('RENDER_INVALID_EFFECT_TRIGGER', error.message);
     }
   }
   throw error;
+}
+
+// Export the live effects library to the EffectsDocument format for the render overlay, converting the
+// effects-export failure modes into typed tool errors (the effects mirror of exportOrThrow). A dangling
+// region reference, a duplicate name, or any other broken projection is RENDER_INVALID_EFFECTS_DOCUMENT
+// (LAW 3: an overlay that cannot be represented fails loudly, never renders a silently-wrong frame).
+function exportEffectsOrThrow(effects: EffectsReadModel): EffectsDocument {
+  try {
+    return exportEffects(effects);
+  } catch (error) {
+    if (error instanceof EffectsExportValidationError) {
+      throw new McpToolError(
+        'RENDER_INVALID_EFFECTS_DOCUMENT',
+        'effects library is not valid for rendering',
+        error.report.errors,
+      );
+    }
+    if (error instanceof DocumentInvariantError) {
+      throw new McpToolError('RENDER_INVALID_EFFECTS_DOCUMENT', error.message);
+    }
+    throw error;
+  }
 }
 
 export const TOOLS: readonly ToolDefinition[] = [
@@ -4188,7 +4275,9 @@ export const TOOLS: readonly ToolDefinition[] = [
         'it base64-encoded. Renders the setup pose, or an animation sampled at `time` (clamped to the ' +
         'animation duration). Atlas page PNGs referenced by the document are loaded from the project ' +
         'root; a referenced page file that is missing on disk is a loud error. When the document has no ' +
-        'atlas pages at all, attachments render as tintable white placeholders and `placeholders` is true.',
+        'atlas pages at all, attachments render as tintable white placeholders and `placeholders` is true. ' +
+        'Pass `effect` to overlay a solved effect/bundle from the live effects library ON TOP of the ' +
+        'skeleton in the same frame (world-space anchors only in this pass; bone anchors are not wired yet).',
       input: z
         .object({
           documentId,
@@ -4198,6 +4287,7 @@ export const TOOLS: readonly ToolDefinition[] = [
           height: renderDimension.default(512),
           fit: renderFitSchema.default('content'),
           background: rgbaSchema.optional(),
+          effect: renderEffectSchema.optional(),
         })
         .strict(),
     },
@@ -4205,27 +4295,68 @@ export const TOOLS: readonly ToolDefinition[] = [
       const session = deps.sessions.get(input.documentId);
       const document = exportOrThrow(session.document.model);
 
-      const pages = new Map<string, AtlasPagePixels>();
-      for (const page of document.atlas.pages) {
-        pages.set(
-          page.file,
-          decodeAtlasPage(page.file, await readAtlasPageBytes(deps.files, page.file)),
-        );
-      }
+      const pages = await loadAtlasPages(deps.files, document.atlas);
       const placeholders = document.atlas.pages.length === 0;
 
       let result: RenderFrameResult;
-      try {
-        result = renderFrame({
-          document,
-          ...(input.animation !== undefined ? { animation: input.animation } : {}),
-          ...(input.time !== undefined ? { time: input.time } : {}),
-          atlas: { pages },
-          viewport: { width: input.width, height: input.height, fit: input.fit },
-          ...(input.background !== undefined ? { background: input.background } : {}),
-        });
-      } catch (error) {
-        mapRenderError(error);
+      if (input.effect === undefined) {
+        try {
+          result = renderFrame({
+            document,
+            ...(input.animation !== undefined ? { animation: input.animation } : {}),
+            ...(input.time !== undefined ? { time: input.time } : {}),
+            atlas: { pages },
+            viewport: { width: input.width, height: input.height, fit: input.fit },
+            ...(input.background !== undefined ? { background: input.background } : {}),
+          });
+        } catch (error) {
+          mapRenderError(error);
+        }
+      } else {
+        // Effects overlay: export + resolve the effects library's OWN atlas (its pages may share the
+        // skeleton's names or be wholly separate), build a world-anchor trigger, and compose. The effects
+        // export and page reads run BEFORE the render try so their typed McpToolErrors surface directly.
+        const spec = input.effect;
+        const effectsDocument = exportEffectsOrThrow(session.document.effects);
+        const effectPages = await loadAtlasPages(deps.files, effectsDocument.atlas);
+
+        const anchors: Record<string, EffectAnchorInput> = {};
+        if (spec.anchors !== undefined) {
+          for (const [role, anchor] of Object.entries(spec.anchors)) {
+            anchors[role] =
+              anchor.rotation === undefined
+                ? { x: anchor.x, y: anchor.y }
+                : { x: anchor.x, y: anchor.y, rotation: anchor.rotation };
+          }
+        }
+        const trigger = {
+          ...(spec.effect !== undefined ? { effect: spec.effect } : {}),
+          ...(spec.bundle !== undefined ? { bundle: spec.bundle } : {}),
+          seed: spec.seed,
+          anchors,
+        };
+        const effectTime = spec.time ?? input.time ?? 0;
+
+        try {
+          result = renderComposedFrame({
+            skeleton: {
+              document,
+              ...(input.animation !== undefined ? { animation: input.animation } : {}),
+              ...(input.time !== undefined ? { time: input.time } : {}),
+              atlas: { pages },
+            },
+            effect: {
+              effectsDocument,
+              trigger,
+              time: effectTime,
+              atlas: { pages: effectPages },
+            },
+            viewport: { width: input.width, height: input.height, fit: input.fit },
+            ...(input.background !== undefined ? { background: input.background } : {}),
+          });
+        } catch (error) {
+          mapRenderError(error);
+        }
       }
 
       return {
@@ -4551,6 +4682,94 @@ export const TOOLS: readonly ToolDefinition[] = [
       session.document.history.execute(
         new PasteKeyframesCommand(asAnimationId(input.animationId), items),
       );
+      return { revision: session.document.model.revision };
+    },
+  ),
+
+  // ----- attachment-swap keyframes (the stepped slot attachment timeline; each drives the document-core
+  // command on the shared History, LAW 2). Targets are pre-validated with the require* helpers so a missing
+  // animation/slot is a typed *_NOT_FOUND before the command runs (mirroring ik.setKeyframe); a non-null swap
+  // name that resolves to no attachment on the slot is ATTACHMENT_NOT_FOUND (the author-time mirror of the
+  // import validator's SLOT_ATTACHMENT_MISSING). Neither command coalesces (a swap is discrete and stepped).
+  defineTool(
+    {
+      name: 'kf.attachment.set',
+      title: 'Set attachment keyframe',
+      description:
+        'Insert or replace a slot attachment-swap frame at a time on the stepped attachment timeline. ' +
+        '`name` is the attachment to show (which must resolve on the slot), or null to hide the slot. ' +
+        'Replacing an existing frame at the same time keeps its id.',
+      input: z
+        .object({
+          documentId,
+          animationId,
+          slotId,
+          time: z.number().finite().nonnegative(),
+          name: z.string().min(1).nullable(),
+        })
+        .strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireAnimation(session, input.animationId);
+      requireSlot(session, input.slotId);
+      if (
+        input.name !== null &&
+        session.document.model.getAttachment(asSlotId(input.slotId), input.name) === undefined
+      ) {
+        throw new McpToolError(
+          'ATTACHMENT_NOT_FOUND',
+          `slot "${input.slotId}" has no attachment "${input.name}"`,
+        );
+      }
+      session.document.history.execute(
+        new SetAttachmentKeyframeCommand(
+          asAnimationId(input.animationId),
+          asSlotId(input.slotId),
+          input.time,
+          input.name,
+        ),
+      );
+      return { revision: session.document.model.revision };
+    },
+  ),
+  defineTool(
+    {
+      name: 'kf.attachment.delete',
+      title: 'Delete attachment keyframe',
+      description:
+        'Delete the slot attachment-swap frame at exactly `time` from the stepped attachment timeline. ' +
+        'A time with no frame is a typed KEYFRAME_NOT_FOUND.',
+      input: z
+        .object({
+          documentId,
+          animationId,
+          slotId,
+          time: z.number().finite().nonnegative(),
+        })
+        .strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireAnimation(session, input.animationId);
+      requireSlot(session, input.slotId);
+      try {
+        session.document.history.execute(
+          new DeleteAttachmentKeyframeCommand(
+            asAnimationId(input.animationId),
+            asSlotId(input.slotId),
+            input.time,
+          ),
+        );
+      } catch (error) {
+        if (error instanceof CommandTargetMissingError) {
+          throw new McpToolError(
+            'KEYFRAME_NOT_FOUND',
+            `no attachment keyframe at time ${input.time} on slot "${input.slotId}"`,
+          );
+        }
+        throw error;
+      }
       return { revision: session.document.model.revision };
     },
   ),

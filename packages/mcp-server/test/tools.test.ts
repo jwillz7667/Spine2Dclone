@@ -1879,6 +1879,307 @@ describe('MCP render_frame tool', () => {
   });
 });
 
+// Attachment-swap keyframes (kf.attachment.set / kf.attachment.delete): an LLM keys the stepped slot
+// attachment timeline (show attachment X at t, hide at t') through the same document-core command + History
+// as the GUI (LAW 2). The tools pre-validate targets like ik.setKeyframe: a missing animation/slot is a
+// typed *_NOT_FOUND, and a non-null swap name that does not resolve on the slot is ATTACHMENT_NOT_FOUND.
+describe('MCP attachment keyframe tools', () => {
+  // A rig with one slot carrying a resolvable region attachment ('body_img') and a one-second animation, so
+  // a swap frame's non-null name resolves and the time is in range.
+  async function buildSwapRig(deps: ToolDeps): Promise<{
+    documentId: string;
+    slotId: string;
+    animationId: string;
+  }> {
+    const { documentId } = asRecord(await call(deps, 'document.new', { name: 'swap' }));
+    await call(deps, 'atlas.set', { documentId, atlas: oneRegionAtlas('atlas0.png', 'tile') });
+    const { boneId } = asRecord(
+      await call(deps, 'bone.create', { documentId, name: 'root', length: 100 }),
+    );
+    const { slotId } = asRecord(
+      await call(deps, 'slot.create', { documentId, boneId, name: 'body' }),
+    );
+    await call(deps, 'attach.region.add', {
+      documentId,
+      slotId,
+      name: 'body_img',
+      path: 'tile',
+      width: 64,
+      height: 64,
+    });
+    const { animationId } = asRecord(
+      await call(deps, 'anim.create', { documentId, name: 'idle', duration: 1 }),
+    );
+    return {
+      documentId: String(documentId),
+      slotId: String(slotId),
+      animationId: String(animationId),
+    };
+  }
+
+  // Read the attachment-swap frames on a slot's timeline out of anim.get.
+  async function swapFrames(
+    deps: ToolDeps,
+    documentId: string,
+    animationId: string,
+    slotId: string,
+  ): Promise<Array<{ id: string; time: number; name: string | null }>> {
+    const animGet = asRecord(await call(deps, 'anim.get', { documentId, animationId }));
+    const slots = asRecord(animGet.animation).slots as Array<{
+      slotId: string;
+      attachment: Array<{ id: string; time: number; name: string | null }>;
+    }>;
+    return slots.find((track) => track.slotId === slotId)?.attachment ?? [];
+  }
+
+  it('sets, replaces, deletes, and undoes an attachment-swap frame', async () => {
+    const deps = makeDeps();
+    const { documentId, slotId, animationId } = await buildSwapRig(deps);
+
+    // Set a frame showing 'body_img' at t=0.5.
+    await call(deps, 'kf.attachment.set', {
+      documentId,
+      animationId,
+      slotId,
+      time: 0.5,
+      name: 'body_img',
+    });
+    const afterSet = await swapFrames(deps, documentId, animationId, slotId);
+    expect(afterSet).toHaveLength(1);
+    expect(afterSet[0]!.time).toBe(0.5);
+    expect(afterSet[0]!.name).toBe('body_img');
+    const frameId = afterSet[0]!.id;
+
+    // Replace at the SAME time with a null (hide) target: the frame keeps its id, its name flips to null.
+    await call(deps, 'kf.attachment.set', {
+      documentId,
+      animationId,
+      slotId,
+      time: 0.5,
+      name: null,
+    });
+    const afterReplace = await swapFrames(deps, documentId, animationId, slotId);
+    expect(afterReplace).toHaveLength(1);
+    expect(afterReplace[0]!.id).toBe(frameId);
+    expect(afterReplace[0]!.name).toBeNull();
+
+    // Delete the frame: the emptied timeline is pruned.
+    await call(deps, 'kf.attachment.delete', { documentId, animationId, slotId, time: 0.5 });
+    expect(await swapFrames(deps, documentId, animationId, slotId)).toHaveLength(0);
+
+    // One undo restores the pre-delete state (the null-target frame).
+    await call(deps, 'history.undo', { documentId });
+    const afterUndo = await swapFrames(deps, documentId, animationId, slotId);
+    expect(afterUndo).toHaveLength(1);
+    expect(afterUndo[0]!.id).toBe(frameId);
+    expect(afterUndo[0]!.name).toBeNull();
+  });
+
+  it('surfaces typed errors for an unknown animation, an unknown slot, and an unresolved name', async () => {
+    const deps = makeDeps();
+    const { documentId, slotId, animationId } = await buildSwapRig(deps);
+
+    await expectToolError(
+      call(deps, 'kf.attachment.set', {
+        documentId,
+        animationId: 'nope',
+        slotId,
+        time: 0.5,
+        name: 'body_img',
+      }),
+      'ANIMATION_NOT_FOUND',
+    );
+
+    await expectToolError(
+      call(deps, 'kf.attachment.set', {
+        documentId,
+        animationId,
+        slotId: 'nope',
+        time: 0.5,
+        name: 'body_img',
+      }),
+      'SLOT_NOT_FOUND',
+    );
+
+    // A non-null name that resolves to no attachment on the slot is rejected before the command runs.
+    await expectToolError(
+      call(deps, 'kf.attachment.set', {
+        documentId,
+        animationId,
+        slotId,
+        time: 0.5,
+        name: 'ghost',
+      }),
+      'ATTACHMENT_NOT_FOUND',
+    );
+
+    // Deleting a time that carries no frame is a typed KEYFRAME_NOT_FOUND.
+    await expectToolError(
+      call(deps, 'kf.attachment.delete', { documentId, animationId, slotId, time: 9 }),
+      'KEYFRAME_NOT_FOUND',
+    );
+  });
+});
+
+// render_frame effects overlay: the `effect` param composes a solved effect/bundle from the live effects
+// library ON TOP of the skeleton in one PNG (renderComposedFrame). The effect's OWN atlas pages are
+// resolved from disk exactly like the skeleton's. World-space anchors only in this pass.
+describe('MCP render_frame effects overlay', () => {
+  function solidPagePng(
+    width: number,
+    height: number,
+    r: number,
+    g: number,
+    b: number,
+  ): Uint8Array {
+    const png = new PNG({ width, height });
+    for (let i = 0; i < width * height; i += 1) {
+      const base = i * 4;
+      png.data[base] = r;
+      png.data[base + 1] = g;
+      png.data[base + 2] = b;
+      png.data[base + 3] = 255;
+    }
+    return PNG.sync.write(png);
+  }
+
+  // Author a textured skeleton (page 'sk.png' on disk) AND a one-layer additive spriteAnimator effect named
+  // 'burst' over the effects atlas 'vfx.png' (also on disk). Returns the document id and the effect name.
+  async function authorSkeletonWithEffect(
+    deps: ToolDeps,
+    files: ReturnType<typeof inMemoryFiles>,
+  ): Promise<{ documentId: string; effectName: string }> {
+    const { documentId } = asRecord(await call(deps, 'document.new', { name: 'compose' }));
+
+    await call(deps, 'atlas.set', { documentId, atlas: oneRegionAtlas('sk.png', 'tile') });
+    const { boneId } = asRecord(
+      await call(deps, 'bone.create', { documentId, name: 'root', length: 100 }),
+    );
+    const { slotId } = asRecord(
+      await call(deps, 'slot.create', { documentId, boneId, name: 'body' }),
+    );
+    await call(deps, 'attach.region.add', {
+      documentId,
+      slotId,
+      name: 'body_img',
+      path: 'tile',
+      width: 64,
+      height: 64,
+    });
+    await call(deps, 'slot.activeAttachment', { documentId, slotId, attachment: 'body_img' });
+    files.binary.set('sk.png', solidPagePng(8, 8, 40, 80, 200));
+
+    await call(deps, 'effect.setAtlas', { documentId, atlas: atlasWith(['glow']) });
+    const { effectId } = asRecord(
+      await call(deps, 'effect.create', { documentId, name: 'burst', blendMode: 'additive' }),
+    );
+    await call(deps, 'effect.layer.add', {
+      documentId,
+      effectId,
+      kind: 'spriteAnimator',
+      blendMode: 'additive',
+      region: 'glow',
+    });
+    files.binary.set('vfx.png', solidPagePng(256, 256, 255, 255, 255));
+
+    return { documentId: String(documentId), effectName: 'burst' };
+  }
+
+  it('overlays a solved effect and differs byte-wise from the skeleton-only frame', async () => {
+    const files = inMemoryFiles();
+    const deps: ToolDeps = { sessions: new SessionRegistry(), files: files.store };
+    const { documentId, effectName } = await authorSkeletonWithEffect(deps, files);
+
+    const baseline = asRecord(
+      await call(deps, 'render_frame', { documentId, width: 64, height: 64 }),
+    );
+    const composed = asRecord(
+      await call(deps, 'render_frame', {
+        documentId,
+        width: 64,
+        height: 64,
+        effect: { effect: effectName, seed: 7, time: 0.1, anchors: { default: { x: 0, y: 0 } } },
+      }),
+    );
+
+    expect(baseline.placeholders).toBe(false);
+    expect(composed.placeholders).toBe(false);
+    expect(composed.width).toBe(64);
+    expect(composed.height).toBe(64);
+    expect(composed.bytes).toBeGreaterThan(0);
+
+    const decoded = PNG.sync.read(Buffer.from(composed.pngBase64 as string, 'base64'));
+    expect(decoded.width).toBe(64);
+    expect(decoded.height).toBe(64);
+
+    // The overlay changes the frame: the composed PNG cannot be byte-identical to the skeleton-only one.
+    expect(composed.pngBase64).not.toBe(baseline.pngBase64);
+  });
+
+  it('rejects an unknown bundle name with RENDER_BUNDLE_NOT_FOUND', async () => {
+    const files = inMemoryFiles();
+    const deps: ToolDeps = { sessions: new SessionRegistry(), files: files.store };
+    const { documentId } = await authorSkeletonWithEffect(deps, files);
+
+    await expectToolError(
+      call(deps, 'render_frame', {
+        documentId,
+        width: 64,
+        height: 64,
+        effect: { bundle: 'nope', seed: 1 },
+      }),
+      'RENDER_BUNDLE_NOT_FOUND',
+    );
+  });
+
+  it('rejects a trigger naming both an effect and a bundle', async () => {
+    const files = inMemoryFiles();
+    const deps: ToolDeps = { sessions: new SessionRegistry(), files: files.store };
+    const { documentId, effectName } = await authorSkeletonWithEffect(deps, files);
+
+    await expectToolError(
+      call(deps, 'render_frame', {
+        documentId,
+        width: 64,
+        height: 64,
+        effect: { effect: effectName, bundle: 'also', seed: 1 },
+      }),
+      'RENDER_INVALID_EFFECT_TRIGGER',
+    );
+  });
+
+  it('fails loudly when the effects library cannot export (a layer region with no atlas)', async () => {
+    const files = inMemoryFiles();
+    const deps: ToolDeps = { sessions: new SessionRegistry(), files: files.store };
+
+    // A valid skeleton (so its export passes) but an effect whose layer references a region the effects
+    // atlas does not resolve (no effect.setAtlas): the effects export fails region resolution loudly.
+    const { documentId } = asRecord(await call(deps, 'document.new', { name: 'noatlas' }));
+    const { boneId } = asRecord(
+      await call(deps, 'bone.create', { documentId, name: 'root', length: 100 }),
+    );
+    await call(deps, 'slot.create', { documentId, boneId, name: 'body' });
+    const { effectId } = asRecord(await call(deps, 'effect.create', { documentId, name: 'burst' }));
+    await call(deps, 'effect.layer.add', {
+      documentId,
+      effectId,
+      kind: 'spriteAnimator',
+      region: 'glow',
+    });
+
+    await expectToolError(
+      call(deps, 'render_frame', {
+        documentId,
+        width: 64,
+        height: 64,
+        fit: { x: -50, y: -50, w: 100, h: 100 },
+        effect: { effect: 'burst', seed: 1 },
+      }),
+      'RENDER_INVALID_EFFECTS_DOCUMENT',
+    );
+  });
+});
+
 // atlas.pack (ADR-0007): the headless pack tool runs the shared deterministic pipeline through the host
 // FileStore. This is the full LLM-authoring loop headless: pack source PNGs -> attach a packed region ->
 // render real textured pixels, plus the confinement and empty-source negatives.

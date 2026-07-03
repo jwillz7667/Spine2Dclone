@@ -189,6 +189,19 @@ ad hoc: an AnimationState (tracks, crossfade, additive layering) for `runtime-co
 an ADR plus a work-package home before code, and the parity-depth items (path constraints, physics
 constraints, linked meshes, sequences) are format-contract changes gated by `format-contract.md` section 10.
 
+**Priority amendment (user directive, 2026-07-03): the LLM-authoring path.** The product owner directed
+that the AI-authoring loop be completed fully alongside the GUI remainder, because the intended workflow
+is an LLM building a game over MCP with human-supplied source art. Three tracks, executed with the same
+DoD as everything else:
+
+1. **MCP coverage of the effects and slot composers** (audit section 3.4/Tier 2 item 17): every effects
+   and slot command reachable over MCP with read-back tools, tests per family. No format change.
+2. **Headless render feedback**: an MCP tool that renders a frame (setup or sampled animation time) to a
+   PNG so an authoring LLM can SEE its work and iterate. Architecture decided in ADR-0006 (CPU
+   rasterizer package, no GL dependency, deterministic output).
+3. **AnimationState** (tracks, crossfade, additive layering) in `runtime-core` mirrored to `runtime-web`,
+   designed in ADR-0005, covered by new conformance fixtures. Runtime-only; the format is untouched.
+
 Phases 0 to 4 are complete and green in CI-verifiable form: each phase's Definition-of-Done acceptance is
 exercised by a green automated harness (the `phase3:acceptance` script, the Phase 4 golden-playback
 determinism lock, and the per-phase conformance fixtures). The standing caveat (`CLAUDE.md`): the editor

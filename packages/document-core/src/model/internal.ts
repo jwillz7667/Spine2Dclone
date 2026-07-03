@@ -1,3 +1,4 @@
+import { decodeWeightedVertices, encodeWeightedVertices } from '@marionette/format';
 import type { AtlasRef } from '@marionette/format/types';
 import type {
   FeatureFlowGraph,
@@ -168,6 +169,59 @@ function cloneAttachments(
   const out = new Map<SlotId, Map<string, AttachmentEntity>>();
   for (const [slotId, inner] of source) out.set(slotId, new Map(inner));
   return out;
+}
+
+// Rewrite one attachment's stored GLOBAL weighted-mesh bone indices when the model bone ORDER changes,
+// so ADR-0002's index contract ("a weighted vertex boneIndex is the index into the CURRENT model bone
+// order") holds after every reorder. `translate` maps an OLD global index to its NEW one. Returns the
+// SAME reference when the attachment is not a weighted mesh or none of its indices move (so callers can
+// skip copy-on-write and avoid map-identity churn). The codec is the single producer of the on-disk
+// weighted layout, so decode -> remap -> encode keeps the stream and the ascending `bones` manifest
+// consistent, and re-running the inverse translate on undo reproduces the exact prior encoding.
+function remapWeightedMeshEntity(
+  att: AttachmentEntity,
+  translate: (oldIndex: number) => number,
+): AttachmentEntity {
+  if (att.kind !== 'mesh' || att.bones === undefined) return att;
+  const bindings = decodeWeightedVertices({ vertices: [...att.vertices] });
+  let changed = false;
+  const remapped = bindings.map((vertex) =>
+    vertex.map((influence) => {
+      const nextIndex = translate(influence.boneIndex);
+      if (nextIndex !== influence.boneIndex) changed = true;
+      return { ...influence, boneIndex: nextIndex };
+    }),
+  );
+  if (!changed) return att;
+  const { vertices, bones } = encodeWeightedVertices(remapped);
+  return { ...att, vertices, bones };
+}
+
+// Remap every weighted mesh in one (skin) attachment map. Returns the SAME map reference when nothing
+// changed (fast path: no allocation, no identity change when a document has no weighted mesh); otherwise
+// a fresh outer map that reuses each unchanged inner map and clones only the inner maps that changed.
+function remapAttachmentMapWeighted(
+  source: Map<SlotId, Map<string, AttachmentEntity>>,
+  translate: (oldIndex: number) => number,
+): Map<SlotId, Map<string, AttachmentEntity>> {
+  let outerChanged = false;
+  const next = new Map<SlotId, Map<string, AttachmentEntity>>();
+  for (const [slotId, inner] of source) {
+    let innerChanged = false;
+    const nextInner = new Map<string, AttachmentEntity>();
+    for (const [name, att] of inner) {
+      const remapped = remapWeightedMeshEntity(att, translate);
+      if (remapped !== att) innerChanged = true;
+      nextInner.set(name, remapped);
+    }
+    if (innerChanged) {
+      outerChanged = true;
+      next.set(slotId, nextInner);
+    } else {
+      next.set(slotId, inner);
+    }
+  }
+  return outerChanged ? next : source;
 }
 
 // Internal mutable bone timeline set: same channels as BoneTimelineSet but with writable arrays so the
@@ -711,19 +765,30 @@ export class DocumentModelInternal implements DocumentReadModel {
       order.splice(index, 0, bone.id);
       this.boneOrderArr = order;
     }
+    // A bone appears at `index`, so every existing global index at or past it shifts up by one; the new
+    // bone owns `index` and is referenced by no mesh yet (ADR-0002 remap invariant).
+    this.remapWeightedMeshBones((oldIndex) => (oldIndex >= index ? oldIndex + 1 : oldIndex));
     this.revisionValue += 1;
   }
 
   removeBone(id: BoneId): void {
+    const removedIndex = this.boneOrderArr.indexOf(id);
     if (this.batching) {
       this.bonesMap.delete(id);
-      const i = this.boneOrderArr.indexOf(id);
-      if (i >= 0) this.boneOrderArr.splice(i, 1);
+      if (removedIndex >= 0) this.boneOrderArr.splice(removedIndex, 1);
     } else {
       const next = new Map(this.bonesMap);
       next.delete(id);
       this.bonesMap = next;
       this.boneOrderArr = this.boneOrderArr.filter((x) => x !== id);
+    }
+    // The bone at `removedIndex` is gone, so every global index past it shifts down by one; indices below
+    // it are untouched (ADR-0002 remap invariant). A mesh still bound to the removed bone is a distinct
+    // (delete-a-bound-bone) concern surfaced by the export validator, not remapped here.
+    if (removedIndex >= 0) {
+      this.remapWeightedMeshBones((oldIndex) =>
+        oldIndex > removedIndex ? oldIndex - 1 : oldIndex,
+      );
     }
     this.revisionValue += 1;
   }
@@ -742,13 +807,50 @@ export class DocumentModelInternal implements DocumentReadModel {
   }
 
   setBoneOrder(order: readonly BoneId[]): void {
+    // Capture the prior order BEFORE it is replaced (in batch mode the array is mutated in place, so a
+    // slice is mandatory) to translate each old global index to its position in the new permutation. A
+    // reorder never drops a bone (reparent re-derives a topological order over the SAME id set), so a
+    // bone missing from the new order leaves its indices untouched rather than corrupting them.
+    const oldOrder = this.boneOrderArr.slice();
+    const newIndexById = new Map<BoneId, number>();
+    order.forEach((id, i) => newIndexById.set(id, i));
     if (this.batching) {
       this.boneOrderArr.length = 0;
       for (const id of order) this.boneOrderArr.push(id);
     } else {
       this.boneOrderArr = order.slice();
     }
+    this.remapWeightedMeshBones((oldIndex) => {
+      const boneId = oldOrder[oldIndex];
+      if (boneId === undefined) return oldIndex;
+      const newIndex = newIndexById.get(boneId);
+      return newIndex === undefined ? oldIndex : newIndex;
+    });
     this.revisionValue += 1;
+  }
+
+  // Rewrite every weighted mesh's stored GLOBAL bone indices (default skin AND named skins, since the
+  // index is global regardless of the owning skin, ADR-0002) so the "indices refer to the CURRENT bone
+  // order" invariant survives a create/reparent/delete that reorders bones. Part of the SAME mutator step
+  // (one revision bump by the caller) and exactly reversed on undo, which restores the prior order and
+  // re-runs the inverse translate, keeping the do/undo round-trip bit-exact. No-op (no allocation, no
+  // map-identity churn) when no weighted mesh index actually moves, so the no-weighted-mesh path is free.
+  private remapWeightedMeshBones(translate: (oldIndex: number) => number): void {
+    const nextAttachments = remapAttachmentMapWeighted(this.attachmentsMap, translate);
+    if (nextAttachments !== this.attachmentsMap) this.attachmentsMap = nextAttachments;
+
+    let skinsChanged = false;
+    const nextSkins = new Map<SkinId, MutableSkin>();
+    for (const [id, skin] of this.skinsMap) {
+      const nextInner = remapAttachmentMapWeighted(skin.attachments, translate);
+      if (nextInner !== skin.attachments) {
+        skinsChanged = true;
+        nextSkins.set(id, { id: skin.id, name: skin.name, attachments: nextInner });
+      } else {
+        nextSkins.set(id, skin);
+      }
+    }
+    if (skinsChanged) this.skinsMap = nextSkins;
   }
 
   // ----- slot write surface -----

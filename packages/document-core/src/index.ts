@@ -246,6 +246,8 @@ export {
   SetKeyframeCommand,
   MoveKeyframeCommand,
   DeleteKeyframeCommand,
+  SetAttachmentKeyframeCommand,
+  DeleteAttachmentKeyframeCommand,
   SetCurveCommand,
   DuplicateAnimationCommand,
   PasteKeyframesCommand,

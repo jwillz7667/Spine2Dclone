@@ -1008,6 +1008,31 @@ export class DocumentModelInternal implements DocumentReadModel {
     });
   }
 
+  // Replace a slot's attachment-swap frames (the stepped animation.slots[slot].attachment timeline). Same
+  // create-on-write / prune-on-empty contract as setSlotColorChannel; an existing color timeline on the
+  // slot keeps the entry alive even when the attachment channel goes empty. The caller passes an
+  // already-time-sorted array of immutable frames.
+  setSlotAttachmentChannel(
+    animId: AnimationId,
+    slotId: SlotId,
+    frames: readonly AttachmentFrameEntity[],
+  ): void {
+    this.writeAnimation(animId, (animation) => {
+      let set = animation.slots.get(slotId);
+      if (frames.length === 0) {
+        if (!set) return;
+        set.attachment = [];
+        if (set.color.length === 0) animation.slots.delete(slotId);
+        return;
+      }
+      if (!set) {
+        set = { color: [], attachment: [] };
+        animation.slots.set(slotId, set);
+      }
+      set.attachment = frames.slice();
+    });
+  }
+
   // Replace (or remove) a bone's WHOLE timeline set in one step. Used by the delete-bone/slot cascade to
   // prune all of a bone's tracks atomically and to restore them on undo. A null or all-empty set removes
   // the entry.

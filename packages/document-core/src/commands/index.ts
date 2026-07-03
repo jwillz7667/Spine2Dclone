@@ -51,6 +51,14 @@ export {
 export { SetKeyframeCommand, setKeyframeSpec } from './set-keyframe.command';
 export { MoveKeyframeCommand, moveKeyframeSpec } from './move-keyframe.command';
 export { DeleteKeyframeCommand, deleteKeyframeSpec } from './delete-keyframe.command';
+export {
+  SetAttachmentKeyframeCommand,
+  setAttachmentKeyframeSpec,
+} from './set-attachment-keyframe.command';
+export {
+  DeleteAttachmentKeyframeCommand,
+  deleteAttachmentKeyframeSpec,
+} from './delete-attachment-keyframe.command';
 export { SetCurveCommand, setCurveSpec } from './set-curve.command';
 export { DuplicateAnimationCommand, duplicateAnimationSpec } from './duplicate-animation.command';
 export { PasteKeyframesCommand, pasteKeyframesSpec } from './paste-keyframes.command';

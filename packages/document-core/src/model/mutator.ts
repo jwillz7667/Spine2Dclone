@@ -11,6 +11,7 @@ import type {
 import type {
   AnimationEntity,
   AttachmentEntity,
+  AttachmentFrameEntity,
   BoneChannel,
   BoneEntity,
   BoneTimelineSet,
@@ -80,6 +81,11 @@ export interface Mutator extends DocumentReadModel {
     animId: AnimationId,
     slotId: SlotId,
     keyframes: readonly KeyframeEntity[],
+  ): void;
+  setSlotAttachmentChannel(
+    animId: AnimationId,
+    slotId: SlotId,
+    frames: readonly AttachmentFrameEntity[],
   ): void;
   setBoneTimelines(animId: AnimationId, boneId: BoneId, set: BoneTimelineSet | null): void;
   setSlotTimelines(animId: AnimationId, slotId: SlotId, set: SlotTimelineSet | null): void;
@@ -178,6 +184,8 @@ export function createMutator(model: DocumentModelInternal): Mutator {
       model.setBoneChannel(animId, boneId, channel, keyframes),
     setSlotColorChannel: (animId, slotId, keyframes) =>
       model.setSlotColorChannel(animId, slotId, keyframes),
+    setSlotAttachmentChannel: (animId, slotId, frames) =>
+      model.setSlotAttachmentChannel(animId, slotId, frames),
     setBoneTimelines: (animId, boneId, set) => model.setBoneTimelines(animId, boneId, set),
     setSlotTimelines: (animId, slotId, set) => model.setSlotTimelines(animId, slotId, set),
     setIkChannel: (animId, constraintId, keyframes) =>

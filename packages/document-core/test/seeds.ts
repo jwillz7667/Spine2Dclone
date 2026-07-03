@@ -185,7 +185,17 @@ function riggedDoc(): SkeletonDocument {
         ],
       },
     },
-    slots: {},
+    slots: {
+      // A stepped attachment-swap timeline on mesh_slot: show 'panel' at t=0, hide the slot at t=1. This
+      // gives the WP attachment-keyframe commands (Set/DeleteAttachmentKeyframe) an existing track to edit
+      // and lets DeleteSlot exercise the attachment-track prune cascade.
+      mesh_slot: {
+        attachment: [
+          { time: 0, name: 'panel' },
+          { time: 1, name: null },
+        ],
+      },
+    },
     ik: {
       'limb-ik': [
         { time: 0, value: { mix: 0, bendPositive: true }, curve: 'linear' },

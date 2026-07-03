@@ -70,6 +70,8 @@ import { setBoneLengthSpec } from './set-bone-length.command';
 import { setBoneTransformModeSpec } from './set-bone-transform-mode.command';
 import { setCurveSpec } from './set-curve.command';
 import { setKeyframeSpec } from './set-keyframe.command';
+import { setAttachmentKeyframeSpec } from './set-attachment-keyframe.command';
+import { deleteAttachmentKeyframeSpec } from './delete-attachment-keyframe.command';
 import { setMeshEdgesSpec } from './set-mesh-edges.command';
 import { setRegionAttachmentTransformSpec } from './set-region-attachment-transform.command';
 import { setSlotBlendModeSpec } from './set-slot-blend-mode.command';
@@ -109,6 +111,8 @@ export const commandRegistry: readonly CommandSpec[] = [
   setKeyframeSpec,
   moveKeyframeSpec,
   deleteKeyframeSpec,
+  setAttachmentKeyframeSpec,
+  deleteAttachmentKeyframeSpec,
   setCurveSpec,
   duplicateAnimationSpec,
   pasteKeyframesSpec,

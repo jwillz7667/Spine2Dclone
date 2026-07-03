@@ -46,4 +46,14 @@ demo/kraken/renders/
 demo/kraken/source/
 demo/kraken/player/index.html
 demo/kraken/krakens-hoard.rig.json
+demo/little-aliens/atlas/
+demo/little-aliens/atlas-fx/
+demo/little-aliens/renders/
+demo/little-aliens/source/
+demo/little-aliens/source-layers/
+demo/little-aliens/source-fx/
+demo/little-aliens/player/index.html
+demo/little-aliens/little-aliens.rig.json
+demo/little-aliens/little-aliens.effects.json
+demo/little-aliens/source-manifest.json
 slot-assets/

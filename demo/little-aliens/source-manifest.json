@@ -1,0 +1,519 @@
+[
+  {
+    "file": "DROPPED(unclaimed)",
+    "sourceSheet": "symbols.png",
+    "bbox": {
+      "minX": 2885,
+      "minY": 823,
+      "maxX": 3518,
+      "maxY": 1255
+    },
+    "area": 188486
+  },
+  {
+    "file": "DROPPED(unclaimed)",
+    "sourceSheet": "symbols.png",
+    "bbox": {
+      "minX": 3792,
+      "minY": 1496,
+      "maxX": 4159,
+      "maxY": 1942
+    },
+    "area": 131762
+  },
+  {
+    "file": "DROPPED(unclaimed)",
+    "sourceSheet": "symbols.png",
+    "bbox": {
+      "minX": 4528,
+      "minY": 2183,
+      "maxX": 4852,
+      "maxY": 2608
+    },
+    "area": 85292
+  },
+  {
+    "file": "DROPPED(unclaimed)",
+    "sourceSheet": "symbols.png",
+    "bbox": {
+      "minX": 173,
+      "minY": 2848,
+      "maxX": 558,
+      "maxY": 3284
+    },
+    "area": 134515
+  },
+  {
+    "file": "DROPPED(unclaimed)",
+    "sourceSheet": "symbols.png",
+    "bbox": {
+      "minX": 3055,
+      "minY": 2857,
+      "maxX": 3383,
+      "maxY": 3287
+    },
+    "area": 87158
+  },
+  {
+    "file": "DROPPED(unclaimed)",
+    "sourceSheet": "symbols.png",
+    "bbox": {
+      "minX": 3734,
+      "minY": 2868,
+      "maxX": 4216,
+      "maxY": 3270
+    },
+    "area": 156035
+  },
+  {
+    "file": "source-layers/blob-face.png",
+    "sourceSheet": "layers/blob-face.png",
+    "bbox": {
+      "minX": 70,
+      "minY": 87,
+      "maxX": 510,
+      "maxY": 515
+    },
+    "area": 79361
+  },
+  {
+    "file": "source-layers/blob.png",
+    "sourceSheet": "layers/blob.png",
+    "bbox": {
+      "minX": 91,
+      "minY": 62,
+      "maxX": 630,
+      "maxY": 583
+    },
+    "area": 200950
+  },
+  {
+    "file": "source-layers/blob2.png",
+    "sourceSheet": "layers/blob2.png",
+    "bbox": {
+      "minX": 73,
+      "minY": 82,
+      "maxX": 590,
+      "maxY": 585
+    },
+    "area": 184318
+  },
+  {
+    "file": "source-layers/blue-antenna.png",
+    "sourceSheet": "layers/blue,ant.png",
+    "bbox": {
+      "minX": 57,
+      "minY": 97,
+      "maxX": 527,
+      "maxY": 304
+    },
+    "area": 38604
+  },
+  {
+    "file": "source-layers/blue-arms.png",
+    "sourceSheet": "layers/blue-arms.png",
+    "bbox": {
+      "minX": 41,
+      "minY": 113,
+      "maxX": 585,
+      "maxY": 391
+    },
+    "area": 55883
+  },
+  {
+    "file": "source-layers/blue-eyes-alt.png",
+    "sourceSheet": "layers/gren\\en-eyes.png",
+    "bbox": {
+      "minX": 18,
+      "minY": 100,
+      "maxX": 592,
+      "maxY": 348
+    },
+    "area": 94852
+  },
+  {
+    "file": "source-layers/blue-eyes.png",
+    "sourceSheet": "layers/blue-eyes.png",
+    "bbox": {
+      "minX": 47,
+      "minY": 84,
+      "maxX": 607,
+      "maxY": 329
+    },
+    "area": 90992
+  },
+  {
+    "file": "source-layers/blue-legs.png",
+    "sourceSheet": "layers/blue-legs.png",
+    "bbox": {
+      "minX": 97,
+      "minY": 168,
+      "maxX": 546,
+      "maxY": 419
+    },
+    "area": 51355
+  },
+  {
+    "file": "source-layers/blue-noface.png",
+    "sourceSheet": "layers/blue-noface.png",
+    "bbox": {
+      "minX": 57,
+      "minY": 101,
+      "maxX": 441,
+      "maxY": 562
+    },
+    "area": 128038
+  },
+  {
+    "file": "source-layers/blue.png",
+    "sourceSheet": "layers/blue.png",
+    "bbox": {
+      "minX": 70,
+      "minY": 79,
+      "maxX": 517,
+      "maxY": 608
+    },
+    "area": 160835
+  },
+  {
+    "file": "source-layers/green-feet.png",
+    "sourceSheet": "layers/green-feet.png",
+    "bbox": {
+      "minX": 53,
+      "minY": 44,
+      "maxX": 582,
+      "maxY": 217
+    },
+    "area": 57033
+  },
+  {
+    "file": "source-layers/green-frown.png",
+    "sourceSheet": "layers/green-friown.png",
+    "bbox": {
+      "minX": 83,
+      "minY": 120,
+      "maxX": 610,
+      "maxY": 565
+    },
+    "area": 161246
+  },
+  {
+    "file": "source-layers/green-horns.png",
+    "sourceSheet": "layers/green-horns.png",
+    "bbox": {
+      "minX": 50,
+      "minY": 94,
+      "maxX": 614,
+      "maxY": 507
+    },
+    "area": 137256
+  },
+  {
+    "file": "source-layers/green-noface.png",
+    "sourceSheet": "layers/green-noface.png",
+    "bbox": {
+      "minX": 49,
+      "minY": 117,
+      "maxX": 570,
+      "maxY": 563
+    },
+    "area": 160487
+  },
+  {
+    "file": "source-layers/green.png",
+    "sourceSheet": "layers/green.png",
+    "bbox": {
+      "minX": 69,
+      "minY": 44,
+      "maxX": 569,
+      "maxY": 598
+    },
+    "area": 207241
+  },
+  {
+    "file": "source-layers/orange-arms.png",
+    "sourceSheet": "layers/layers-symbols copy 5.png",
+    "bbox": {
+      "minX": 39,
+      "minY": 80,
+      "maxX": 588,
+      "maxY": 467
+    },
+    "area": 86435
+  },
+  {
+    "file": "source-layers/orange-noface.png",
+    "sourceSheet": "layers/layers-symbols copy 15.png",
+    "bbox": {
+      "minX": 48,
+      "minY": 86,
+      "maxX": 579,
+      "maxY": 634
+    },
+    "area": 186191
+  },
+  {
+    "file": "source-layers/orange.png",
+    "sourceSheet": "layers/orange.png",
+    "bbox": {
+      "minX": 121,
+      "minY": 116,
+      "maxX": 601,
+      "maxY": 614
+    },
+    "area": 154276
+  },
+  {
+    "file": "source-layers/pale-grump-noface.png",
+    "sourceSheet": "layers/layers-symbols copy 2.png",
+    "bbox": {
+      "minX": 99,
+      "minY": 36,
+      "maxX": 581,
+      "maxY": 604
+    },
+    "area": 178808
+  },
+  {
+    "file": "source-layers/pale-grump.png",
+    "sourceSheet": "layers/layers-symbols copy 3.png",
+    "bbox": {
+      "minX": 82,
+      "minY": 90,
+      "maxX": 549,
+      "maxY": 641
+    },
+    "area": 167345
+  },
+  {
+    "file": "source/alien-blue-horned.png",
+    "sourceSheet": "symbols.png",
+    "bbox": {
+      "minX": 2927,
+      "minY": 1417,
+      "maxX": 3510,
+      "maxY": 1992
+    },
+    "area": 234850
+  },
+  {
+    "file": "source/alien-blue-spiky.png",
+    "sourceSheet": "symbols.png",
+    "bbox": {
+      "minX": 117,
+      "minY": 1415,
+      "maxX": 638,
+      "maxY": 1986
+    },
+    "area": 198321
+  },
+  {
+    "file": "source/alien-green-bean.png",
+    "sourceSheet": "symbols.png",
+    "bbox": {
+      "minX": 788,
+      "minY": 731,
+      "maxX": 1350,
+      "maxY": 1343
+    },
+    "area": 185184
+  },
+  {
+    "file": "source/alien-green-slime.png",
+    "sourceSheet": "symbols.png",
+    "bbox": {
+      "minX": 1505,
+      "minY": 1451,
+      "maxX": 2065,
+      "maxY": 1955
+    },
+    "area": 192235
+  },
+  {
+    "file": "source/alien-green-small.png",
+    "sourceSheet": "symbols.png",
+    "bbox": {
+      "minX": 120,
+      "minY": 2095,
+      "maxX": 632,
+      "maxY": 2659
+    },
+    "area": 154167
+  },
+  {
+    "file": "source/alien-orange-sun.png",
+    "sourceSheet": "symbols.png",
+    "bbox": {
+      "minX": 804,
+      "minY": 2107,
+      "maxX": 1337,
+      "maxY": 2660
+    },
+    "area": 188365
+  },
+  {
+    "file": "source/alien-pale-grump.png",
+    "sourceSheet": "symbols.png",
+    "bbox": {
+      "minX": 1547,
+      "minY": 2759,
+      "maxX": 2043,
+      "maxY": 3346
+    },
+    "area": 188740
+  },
+  {
+    "file": "source/alien-pink-blob.png",
+    "sourceSheet": "symbols.png",
+    "bbox": {
+      "minX": 108,
+      "minY": 86,
+      "maxX": 644,
+      "maxY": 610
+    },
+    "area": 202638
+  },
+  {
+    "file": "source/alien-red-slug.png",
+    "sourceSheet": "symbols.png",
+    "bbox": {
+      "minX": 1584,
+      "minY": 2032,
+      "maxX": 2074,
+      "maxY": 2681
+    },
+    "area": 170852
+  },
+  {
+    "file": "source/alien-teal-mini.png",
+    "sourceSheet": "symbols.png",
+    "bbox": {
+      "minX": 831,
+      "minY": 2782,
+      "maxX": 1354,
+      "maxY": 3322
+    },
+    "area": 168446
+  },
+  {
+    "file": "source/alien-teal.png",
+    "sourceSheet": "symbols.png",
+    "bbox": {
+      "minX": 166,
+      "minY": 761,
+      "maxX": 615,
+      "maxY": 1292
+    },
+    "area": 162608
+  },
+  {
+    "file": "source/alien-yellow-trieye.png",
+    "sourceSheet": "symbols.png",
+    "bbox": {
+      "minX": 1483,
+      "minY": 749,
+      "maxX": 2010,
+      "maxY": 1312
+    },
+    "area": 174155
+  },
+  {
+    "file": "source/crystal.png",
+    "sourceSheet": "symbols.png",
+    "bbox": {
+      "minX": 2930,
+      "minY": 78,
+      "maxX": 3412,
+      "maxY": 629
+    },
+    "area": 175657
+  },
+  {
+    "file": "source/potion.png",
+    "sourceSheet": "symbols.png",
+    "bbox": {
+      "minX": 3687,
+      "minY": 97,
+      "maxX": 4153,
+      "maxY": 601
+    },
+    "area": 128905
+  },
+  {
+    "file": "source/raygun.png",
+    "sourceSheet": "symbols.png",
+    "bbox": {
+      "minX": 4427,
+      "minY": 108,
+      "maxX": 4933,
+      "maxY": 592
+    },
+    "area": 126380
+  },
+  {
+    "file": "source/reelframe.png",
+    "sourceSheet": "reelframe.png",
+    "bbox": {
+      "minX": 131,
+      "minY": 286,
+      "maxX": 2949,
+      "maxY": 4776
+    },
+    "area": 0
+  },
+  {
+    "file": "source/royal-10.png",
+    "sourceSheet": "symbols.png",
+    "bbox": {
+      "minX": 4440,
+      "minY": 1513,
+      "maxX": 4945,
+      "maxY": 1917
+    },
+    "area": 163086
+  },
+  {
+    "file": "source/royal-a.png",
+    "sourceSheet": "symbols.png",
+    "bbox": {
+      "minX": 3038,
+      "minY": 2172,
+      "maxX": 3421,
+      "maxY": 2607
+    },
+    "area": 132042
+  },
+  {
+    "file": "source/royal-j.png",
+    "sourceSheet": "symbols.png",
+    "bbox": {
+      "minX": 4481,
+      "minY": 824,
+      "maxX": 4805,
+      "maxY": 1252
+    },
+    "area": 93750
+  },
+  {
+    "file": "source/royal-k.png",
+    "sourceSheet": "symbols.png",
+    "bbox": {
+      "minX": 3787,
+      "minY": 2175,
+      "maxX": 4155,
+      "maxY": 2608
+    },
+    "area": 127874
+  },
+  {
+    "file": "source/royal-q.png",
+    "sourceSheet": "symbols.png",
+    "bbox": {
+      "minX": 3794,
+      "minY": 810,
+      "maxX": 4170,
+      "maxY": 1265
+    },
+    "area": 137107
+  }
+]

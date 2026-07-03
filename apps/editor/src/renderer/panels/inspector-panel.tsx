@@ -3,8 +3,12 @@ import { useEffect, useMemo, useState, type CSSProperties, type ReactElement } f
 import type { AtlasRegion, BlendMode, RGBA } from '@marionette/format/types';
 import {
   AddRegionAttachmentCommand,
+  AutoWeightFromProximityCommand,
+  BindMeshToBonesCommand,
   CreateSlotCommand,
   DeleteSlotCommand,
+  MeshBindingError,
+  NormalizeMeshWeightsCommand,
   RemoveAttachmentCommand,
   RenameSlotCommand,
   ReorderSlotCommand,
@@ -12,6 +16,7 @@ import {
   SetRegionAttachmentTransformCommand,
   SetSlotBlendModeCommand,
   SetSlotColorCommand,
+  UnbindMeshCommand,
   documentHost,
   type AttachmentEntity,
   type MeshAttachmentEntity,
@@ -552,14 +557,19 @@ interface MeshAttachmentRowProps {
   readonly mesh: MeshAttachmentEntity;
 }
 
-// The mesh row: vertex/hull counts, weighted state, and the one-click grid fill (TASK-2.1.5) whose cell
-// size is a local input (ephemeral UI state, not document state). The fill dispatches ONE undoable
-// command through the WP-2.1 glue; a weighted mesh disables it (topology lock: unbind first).
+// The mesh row: vertex/hull counts, weighted state, the one-click grid fill (TASK-2.1.5) whose cell size is
+// a local input (ephemeral UI state, not document state), and the bone-binding actions (WP-2.3 / WP-2.4). An
+// unweighted mesh binds to the selected bones; a weighted mesh auto-weights, normalizes, or unbinds and is
+// painted with the Weights tool. Every action dispatches ONE undoable command through History (Law 2); a
+// weighted mesh disables grid fill (topology lock: unbind first). The bone selection it binds against is
+// ephemeral editor state, so the row subscribes to it to enable/disable the bind button live.
 function MeshAttachmentRow(props: MeshAttachmentRowProps): ReactElement {
   const { slotId, name, mesh } = props;
   const [cellSize, setCellSize] = useState('16');
+  const selectedBoneIds = useSelectionStore((state) => state.selectedBoneIds);
   const weighted = mesh.bones !== undefined && mesh.bones.length > 0;
   const vertexCount = mesh.vertices.length / 2;
+  const hasBoneSelection = selectedBoneIds.length > 0;
 
   return (
     <div style={attachmentBlockStyle}>
@@ -588,7 +598,7 @@ function MeshAttachmentRow(props: MeshAttachmentRowProps): ReactElement {
         />
         <button
           type="button"
-          style={smallButtonStyle}
+          style={weighted ? { ...smallButtonStyle, ...buttonDisabledStyle } : smallButtonStyle}
           disabled={weighted}
           title={
             weighted
@@ -600,6 +610,65 @@ function MeshAttachmentRow(props: MeshAttachmentRowProps): ReactElement {
           Grid Fill
         </button>
         <span style={rowBoneStyle}>edit vertices with the Mesh tool (M)</span>
+      </div>
+      <div style={detailRowStyle}>
+        <span style={labelStyle}>Binding</span>
+        {weighted ? (
+          <>
+            <button
+              type="button"
+              style={smallButtonStyle}
+              title="Re-seed weights from bone proximity (one undo step)"
+              onClick={() => autoWeightMesh(slotId, name)}
+            >
+              Auto Weights
+            </button>
+            <button
+              type="button"
+              style={smallButtonStyle}
+              title="Re-normalize every vertex to sum 1 and cap the influences (one undo step)"
+              onClick={() => normalizeMeshWeights(slotId, name)}
+            >
+              Normalize
+            </button>
+            <button
+              type="button"
+              style={smallButtonStyle}
+              title="Return the mesh to the unweighted encoding (one undo step)"
+              onClick={() => unbindMesh(slotId, name)}
+            >
+              Unbind
+            </button>
+            <span style={rowBoneStyle}>paint weights with the Weights tool (W)</span>
+          </>
+        ) : (
+          <>
+            <button
+              type="button"
+              style={
+                hasBoneSelection
+                  ? smallButtonStyle
+                  : { ...smallButtonStyle, ...buttonDisabledStyle }
+              }
+              disabled={!hasBoneSelection}
+              title={
+                hasBoneSelection
+                  ? 'Bind this mesh to the selected bones (one undo step); paint weights afterward'
+                  : 'Select one or more bones in the hierarchy first'
+              }
+              onClick={() => bindMeshToSelectedBones(slotId, name)}
+            >
+              Bind to Selected Bones
+            </button>
+            <span style={rowBoneStyle}>
+              {hasBoneSelection
+                ? `binds to ${selectedBoneIds.length} selected ${
+                    selectedBoneIds.length === 1 ? 'bone' : 'bones'
+                  }`
+                : 'select bones in the hierarchy first'}
+            </span>
+          </>
+        )}
       </div>
     </div>
   );
@@ -635,6 +704,44 @@ function gridFillMeshAttachment(slotId: SlotId, name: string, cellSize: number):
   } catch (error) {
     if (error instanceof MeshError) {
       console.error(`[marionette] grid fill rejected: ${error.message}`);
+      return;
+    }
+    throw error;
+  }
+}
+
+// Bind an UNWEIGHTED mesh to the currently selected bones (WP-2.3, TASK-2.3.1) as one undo step, seeding
+// rigid-nearest weights (real weights are painted with the Weights tool). The button is disabled when no
+// bones are selected; this returns defensively in that case. Selecting bones is ephemeral editor state (the
+// document/editor wall); the bind itself is the command (Law 2).
+function bindMeshToSelectedBones(slotId: SlotId, name: string): void {
+  const boneIds = useSelectionStore.getState().selectedBoneIds;
+  if (boneIds.length === 0) return;
+  documentHost
+    .current()
+    .history.execute(new BindMeshToBonesCommand(slotId, name, boneIds, 'rigidNearest'));
+}
+
+// Re-seed a weighted mesh's weights from bone proximity (WP-2.3) as one undo step.
+function autoWeightMesh(slotId: SlotId, name: string): void {
+  documentHost.current().history.execute(new AutoWeightFromProximityCommand(slotId, name));
+}
+
+// Re-normalize every vertex of a weighted mesh to sum 1 and cap to the influence limit (WP-2.4) as one
+// undo step.
+function normalizeMeshWeights(slotId: SlotId, name: string): void {
+  documentHost.current().history.execute(new NormalizeMeshWeightsCommand(slotId, name));
+}
+
+// Return a weighted mesh to the unweighted encoding (WP-2.3, TASK-2.3.5) as one undo step. The command
+// rejects a mesh that still carries deform keyframes with a typed MeshBindingError; that is surfaced once at
+// this boundary (matching gridFillMeshAttachment), not swallowed.
+function unbindMesh(slotId: SlotId, name: string): void {
+  try {
+    documentHost.current().history.execute(new UnbindMeshCommand(slotId, name));
+  } catch (error) {
+    if (error instanceof MeshBindingError) {
+      console.error(`[marionette] unbind rejected: ${error.message}`);
       return;
     }
     throw error;

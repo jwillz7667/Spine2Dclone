@@ -8,6 +8,7 @@ import { useCameraStore } from '../editor-state/camera-store';
 import { useMeshEditStore } from '../editor-state/mesh-edit-store';
 import { useSelectionStore } from '../editor-state/selection-store';
 import { useSlotSelectionStore } from '../editor-state/slot-selection-store';
+import { useWeightPaintStore } from '../editor-state/weight-paint-store';
 import { usePlaybackStore } from '../editor-state/playback-store';
 import { useToolStore, type ToolId } from '../editor-state/tool-store';
 import { attachCameraController, type CameraControls } from './camera-controller';
@@ -15,9 +16,13 @@ import { createViewportLayers } from './layers';
 import { MoveRotateGizmo } from './gizmo/move-rotate-gizmo';
 import { resolveMeshEditTarget } from './mesh-edit';
 import { MeshEditOverlay } from './mesh-overlay';
+import { resolveWeightPaintTarget } from './weight-paint';
+import { WeightPaintOverlay } from './weight-overlay';
+import { solveWorldById } from './scene-solve';
 import { attachToolInput } from './tool-input';
 import { CreateBoneTool } from './tools/create-bone-tool';
 import { MeshTool } from './tools/mesh-tool';
+import { WeightPaintTool } from './tools/weight-paint-tool';
 import { SelectMoveTool } from './tools/select-move-tool';
 import { renderTargetsEqual, resolveRenderTarget, type RenderTarget } from './render-target';
 import type { ViewportTool } from './tools/tool';
@@ -56,6 +61,7 @@ export function ViewportPanelContent(): ReactElement {
     let unsubscribeTextures: (() => void) | null = null;
     let unsubscribeSlotSelection: (() => void) | null = null;
     let unsubscribeMeshEdit: (() => void) | null = null;
+    let unsubscribeWeightPaint: (() => void) | null = null;
     let unsubscribeTool: (() => void) | null = null;
 
     void (async () => {
@@ -84,17 +90,24 @@ export function ViewportPanelContent(): ReactElement {
       layers.overlay.addChild(gizmo.container);
       const meshOverlay = new MeshEditOverlay();
       layers.overlay.addChild(meshOverlay.container);
+      const weightOverlay = new WeightPaintOverlay();
+      layers.overlay.addChild(weightOverlay.container);
 
       // The mesh overlay redraws on document revision, slot/vertex selection, tool, and zoom changes
       // (event-driven, never per idle frame); the tick applies it below, mirroring the gizmo pattern.
       let meshOverlayDirty = true;
+      // The weight overlay redraws on document revision, slot/bone selection, brush state, tool, and zoom
+      // changes (same event-driven contract); the brush cursor follows via the brush-state subscription.
+      let weightOverlayDirty = true;
 
       const applyCamera = (camera: Camera): void => {
         layers.world.position.set(camera.x, camera.y);
         layers.world.scale.set(camera.zoom);
         gizmo.applyZoom(camera.zoom); // keep handles a constant pixel size as zoom changes
         meshOverlay.applyZoom(camera.zoom);
+        weightOverlay.applyZoom(camera.zoom);
         meshOverlayDirty = true;
+        weightOverlayDirty = true;
       };
       applyCamera(useCameraStore.getState());
       unsubscribeCamera = useCameraStore.subscribe(applyCamera);
@@ -114,6 +127,7 @@ export function ViewportPanelContent(): ReactElement {
         select: new SelectMoveTool(gizmo),
         createBone: new CreateBoneTool(),
         mesh: new MeshTool(),
+        weights: new WeightPaintTool(),
       };
       detachTool = attachToolInput(app.canvas, {
         getCamera: () => useCameraStore.getState(),
@@ -124,15 +138,21 @@ export function ViewportPanelContent(): ReactElement {
       let gizmoDirty = true;
       unsubscribeSelection = useSelectionStore.subscribe(() => {
         gizmoDirty = true;
+        weightOverlayDirty = true; // the active bone drives the weight heat map
       });
       unsubscribeSlotSelection = useSlotSelectionStore.subscribe(() => {
         meshOverlayDirty = true;
+        weightOverlayDirty = true;
       });
       unsubscribeMeshEdit = useMeshEditStore.subscribe(() => {
         meshOverlayDirty = true;
       });
+      unsubscribeWeightPaint = useWeightPaintStore.subscribe(() => {
+        weightOverlayDirty = true;
+      });
       unsubscribeTool = useToolStore.subscribe(() => {
         meshOverlayDirty = true;
+        weightOverlayDirty = true;
       });
 
       // The region texture resolver is ephemeral editor state (the atlas pixels are loaded per import
@@ -247,6 +267,22 @@ export function ViewportPanelContent(): ReactElement {
           meshOverlay.refresh(meshTarget, useMeshEditStore.getState().selectedVertex);
           meshOverlayDirty = false;
         }
+
+        if (revisionChanged) weightOverlayDirty = true;
+        if (weightOverlayDirty) {
+          const weightsActive = useToolStore.getState().tool === 'weights';
+          const weightTarget = weightsActive
+            ? resolveWeightPaintTarget(model, useSlotSelectionStore.getState().selectedSlotId)
+            : null;
+          const brush = useWeightPaintStore.getState();
+          weightOverlay.refresh(
+            weightTarget,
+            weightTarget !== null ? solveWorldById(model) : new Map(),
+            weightsActive ? (useSelectionStore.getState().selectedBoneIds[0] ?? null) : null,
+            { hoverWorld: weightsActive ? brush.hoverWorld : null, radiusPx: brush.radiusPx },
+          );
+          weightOverlayDirty = false;
+        }
       };
       app.ticker.add(tick);
     })();
@@ -260,6 +296,7 @@ export function ViewportPanelContent(): ReactElement {
       unsubscribeTextures?.();
       unsubscribeSlotSelection?.();
       unsubscribeMeshEdit?.();
+      unsubscribeWeightPaint?.();
       unsubscribeTool?.();
       if (app !== null) {
         app.destroy({ removeView: true }, { children: true });
@@ -327,6 +364,7 @@ function ViewportToolbar(): ReactElement {
       {toolButton('select', 'Select (V)')}
       {toolButton('createBone', 'Create Bone (B)')}
       {toolButton('mesh', 'Mesh (M)')}
+      {toolButton('weights', 'Weights (W)')}
       <span style={dividerStyle} />
       <button
         type="button"

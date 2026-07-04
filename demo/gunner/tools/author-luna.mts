@@ -17,8 +17,14 @@ import {
 // Sheet-piece orientation notes (verified against source-layers/luna/*.png):
 // - torso is cut VERTICALLY (neck at top, hips at bottom): rotated -90 so the neck points left.
 // - tail is cut VERTICALLY (thick base at top-left): rotated -90 so it arcs up and back to the right.
-// - both back-leg pieces have toes pointing RIGHT: mirrored with scaleX -1 (toes forward-left).
+// - both back-leg pieces ALREADY face left in the raw art (hock at the rear, toes forward); they are
+//   NOT mirrored. An earlier scaleX -1 mirror had the hind toes pointing backward.
 // - ear-far leans left like ear-near but the reference far ear leans right: mirrored with scaleX -1.
+//
+// Leg roots are alpha-measured from the torso art (source-layers/luna/torso.png through the -90
+// attachment transform) and cross-checked against source/refs/luna.png: the near front leg roots at
+// the drawn shoulder crease (world x -56..-24, y ~-104), the near hip at the drawn haunch circle
+// (center world (62,-139)), the far legs where the reference shows them emerge (x -72 front, x 37 rear).
 //
 // Usage: tsx author-luna.mts
 
@@ -69,7 +75,14 @@ await call('atlas.set', { documentId, atlas: atlasForSet });
 
 // ---- bones ---------------------------------------------------------------------------------------
 // Luna stands ~300 px tall at the head top; slimmer than Gunner. Ground = y 0 at the root. Facing LEFT.
-const bone = async (name: string, parentId: string | null, x: number, y: number, length = 40): Promise<string> => {
+const bone = async (
+  name: string,
+  parentId: string | null,
+  x: number,
+  y: number,
+  length = 40,
+  rotation = 0,
+): Promise<string> => {
   const res = (await call('bone.create', {
     documentId,
     name,
@@ -77,6 +90,7 @@ const bone = async (name: string, parentId: string | null, x: number, y: number,
     x,
     y,
     length,
+    rotation,
   })) as { boneId: string };
   return res.boneId;
 };
@@ -87,13 +101,29 @@ const head = await bone('head', torso, -72, -40, 60);
 const earNear = await bone('ear-near', head, -40, -104, 30);
 const earFar = await bone('ear-far', head, 42, -100, 30);
 const tail = await bone('tail', torso, 95, -32, 80);
-// Legs hang from the ROOT, not the torso: the torso can lean and bob while paws stay planted.
-// Each pivot sits INSIDE the body silhouette at the joint (shoulder/hip), about 22 px above the
-// leg piece's top edge, so mid-swing the proximal end never escapes the belly overlap.
-const legFrontNear = await bone('leg-front-near', rootBone, -79, -147, 80);
-const legFrontFar = await bone('leg-front-far', rootBone, -48, -147, 78);
-const legBackNear = await bone('leg-back-near', rootBone, 77, -151, 82);
-const legBackFar = await bone('leg-back-far', rootBone, 60, -154, 80);
+// Legs are TORSO children so the shoulder/hip sockets can never separate from the body. Each
+// pivot is pinned into the limb root the TORSO ART draws (alpha-measured, see the header note):
+// - leg-front-near at the drawn shoulder crease center, world (-40,-104): pivot 29 px inside the
+//   piece top (it raises to 60 deg in point and cranks a full circle, so it needs the deepest
+//   chest overlap; the chest at x -40 is its tallest, 108 px).
+// - leg-front-far at the reference far-shoulder, world (-72,-110): 22 px burial.
+// - leg-back-near at the drawn haunch-circle center, world (62,-139): the pivot sits at the
+//   CENTER of the thigh teardrop's round cap (radius ~37), so rotation never opens the hip.
+//   Setup lean +4 puts the hock flush with the rump outline like the reference.
+// - leg-back-far keeps its hip beside the near hip, world (50,-139), with setup lean +18 so the
+//   shin strides forward like the reference while the wide thigh bulk stays hidden behind the
+//   belly and the near thigh (a forward hip let the thigh's front edge peek below the waist).
+//   Its walk/run keys subtract the lean so world gait angles stay as designed (rotate keys add
+//   to setup rotation).
+// Feet stay visually planted because any animation rotating the torso beyond ~6 deg must carry
+// COUNTER-ROTATION keys on the legs at the same times/curves (leg key = gait-or-brace angle
+// minus torso angle). Audit of this rig's torso rotations: walk +-1.5, run 5/-2, crank-gadget 5,
+// tie-knot 4, point -3; all 6 deg or less, drifting the sockets less than the burial depth, so
+// no torso counter keys are needed. Positions are torso-local (world minus the torso at (0,-140)).
+const legFrontNear = await bone('leg-front-near', torso, -40, 36, 80);
+const legFrontFar = await bone('leg-front-far', torso, -72, 30, 78);
+const legBackNear = await bone('leg-back-near', torso, 62, 1, 82, 4);
+const legBackFar = await bone('leg-back-far', torso, 50, 1, 80, 18);
 
 // ---- slots + attachments (created back-to-front; creation order = draw order) ---------------------
 interface SlotSpec {
@@ -130,13 +160,16 @@ async function regionSlot(spec: SlotSpec): Promise<string> {
   return slotId;
 }
 
-// back-to-front: far legs, tail, NEAR LEGS, then torso (all leg tops hide under the belly
-// silhouette; attachment offset along the limb is targetH/2 - 22 so the pivot is buried), head stack
-await regionSlot({ slot: 'leg-front-far', boneId: legFrontFar, region: 'leg-front-far', x: -2, y: 60, targetH: 165 });
-await regionSlot({ slot: 'leg-back-far', boneId: legBackFar, region: 'leg-back-far', x: 8, y: 62, targetH: 168, scaleX: -1 });
+// back-to-front: far legs, tail, NEAR LEGS, then torso (leg tops hide under the torso
+// silhouette). Front attachments: y = targetH/2 minus the burial (29 near / 22 far); x +4 centers
+// the drawn shoulder bulge (22 piece px left of the sheet center) on the pivot. Back attachments:
+// x +7 / y +50 put the thigh cap's center exactly on the hip pivot, and targetH 175 lands the paw
+// on the ground while the rendered thigh width (88) matches the reference haunch (89).
+await regionSlot({ slot: 'leg-front-far', boneId: legFrontFar, region: 'leg-front-far', x: 4, y: 44, targetH: 132 });
+await regionSlot({ slot: 'leg-back-far', boneId: legBackFar, region: 'leg-back-far', x: 7, y: 50, targetH: 175 });
 await regionSlot({ slot: 'tail', boneId: tail, region: 'tail', x: 74, y: -29, targetH: 172, rotation: -90 });
-await regionSlot({ slot: 'leg-front-near', boneId: legFrontNear, region: 'leg-front-near', x: -5, y: 62, targetH: 168 });
-await regionSlot({ slot: 'leg-back-near', boneId: legBackNear, region: 'leg-back-near', x: 11, y: 64, targetH: 172, scaleX: -1 });
+await regionSlot({ slot: 'leg-front-near', boneId: legFrontNear, region: 'leg-front-near', x: 4, y: 37.5, targetH: 133 });
+await regionSlot({ slot: 'leg-back-near', boneId: legBackNear, region: 'leg-back-near', x: 7, y: 50, targetH: 175 });
 await regionSlot({ slot: 'torso', boneId: torso, region: 'torso', x: 0, y: -6, targetH: 200, rotation: -90 });
 await regionSlot({ slot: 'ear-far', boneId: earFar, region: 'ear-far', x: 4, y: -25, targetH: 70, scaleX: -1 });
 await regionSlot({ slot: 'head', boneId: head, region: 'head', x: -6, y: -60, targetH: 130 });
@@ -245,11 +278,12 @@ await author({
 await author({
   name: 'walk', duration: 0.9,
   rotate: {
-    // elegant gait: 2-3 deg calmer than Gunner's 18/16 walk swings
+    // elegant gait: 2-3 deg calmer than Gunner's 18/16 walk swings. Back-leg keys subtract the
+    // setup leans (+4 near, +18 far) so the WORLD swings stay -13..15 / 15..-13 as designed.
     'leg-front-near': [[0, 16, EASE_IN_OUT], [0.45, -14, EASE_IN_OUT], [0.9, 16]],
     'leg-front-far': [[0, -14, EASE_IN_OUT], [0.45, 16, EASE_IN_OUT], [0.9, -14]],
-    'leg-back-near': [[0, -13, EASE_IN_OUT], [0.45, 15, EASE_IN_OUT], [0.9, -13]],
-    'leg-back-far': [[0, 15, EASE_IN_OUT], [0.45, -13, EASE_IN_OUT], [0.9, 15]],
+    'leg-back-near': [[0, -17, EASE_IN_OUT], [0.45, 11, EASE_IN_OUT], [0.9, -17]],
+    'leg-back-far': [[0, -3, EASE_IN_OUT], [0.45, -31, EASE_IN_OUT], [0.9, -3]],
     torso: [[0, 1.5, EASE_IN_OUT], [0.45, -1.5, EASE_IN_OUT], [0.9, 1.5]],
     head: [[0, -1.5, EASE_IN_OUT], [0.45, 1.5, EASE_IN_OUT], [0.9, -1.5]],
     tail: [[0, 6, EASE_IN_OUT], [0.45, -6, EASE_IN_OUT], [0.9, 6]],
@@ -262,11 +296,12 @@ await author({
 await author({
   name: 'run', duration: 0.55,
   rotate: {
-    // calmer than the old +-30: 2-3 deg under Gunner's 28/25 run swings
+    // calmer than the old +-30: 2-3 deg under Gunner's 28/25 run swings. Back-leg keys subtract
+    // the setup leans (+4 near, +18 far); world swings stay -22..21 / -17..16.
     'leg-front-near': [[0, 25, EASE_IN_OUT], [0.275, -22, EASE_IN_OUT], [0.55, 25]],
     'leg-front-far': [[0, 20, EASE_IN_OUT], [0.3, -18, EASE_IN_OUT], [0.55, 20]],
-    'leg-back-near': [[0, -22, EASE_IN_OUT], [0.275, 21, EASE_IN_OUT], [0.55, -22]],
-    'leg-back-far': [[0, -17, EASE_IN_OUT], [0.3, 16, EASE_IN_OUT], [0.55, -17]],
+    'leg-back-near': [[0, -26, EASE_IN_OUT], [0.275, 17, EASE_IN_OUT], [0.55, -26]],
+    'leg-back-far': [[0, -35, EASE_IN_OUT], [0.3, -2, EASE_IN_OUT], [0.55, -35]],
     torso: [[0, 5, EASE_IN_OUT], [0.275, -2, EASE_IN_OUT], [0.55, 5]],
     head: [[0, -4, EASE_IN_OUT], [0.275, 1, EASE_IN_OUT], [0.55, -4]],
     // streams behind: lifted (-20 raises the tip on this rig) with a small wave
@@ -291,13 +326,19 @@ await author({
   name: 'crank-gadget', duration: 0.8,
   rotate: {
     // full circular crank at the shoulder; 360 == 0 so the loop is seamless.
-    // Legs are root children: the torso lean stays on the torso and the other three paws
-    // remain planted at setup, bracing the crank.
+    // The 5 deg torso lean is under the 6 deg counter-rotation threshold: the three bracing
+    // paws ride the body within the pivot burial depth and still read as planted.
     'leg-front-near': [[0, 0, 'linear'], [0.2, 90, 'linear'], [0.4, 180, 'linear'], [0.6, 270, 'linear'], [0.8, 360]],
     torso: [[0, 5]],
     head: [[0, 9]],
   },
-  translate: { torso: [[0, -6, 3]] },
+  translate: {
+    torso: [[0, -6, 3]],
+    // shoulder lift synced to the crank: past 90 deg the piece's cut proximal edge would drop
+    // below the belly outline; tucking the pivot up to 17 px keeps the cut inside the silhouette
+    'leg-front-near': [[0, 0, 0, 'linear'], [0.2, 0, -10, 'linear'], [0.4, 0, -17, 'linear'],
+                       [0.6, 0, -10, 'linear'], [0.8, 0, 0]],
+  },
 });
 
 await author({
@@ -315,12 +356,18 @@ await author({
 await author({
   name: 'point', duration: 0.8,
   rotate: {
-    // raises the near paw forward to horizontal and HOLDS (one-shot, no return key)
-    'leg-front-near': [[0, 0, EASE_OUT_BACK], [0.35, 80], [0.8, 80]],
+    // raises the near paw forward and HOLDS (one-shot, no return key). 60 deg, not 80: with the
+    // 29 px pivot burial the proximal edge stays inside the narrow chest at full raise.
+    'leg-front-near': [[0, 0, EASE_OUT_BACK], [0.35, 60], [0.8, 60]],
     head: [[0, 0, EASE_OUT], [0.3, -5], [0.8, -5]],
     torso: [[0, 0, EASE_OUT], [0.35, -3], [0.8, -3]],
   },
-  translate: { torso: [[0, 0, 0, EASE_OUT], [0.35, 4, -1], [0.8, 4, -1]] },
+  translate: {
+    torso: [[0, 0, 0, EASE_OUT], [0.35, 4, -1], [0.8, 4, -1]],
+    // small shoulder lift with the raise: keeps the rotated cut edge's rear corner above the
+    // waist outline at the 60 deg hold (and through the ease-out-back overshoot)
+    'leg-front-near': [[0, 0, 0, EASE_OUT], [0.35, 0, -6], [0.8, 0, -6]],
+  },
 });
 
 // micro state animations for the player's face tracks (one attachment key each)

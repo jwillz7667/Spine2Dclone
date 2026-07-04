@@ -542,7 +542,10 @@ export const SHOTS: readonly Shot[] = [
     camera: { from: { x: 700, y: 600, zoom: 1.25 }, to: { x: 600, y: 700, zoom: 1.3 }, ease: 'inout' },
     actors: [
       { actor: 'pip', anim: 'hover', x: 700, y: 450, flip: true },
-      { actor: 'gunner', anim: 'hero-pose', loop: false, x: 480, y: GROUND_Y, flip: true, at: 1.8 },
+      {
+        actor: 'gunner', anim: 'idle', x: 480, y: GROUND_Y, flip: true,
+        tweens: [{ t0: 1.8, t1: 1.85, to: { x: 480, y: GROUND_Y }, animAfter: 'hero-pose' }],
+      },
       { actor: 'luna', anim: 'idle', x: 300, y: GROUND_Y, flip: true },
       { actor: 'beans', anim: 'idle', x: 660, y: GROUND_Y, flip: true, eyes: 'eyes-worried' },
     ],
@@ -928,9 +931,15 @@ export const SHOTS: readonly Shot[] = [
     bg: 'bg-fog-hollow',
     camera: { from: { x: 880, y: 700, zoom: 1.2 }, to: CAM_CENTER, ease: 'inout' },
     actors: [
-      { actor: 'beans', anim: 'mega-bark', loop: false, x: 880, y: GROUND_Y, flip: true, at: 0.5 },
+      {
+        actor: 'beans', anim: 'idle', x: 880, y: GROUND_Y, flip: true,
+        tweens: [{ t0: 0.5, t1: 0.55, to: { x: 880, y: GROUND_Y }, animAfter: 'mega-bark' }],
+      },
       { actor: 'gunner', anim: 'idle', x: 640, y: GROUND_Y, flip: true },
-      { actor: 'luna', anim: 'point', loop: false, x: 460, y: GROUND_Y, at: 3.8 },
+      {
+        actor: 'luna', anim: 'idle', x: 460, y: GROUND_Y,
+        tweens: [{ t0: 3.8, t1: 3.85, to: { x: 460, y: GROUND_Y }, animAfter: 'point' }],
+      },
       { actor: 'pip', anim: 'hover', x: 700, y: 560, flip: true },
     ],
     props: [{ prop: 'cloud', x: 880, y: 750, scale: 0.01, at: 1.1, behavior: 'bark-ring' }],
@@ -1007,7 +1016,7 @@ export const SHOTS: readonly Shot[] = [
     bg: 'bg-waterfall',
     camera: { from: { x: 300, y: 720, zoom: 1.4 }, to: { x: 300, y: 720, zoom: 1.4 } },
     actors: [
-      { actor: 'luna', anim: 'tie-knot', loop: false, x: 260, y: GROUND_Y, flip: true, at: 0.4 },
+      { actor: 'luna', anim: 'tie-knot', loop: false, x: 260, y: GROUND_Y, flip: true },
       { actor: 'gunner', anim: 'idle', x: 480, y: GROUND_Y, flip: true },
     ],
     audio: [
@@ -1054,7 +1063,7 @@ export const SHOTS: readonly Shot[] = [
     bg: 'bg-waterfall',
     camera: { from: { x: 500, y: 750, zoom: 1.25 }, to: { x: 500, y: 750, zoom: 1.25 } },
     actors: [
-      { actor: 'gunner', anim: 'dig-in', loop: false, x: 380, y: GROUND_Y, flip: true, at: 0.5 },
+      { actor: 'gunner', anim: 'dig-in', loop: false, x: 380, y: GROUND_Y, flip: true },
       { actor: 'beans', anim: 'talk', x: 700, y: GROUND_Y - 60, flip: true },
       { actor: 'luna', anim: 'idle', x: 200, y: GROUND_Y, flip: true },
     ],

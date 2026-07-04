@@ -64,7 +64,8 @@ await call('atlas.set', { documentId, atlas: atlasForSet });
 // ---- bones ---------------------------------------------------------------------------------------
 // Beans stands ~190 px tall to the ear tips. Ground = y 0 at the root. Facing LEFT (negative x is
 // forward). The torso is tiny (bone at the belly center), the head bone pivots at the neck, each
-// giant ear pivots at its base on the skull, legs pivot at hips/shoulders inside the torso.
+// giant ear hinges at its base ON the skull dome, and the legs hang from the ROOT (not the torso)
+// so torso leans/bobs/scale pops leave the paws planted. Joint contract per the Gunner fix.
 const bone = async (name: string, parentId: string | null, x: number, y: number, length = 40): Promise<string> => {
   const res = (await call('bone.create', {
     documentId,
@@ -80,13 +81,20 @@ const bone = async (name: string, parentId: string | null, x: number, y: number,
 const rootBone = await bone('root', null, 0, 0, 10);
 const torso = await bone('torso', rootBone, 0, -52, 50);
 const head = await bone('head', torso, -22, -28, 55);
-const earNear = await bone('ear-near', head, -20, -44, 40);
-const earFar = await bone('ear-far', head, 35, -40, 38);
+// Ear hinges sit ON the head dome where each ear grows; the ear art's base extends ~10 px past the
+// hinge into the skull (attachment offset y = -(targetH/2) + 10), so flop/rattle extremes pivot at
+// the base instead of sliding the whole ear across the dome.
+const earNear = await bone('ear-near', head, -20, -51, 40);
+const earFar = await bone('ear-far', head, 35, -48, 38);
 const tail = await bone('tail', torso, 30, -7, 20);
-const legFrontNear = await bone('leg-front-near', torso, -22, 5, 40);
-const legFrontFar = await bone('leg-front-far', torso, -13, 5, 40);
-const legBackNear = await bone('leg-back-near', torso, 22, 2, 42);
-const legBackFar = await bone('leg-back-far', torso, 14, 4, 40);
+// Legs hang from the ROOT, not the torso: the torso can lean, bob, jitter, and scale (mega-bark)
+// while the paws stay planted. Each pivot sits INSIDE the belly silhouette at the joint, 15 px
+// below the leg piece's top edge (attachment offset y = targetH/2 - 15), so mid-swing the proximal
+// end never escapes the belly overlap. Positions are world-space joints, y-down.
+const legFrontNear = await bone('leg-front-near', rootBone, -22, -36.5, 40);
+const legFrontFar = await bone('leg-front-far', rootBone, -13, -36.5, 40);
+const legBackNear = await bone('leg-back-near', rootBone, 22, -39.5, 42);
+const legBackFar = await bone('leg-back-far', rootBone, 14, -39, 40);
 
 // ---- slots + attachments (created back-to-front; creation order = draw order) ---------------------
 interface SlotSpec {
@@ -126,8 +134,8 @@ async function regionSlot(spec: SlotSpec): Promise<string> {
 // far side first, then tail + torso, near legs, then the head stack. All layers were cut facing left,
 // so no mirroring is needed. There is NO leg-back-far region: that slot REUSES leg-back-near and is
 // tinted darker via slot.color so it reads as the far side.
-await regionSlot({ slot: 'leg-front-far', boneId: legFrontFar, region: 'leg-front-far', x: 0, y: 21, targetH: 51 });
-await regionSlot({ slot: 'leg-back-far', boneId: legBackFar, region: 'leg-back-near', x: 1, y: 21, targetH: 54 });
+await regionSlot({ slot: 'leg-front-far', boneId: legFrontFar, region: 'leg-front-far', x: 0, y: 10.5, targetH: 51 });
+await regionSlot({ slot: 'leg-back-far', boneId: legBackFar, region: 'leg-back-near', x: 1, y: 12, targetH: 54 });
 await call('slot.color', {
   documentId,
   slotId: slotIds.get('leg-back-far'),
@@ -135,11 +143,11 @@ await call('slot.color', {
 });
 await regionSlot({ slot: 'tail', boneId: tail, region: 'tail', x: 6, y: -17, targetH: 40 });
 await regionSlot({ slot: 'torso', boneId: torso, region: 'torso', x: 2, y: 1, targetH: 56 });
-await regionSlot({ slot: 'leg-front-near', boneId: legFrontNear, region: 'leg-front-near', x: 0, y: 21, targetH: 51 });
-await regionSlot({ slot: 'leg-back-near', boneId: legBackNear, region: 'leg-back-near', x: 1, y: 23, targetH: 55 });
-await regionSlot({ slot: 'ear-far', boneId: earFar, region: 'ear-far', x: 11, y: -29, targetH: 62 });
+await regionSlot({ slot: 'leg-front-near', boneId: legFrontNear, region: 'leg-front-near', x: 0, y: 10.5, targetH: 51 });
+await regionSlot({ slot: 'leg-back-near', boneId: legBackNear, region: 'leg-back-near', x: 1, y: 12.5, targetH: 55 });
+await regionSlot({ slot: 'ear-far', boneId: earFar, region: 'ear-far', x: 11, y: -21, targetH: 62 });
 await regionSlot({ slot: 'head', boneId: head, region: 'head', x: -5, y: -35, targetH: 81 });
-await regionSlot({ slot: 'ear-near', boneId: earNear, region: 'ear-near', x: -14, y: -30, targetH: 66 });
+await regionSlot({ slot: 'ear-near', boneId: earNear, region: 'ear-near', x: -14, y: -23, targetH: 66 });
 await regionSlot({ slot: 'eyes', boneId: head, region: 'eyes-open', x: -12, y: -28, targetH: 28 });
 await regionSlot({ slot: 'mouth', boneId: head, region: 'mouth-closed', x: -19, y: -10, targetH: 27 });
 
@@ -240,7 +248,7 @@ function jitter(t0: number, t1: number, step: number, amp: number, startSign = 1
 // Ears: near ear rises/sweeps back with POSITIVE, far ear rises with NEGATIVE (droops back with +).
 
 // idle: a permanent tiny nervous shiver. Head +-1.5 at 8 Hz feel (keys every 0.1s), ears
-// counter-tremble +-2, body breathing y +-3.
+// counter-tremble +-2, body breathing y +-3. Translate keys are DELTAS from setup; paws planted.
 await author({
   name: 'idle', duration: 1.6,
   rotate: {
@@ -249,43 +257,44 @@ await author({
     'ear-far': jitter(0, 1.6, 0.1, 2, -1),
   },
   translate: {
-    torso: [[0, 0, -52, EASE_IN_OUT], [0.8, 0, -55, EASE_IN_OUT], [1.6, 0, -52]],
+    torso: [[0, 0, 0, EASE_IN_OUT], [0.8, 0, -3, EASE_IN_OUT], [1.6, 0, 0]],
   },
 });
 
-// walk: quick scamper. Legs +-28 fast, body bounce +-5 (two per stride), ears flop trailing by 0.05s.
+// walk: quick scamper. Legs +-20 (root-parented: the body bobs over planted swing arcs), body
+// bounce 5 px twice per stride, ears flop trailing by 0.05s.
 await author({
   name: 'walk', duration: 0.5,
   rotate: {
-    'leg-front-near': [[0, 28, EASE_IN_OUT], [0.25, -28, EASE_IN_OUT], [0.5, 28]],
-    'leg-front-far': [[0, -28, EASE_IN_OUT], [0.25, 28, EASE_IN_OUT], [0.5, -28]],
-    'leg-back-near': [[0, -24, EASE_IN_OUT], [0.25, 24, EASE_IN_OUT], [0.5, -24]],
-    'leg-back-far': [[0, 24, EASE_IN_OUT], [0.25, -24, EASE_IN_OUT], [0.5, 24]],
+    'leg-front-near': [[0, 20, EASE_IN_OUT], [0.25, -20, EASE_IN_OUT], [0.5, 20]],
+    'leg-front-far': [[0, -20, EASE_IN_OUT], [0.25, 20, EASE_IN_OUT], [0.5, -20]],
+    'leg-back-near': [[0, -18, EASE_IN_OUT], [0.25, 18, EASE_IN_OUT], [0.5, -18]],
+    'leg-back-far': [[0, 18, EASE_IN_OUT], [0.25, -18, EASE_IN_OUT], [0.5, 18]],
     head: [[0, 1, EASE_IN_OUT], [0.25, -1, EASE_IN_OUT], [0.5, 1]],
     'ear-near': [[0, 2, EASE_IN_OUT], [0.05, 6, EASE_IN_OUT], [0.3, -6, EASE_IN_OUT], [0.5, 2]],
     'ear-far': [[0, 2, EASE_IN_OUT], [0.05, 5, EASE_IN_OUT], [0.3, -5, EASE_IN_OUT], [0.5, 2]],
   },
   translate: {
-    torso: [[0, 0, -52, EASE_OUT], [0.125, 0, -57, EASE_IN], [0.25, 0, -52, EASE_OUT],
-            [0.375, 0, -57, EASE_IN], [0.5, 0, -52]],
+    torso: [[0, 0, 0, EASE_OUT], [0.125, 0, -5, EASE_IN], [0.25, 0, 0, EASE_OUT],
+            [0.375, 0, -5, EASE_IN], [0.5, 0, 0]],
   },
 });
 
-// run: frantic dash. Legs +-38, ears streaming back 12 deg with flutter, body pitched forward 8.
+// run: frantic dash. Legs +-26, ears streaming back with flutter, body pitched forward 8.
 await author({
   name: 'run', duration: 0.4,
   rotate: {
-    'leg-front-near': [[0, 38, EASE_IN_OUT], [0.2, -38, EASE_IN_OUT], [0.4, 38]],
-    'leg-front-far': [[0, -34, EASE_IN_OUT], [0.2, 34, EASE_IN_OUT], [0.4, -34]],
-    'leg-back-near': [[0, -38, EASE_IN_OUT], [0.2, 38, EASE_IN_OUT], [0.4, -38]],
-    'leg-back-far': [[0, 34, EASE_IN_OUT], [0.2, -34, EASE_IN_OUT], [0.4, 34]],
+    'leg-front-near': [[0, 26, EASE_IN_OUT], [0.2, -26, EASE_IN_OUT], [0.4, 26]],
+    'leg-front-far': [[0, -23, EASE_IN_OUT], [0.2, 23, EASE_IN_OUT], [0.4, -23]],
+    'leg-back-near': [[0, -24, EASE_IN_OUT], [0.2, 24, EASE_IN_OUT], [0.4, -24]],
+    'leg-back-far': [[0, 21, EASE_IN_OUT], [0.2, -21, EASE_IN_OUT], [0.4, 21]],
     torso: [[0, -8, EASE_IN_OUT], [0.2, -10, EASE_IN_OUT], [0.4, -8]],
     head: [[0, 4, EASE_IN_OUT], [0.2, 7, EASE_IN_OUT], [0.4, 4]],
     'ear-near': [[0, 16, EASE_IN_OUT], [0.1, 21, EASE_IN_OUT], [0.2, 16, EASE_IN_OUT], [0.3, 11, EASE_IN_OUT], [0.4, 16]],
     'ear-far': [[0, 14, EASE_IN_OUT], [0.1, 9, EASE_IN_OUT], [0.2, 14, EASE_IN_OUT], [0.3, 19, EASE_IN_OUT], [0.4, 14]],
   },
   translate: {
-    torso: [[0, 0, -50, EASE_OUT], [0.2, 0, -61, EASE_IN], [0.4, 0, -50]],
+    torso: [[0, 0, 2, EASE_OUT], [0.2, 0, -9, EASE_IN], [0.4, 0, 2]],
   },
 });
 
@@ -298,17 +307,18 @@ await author({
     'ear-far': [[0, 0, EASE_OUT], [0.45, 4, EASE_OUT], [0.6, 0, EASE_OUT], [1.0, 0]],
   },
   translate: {
-    torso: [[0, 0, -52, EASE_IN_OUT], [0.5, 0, -54, EASE_IN_OUT], [1.0, 0, -52]],
+    torso: [[0, 0, 0, EASE_IN_OUT], [0.5, 0, -2, EASE_IN_OUT], [1.0, 0, 0]],
   },
 });
 
-// freeze-shiver: INTENSE shiver. Torso x jitter +-4 every 0.08s, head +-3 alternating, ears rattle
-// +-8, legs locked stiff and splayed slightly (held single keys).
+// freeze-shiver: INTENSE shiver. Torso x jitter +-4 every 0.08s (a DELTA; the root-parented legs
+// stay planted while the body rattles over them), head +-3 alternating, ears rattle +-8, legs
+// locked stiff and splayed slightly (held single keys).
 const shiverTorso: VecKey[] = [];
 {
   let sign = 1;
   for (let t = 0; t <= 0.8 + 1e-9; t += 0.08) {
-    shiverTorso.push([Number(t.toFixed(2)), 4 * sign, -52, 'linear']);
+    shiverTorso.push([Number(t.toFixed(2)), 4 * sign, 0, 'linear']);
     sign = -sign;
   }
 }
@@ -332,6 +342,10 @@ await author({
 // mouth to mouth-small. At 0.6 the bark fires: mouth swaps to mouth-bark-huge, head snaps forward
 // 15 deg nose-down, scale pops to ~1.05 with recoil, body pushed back x +12. 0.6..1.1 hold with a
 // small tremble. 1.1..1.6 settle back to neutral; mouth to mouth-closed at 1.3.
+// Legs are root children: paws stay planted through inhale-blast-settle while the torso rears,
+// recoils, and scales (the head is a torso child and inherits the swell, which is correct). The
+// explicit leg keys are a small brace: gather on the inhale, splay at the blast (front +8, back
+// -8), then settle.
 await author({
   name: 'mega-bark', duration: 1.6,
   scale: {
@@ -346,15 +360,15 @@ await author({
            [0.9, -15, 'linear'], [1.0, -13, 'linear'], [1.1, -14, EASE_IN_OUT], [1.6, 0]],
     'ear-near': [[0, 0, EASE_IN_OUT], [0.6, 8, EASE_OUT], [0.66, 16, EASE_OUT], [1.1, 10, EASE_IN_OUT], [1.6, 0]],
     'ear-far': [[0, 0, EASE_IN_OUT], [0.6, -8, EASE_OUT], [0.66, -16, EASE_OUT], [1.1, -10, EASE_IN_OUT], [1.6, 0]],
-    'leg-front-near': [[0, 0, EASE_IN_OUT], [0.55, -4, EASE_OUT], [0.66, 10, EASE_OUT], [1.1, 8, EASE_IN_OUT], [1.6, 0]],
-    'leg-front-far': [[0, 0, EASE_IN_OUT], [0.55, -3, EASE_OUT], [0.66, 7, EASE_OUT], [1.1, 6, EASE_IN_OUT], [1.6, 0]],
+    'leg-front-near': [[0, 0, EASE_IN_OUT], [0.55, -3, EASE_OUT], [0.66, 8, EASE_OUT], [1.1, 6, EASE_IN_OUT], [1.6, 0]],
+    'leg-front-far': [[0, 0, EASE_IN_OUT], [0.55, -2, EASE_OUT], [0.66, 6, EASE_OUT], [1.1, 5, EASE_IN_OUT], [1.6, 0]],
     'leg-back-near': [[0, 0, EASE_IN_OUT], [0.66, -8, EASE_OUT], [1.1, -6, EASE_IN_OUT], [1.6, 0]],
     'leg-back-far': [[0, 0, EASE_IN_OUT], [0.66, -6, EASE_OUT], [1.1, -5, EASE_IN_OUT], [1.6, 0]],
   },
   translate: {
-    torso: [[0, 0, -52, EASE_IN_OUT], [0.6, 4, -56, EASE_OUT], [0.66, 12, -50, EASE_OUT],
-            [0.8, 13, -50, 'linear'], [0.9, 12, -51, 'linear'], [1.0, 13, -50, 'linear'],
-            [1.1, 12, -50, EASE_IN_OUT], [1.6, 0, -52]],
+    torso: [[0, 0, 0, EASE_IN_OUT], [0.6, 4, -4, EASE_OUT], [0.66, 12, 2, EASE_OUT],
+            [0.8, 13, 2, 'linear'], [0.9, 12, 1, 'linear'], [1.0, 13, 2, 'linear'],
+            [1.1, 12, 2, EASE_IN_OUT], [1.6, 0, 0]],
   },
   attachments: {
     mouth: [[0, 'mouth-closed'], [0.15, 'mouth-small'], [0.6, 'mouth-bark-huge'], [1.3, 'mouth-closed']],
@@ -362,7 +376,8 @@ await author({
   },
 });
 
-// proud-strut: walk but chest up (torso -8), head high, ears perked, slower bounce.
+// proud-strut: walk but chest up (torso +8 over planted root-parented legs), head high, ears
+// perked, slower bounce.
 await author({
   name: 'proud-strut', duration: 0.7,
   rotate: {
@@ -376,8 +391,8 @@ await author({
     'ear-far': [[0, -6]],
   },
   translate: {
-    torso: [[0, 0, -54, EASE_OUT], [0.175, 0, -58, EASE_IN], [0.35, 0, -54, EASE_OUT],
-            [0.525, 0, -58, EASE_IN], [0.7, 0, -54]],
+    torso: [[0, 0, -2, EASE_OUT], [0.175, 0, -6, EASE_IN], [0.35, 0, -2, EASE_OUT],
+            [0.525, 0, -6, EASE_IN], [0.7, 0, -2]],
   },
 });
 

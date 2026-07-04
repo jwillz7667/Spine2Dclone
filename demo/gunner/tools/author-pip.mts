@@ -75,14 +75,18 @@ const bone = async (name: string, parentId: string | null, x: number, y: number,
   return res.boneId;
 };
 
+// JOINT CONTRACT (bird): every limb bone sits at the piece's visual root, buried 8-12 px INSIDE
+// the body silhouette, and the attachment offset places the piece's root pixel AT the pivot so
+// rotation pins the socket. Body region spans world x [-40.5, 44.5] y [-95.5, -0.5]; its rear
+// outline (alpha-measured) is x~21 at wing height y=-80 and x~41 at tail height y=-57.
 const rootBone = await bone('root', null, 0, 0, 8);
 const body = await bone('body', rootBone, 0, -75, 60);
 const head = await bone('head', body, -5, -10, 50); // pivot at the body top-front (neck)
 const beakTop = await bone('beak-top', head, -9, -19, 12); // hinge at the beak rear edge
 const beakBottom = await bone('beak-bottom', head, -9, -12, 10); // rotating this opens the beak
-const tail = await bone('tail', body, 45, 22, 20); // rear, at the tail-feather base
-const wingNear = await bone('wing-near', body, 7, 1, 30); // pivot at the near shoulder
-const wingFar = await bone('wing-far', body, 15, -10, 25); // far shoulder, behind the body
+const tail = await bone('tail', body, 32, 18, 20); // tail base, ~9 px inside the rump outline
+const wingNear = await bone('wing-near', body, 12, -5, 30); // shoulder on the upper back, ~9 px inside
+const wingFar = await bone('wing-far', body, 10, -9, 25); // far shoulder, hidden behind body/head
 
 // ---- slots + attachments (created back-to-front; creation order = draw order) ---------------------
 interface SlotSpec {
@@ -119,15 +123,19 @@ async function regionSlot(spec: SlotSpec): Promise<string> {
   return slotId;
 }
 
-// back-to-front: far wing, tail, body, head stack, near wing on top of the body
-await regionSlot({ slot: 'wing-far', boneId: wingFar, region: 'wing-far', x: 16, y: 2, targetH: 38 });
-await regionSlot({ slot: 'tail', boneId: tail, region: 'tail', x: 10, y: -12, targetH: 30 });
+// back-to-front: far wing, tail, body, head stack, near wing on top of the body.
+// Offsets place each piece's alpha-measured root pixel at its bone pivot (see JOINT CONTRACT):
+// wing-far root lobe is at fraction (0.05, 0.60) of a 46x46 rect, tail root nub at (0.03, 0.60)
+// of a 33.6x34 rect, so root = pivot and the socket cannot open mid-swing.
+await regionSlot({ slot: 'wing-far', boneId: wingFar, region: 'wing-far', x: 21, y: -4.5, targetH: 46 });
+await regionSlot({ slot: 'tail', boneId: tail, region: 'tail', x: 16, y: -3.5, targetH: 34 });
 await regionSlot({ slot: 'body', boneId: body, region: 'body', x: 2, y: 27, targetH: 95 });
 await regionSlot({ slot: 'head', boneId: head, region: 'head', x: -2, y: -28, targetH: 72 });
 await regionSlot({ slot: 'beak-top', boneId: beakTop, region: 'beak-top', x: -9.6, y: -1, targetH: 16 });
 await regionSlot({ slot: 'beak-bottom', boneId: beakBottom, region: 'beak-bottom', x: -7, y: 0.2, targetH: 8.5 });
 await regionSlot({ slot: 'eyes', boneId: head, region: 'eyes-open', x: -3.9, y: -33.9, targetH: 22.5 });
-await regionSlot({ slot: 'wing-near', boneId: wingNear, region: 'wing-near', x: 19.7, y: 8, targetH: 40 });
+// folded wing lies along the flank; its whole left half overlaps the body (root buried ~20 px)
+await regionSlot({ slot: 'wing-near', boneId: wingNear, region: 'wing-near', x: 15, y: 14, targetH: 40 });
 
 // extra attachment variants (animations and the player swap them)
 async function addVariant(slot: string, region: string, targetH: number, x: number, y: number): Promise<void> {
@@ -153,7 +161,9 @@ await call('attach.region.add', {
   width: 50,
   height: 24,
 });
-await addVariant('wing-near', 'wing-near-spread', 60, 22, -20);
+// spread root lobe is at fraction (0.06, 0.69) of the 64.3x60 rect; (28, -11.5) puts that lobe
+// exactly on the shoulder pivot, so every flap phase keeps the root socketed on the back.
+await addVariant('wing-near', 'wing-near-spread', 60, 28, -11.5);
 
 // restore the default active attachments after variant adds
 await call('slot.activeAttachment', { documentId, slotId: slotIds.get('eyes'), attachment: 'eyes-open' });
@@ -222,34 +232,36 @@ async function author(spec: AnimSpec): Promise<string> {
 // positive on a wing (which extends rearward, right of its pivot) lowers the tip, negative raises it;
 // positive on beak-bottom (which extends forward, left of its hinge) CLOSES the beak, negative OPENS it.
 
-// hover: airborne bob, spread wing flapping 4 times per second
+// hover: airborne bob, spread wing flapping 4 times per second.
+// Flap amplitude is capped at +-22 around the shoulder hinge (joint contract: hover +-20..25 max);
+// bigger sweeps read as the wing tearing off the back.
 await author({
   name: 'hover', duration: 1.0,
   translate: {
     body: [[0, 0, -83, EASE_IN_OUT], [0.5, 0, -67, EASE_IN_OUT], [1.0, 0, -83]],
   },
   rotate: {
-    'wing-near': [[0, 25, EASE_IN_OUT], [0.125, -25, EASE_IN_OUT], [0.25, 25, EASE_IN_OUT],
-                  [0.375, -25, EASE_IN_OUT], [0.5, 25, EASE_IN_OUT], [0.625, -25, EASE_IN_OUT],
-                  [0.75, 25, EASE_IN_OUT], [0.875, -25, EASE_IN_OUT], [1.0, 25]],
-    'wing-far': [[0, 18, EASE_IN_OUT], [0.125, -18, EASE_IN_OUT], [0.25, 18, EASE_IN_OUT],
-                 [0.375, -18, EASE_IN_OUT], [0.5, 18, EASE_IN_OUT], [0.625, -18, EASE_IN_OUT],
-                 [0.75, 18, EASE_IN_OUT], [0.875, -18, EASE_IN_OUT], [1.0, 18]],
+    'wing-near': [[0, 22, EASE_IN_OUT], [0.125, -22, EASE_IN_OUT], [0.25, 22, EASE_IN_OUT],
+                  [0.375, -22, EASE_IN_OUT], [0.5, 22, EASE_IN_OUT], [0.625, -22, EASE_IN_OUT],
+                  [0.75, 22, EASE_IN_OUT], [0.875, -22, EASE_IN_OUT], [1.0, 22]],
+    'wing-far': [[0, 16, EASE_IN_OUT], [0.125, -16, EASE_IN_OUT], [0.25, 16, EASE_IN_OUT],
+                 [0.375, -16, EASE_IN_OUT], [0.5, 16, EASE_IN_OUT], [0.625, -16, EASE_IN_OUT],
+                 [0.75, 16, EASE_IN_OUT], [0.875, -16, EASE_IN_OUT], [1.0, 16]],
     tail: [[0, -5, EASE_IN_OUT], [0.25, 4, EASE_IN_OUT], [0.5, -5, EASE_IN_OUT], [0.75, 4, EASE_IN_OUT], [1.0, -5]],
     head: [[0, 1, EASE_IN_OUT], [0.5, -2, EASE_IN_OUT], [1.0, 1]],
   },
   attachments: { 'wing-near': [[0, 'wing-near-spread']] },
 });
 
-// fly: hover pitched ~18 deg forward, bigger and faster flaps
+// fly: hover pitched ~18 deg forward, bigger and faster flaps (capped at +-30 per joint contract)
 await author({
   name: 'fly', duration: 0.6,
   rotate: {
     body: [[0, -18], [0.6, -18]],
-    'wing-near': [[0, 35, EASE_IN_OUT], [0.1, -35, EASE_IN_OUT], [0.2, 35, EASE_IN_OUT],
-                  [0.3, -35, EASE_IN_OUT], [0.4, 35, EASE_IN_OUT], [0.5, -35, EASE_IN_OUT], [0.6, 35]],
-    'wing-far': [[0, 28, EASE_IN_OUT], [0.1, -28, EASE_IN_OUT], [0.2, 28, EASE_IN_OUT],
-                 [0.3, -28, EASE_IN_OUT], [0.4, 28, EASE_IN_OUT], [0.5, -28, EASE_IN_OUT], [0.6, 28]],
+    'wing-near': [[0, 30, EASE_IN_OUT], [0.1, -30, EASE_IN_OUT], [0.2, 30, EASE_IN_OUT],
+                  [0.3, -30, EASE_IN_OUT], [0.4, 30, EASE_IN_OUT], [0.5, -30, EASE_IN_OUT], [0.6, 30]],
+    'wing-far': [[0, 24, EASE_IN_OUT], [0.1, -24, EASE_IN_OUT], [0.2, 24, EASE_IN_OUT],
+                 [0.3, -24, EASE_IN_OUT], [0.4, 24, EASE_IN_OUT], [0.5, -24, EASE_IN_OUT], [0.6, 24]],
     tail: [[0, -6, EASE_IN_OUT], [0.3, 0, EASE_IN_OUT], [0.6, -6]],
     head: [[0, 8], [0.6, 8]], // counter-pitch so Pip keeps looking where he flies
   },
@@ -271,6 +283,8 @@ await author({
     body: [[0, 0, -75, EASE_IN_OUT], [0.25, 0, -77, EASE_IN_OUT], [0.5, 0, -75, EASE_IN_OUT],
            [0.75, 0, -77, EASE_IN_OUT], [1.0, 0, -75]],
   },
+  // grounded: the far wing folds behind the body, so hide its spread region
+  attachments: { 'wing-far': [[0, null]] },
 });
 
 // walk: two little hops per loop, tail flicks
@@ -284,6 +298,8 @@ await author({
     tail: [[0, 0, EASE_OUT], [0.12, 12, EASE_IN_OUT], [0.3, 0, EASE_OUT], [0.42, 12, EASE_IN_OUT], [0.6, 0]],
     body: [[0, 0, EASE_IN_OUT], [0.15, -3, EASE_IN_OUT], [0.3, 0, EASE_IN_OUT], [0.45, -3, EASE_IN_OUT], [0.6, 0]],
   },
+  // grounded: the far wing folds behind the body, so hide its spread region
+  attachments: { 'wing-far': [[0, null]] },
 });
 
 // land: one-shot drop from 30 px up, squash at touch, wings spread then fold
@@ -296,11 +312,15 @@ await author({
     body: [[0, 1, 1, 'linear'], [0.22, 1, 1, EASE_OUT], [0.3, 1.12, 0.88, EASE_OUT_BACK], [0.4, 0.97, 1.04, EASE_IN_OUT], [0.5, 1, 1]],
   },
   rotate: {
-    'wing-near': [[0, -30, EASE_IN_OUT], [0.1, 20, EASE_IN_OUT], [0.2, -15, EASE_OUT], [0.28, 0]],
-    'wing-far': [[0, -24, EASE_IN_OUT], [0.1, 16, EASE_IN_OUT], [0.2, -12, EASE_OUT], [0.28, 0]],
+    'wing-near': [[0, -26, EASE_IN_OUT], [0.1, 16, EASE_IN_OUT], [0.2, -12, EASE_OUT], [0.28, 0]],
+    'wing-far': [[0, -20, EASE_IN_OUT], [0.1, 13, EASE_IN_OUT], [0.2, -10, EASE_OUT], [0.28, 0]],
     tail: [[0, -6, EASE_OUT], [0.3, 8, EASE_IN_OUT], [0.5, 0]],
   },
-  attachments: { 'wing-near': [[0, 'wing-near-spread'], [0.28, 'wing-near']] },
+  // at the fold (0.28) the near wing swaps to its folded region and the far wing tucks away
+  attachments: {
+    'wing-near': [[0, 'wing-near-spread'], [0.28, 'wing-near']],
+    'wing-far': [[0, 'wing-far'], [0.28, null]],
+  },
 });
 
 // lift-strain: leaning back, rapid tiny flaps, whole body trembling on x

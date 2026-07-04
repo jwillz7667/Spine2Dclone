@@ -82,12 +82,15 @@ const bone = async (name: string, parentId: string | null, x: number, y: number,
 const rootBone = await bone('root', null, 0, 0, 10);
 const torso = await bone('torso', rootBone, 0, -175, 120);
 const head = await bone('head', torso, -105, -55, 90);
-const earNear = await bone('ear-near', head, -30, -100, 30);
-const earFar = await bone('ear-far', head, 45, -95, 30);
-const legFrontNear = await bone('leg-front-near', torso, -85, 30, 90);
-const legFrontFar = await bone('leg-front-far', torso, -55, 25, 85);
-const legBackNear = await bone('leg-back-near', torso, 90, 25, 95);
-const legBackFar = await bone('leg-back-far', torso, 60, 20, 90);
+const earNear = await bone('ear-near', head, -30, -88, 30);
+const earFar = await bone('ear-far', head, 45, -85, 30);
+// Legs hang from the ROOT, not the torso: the torso can lean and bob while paws stay planted.
+// Each pivot sits INSIDE the body silhouette at the joint (shoulder/hip), about 22 px above the
+// leg piece's top edge, so mid-swing the proximal end never escapes the belly overlap.
+const legFrontNear = await bone('leg-front-near', rootBone, -85, -150, 90);
+const legFrontFar = await bone('leg-front-far', rootBone, -52, -148, 85);
+const legBackNear = await bone('leg-back-near', rootBone, 95, -148, 95);
+const legBackFar = await bone('leg-back-far', rootBone, 62, -146, 90);
 
 // ---- slots + attachments (created back-to-front; creation order = draw order) ---------------------
 interface SlotSpec {
@@ -125,14 +128,14 @@ async function regionSlot(spec: SlotSpec): Promise<string> {
 }
 
 // far side first, then near legs, torso, head stack
-await regionSlot({ slot: 'leg-front-far', boneId: legFrontFar, region: 'leg-front-far', x: 0, y: 55, targetH: 120 });
-await regionSlot({ slot: 'leg-back-far', boneId: legBackFar, region: 'leg-back-far', x: 5, y: 55, targetH: 125 });
-await regionSlot({ slot: 'leg-front-near', boneId: legFrontNear, region: 'leg-front-near', x: 0, y: 60, targetH: 135 });
-await regionSlot({ slot: 'leg-back-near', boneId: legBackNear, region: 'leg-back-near', x: 5, y: 60, targetH: 140 });
+await regionSlot({ slot: 'leg-front-far', boneId: legFrontFar, region: 'leg-front-far', x: 0, y: 38, targetH: 120 });
+await regionSlot({ slot: 'leg-back-far', boneId: legBackFar, region: 'leg-back-far', x: 5, y: 40, targetH: 125 });
+await regionSlot({ slot: 'leg-front-near', boneId: legFrontNear, region: 'leg-front-near', x: 0, y: 46, targetH: 135 });
+await regionSlot({ slot: 'leg-back-near', boneId: legBackNear, region: 'leg-back-near', x: 5, y: 48, targetH: 140 });
 await regionSlot({ slot: 'torso', boneId: torso, region: 'torso', x: 10, y: -15, targetH: 240, scaleX: -1 });
-await regionSlot({ slot: 'ear-far', boneId: earFar, region: 'ear-far', x: 5, y: -12, targetH: 85 });
+await regionSlot({ slot: 'ear-far', boneId: earFar, region: 'ear-far', x: 5, y: -32, targetH: 85 });
 await regionSlot({ slot: 'head', boneId: head, region: 'head', x: -25, y: -20, targetH: 250 });
-await regionSlot({ slot: 'ear-near', boneId: earNear, region: 'ear-near', x: 0, y: -10, targetH: 95 });
+await regionSlot({ slot: 'ear-near', boneId: earNear, region: 'ear-near', x: 0, y: -38, targetH: 95 });
 await regionSlot({ slot: 'brows', boneId: head, region: 'brows', x: -12, y: -88, targetH: sizedW('brows', 120) });
 await regionSlot({ slot: 'eyes', boneId: head, region: 'eyes-open', x: -12, y: -57, targetH: 75 });
 await regionSlot({ slot: 'mouth', boneId: head, region: 'mouth-closed', x: -26, y: 62, targetH: sizedW('mouth-closed', 112) });
@@ -237,10 +240,10 @@ await author({
 await author({
   name: 'walk', duration: 0.8,
   rotate: {
-    'leg-front-near': [[0, 26, EASE_IN_OUT], [0.4, -22, EASE_IN_OUT], [0.8, 26]],
-    'leg-front-far': [[0, -22, EASE_IN_OUT], [0.4, 26, EASE_IN_OUT], [0.8, -22]],
-    'leg-back-near': [[0, -20, EASE_IN_OUT], [0.4, 24, EASE_IN_OUT], [0.8, -20]],
-    'leg-back-far': [[0, 24, EASE_IN_OUT], [0.4, -20, EASE_IN_OUT], [0.8, 24]],
+    'leg-front-near': [[0, 18, EASE_IN_OUT], [0.4, -16, EASE_IN_OUT], [0.8, 18]],
+    'leg-front-far': [[0, -16, EASE_IN_OUT], [0.4, 18, EASE_IN_OUT], [0.8, -16]],
+    'leg-back-near': [[0, -15, EASE_IN_OUT], [0.4, 17, EASE_IN_OUT], [0.8, -15]],
+    'leg-back-far': [[0, 17, EASE_IN_OUT], [0.4, -15, EASE_IN_OUT], [0.8, 17]],
     torso: [[0, 1.5, EASE_IN_OUT], [0.4, -1.5, EASE_IN_OUT], [0.8, 1.5]],
     head: [[0, -1.5, EASE_IN_OUT], [0.4, 1.5, EASE_IN_OUT], [0.8, -1.5]],
   },
@@ -252,10 +255,10 @@ await author({
 await author({
   name: 'run', duration: 0.5,
   rotate: {
-    'leg-front-near': [[0, 42, EASE_IN_OUT], [0.25, -38, EASE_IN_OUT], [0.5, 42]],
-    'leg-front-far': [[0, 34, EASE_IN_OUT], [0.28, -32, EASE_IN_OUT], [0.5, 34]],
-    'leg-back-near': [[0, -38, EASE_IN_OUT], [0.25, 36, EASE_IN_OUT], [0.5, -38]],
-    'leg-back-far': [[0, -32, EASE_IN_OUT], [0.28, 30, EASE_IN_OUT], [0.5, -32]],
+    'leg-front-near': [[0, 28, EASE_IN_OUT], [0.25, -25, EASE_IN_OUT], [0.5, 28]],
+    'leg-front-far': [[0, 23, EASE_IN_OUT], [0.28, -20, EASE_IN_OUT], [0.5, 23]],
+    'leg-back-near': [[0, -25, EASE_IN_OUT], [0.25, 24, EASE_IN_OUT], [0.5, -25]],
+    'leg-back-far': [[0, -20, EASE_IN_OUT], [0.28, 19, EASE_IN_OUT], [0.5, -20]],
     torso: [[0, 7, EASE_IN_OUT], [0.25, -3, EASE_IN_OUT], [0.5, 7]],
     head: [[0, -5, EASE_IN_OUT], [0.25, 2, EASE_IN_OUT], [0.5, -5]],
     'ear-near': [[0, 14], [0.5, 14]],

@@ -87,10 +87,13 @@ const head = await bone('head', torso, -72, -40, 60);
 const earNear = await bone('ear-near', head, -40, -104, 30);
 const earFar = await bone('ear-far', head, 42, -100, 30);
 const tail = await bone('tail', torso, 95, -32, 80);
-const legFrontNear = await bone('leg-front-near', torso, -79, -27, 80);
-const legFrontFar = await bone('leg-front-far', torso, -48, -27, 78);
-const legBackNear = await bone('leg-back-near', torso, 77, -23, 82);
-const legBackFar = await bone('leg-back-far', torso, 60, -26, 80);
+// Legs hang from the ROOT, not the torso: the torso can lean and bob while paws stay planted.
+// Each pivot sits INSIDE the body silhouette at the joint (shoulder/hip), about 22 px above the
+// leg piece's top edge, so mid-swing the proximal end never escapes the belly overlap.
+const legFrontNear = await bone('leg-front-near', rootBone, -79, -147, 80);
+const legFrontFar = await bone('leg-front-far', rootBone, -48, -147, 78);
+const legBackNear = await bone('leg-back-near', rootBone, 77, -151, 82);
+const legBackFar = await bone('leg-back-far', rootBone, 60, -154, 80);
 
 // ---- slots + attachments (created back-to-front; creation order = draw order) ---------------------
 interface SlotSpec {
@@ -127,16 +130,17 @@ async function regionSlot(spec: SlotSpec): Promise<string> {
   return slotId;
 }
 
-// back-to-front: far legs, tail, torso, near legs, then the head stack
-await regionSlot({ slot: 'leg-front-far', boneId: legFrontFar, region: 'leg-front-far', x: -2, y: 80, targetH: 165 });
-await regionSlot({ slot: 'leg-back-far', boneId: legBackFar, region: 'leg-back-far', x: 8, y: 74, targetH: 168, scaleX: -1 });
+// back-to-front: far legs, tail, NEAR LEGS, then torso (all leg tops hide under the belly
+// silhouette; attachment offset along the limb is targetH/2 - 22 so the pivot is buried), head stack
+await regionSlot({ slot: 'leg-front-far', boneId: legFrontFar, region: 'leg-front-far', x: -2, y: 60, targetH: 165 });
+await regionSlot({ slot: 'leg-back-far', boneId: legBackFar, region: 'leg-back-far', x: 8, y: 62, targetH: 168, scaleX: -1 });
 await regionSlot({ slot: 'tail', boneId: tail, region: 'tail', x: 74, y: -29, targetH: 172, rotation: -90 });
+await regionSlot({ slot: 'leg-front-near', boneId: legFrontNear, region: 'leg-front-near', x: -5, y: 62, targetH: 168 });
+await regionSlot({ slot: 'leg-back-near', boneId: legBackNear, region: 'leg-back-near', x: 11, y: 64, targetH: 172, scaleX: -1 });
 await regionSlot({ slot: 'torso', boneId: torso, region: 'torso', x: 0, y: -6, targetH: 200, rotation: -90 });
-await regionSlot({ slot: 'leg-front-near', boneId: legFrontNear, region: 'leg-front-near', x: -5, y: 82, targetH: 168 });
-await regionSlot({ slot: 'leg-back-near', boneId: legBackNear, region: 'leg-back-near', x: 11, y: 76, targetH: 172, scaleX: -1 });
-await regionSlot({ slot: 'ear-far', boneId: earFar, region: 'ear-far', x: 4, y: -30, targetH: 70, scaleX: -1 });
+await regionSlot({ slot: 'ear-far', boneId: earFar, region: 'ear-far', x: 4, y: -25, targetH: 70, scaleX: -1 });
 await regionSlot({ slot: 'head', boneId: head, region: 'head', x: -6, y: -60, targetH: 130 });
-await regionSlot({ slot: 'ear-near', boneId: earNear, region: 'ear-near', x: -4, y: -28, targetH: 78 });
+await regionSlot({ slot: 'ear-near', boneId: earNear, region: 'ear-near', x: -4, y: -29, targetH: 78 });
 await regionSlot({ slot: 'goggles', boneId: head, region: 'goggles', x: -9, y: -113, targetH: 72 });
 await regionSlot({ slot: 'eyes', boneId: head, region: 'eyes-open', x: -8, y: -63, targetH: 48 });
 // the mouth piece is a soft-edged dark patch carrying the pink nose + mouth marks; kept small and
@@ -227,9 +231,10 @@ async function author(spec: AnimSpec): Promise<string> {
 // Rotation sign: positive = clockwise on screen (y-down). Facing left: for a hanging leg, positive
 // swings the paw FORWARD (screen-left); positive torso rotation pitches the chest down toward the nose.
 
+// Translate keys are DELTAS from the setup pose (engine semantic); never key absolute positions.
 await author({
   name: 'idle', duration: 2.4,
-  translate: { torso: [[0, 0, -140, EASE_IN_OUT], [1.2, 0, -144, EASE_IN_OUT], [2.4, 0, -140]] },
+  translate: { torso: [[0, 0, 0, EASE_IN_OUT], [1.2, 0, -4, EASE_IN_OUT], [2.4, 0, 0]] },
   rotate: {
     tail: [[0, 0, EASE_IN_OUT], [0.9, 14, EASE_IN_OUT], [1.7, -6, EASE_IN_OUT], [2.4, 0]],
     head: [[0, 0, EASE_IN_OUT], [1.2, 1.5, EASE_IN_OUT], [2.4, 0]],
@@ -240,26 +245,28 @@ await author({
 await author({
   name: 'walk', duration: 0.9,
   rotate: {
-    'leg-front-near': [[0, 20, EASE_IN_OUT], [0.45, -20, EASE_IN_OUT], [0.9, 20]],
-    'leg-front-far': [[0, -20, EASE_IN_OUT], [0.45, 20, EASE_IN_OUT], [0.9, -20]],
-    'leg-back-near': [[0, -20, EASE_IN_OUT], [0.45, 20, EASE_IN_OUT], [0.9, -20]],
-    'leg-back-far': [[0, 20, EASE_IN_OUT], [0.45, -20, EASE_IN_OUT], [0.9, 20]],
+    // elegant gait: 2-3 deg calmer than Gunner's 18/16 walk swings
+    'leg-front-near': [[0, 16, EASE_IN_OUT], [0.45, -14, EASE_IN_OUT], [0.9, 16]],
+    'leg-front-far': [[0, -14, EASE_IN_OUT], [0.45, 16, EASE_IN_OUT], [0.9, -14]],
+    'leg-back-near': [[0, -13, EASE_IN_OUT], [0.45, 15, EASE_IN_OUT], [0.9, -13]],
+    'leg-back-far': [[0, 15, EASE_IN_OUT], [0.45, -13, EASE_IN_OUT], [0.9, 15]],
     torso: [[0, 1.5, EASE_IN_OUT], [0.45, -1.5, EASE_IN_OUT], [0.9, 1.5]],
     head: [[0, -1.5, EASE_IN_OUT], [0.45, 1.5, EASE_IN_OUT], [0.9, -1.5]],
     tail: [[0, 6, EASE_IN_OUT], [0.45, -6, EASE_IN_OUT], [0.9, 6]],
   },
   translate: {
-    torso: [[0, 0, -140, EASE_OUT], [0.225, 0, -144, EASE_IN], [0.45, 0, -140, EASE_OUT], [0.675, 0, -144, EASE_IN], [0.9, 0, -140]],
+    torso: [[0, 0, 0, EASE_OUT], [0.225, 0, -4, EASE_IN], [0.45, 0, 0, EASE_OUT], [0.675, 0, -4, EASE_IN], [0.9, 0, 0]],
   },
 });
 
 await author({
   name: 'run', duration: 0.55,
   rotate: {
-    'leg-front-near': [[0, 30, EASE_IN_OUT], [0.275, -30, EASE_IN_OUT], [0.55, 30]],
-    'leg-front-far': [[0, 24, EASE_IN_OUT], [0.3, -26, EASE_IN_OUT], [0.55, 24]],
-    'leg-back-near': [[0, -28, EASE_IN_OUT], [0.275, 28, EASE_IN_OUT], [0.55, -28]],
-    'leg-back-far': [[0, -22, EASE_IN_OUT], [0.3, 24, EASE_IN_OUT], [0.55, -22]],
+    // calmer than the old +-30: 2-3 deg under Gunner's 28/25 run swings
+    'leg-front-near': [[0, 25, EASE_IN_OUT], [0.275, -22, EASE_IN_OUT], [0.55, 25]],
+    'leg-front-far': [[0, 20, EASE_IN_OUT], [0.3, -18, EASE_IN_OUT], [0.55, 20]],
+    'leg-back-near': [[0, -22, EASE_IN_OUT], [0.275, 21, EASE_IN_OUT], [0.55, -22]],
+    'leg-back-far': [[0, -17, EASE_IN_OUT], [0.3, 16, EASE_IN_OUT], [0.55, -17]],
     torso: [[0, 5, EASE_IN_OUT], [0.275, -2, EASE_IN_OUT], [0.55, 5]],
     head: [[0, -4, EASE_IN_OUT], [0.275, 1, EASE_IN_OUT], [0.55, -4]],
     // streams behind: lifted (-20 raises the tip on this rig) with a small wave
@@ -267,7 +274,7 @@ await author({
     'ear-near': [[0, 8]], 'ear-far': [[0, 7]],
   },
   translate: {
-    torso: [[0, 0, -136, EASE_OUT], [0.275, 0, -150, EASE_IN], [0.55, 0, -136]],
+    torso: [[0, 0, 4, EASE_OUT], [0.275, 0, -10, EASE_IN], [0.55, 0, 4]],
   },
 });
 
@@ -277,21 +284,20 @@ await author({
     head: [[0, 0, EASE_IN_OUT], [0.3, 2.5, EASE_IN_OUT], [0.6, -2, EASE_IN_OUT], [0.9, 1.5, EASE_IN_OUT], [1.2, 0]],
     tail: [[0, 0, EASE_IN_OUT], [0.6, -8, EASE_IN_OUT], [1.2, 0]],
   },
-  translate: { torso: [[0, 0, -140, EASE_IN_OUT], [0.6, 0, -142, EASE_IN_OUT], [1.2, 0, -140]] },
+  translate: { torso: [[0, 0, 0, EASE_IN_OUT], [0.6, 0, -2, EASE_IN_OUT], [1.2, 0, 0]] },
 });
 
 await author({
   name: 'crank-gadget', duration: 0.8,
   rotate: {
-    // full circular crank at the shoulder; 360 == 0 so the loop is seamless
+    // full circular crank at the shoulder; 360 == 0 so the loop is seamless.
+    // Legs are root children: the torso lean stays on the torso and the other three paws
+    // remain planted at setup, bracing the crank.
     'leg-front-near': [[0, 0, 'linear'], [0.2, 90, 'linear'], [0.4, 180, 'linear'], [0.6, 270, 'linear'], [0.8, 360]],
     torso: [[0, 5]],
     head: [[0, 9]],
-    'leg-front-far': [[0, 8]],
-    'leg-back-near': [[0, -6]],
-    'leg-back-far': [[0, -4]],
   },
-  translate: { torso: [[0, -6, -137]] },
+  translate: { torso: [[0, -6, 3]] },
 });
 
 await author({
@@ -314,7 +320,7 @@ await author({
     head: [[0, 0, EASE_OUT], [0.3, -5], [0.8, -5]],
     torso: [[0, 0, EASE_OUT], [0.35, -3], [0.8, -3]],
   },
-  translate: { torso: [[0, 0, -140, EASE_OUT], [0.35, 4, -141], [0.8, 4, -141]] },
+  translate: { torso: [[0, 0, 0, EASE_OUT], [0.35, 4, -1], [0.8, 4, -1]] },
 });
 
 // micro state animations for the player's face tracks (one attachment key each)

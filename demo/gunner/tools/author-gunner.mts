@@ -82,11 +82,8 @@ const bone = async (name: string, parentId: string | null, x: number, y: number,
 const rootBone = await bone('root', null, 0, 0, 10);
 const torso = await bone('torso', rootBone, 0, -175, 120);
 const head = await bone('head', torso, -105, -55, 90);
-// ears sit WIDE APART above each eye like the reference photo, not clustered at the apex.
-// Roots follow the measured dome contour (mirrored head-local: y -140 at x -75, -142 at x +18)
-// with ~8px burial into the dome
-const earNear = await bone('ear-near', head, -75, -132, 30);
-const earFar = await bone('ear-far', head, 18, -134, 30);
+// no ear bones: the ears are BAKED into the generated head variants (user direction, they do not
+// need independent motion and separate pieces never sat right on the dome)
 // Legs are TORSO children so the shoulder/hip sockets can never separate from the body, with
 // pivots buried ~22 px inside the silhouette at the joints. Feet stay visually planted because
 // every animation that rotates the torso beyond ~6 deg carries COUNTER-ROTATION keys on the legs
@@ -134,17 +131,16 @@ async function regionSlot(spec: SlotSpec): Promise<string> {
 
 // far side first, then near legs, torso, head stack.
 // EVERY body piece on the sheet is drawn facing RIGHT (toes right, nose right); the rig faces
-// LEFT, so torso, head and all four legs carry scaleX -1. The face landmarks below are measured
-// on the MIRRORED head: nose centroid (-76, -8), blaze (-53, -69), drawn lip line spanning
-// x -51..+57 centered (+3, +60), crown top (-23, -144).
+// LEFT, so torso, head and all four legs carry scaleX -1. Face landmarks on the MIRRORED head:
+// nose centroid (-72.6, -4.1) (the registration anchor), blaze (-53, -69). The head pieces carry
+// baked ears, so the piece extends above the old dome and the attachment center sits higher; all
+// head transforms below come from gen-head-variants.mts output, never eyeballed.
 await regionSlot({ slot: 'leg-front-far', boneId: legFrontFar, region: 'leg-front-far', x: 0, y: 46, targetH: 127, scaleX: -1 });
 await regionSlot({ slot: 'leg-back-far', boneId: legBackFar, region: 'leg-back-far', x: 0, y: 50, targetH: 140, scaleX: -1 });
 await regionSlot({ slot: 'leg-front-near', boneId: legFrontNear, region: 'leg-front-near', x: 0, y: 42, targetH: 125, scaleX: -1 });
 await regionSlot({ slot: 'leg-back-near', boneId: legBackNear, region: 'leg-back-near', x: 0, y: 55, targetH: 150, scaleX: -1 });
 await regionSlot({ slot: 'torso', boneId: torso, region: 'torso', x: 10, y: -15, targetH: 240, scaleX: -1 });
-await regionSlot({ slot: 'ear-far', boneId: earFar, region: 'ear-far', x: 5, y: -32, targetH: 85 });
-await regionSlot({ slot: 'head', boneId: head, region: 'head', x: -25, y: -20, targetH: 250, scaleX: -1 });
-await regionSlot({ slot: 'ear-near', boneId: earNear, region: 'ear-near', x: 0, y: -38, targetH: 95 });
+await regionSlot({ slot: 'head', boneId: head, region: 'head', x: -24.8, y: -36.2, targetH: 281.9, scaleX: -1 });
 await regionSlot({ slot: 'brows', boneId: head, region: 'brows', x: -50, y: -88, targetH: sizedW('brows', 120) });
 await regionSlot({ slot: 'eyes', boneId: head, region: 'eyes-open', x: -50, y: -57, targetH: 75 });
 // extra attachment variants on the eye / brow / head slots (player and animations swap them)
@@ -172,11 +168,12 @@ await addVariant('eyes', 'eyes-closed', 72, -50, -57);
 await addVariant('eyes', 'eyes-happy', 72, -50, -57);
 await addVariant('eyes', 'eyes-worried', 88, -50, -55);
 // mouth states are FULL REPLACEMENT HEADS (gen-head-variants.mts), not pasted overlays: the mouth
-// is drawn into the muzzle by Gemini, and each variant is dome-registered against head.png so the
-// skull does not move a pixel when the attachment swaps. Transforms come from that script's output.
-await addVariant('head', 'head-talk', 249.7, -26.6, -20.0, -1);
-await addVariant('head', 'head-wide', 256.0, -26.8, -16.9, -1);
-await addVariant('head', 'head-grit', 252.4, -27.0, -18.7, -1);
+// is drawn into the muzzle and the ears into the skull by Gemini, and each variant is
+// nose/cheek-registered against the original head so the skull does not move a pixel when the
+// attachment swaps. Transforms come from that script's output.
+await addVariant('head', 'head-talk', 288.6, -24.6, -32.8, -1);
+await addVariant('head', 'head-wide', 298.7, -22.3, -27.9, -1);
+await addVariant('head', 'head-grit', 284.7, -22.2, -34.9, -1);
 
 // restore the default active attachments after variant adds
 await call('slot.activeAttachment', { documentId, slotId: slotIds.get('eyes'), attachment: 'eyes-open' });
@@ -185,7 +182,7 @@ await call('slot.activeAttachment', { documentId, slotId: slotIds.get('brows'), 
 
 // ---- animation helpers -----------------------------------------------------------------------------
 const boneIdByName: Record<string, string> = {
-  root: rootBone, torso, head, 'ear-near': earNear, 'ear-far': earFar,
+  root: rootBone, torso, head,
   'leg-front-near': legFrontNear, 'leg-front-far': legFrontFar,
   'leg-back-near': legBackNear, 'leg-back-far': legBackFar,
 };
@@ -250,7 +247,6 @@ await author({
   translate: { torso: [[0, 0, -175, EASE_IN_OUT], [1.0, 0, -181, EASE_IN_OUT], [2.0, 0, -175]] },
   rotate: {
     head: [[0, 0, EASE_IN_OUT], [1.1, 2.5, EASE_IN_OUT], [2.0, 0]],
-    'ear-near': [[0, 0], [1.2, 0, EASE_OUT], [1.45, -7, EASE_OUT], [1.7, 0], [2.0, 0]],
   },
 });
 
@@ -278,8 +274,6 @@ await author({
     'leg-back-far': [[0, -27, EASE_IN_OUT], [0.28, 22, EASE_IN_OUT], [0.5, -27]],
     torso: [[0, 7, EASE_IN_OUT], [0.25, -3, EASE_IN_OUT], [0.5, 7]],
     head: [[0, -5, EASE_IN_OUT], [0.25, 2, EASE_IN_OUT], [0.5, -5]],
-    'ear-near': [[0, 14], [0.5, 14]],
-    'ear-far': [[0, 12], [0.5, 12]],
   },
   translate: {
     torso: [[0, 0, -168, EASE_OUT], [0.25, 0, -190, EASE_IN], [0.5, 0, -168]],
@@ -333,8 +327,6 @@ await author({
     'leg-back-near': [[0, 0, EASE_OUT_BACK], [0.4, 11, EASE_IN_OUT], [1.5, 11]],
     'leg-back-far': [[0, 0, EASE_OUT_BACK], [0.4, 11, EASE_IN_OUT], [1.5, 11]],
     head: [[0, 0, EASE_OUT_BACK], [0.45, -9, EASE_IN_OUT], [1.5, -9]],
-    'ear-near': [[0, 0, EASE_OUT], [0.5, -8], [1.5, -8]],
-    'ear-far': [[0, 0, EASE_OUT], [0.5, -7], [1.5, -7]],
   },
   translate: { torso: [[0, 0, -175, EASE_OUT_BACK], [0.4, 0, -186, EASE_IN_OUT], [1.5, 0, -186]] },
   attachments: { head: [[0, 'head']], eyes: [[0, 'eyes-open']] },

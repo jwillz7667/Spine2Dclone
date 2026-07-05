@@ -82,10 +82,11 @@ const bone = async (name: string, parentId: string | null, x: number, y: number,
 const rootBone = await bone('root', null, 0, 0, 10);
 const torso = await bone('torso', rootBone, 0, -175, 120);
 const head = await bone('head', torso, -105, -55, 90);
-// ears root at the skull crown (head.png crown top center is head-local (-23, -144) after the
-// head mirror); near ear slightly forward of far, bases buried ~10px into the dome
-const earNear = await bone('ear-near', head, -40, -132, 30);
-const earFar = await bone('ear-far', head, -2, -128, 30);
+// ears sit WIDE APART above each eye like the reference photo, not clustered at the apex.
+// Roots follow the measured dome contour (mirrored head-local: y -140 at x -75, -142 at x +18)
+// with ~8px burial into the dome
+const earNear = await bone('ear-near', head, -75, -132, 30);
+const earFar = await bone('ear-far', head, 18, -134, 30);
 // Legs are TORSO children so the shoulder/hip sockets can never separate from the body, with
 // pivots buried ~22 px inside the silhouette at the joints. Feet stay visually planted because
 // every animation that rotates the torso beyond ~6 deg carries COUNTER-ROTATION keys on the legs
@@ -146,12 +147,15 @@ await regionSlot({ slot: 'head', boneId: head, region: 'head', x: -25, y: -20, t
 await regionSlot({ slot: 'ear-near', boneId: earNear, region: 'ear-near', x: 0, y: -38, targetH: 95 });
 await regionSlot({ slot: 'brows', boneId: head, region: 'brows', x: -50, y: -88, targetH: sizedW('brows', 120) });
 await regionSlot({ slot: 'eyes', boneId: head, region: 'eyes-open', x: -50, y: -57, targetH: 75 });
-// mouth-closed retraces the head's own drawn smile (same anchor, mirrored so the cheek curl
-// lands rearward); open variants share the anchor and are sized to fully cover the drawn stroke
-await regionSlot({ slot: 'mouth', boneId: head, region: 'mouth-closed', x: 3, y: 59, targetH: sizedW('mouth-closed', 112), scaleX: -1 });
-
-// extra attachment variants on the eye / mouth / brow slots (player and animations swap them)
-async function addVariant(slot: string, region: string, targetH: number, x: number, y: number): Promise<void> {
+// extra attachment variants on the eye / brow / head slots (player and animations swap them)
+async function addVariant(
+  slot: string,
+  region: string,
+  targetH: number,
+  x: number,
+  y: number,
+  scaleX?: number,
+): Promise<void> {
   await call('attach.region.add', {
     documentId,
     slotId: slotIds.get(slot),
@@ -159,6 +163,7 @@ async function addVariant(slot: string, region: string, targetH: number, x: numb
     path: region,
     x,
     y,
+    ...(scaleX !== undefined ? { scaleX } : {}),
     ...sized(region, targetH),
   });
 }
@@ -166,14 +171,16 @@ await addVariant('eyes', 'eyes-half', 75, -50, -57);
 await addVariant('eyes', 'eyes-closed', 72, -50, -57);
 await addVariant('eyes', 'eyes-happy', 72, -50, -57);
 await addVariant('eyes', 'eyes-worried', 88, -50, -55);
-await addVariant('mouth', 'mouth-small', sizedW('mouth-small', 124), 3, 62);
-await addVariant('mouth', 'mouth-wide', sizedW('mouth-wide', 140), 3, 66);
-await addVariant('mouth', 'mouth-oo', sizedW('mouth-oo', 64), 3, 66);
-await addVariant('mouth', 'mouth-grit', sizedW('mouth-grit', 140), 3, 60);
+// mouth states are FULL REPLACEMENT HEADS (gen-head-variants.mts), not pasted overlays: the mouth
+// is drawn into the muzzle by Gemini, and each variant is dome-registered against head.png so the
+// skull does not move a pixel when the attachment swaps. Transforms come from that script's output.
+await addVariant('head', 'head-talk', 249.7, -26.6, -20.0, -1);
+await addVariant('head', 'head-wide', 256.0, -26.8, -16.9, -1);
+await addVariant('head', 'head-grit', 252.4, -27.0, -18.7, -1);
 
 // restore the default active attachments after variant adds
 await call('slot.activeAttachment', { documentId, slotId: slotIds.get('eyes'), attachment: 'eyes-open' });
-await call('slot.activeAttachment', { documentId, slotId: slotIds.get('mouth'), attachment: 'mouth-closed' });
+await call('slot.activeAttachment', { documentId, slotId: slotIds.get('head'), attachment: 'head' });
 await call('slot.activeAttachment', { documentId, slotId: slotIds.get('brows'), attachment: 'brows' });
 
 // ---- animation helpers -----------------------------------------------------------------------------
@@ -301,7 +308,7 @@ await author({
     torso: [[0, 6, -160, 'linear'], [0.12, 9, -160, 'linear'], [0.25, 5, -161, 'linear'], [0.37, 9, -159, 'linear'],
             [0.5, 6, -160, 'linear'], [0.62, 9, -161, 'linear'], [0.75, 5, -160, 'linear'], [0.87, 8, -159, 'linear'], [1.0, 6, -160]],
   },
-  attachments: { mouth: [[0, 'mouth-grit']], eyes: [[0, 'eyes-half']] },
+  attachments: { head: [[0, 'head-grit']], eyes: [[0, 'eyes-half']] },
 });
 
 await author({
@@ -314,7 +321,7 @@ await author({
     torso: [[0, 0, EASE_IN], [0.7, -6, EASE_OUT], [1.0, -7]],
   },
   translate: { torso: [[0, 0, -175, EASE_IN], [0.7, 5, -163, EASE_OUT], [1.0, 6, -160]] },
-  attachments: { mouth: [[0, 'mouth-grit']] },
+  attachments: { head: [[0, 'head-grit']] },
 });
 
 await author({
@@ -330,7 +337,7 @@ await author({
     'ear-far': [[0, 0, EASE_OUT], [0.5, -7], [1.5, -7]],
   },
   translate: { torso: [[0, 0, -175, EASE_OUT_BACK], [0.4, 0, -186, EASE_IN_OUT], [1.5, 0, -186]] },
-  attachments: { mouth: [[0, 'mouth-closed']], eyes: [[0, 'eyes-open']] },
+  attachments: { head: [[0, 'head']], eyes: [[0, 'eyes-open']] },
 });
 
 await author({
@@ -338,7 +345,7 @@ await author({
   rotate: { head: [[0, 0, EASE_OUT], [0.15, 4, EASE_IN_OUT], [0.45, 0]] },
   attachments: {
     eyes: [[0, 'eyes-open'], [0.12, 'eyes-half'], [0.18, 'eyes-closed'], [0.38, 'eyes-half'], [0.44, 'eyes-open']],
-    mouth: [[0, 'mouth-closed']],
+    head: [[0, 'head']],
   },
 });
 
@@ -363,18 +370,20 @@ await author({
   translate: {
     torso: [[0, 0, -175, EASE_IN], [0.15, 10, -170, EASE_OUT], [0.35, -32, -178, EASE_IN_OUT], [0.6, -4, -175, EASE_IN_OUT], [0.8, 0, -175]],
   },
-  attachments: { mouth: [[0, 'mouth-small'], [0.15, 'mouth-wide'], [0.45, 'mouth-grit'], [0.7, 'mouth-closed']] },
+  attachments: { head: [[0, 'head-talk'], [0.15, 'head-wide'], [0.45, 'head-grit'], [0.7, 'head']] },
 });
 
 // micro state animations for the player's face tracks (one attachment key each)
 const face = async (name: string, slot: string, region: string): Promise<void> => {
   await author({ name, duration: 0.05, attachments: { [slot]: [[0, region]] } });
 };
-await face('mouth-closed', 'mouth', 'mouth-closed');
-await face('mouth-small', 'mouth', 'mouth-small');
-await face('mouth-wide', 'mouth', 'mouth-wide');
-await face('mouth-oo', 'mouth', 'mouth-oo');
-await face('mouth-grit', 'mouth', 'mouth-grit');
+// lip-sync micros keep their historical names (the player's MOUTH_MAP references them) but now
+// swap the whole head, whose mouth is drawn into the muzzle
+await face('mouth-closed', 'head', 'head');
+await face('mouth-small', 'head', 'head-talk');
+await face('mouth-wide', 'head', 'head-wide');
+await face('mouth-oo', 'head', 'head-talk');
+await face('mouth-grit', 'head', 'head-grit');
 await face('eyes-open', 'eyes', 'eyes-open');
 await face('eyes-half', 'eyes', 'eyes-half');
 await face('eyes-happy', 'eyes', 'eyes-happy');

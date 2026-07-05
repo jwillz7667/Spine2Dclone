@@ -82,8 +82,10 @@ const bone = async (name: string, parentId: string | null, x: number, y: number,
 const rootBone = await bone('root', null, 0, 0, 10);
 const torso = await bone('torso', rootBone, 0, -175, 120);
 const head = await bone('head', torso, -105, -55, 90);
-const earNear = await bone('ear-near', head, -30, -88, 30);
-const earFar = await bone('ear-far', head, 45, -85, 30);
+// ears root at the skull crown (head.png crown top center is head-local (-23, -144) after the
+// head mirror); near ear slightly forward of far, bases buried ~10px into the dome
+const earNear = await bone('ear-near', head, -40, -132, 30);
+const earFar = await bone('ear-far', head, -2, -128, 30);
 // Legs are TORSO children so the shoulder/hip sockets can never separate from the body, with
 // pivots buried ~22 px inside the silhouette at the joints. Feet stay visually planted because
 // every animation that rotates the torso beyond ~6 deg carries COUNTER-ROTATION keys on the legs
@@ -129,18 +131,24 @@ async function regionSlot(spec: SlotSpec): Promise<string> {
   return slotId;
 }
 
-// far side first, then near legs, torso, head stack
-await regionSlot({ slot: 'leg-front-far', boneId: legFrontFar, region: 'leg-front-far', x: 0, y: 46, targetH: 127 });
-await regionSlot({ slot: 'leg-back-far', boneId: legBackFar, region: 'leg-back-far', x: 0, y: 50, targetH: 140 });
-await regionSlot({ slot: 'leg-front-near', boneId: legFrontNear, region: 'leg-front-near', x: 0, y: 42, targetH: 125 });
-await regionSlot({ slot: 'leg-back-near', boneId: legBackNear, region: 'leg-back-near', x: 0, y: 55, targetH: 150 });
+// far side first, then near legs, torso, head stack.
+// EVERY body piece on the sheet is drawn facing RIGHT (toes right, nose right); the rig faces
+// LEFT, so torso, head and all four legs carry scaleX -1. The face landmarks below are measured
+// on the MIRRORED head: nose centroid (-76, -8), blaze (-53, -69), drawn lip line spanning
+// x -51..+57 centered (+3, +60), crown top (-23, -144).
+await regionSlot({ slot: 'leg-front-far', boneId: legFrontFar, region: 'leg-front-far', x: 0, y: 46, targetH: 127, scaleX: -1 });
+await regionSlot({ slot: 'leg-back-far', boneId: legBackFar, region: 'leg-back-far', x: 0, y: 50, targetH: 140, scaleX: -1 });
+await regionSlot({ slot: 'leg-front-near', boneId: legFrontNear, region: 'leg-front-near', x: 0, y: 42, targetH: 125, scaleX: -1 });
+await regionSlot({ slot: 'leg-back-near', boneId: legBackNear, region: 'leg-back-near', x: 0, y: 55, targetH: 150, scaleX: -1 });
 await regionSlot({ slot: 'torso', boneId: torso, region: 'torso', x: 10, y: -15, targetH: 240, scaleX: -1 });
 await regionSlot({ slot: 'ear-far', boneId: earFar, region: 'ear-far', x: 5, y: -32, targetH: 85 });
-await regionSlot({ slot: 'head', boneId: head, region: 'head', x: -25, y: -20, targetH: 250 });
+await regionSlot({ slot: 'head', boneId: head, region: 'head', x: -25, y: -20, targetH: 250, scaleX: -1 });
 await regionSlot({ slot: 'ear-near', boneId: earNear, region: 'ear-near', x: 0, y: -38, targetH: 95 });
-await regionSlot({ slot: 'brows', boneId: head, region: 'brows', x: -12, y: -88, targetH: sizedW('brows', 120) });
-await regionSlot({ slot: 'eyes', boneId: head, region: 'eyes-open', x: -12, y: -57, targetH: 75 });
-await regionSlot({ slot: 'mouth', boneId: head, region: 'mouth-closed', x: -26, y: 62, targetH: sizedW('mouth-closed', 112) });
+await regionSlot({ slot: 'brows', boneId: head, region: 'brows', x: -50, y: -88, targetH: sizedW('brows', 120) });
+await regionSlot({ slot: 'eyes', boneId: head, region: 'eyes-open', x: -50, y: -57, targetH: 75 });
+// mouth-closed retraces the head's own drawn smile (same anchor, mirrored so the cheek curl
+// lands rearward); open variants share the anchor and are sized to fully cover the drawn stroke
+await regionSlot({ slot: 'mouth', boneId: head, region: 'mouth-closed', x: 3, y: 59, targetH: sizedW('mouth-closed', 112), scaleX: -1 });
 
 // extra attachment variants on the eye / mouth / brow slots (player and animations swap them)
 async function addVariant(slot: string, region: string, targetH: number, x: number, y: number): Promise<void> {
@@ -154,14 +162,14 @@ async function addVariant(slot: string, region: string, targetH: number, x: numb
     ...sized(region, targetH),
   });
 }
-await addVariant('eyes', 'eyes-half', 75, -12, -57);
-await addVariant('eyes', 'eyes-closed', 72, -12, -57);
-await addVariant('eyes', 'eyes-happy', 72, -12, -57);
-await addVariant('eyes', 'eyes-worried', 88, -12, -55);
-await addVariant('mouth', 'mouth-small', sizedW('mouth-small', 118), -26, 62);
-await addVariant('mouth', 'mouth-wide', sizedW('mouth-wide', 140), -26, 64);
-await addVariant('mouth', 'mouth-oo', sizedW('mouth-oo', 46), -26, 64);
-await addVariant('mouth', 'mouth-grit', sizedW('mouth-grit', 140), -26, 60);
+await addVariant('eyes', 'eyes-half', 75, -50, -57);
+await addVariant('eyes', 'eyes-closed', 72, -50, -57);
+await addVariant('eyes', 'eyes-happy', 72, -50, -57);
+await addVariant('eyes', 'eyes-worried', 88, -50, -55);
+await addVariant('mouth', 'mouth-small', sizedW('mouth-small', 124), 3, 62);
+await addVariant('mouth', 'mouth-wide', sizedW('mouth-wide', 140), 3, 66);
+await addVariant('mouth', 'mouth-oo', sizedW('mouth-oo', 64), 3, 66);
+await addVariant('mouth', 'mouth-grit', sizedW('mouth-grit', 140), 3, 60);
 
 // restore the default active attachments after variant adds
 await call('slot.activeAttachment', { documentId, slotId: slotIds.get('eyes'), attachment: 'eyes-open' });
@@ -355,7 +363,7 @@ await author({
   translate: {
     torso: [[0, 0, -175, EASE_IN], [0.15, 10, -170, EASE_OUT], [0.35, -32, -178, EASE_IN_OUT], [0.6, -4, -175, EASE_IN_OUT], [0.8, 0, -175]],
   },
-  attachments: { mouth: [[0, 'mouth-oo'], [0.15, 'mouth-wide'], [0.45, 'mouth-grit'], [0.7, 'mouth-closed']] },
+  attachments: { mouth: [[0, 'mouth-small'], [0.15, 'mouth-wide'], [0.45, 'mouth-grit'], [0.7, 'mouth-closed']] },
 });
 
 // micro state animations for the player's face tracks (one attachment key each)

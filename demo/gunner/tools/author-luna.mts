@@ -19,7 +19,17 @@ import {
 // - tail is cut VERTICALLY (thick base at top-left): rotated -90 so it arcs up and back to the right.
 // - both back-leg pieces ALREADY face left in the raw art (hock at the rear, toes forward); they are
 //   NOT mirrored. An earlier scaleX -1 mirror had the hind toes pointing backward.
+// - both front-leg pieces also face left (toes forward). Per the reference the FAR (dark-pawed) leg
+//   stands FORWARD at the chest edge and the NEAR (white-pawed) leg slightly rearward; do not swap.
 // - ear-far leans left like ear-near but the reference far ear leans right: mirrored with scaleX -1.
+// - EAR ROOTS sit on the skull CROWN (alpha-measured head-piece top contour: apex world (-79,-304),
+//   falling to -276 by x -22). The near ear roots at head-local (-40,-106) with an 8 deg clockwise
+//   attachment tilt so the tip stands up over the goggles band like the reference instead of
+//   flopping over the face's left outline; its trailing bottom tail hides behind the left lens.
+//   The crown falls away too steeply on the right for a behind-the-head far ear to both root and
+//   show (the old (42,-100) root floated it beside the face at goggle height), so the far ear draws
+//   OVER the head at (38,-95), matching the reference read: outline visible against the crown, the
+//   ear-to-head seam hidden behind the right lens and the goggles strap tail.
 //
 // Leg roots are alpha-measured from the torso art (source-layers/luna/torso.png through the -90
 // attachment transform) and cross-checked against source/refs/luna.png: the near front leg roots at
@@ -98,8 +108,8 @@ const bone = async (
 const rootBone = await bone('root', null, 0, 0, 10);
 const torso = await bone('torso', rootBone, 0, -140, 100);
 const head = await bone('head', torso, -72, -40, 60);
-const earNear = await bone('ear-near', head, -40, -104, 30);
-const earFar = await bone('ear-far', head, 42, -100, 30);
+const earNear = await bone('ear-near', head, -40, -106, 30);
+const earFar = await bone('ear-far', head, 38, -95, 30);
 const tail = await bone('tail', torso, 95, -32, 80);
 // Legs are TORSO children so the shoulder/hip sockets can never separate from the body. Each
 // pivot is pinned into the limb root the TORSO ART draws (alpha-measured, see the header note):
@@ -133,8 +143,8 @@ interface SlotSpec {
   readonly x: number;
   readonly y: number;
   readonly targetH: number;
-  readonly scaleX?: number; // -1 mirrors (back legs + far ear are drawn facing right; the rig faces left)
-  readonly rotation?: number; // torso and tail sheet pieces are cut vertically; -90 lays them out
+  readonly scaleX?: number; // -1 mirrors the far ear (drawn leaning left; the reference leans it right)
+  readonly rotation?: number; // torso/tail are cut vertically (-90 lays them out); ear-near tilts +8 upright
 }
 
 const slotIds = new Map<string, string>();
@@ -171,9 +181,9 @@ await regionSlot({ slot: 'tail', boneId: tail, region: 'tail', x: 74, y: -29, ta
 await regionSlot({ slot: 'leg-front-near', boneId: legFrontNear, region: 'leg-front-near', x: 4, y: 37.5, targetH: 133 });
 await regionSlot({ slot: 'leg-back-near', boneId: legBackNear, region: 'leg-back-near', x: 7, y: 50, targetH: 175 });
 await regionSlot({ slot: 'torso', boneId: torso, region: 'torso', x: 0, y: -6, targetH: 200, rotation: -90 });
-await regionSlot({ slot: 'ear-far', boneId: earFar, region: 'ear-far', x: 4, y: -25, targetH: 70, scaleX: -1 });
 await regionSlot({ slot: 'head', boneId: head, region: 'head', x: -6, y: -60, targetH: 130 });
-await regionSlot({ slot: 'ear-near', boneId: earNear, region: 'ear-near', x: -4, y: -29, targetH: 78 });
+await regionSlot({ slot: 'ear-far', boneId: earFar, region: 'ear-far', x: 4, y: -25, targetH: 70, scaleX: -1 });
+await regionSlot({ slot: 'ear-near', boneId: earNear, region: 'ear-near', x: -4, y: -29, targetH: 78, rotation: 8 });
 await regionSlot({ slot: 'goggles', boneId: head, region: 'goggles', x: -9, y: -113, targetH: 72 });
 await regionSlot({ slot: 'eyes', boneId: head, region: 'eyes-open', x: -8, y: -63, targetH: 48 });
 // the mouth piece is a soft-edged dark patch carrying the pink nose + mouth marks; kept small and

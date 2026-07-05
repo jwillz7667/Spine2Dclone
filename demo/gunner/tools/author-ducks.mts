@@ -444,15 +444,17 @@ function rebuildLidPixels(): void {
   await duck.bone('head', 'body', -18, -12, 30); // top-front of the body (front = negative x)
   await duck.bone('bill-top', 'head', 0, -7, 12);
   await duck.bone('bill-bottom', 'head', 0.7, -4, 10); // jaw hinge at the face
-  await duck.bone('wing-nub', 'body', 12, 2, 18); // pivot tucked inside the body silhouette
+  await duck.bone('wing-nub', 'body', 11, -4, 18); // far shoulder pivot, inside the silhouette
 
-  // Slots back-to-front: body, head, jaw BEHIND the top bill (so the closed mouth hides the dark
-  // maw and only the orange lip peeks below), wing-nub, then the eye overlays on top.
+  // Slots back-to-front: the wing-nub is the FAR wing and draws BEHIND the body (the body art
+  // already has the near wing painted on its side); then body, head, jaw BEHIND the top bill
+  // (so the closed mouth hides the dark maw and only the orange lip peeks below), then the eye
+  // overlays on top. The far wing tip peeks up-rear over the back line.
+  await duck.regionSlot({ slot: 'wing-nub', bone: 'wing-nub', region: 'wing-nub', x: 10, y: 0, targetH: 22, rotation: -12 });
   await duck.regionSlot({ slot: 'body', bone: 'body', region: 'body', x: -5.9, y: 19.6, targetH: 61 });
   await duck.regionSlot({ slot: 'head', bone: 'head', region: 'head', x: -4.1, y: -18.3, targetH: 54 });
   await duck.regionSlot({ slot: 'bill-bottom', bone: 'bill-bottom', region: 'bill-bottom', x: -7.4, y: 1.5, targetH: 11 });
   await duck.regionSlot({ slot: 'bill-top', bone: 'bill-top', region: 'bill-top', x: -1.5, y: -0.8, targetH: 16.5 });
-  await duck.regionSlot({ slot: 'wing-nub', bone: 'wing-nub', region: 'wing-nub', x: 9.7, y: 4.7, targetH: 20, rotation: 30 });
   await duck.regionSlot({ slot: 'eyes', bone: 'head', region: 'eyes-closed', x: -7.2, y: -17.4, targetH: 13 });
   await duck.regionSlot({ slot: 'eyes-far', bone: 'head', region: 'eye-lid-far', x: 13.9, y: -19.3, targetH: 11 });
   // Baked-in eyes show by default; the lid overlays are keyed on by animations only.

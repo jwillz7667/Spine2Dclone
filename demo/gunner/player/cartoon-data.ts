@@ -204,7 +204,7 @@ export const SHOTS: readonly Shot[] = [
       fromActor: 'gunner',
       fromOffset: { x: 95, y: -132 },
       toActor: 'beans',
-      toOffset: { x: -25, y: -70 },
+      toOffset: { x: -30, y: -50 },
       sag: 30,
     },
     audio: [
@@ -1019,6 +1019,14 @@ export const SHOTS: readonly Shot[] = [
       { actor: 'luna', anim: 'tie-knot', loop: false, x: 260, y: GROUND_Y, flip: true },
       { actor: 'gunner', anim: 'idle', x: 480, y: GROUND_Y, flip: true },
     ],
+    props: [{ prop: 'float-donut', x: 330, y: GROUND_Y - 15, scale: 0.4 }],
+    rope: {
+      fromActor: 'gunner',
+      fromOffset: { x: 60, y: -160 },
+      toProp: 'float-donut',
+      toOffset: { x: 0, y: -12 },
+      sag: 45,
+    },
     audio: [
       { id: 'waterfall-roar', at: 0, kind: 'sfx', loop: true, volume: 0.5 },
       { id: 'rope-whip', at: 0.5, kind: 'sfx' },
@@ -1067,7 +1075,17 @@ export const SHOTS: readonly Shot[] = [
       { actor: 'beans', anim: 'talk', x: 700, y: GROUND_Y - 60, flip: true },
       { actor: 'luna', anim: 'idle', x: 200, y: GROUND_Y, flip: true },
     ],
-    props: [{ prop: 'boulder', x: 700, y: GROUND_Y + 10, scale: 0.7 }],
+    props: [
+      { prop: 'boulder', x: 700, y: GROUND_Y + 10, scale: 0.7 },
+      { prop: 'float-donut', x: 1680, y: WATER_Y + 35, scale: 0.5, behavior: 'float-bob' },
+    ],
+    rope: {
+      fromActor: 'gunner',
+      fromOffset: { x: 95, y: -132 },
+      toProp: 'float-donut',
+      toOffset: { x: -80, y: -20 },
+      sag: 25,
+    },
     audio: [
       { id: 'waterfall-roar', at: 0, kind: 'sfx', loop: true, volume: 0.5 },
       { id: 'paw-dig', at: 1.0, kind: 'sfx' },
@@ -1127,6 +1145,13 @@ export const SHOTS: readonly Shot[] = [
       { prop: 'float-donut', x: 1680, y: WATER_Y + 35, scale: 0.5,
         tweens: [{ t0: 1.0, t1: 2.6, to: { x: 650, y: GROUND_Y + 20 }, ease: 'out', arc: 60 }] },
     ],
+    rope: {
+      fromActor: 'gunner',
+      fromOffset: { x: 95, y: -132 },
+      toProp: 'float-donut',
+      toOffset: { x: -80, y: -20 },
+      sag: 40,
+    },
     audio: [
       { id: 'waterfall-roar', at: 0, kind: 'sfx', loop: true, volume: 0.55 },
       { id: 'G-707', at: 0.2, kind: 'dlg', actor: 'gunner' },

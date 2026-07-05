@@ -678,12 +678,33 @@ async function main(): Promise<void> {
         const fy = from.holder.y + shot.rope.fromOffset.y;
         const midX = (fx + toX) / 2;
         const midY = (fy + toY) / 2 + (shot.rope.sag ?? 20);
+        // twisted hemp rope: dark outline under a tan core, then diagonal strand ticks so the
+        // braid reads at distance
         ropeGfx.moveTo(fx, fy);
         ropeGfx.quadraticCurveTo(midX, midY, toX, toY);
-        ropeGfx.stroke({ width: 14, color: 0xd8442e, cap: 'round' });
+        ropeGfx.stroke({ width: 15, color: 0x5f3d1e, cap: 'round' });
         ropeGfx.moveTo(fx, fy);
         ropeGfx.quadraticCurveTo(midX, midY, toX, toY);
-        ropeGfx.stroke({ width: 7, color: 0xf4eddc, cap: 'round' });
+        ropeGfx.stroke({ width: 10, color: 0xd9a95f, cap: 'round' });
+        const q = (t: number): { x: number; y: number } => ({
+          x: (1 - t) * (1 - t) * fx + 2 * (1 - t) * t * midX + t * t * toX,
+          y: (1 - t) * (1 - t) * fy + 2 * (1 - t) * t * midY + t * t * toY,
+        });
+        const span = Math.hypot(toX - fx, toY - fy);
+        const ticks = Math.max(6, Math.round(span / 22));
+        for (let i = 1; i < ticks; i += 1) {
+          const t = i / ticks;
+          const p = q(t);
+          const ahead = q(Math.min(1, t + 0.02));
+          const dx = ahead.x - p.x;
+          const dy = ahead.y - p.y;
+          const len = Math.hypot(dx, dy) || 1;
+          const ux = dx / len;
+          const uy = dy / len;
+          ropeGfx.moveTo(p.x - ux * 3 - uy * 4.5, p.y - uy * 3 + ux * 4.5);
+          ropeGfx.lineTo(p.x + ux * 3 + uy * 4.5, p.y + uy * 3 - ux * 4.5);
+        }
+        ropeGfx.stroke({ width: 2.5, color: 0x8a5a30, cap: 'round' });
       }
     }
 

@@ -276,6 +276,18 @@ async function main(): Promise<void> {
     setAnimation(actor.state, track, name, false);
   }
 
+  // a typo'd or missing animation name in the shot data must never throw inside the ticker: an
+  // exception there kills playback for the rest of the episode (the exact "cartoon just stops"
+  // failure). Missing names log once and no-op.
+  function safeCrossfade(actor: LiveActor, name: string, mix: number): void {
+    const anims = actor.doc.animations as Record<string, unknown>;
+    if (anims[name] === undefined) {
+      console.warn(`[gunner] ${actor.placement.actor}: no animation "${name}"`);
+      return;
+    }
+    crossfadeTo(actor.state, 0, name, true, mix);
+  }
+
   function spawnShot(index: number, localT: number): void {
     // tear down
     for (const a of liveActors) a.holder.destroy({ children: true });
@@ -357,7 +369,12 @@ async function main(): Promise<void> {
       const boneLayer = view.root.children[1];
       if (boneLayer !== undefined) boneLayer.visible = false;
       const state = makeAnimationState(kit.document);
-      setAnimation(state, 0, placement.anim, placement.loop !== false);
+      const rigAnims = kit.document.animations as Record<string, unknown>;
+      if (rigAnims[placement.anim] !== undefined) {
+        setAnimation(state, 0, placement.anim, placement.loop !== false);
+      } else {
+        console.warn(`[gunner] ${placement.actor}: no animation "${placement.anim}" (setup pose)`);
+      }
       const holder = new Container();
       const scale = (placement.scale ?? 1) * (ACTOR_SCALE[placement.actor] ?? 0.85);
       holder.scale.set(scale);
@@ -572,10 +589,10 @@ async function main(): Promise<void> {
         y = fromY + (tw.to.y - fromY) * e;
         if (tw.arc !== undefined) y -= tw.arc * 4 * u * (1 - u);
         if (u < 1 && tw.animDuring !== undefined && a.state.tracks[0]?.animationId !== tw.animDuring) {
-          crossfadeTo(a.state, 0, tw.animDuring, true, 0.12);
+          safeCrossfade(a, tw.animDuring, 0.12);
         }
         if (u >= 1 && tw.animAfter !== undefined && a.state.tracks[0]?.animationId !== tw.animAfter) {
-          crossfadeTo(a.state, 0, tw.animAfter, true, 0.15);
+          safeCrossfade(a, tw.animAfter, 0.15);
         }
       }
       a.holder.x = x;
@@ -588,7 +605,7 @@ async function main(): Promise<void> {
         const fallback = a.placement.after ?? 'idle';
         const anims = a.doc.animations as Record<string, unknown>;
         if (base.animationId !== fallback && anims[fallback] !== undefined) {
-          crossfadeTo(a.state, 0, fallback, true, 0.45);
+          safeCrossfade(a, fallback, 0.45);
         }
       }
 

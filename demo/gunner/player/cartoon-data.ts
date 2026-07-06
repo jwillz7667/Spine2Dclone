@@ -654,7 +654,7 @@ export const SHOTS: readonly Shot[] = [
         anim: 'fly',
         x: 1300,
         y: 400,
-        tweens: [{ t0: 0.1, t1: 0.5, to: { x: 860, y: GROUND_Y - 300 }, ease: 'out', animAfter: 'idle' }],
+        tweens: [{ t0: 0.1, t1: 0.5, to: { x: 860, y: GROUND_Y - 300 }, ease: 'out', animAfter: 'hover' }],
       },
       { actor: 'luna', anim: 'idle', x: 350, y: GROUND_Y, flip: true },
       { actor: 'beans', anim: 'idle', x: 1020, y: GROUND_Y },

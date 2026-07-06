@@ -213,6 +213,7 @@ async function main(): Promise<void> {
   let shotMusicStarted = new Set<string>();
   let bgSpriteA: Sprite | null = null;
   let bgSpriteB: Sprite | null = null;
+  let bgSpriteC: Sprite | null = null;
   let ropeGfx: Graphics | null = null;
 
   const shotFor = (time: number): number => {
@@ -300,14 +301,24 @@ async function main(): Promise<void> {
       if (shot.bgTint !== undefined) bgSpriteA.tint = shot.bgTint;
       bgLayer.addChild(bgSpriteA);
       if (shot.bgScroll !== undefined) {
+        // wrap-scroll tiles as [normal | mirrored | normal] over a 2-stage period: the mirrored
+        // middle makes both joins edge-continuous, so no hard seam sweeps across the frame
         bgSpriteB = new Sprite(bgTex);
         bgSpriteB.width = STAGE_W;
         bgSpriteB.height = STAGE_H;
-        bgSpriteB.x = STAGE_W;
+        bgSpriteB.scale.x = -bgSpriteB.scale.x;
+        bgSpriteB.x = 2 * STAGE_W;
         if (shot.bgTint !== undefined) bgSpriteB.tint = shot.bgTint;
         bgLayer.addChild(bgSpriteB);
+        bgSpriteC = new Sprite(bgTex);
+        bgSpriteC.width = STAGE_W;
+        bgSpriteC.height = STAGE_H;
+        bgSpriteC.x = 2 * STAGE_W;
+        if (shot.bgTint !== undefined) bgSpriteC.tint = shot.bgTint;
+        bgLayer.addChild(bgSpriteC);
       } else {
         bgSpriteB = null;
+        bgSpriteC = null;
       }
     }
 
@@ -464,20 +475,26 @@ async function main(): Promise<void> {
     const shot = SHOTS[idx]!;
     const localT = t - shot.start;
 
-    // background scroll
-    if (shot.bgScroll !== undefined && bgSpriteA !== null && bgSpriteB !== null) {
-      const off = (localT * shot.bgScroll) % STAGE_W;
+    // background scroll (period 2*STAGE_W: A normal, B mirrored, C normal)
+    if (shot.bgScroll !== undefined && bgSpriteA !== null && bgSpriteB !== null && bgSpriteC !== null) {
+      const off = (localT * shot.bgScroll) % (2 * STAGE_W);
       bgSpriteA.x = -off;
-      bgSpriteB.x = STAGE_W - off;
+      bgSpriteB.x = 2 * STAGE_W - off; // mirrored: covers [STAGE_W - off, 2*STAGE_W - off)
+      bgSpriteC.x = 2 * STAGE_W - off;
     }
 
     // camera
     if (shot.camera !== undefined) {
       const u = Math.max(0, Math.min(1, localT / (shot.end - shot.start)));
       const e = easeFns[shot.camera.ease ?? 'inout'](u);
-      const cx = shot.camera.from.x + (shot.camera.to.x - shot.camera.from.x) * e;
-      const cy = shot.camera.from.y + (shot.camera.to.y - shot.camera.from.y) * e;
+      let cx = shot.camera.from.x + (shot.camera.to.x - shot.camera.from.x) * e;
+      let cy = shot.camera.from.y + (shot.camera.to.y - shot.camera.from.y) * e;
       const cz = shot.camera.from.zoom + (shot.camera.to.zoom - shot.camera.from.zoom) * e;
+      // clamp the view inside the stage: a camera target near an edge otherwise shows black bars
+      const halfW = STAGE_W / (2 * cz);
+      const halfH = STAGE_H / (2 * cz);
+      cx = halfW >= STAGE_W / 2 ? STAGE_W / 2 : Math.max(halfW, Math.min(STAGE_W - halfW, cx));
+      cy = halfH >= STAGE_H / 2 ? STAGE_H / 2 : Math.max(halfH, Math.min(STAGE_H - halfH, cy));
       world.scale.set(cz);
       world.x = STAGE_W / 2 - cx * cz;
       world.y = STAGE_H / 2 - cy * cz;
@@ -563,6 +580,17 @@ async function main(): Promise<void> {
       }
       a.holder.x = x;
       a.holder.y = y;
+
+      // a completed non-looping base anim holds its final pose for a beat, then returns to life;
+      // a fully frozen actor (no breathing, only blinks) reads as a stalled player
+      const base = a.state.tracks[0];
+      if (base !== null && !base.loop && base.trackTime >= base.duration + 0.9) {
+        const fallback = a.placement.after ?? 'idle';
+        const anims = a.doc.animations as Record<string, unknown>;
+        if (base.animationId !== fallback && anims[fallback] !== undefined) {
+          crossfadeTo(a.state, 0, fallback, true, 0.45);
+        }
+      }
 
       // blink
       if (localT >= a.nextBlink) {

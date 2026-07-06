@@ -90,7 +90,9 @@ const head = await bone('head', torso, -105, -55, 90);
 // (leg world angle = gait angle, independent of the body lean). Rotations of 6 deg or less drift
 // the sockets less than the pivot burial depth and need no counters.
 const legFrontNear = await bone('leg-front-near', torso, -27, 70, 90);
-const legFrontFar = await bone('leg-front-far', torso, -108, 66, 85);
+// the far front leg sits 24px further back than its near twin: at -108 its shoulder cap cleared
+// the chest outline and read as a detached blob (round-4 user report)
+const legFrontFar = await bone('leg-front-far', torso, -64, 62, 85);
 const legBackNear = await bone('leg-back-near', torso, 100, 45, 95);
 const legBackFar = await bone('leg-back-far', torso, 78, 48, 90);
 
@@ -135,7 +137,7 @@ async function regionSlot(spec: SlotSpec): Promise<string> {
 // nose centroid (-72.6, -4.1) (the registration anchor), blaze (-53, -69). The head pieces carry
 // baked ears, so the piece extends above the old dome and the attachment center sits higher; all
 // head transforms below come from gen-head-variants.mts output, never eyeballed.
-await regionSlot({ slot: 'leg-front-far', boneId: legFrontFar, region: 'leg-front-far', x: 0, y: 46, targetH: 127, scaleX: -1 });
+await regionSlot({ slot: 'leg-front-far', boneId: legFrontFar, region: 'leg-front-far', x: 0, y: 50, targetH: 127, scaleX: -1 });
 await regionSlot({ slot: 'leg-back-far', boneId: legBackFar, region: 'leg-back-far', x: 0, y: 50, targetH: 140, scaleX: -1 });
 await regionSlot({ slot: 'leg-front-near', boneId: legFrontNear, region: 'leg-front-near', x: 0, y: 42, targetH: 125, scaleX: -1 });
 await regionSlot({ slot: 'leg-back-near', boneId: legBackNear, region: 'leg-back-near', x: 0, y: 55, targetH: 150, scaleX: -1 });

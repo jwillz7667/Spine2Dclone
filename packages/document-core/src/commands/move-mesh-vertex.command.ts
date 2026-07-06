@@ -1,5 +1,5 @@
 import type { Command, CommandContext } from '../command/command';
-import { CommandNotAppliedError } from '../command/errors';
+import { CommandNotAppliedError, MeshTopologyLockedError } from '../command/errors';
 import { meshGeometryOf, type MeshGeometry } from '../model/doc-state';
 import type { SlotId } from '../model/ids';
 import { findAttachmentSnapshot, type CommandSpec } from './spec';
@@ -9,9 +9,11 @@ import { requireMesh } from './mesh-support';
 // runs inside an interaction group (beginInteraction/endInteraction); each pointer-move is one command,
 // and consecutive moves of the SAME (slot, attachment, vertexIndex) coalesce into one undo step keeping
 // the gesture-start geometry as the single before memento. MOVE never re-triangulates: triangle indices
-// stay stable, only the vertex position changes, so it is exempt from the topology lock and allowed on
-// any mesh. For an UNWEIGHTED mesh it sets the flat vertices[2i], vertices[2i+1]; weighted bind-pose
-// recompute is WP-2.3 (out of scope; WP-2.1 authors only unweighted meshes).
+// stay stable, only the vertex position changes, so a DEFORMED mesh stays movable (offsets are per-vertex
+// and the count is unchanged). A WEIGHTED mesh is REJECTED with MeshTopologyLockedError('weighted'): its
+// `vertices` array is the self-delimiting influence stream [boneCount, (boneIndex, bindX, bindY, w)...],
+// so a flat [2i, 2i+1] write would silently corrupt bone indices/weights. Moving a weighted vertex means
+// re-encoding its bind-local influence entries; until that lands, failing loudly beats corrupting.
 export class MoveMeshVertexCommand implements Command {
   readonly kind = 'mesh.moveVertex';
   readonly label = 'Move Mesh Vertex';
@@ -28,6 +30,9 @@ export class MoveMeshVertexCommand implements Command {
 
   do(ctx: CommandContext): void {
     const mesh = requireMesh(ctx, this.kind, this.slotId, this.name);
+    if (mesh.bones !== undefined) {
+      throw new MeshTopologyLockedError(this.slotId, this.name, 'weighted');
+    }
     if (this.before === undefined || this.after === undefined) {
       this.before = meshGeometryOf(mesh);
       const vertices = this.before.vertices.slice();
@@ -70,11 +75,14 @@ export class MoveMeshVertexCommand implements Command {
 
 export const moveMeshVertexSpec: CommandSpec = {
   kind: 'mesh.moveVertex',
-  // 'meshed' carries an unweighted mesh ('panel' on slot 'mesh_slot') with movable vertices.
+  // 'meshed' carries an unweighted mesh ('panel' on slot 'mesh_slot') with movable vertices. Weighted
+  // meshes are excluded: MOVE rejects them (their flat-vertex encoding is the influence stream).
   representativeSeedId: 'meshed',
   fixture: (model) => {
     for (const slot of model.slots()) {
-      const att = model.attachments(slot.id).find((a) => a.kind === 'mesh');
+      const att = model
+        .attachments(slot.id)
+        .find((a) => a.kind === 'mesh' && a.bones === undefined);
       if (att && att.kind === 'mesh' && att.vertices.length >= 2) {
         return { command: new MoveMeshVertexCommand(slot.id, att.name, 0, 5, 7) };
       }

@@ -232,19 +232,24 @@ describe('topology-lock policy (TASK-2.1.8)', () => {
     expect(doc.history.canUndo).toBe(false); // and pushed no undo entry
   });
 
-  it('exempts MOVE and SetMeshEdges on a weighted mesh (no topology lock)', () => {
+  it('exempts SetMeshEdges but REJECTS MOVE on a weighted mesh', () => {
     const { env } = makeTestEnv();
     const doc = loadDocument(weightedMeshDoc, env);
     const { slotId, name } = weightedMeshTarget(doc);
 
-    // MOVE and edge edits do not change vertex count/order, so the lock never fires (weighted bind-pose
-    // recompute on MOVE is WP-2.3; here we only assert the lock is not the gate).
+    // Edge edits do not touch vertices at all, so the lock never fires. MOVE is rejected on a weighted
+    // mesh: its `vertices` array is the [boneCount, (boneIndex, vx, vy, weight)*] influence stream, so
+    // the flat [2i, 2i+1] write would silently corrupt bone indices and weights. Loud, not lossy.
     expect(() =>
       doc.history.execute(new SetMeshEdgesCommand(slotId, name, [0, 1, 1, 2])),
     ).not.toThrow();
-    expect(() =>
-      doc.history.execute(new MoveMeshVertexCommand(slotId, name, 0, 1, 1)),
-    ).not.toThrow();
+    const before = doc.model.snapshot();
+    const canUndoBefore = doc.history.canUndo;
+    expect(() => doc.history.execute(new MoveMeshVertexCommand(slotId, name, 0, 1, 1))).toThrow(
+      MeshTopologyLockedError,
+    );
+    expect(doc.model.snapshot()).toEqual(before); // the rejected move mutated nothing
+    expect(doc.history.canUndo).toBe(canUndoBefore); // and pushed no undo entry
   });
 
   it('is now LIVE end to end: UnbindMesh unlocks topology edits (TASK-2.1.8 round-trip)', () => {

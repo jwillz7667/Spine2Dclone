@@ -131,17 +131,20 @@ async function regionSlot(spec: SlotSpec): Promise<string> {
   return slotId;
 }
 
-// far side first, then near legs, torso, head stack.
+// far legs behind the torso, then the torso, then the NEAR legs ON TOP of the body (the Beans
+// architecture, user-directed): each leg piece is a COMPLETE limb with its shoulder/haunch mass
+// drawn in (gen-gunner-legs.mts), pivot pinned at the drawn thigh centroid and paw at ground, so
+// a swinging leg reads as a limb over the body silhouette instead of a stump poking from under it.
 // EVERY body piece on the sheet is drawn facing RIGHT (toes right, nose right); the rig faces
 // LEFT, so torso, head and all four legs carry scaleX -1. Face landmarks on the MIRRORED head:
 // nose centroid (-72.6, -4.1) (the registration anchor), blaze (-53, -69). The head pieces carry
 // baked ears, so the piece extends above the old dome and the attachment center sits higher; all
-// head transforms below come from gen-head-variants.mts output, never eyeballed.
-await regionSlot({ slot: 'leg-front-far', boneId: legFrontFar, region: 'leg-front-far', x: 0, y: 50, targetH: 127, scaleX: -1 });
-await regionSlot({ slot: 'leg-back-far', boneId: legBackFar, region: 'leg-back-far', x: 0, y: 50, targetH: 140, scaleX: -1 });
-await regionSlot({ slot: 'leg-front-near', boneId: legFrontNear, region: 'leg-front-near', x: 0, y: 42, targetH: 125, scaleX: -1 });
-await regionSlot({ slot: 'leg-back-near', boneId: legBackNear, region: 'leg-back-near', x: 0, y: 55, targetH: 150, scaleX: -1 });
+// head and leg transforms below come from the gen scripts' output, never eyeballed.
+await regionSlot({ slot: 'leg-front-far', boneId: legFrontFar, region: 'leg-front-far', x: -1.2, y: 46.7, targetH: 134.1, scaleX: -1 });
+await regionSlot({ slot: 'leg-back-far', boneId: legBackFar, region: 'leg-back-far', x: 1.5, y: 52.4, targetH: 150.6, scaleX: -1 });
 await regionSlot({ slot: 'torso', boneId: torso, region: 'torso', x: 10, y: -15, targetH: 240, scaleX: -1 });
+await regionSlot({ slot: 'leg-back-near', boneId: legBackNear, region: 'leg-back-near', x: -1.6, y: 53.5, targetH: 154.4, scaleX: -1 });
+await regionSlot({ slot: 'leg-front-near', boneId: legFrontNear, region: 'leg-front-near', x: 0.5, y: 43.5, targetH: 124.4, scaleX: -1 });
 await regionSlot({ slot: 'head', boneId: head, region: 'head', x: -24.8, y: -36.2, targetH: 281.9, scaleX: -1 });
 await regionSlot({ slot: 'brows', boneId: head, region: 'brows', x: -50, y: -88, targetH: sizedW('brows', 120) });
 await regionSlot({ slot: 'eyes', boneId: head, region: 'eyes-open', x: -50, y: -57, targetH: 75 });

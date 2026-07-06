@@ -143,6 +143,7 @@ export {
 } from './remove-skin-attachment.command';
 // WP-2.9 deform timelines
 export { SetDeformKeyframeCommand, setDeformKeyframeSpec } from './set-deform-keyframe.command';
+export { SetDeformCurveCommand, setDeformCurveSpec } from './set-deform-curve.command';
 export {
   DeleteDeformKeyframeCommand,
   deleteDeformKeyframeSpec,

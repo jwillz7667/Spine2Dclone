@@ -282,6 +282,7 @@ export {
   SetSkinAttachmentCommand,
   RemoveSkinAttachmentCommand,
   SetDeformKeyframeCommand,
+  SetDeformCurveCommand,
   DeleteDeformKeyframeCommand,
   MoveDeformKeyframeCommand,
   ClearAttachmentDeformCommand,

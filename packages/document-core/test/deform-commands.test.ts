@@ -13,7 +13,10 @@ import {
 import { ClearAttachmentDeformCommand } from '../src/commands/clear-attachment-deform.command';
 import { DeleteDeformKeyframeCommand } from '../src/commands/delete-deform-keyframe.command';
 import { MoveDeformKeyframeCommand } from '../src/commands/move-deform-keyframe.command';
+import { SetAnimationDurationCommand } from '../src/commands/set-animation-duration.command';
+import { SetDeformCurveCommand } from '../src/commands/set-deform-curve.command';
 import { SetDeformKeyframeCommand } from '../src/commands/set-deform-keyframe.command';
+import { AnimationDurationError, CommandTargetMissingError } from '../src/command/errors';
 import { makeTestEnv, seeds } from './seeds';
 
 // The single deform track the 'rigged' seed authors: default skin, mesh_slot, 'panel' attachment.
@@ -146,6 +149,74 @@ describe('WP-2.9 deform timeline commands', () => {
     doc.history.undo();
     expect(doc.model.snapshot()).toEqual(before);
     assertInvariants(doc.model);
+  });
+
+  it('SetDeformCurve re-eases an existing key in place (id/time/offsets kept) and round-trips', () => {
+    const { env } = makeTestEnv();
+    const doc = loadDocument(seeds.rigged, env);
+    const { anim, slotId, frames } = panelTrack(doc);
+    const before = doc.model.snapshot();
+
+    const first = frames[0]!;
+    const bezier = { type: 'bezier', cx1: 0.55, cy1: 0, cx2: 0.78, cy2: 0 } as const;
+    doc.history.execute(
+      new SetDeformCurveCommand(anim.id, 'default', slotId, 'panel', first.id, bezier),
+    );
+    const updated = deformFrames(doc, anim.id, slotId).find((k) => k.id === first.id);
+    expect(updated?.curve).toEqual(bezier);
+    expect(updated?.time).toBe(first.time);
+    expect(updated?.offsets).toEqual(first.offsets);
+    assertInvariants(doc.model);
+
+    doc.history.undo();
+    expect(doc.model.snapshot()).toEqual(before);
+    assertInvariants(doc.model);
+  });
+
+  it('SetAnimationDuration shrink guard counts deform keys (not just bone/slot channels)', () => {
+    const { env } = makeTestEnv();
+    const doc = loadDocument(seeds.rigged, env);
+    const { anim, slotId } = panelTrack(doc);
+
+    // Push a deform key BEYOND every bone/slot key (they all end at t=1), so only the deform channel
+    // holds the shrink bound. The old guard scanned bones/slots only and would let 1.5 through,
+    // stranding the t=2 key outside [0, duration] until export rejected the document.
+    doc.history.execute(new SetAnimationDurationCommand(anim.id, 3));
+    doc.history.execute(
+      new SetDeformKeyframeCommand(anim.id, 'default', slotId, 'panel', 2, [1, 0, 1, 0, 1, 0, 1, 0]),
+    );
+    const before = doc.model.snapshot();
+
+    expect(() => doc.history.execute(new SetAnimationDurationCommand(anim.id, 1.5))).toThrow(
+      AnimationDurationError,
+    );
+    expect(doc.model.snapshot()).toEqual(before);
+
+    // At exactly the last deform key the shrink is legal.
+    doc.history.execute(new SetAnimationDurationCommand(anim.id, 2));
+    expect(doc.model.getAnimation(anim.id)?.duration).toBe(2);
+  });
+
+  it('SetDeformCurve rejects a missing keyframe id before any mutation', () => {
+    const { env } = makeTestEnv();
+    const doc = loadDocument(seeds.rigged, env);
+    const { anim, slotId } = panelTrack(doc);
+    const before = doc.model.snapshot();
+
+    expect(() =>
+      doc.history.execute(
+        new SetDeformCurveCommand(
+          anim.id,
+          'default',
+          slotId,
+          'panel',
+          'kf_nope' as never,
+          'stepped',
+        ),
+      ),
+    ).toThrow(CommandTargetMissingError);
+    expect(doc.model.snapshot()).toEqual(before);
+    expect(doc.history.canUndo).toBe(false);
   });
 
   it('MoveDeformKeyframe moves a key to a free time, round-trips, and rejects a collision', () => {

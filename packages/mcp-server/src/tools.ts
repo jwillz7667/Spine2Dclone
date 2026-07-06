@@ -62,6 +62,7 @@ import {
   SetBoneLengthCommand,
   SetBoneTransformModeCommand,
   SetCurveCommand,
+  SetDeformCurveCommand,
   SetDeformKeyframeCommand,
   SetIkBendPositiveCommand,
   SetIkKeyframeCommand,
@@ -175,6 +176,10 @@ import {
   buildPose,
   computeWorldTransforms,
   resetToSetupPose,
+  sampleSkeleton,
+  sampleMeshVertices,
+  skinMeshInto,
+  MeshAttachmentError,
   EffectNotFoundError,
   BundleNotFoundError,
 } from '@marionette/runtime-core';
@@ -613,6 +618,48 @@ function animationView(animation: AnimationEntity): Record<string, unknown> {
         name: frame.name,
       })),
     })),
+    // The constraint and deform timelines, so 'all its timelines' is true: without these an AI that
+    // keys deform/ik/transform frames has no targeted read path for their keyframe ids and curves
+    // (deform.deleteKeyframe / deform.moveKeyframe / deform.setCurve all address by id).
+    ik: [...animation.ik.entries()].map(([constraintId, frames]) => ({
+      constraintId,
+      keyframes: frames.map((kf) => ({
+        id: kf.id,
+        time: kf.time,
+        mix: kf.mix,
+        bendPositive: kf.bendPositive,
+        curve: kf.curve,
+      })),
+    })),
+    transform: [...animation.transform.entries()].map(([constraintId, frames]) => ({
+      constraintId,
+      keyframes: frames.map((kf) => ({
+        id: kf.id,
+        time: kf.time,
+        mixRotate: kf.mixRotate,
+        mixX: kf.mixX,
+        mixY: kf.mixY,
+        mixScaleX: kf.mixScaleX,
+        mixScaleY: kf.mixScaleY,
+        mixShearY: kf.mixShearY,
+        curve: kf.curve,
+      })),
+    })),
+    deform: [...animation.deform.entries()].flatMap(([skinKey, bySlot]) =>
+      [...bySlot.entries()].flatMap(([slotIdKey, byName]) =>
+        [...byName.entries()].map(([attachmentNameKey, frames]) => ({
+          skin: skinKey,
+          slotId: slotIdKey,
+          attachment: attachmentNameKey,
+          keyframes: frames.map((kf) => ({
+            id: kf.id,
+            time: kf.time,
+            offsets: [...kf.offsets],
+            curve: kf.curve,
+          })),
+        })),
+      ),
+    ),
   };
 }
 
@@ -2404,7 +2451,10 @@ export const TOOLS: readonly ToolDefinition[] = [
     {
       name: 'document.getSnapshot',
       title: 'Get document snapshot',
-      description: 'Return the internal snapshot (bones, order) of an open document.',
+      description:
+        'Return the FULL internal snapshot of an open document: bones, slots, attachments (mesh ' +
+        'geometry and weights included), skins, constraints, atlas, and every animation with all ' +
+        'timelines (bone/slot/ik/transform/deform) and their keyframe ids and curves.',
       input: z.object({ documentId }).strict(),
     },
     (deps, input) => ({ snapshot: deps.sessions.get(input.documentId).document.model.snapshot() }),
@@ -3069,8 +3119,10 @@ export const TOOLS: readonly ToolDefinition[] = [
       name: 'mesh.moveVertex',
       title: 'Move mesh vertex',
       description:
-        'Move one mesh vertex to (x, y). Never re-triangulates (indices stable); always allowed (not ' +
-        'topology-locked). Wrap a drag in beginInteraction/endInteraction to coalesce it into one undo step.',
+        'Move one mesh vertex to (x, y). Never re-triangulates (indices stable). Rejected as ' +
+        'MESH_TOPOLOGY_LOCKED on a WEIGHTED mesh (its vertices are the bone-influence stream; unbind ' +
+        'first, or author the shape change as a deform keyframe instead). Wrap a drag in ' +
+        'beginInteraction/endInteraction to coalesce it into one undo step.',
       input: z
         .object({
           documentId,
@@ -3086,16 +3138,18 @@ export const TOOLS: readonly ToolDefinition[] = [
       const session = deps.sessions.get(input.documentId);
       requireSlot(session, input.slotId);
       requireAttachmentKind(session, input.slotId, input.name, 'mesh');
-      session.document.history.execute(
-        new MoveMeshVertexCommand(
-          asSlotId(input.slotId),
-          input.name,
-          input.vertexIndex,
-          input.x,
-          input.y,
+      return {
+        revision: executeMeshTopologyEdit(
+          session,
+          new MoveMeshVertexCommand(
+            asSlotId(input.slotId),
+            input.name,
+            input.vertexIndex,
+            input.x,
+            input.y,
+          ),
         ),
-      );
-      return { revision: session.document.model.revision };
+      };
     },
   ),
   defineTool(
@@ -3988,6 +4042,52 @@ export const TOOLS: readonly ToolDefinition[] = [
   ),
   defineTool(
     {
+      name: 'deform.setCurve',
+      title: 'Set deform keyframe curve',
+      description:
+        'Set the outgoing interpolation curve (linear / stepped / bezier) of an EXISTING deform ' +
+        'keyframe by id, keeping its time and offsets. The in-place complement to deform.setKeyframe ' +
+        '(whose update path keeps the old curve); kf.curve covers only bone/slot channels. `skin` is ' +
+        '"default" or a named SkinId.',
+      input: z
+        .object({
+          documentId,
+          animationId,
+          skin: deformSkinKey,
+          slotId,
+          name: attachmentName,
+          keyframeId,
+          curve: curveSchema,
+        })
+        .strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireAnimation(session, input.animationId);
+      const skinKey = resolveDeformSkinKey(session, input.skin);
+      requireSlot(session, input.slotId);
+      try {
+        session.document.history.execute(
+          new SetDeformCurveCommand(
+            asAnimationId(input.animationId),
+            skinKey,
+            asSlotId(input.slotId),
+            input.name,
+            asKeyframeId(input.keyframeId),
+            input.curve,
+          ),
+        );
+      } catch (error) {
+        if (error instanceof CommandTargetMissingError) {
+          throw new McpToolError('KEYFRAME_NOT_FOUND', error.message);
+        }
+        throw error;
+      }
+      return { revision: session.document.model.revision };
+    },
+  ),
+  defineTool(
+    {
       name: 'deform.deleteKeyframe',
       title: 'Delete deform keyframe',
       description:
@@ -4149,20 +4249,114 @@ export const TOOLS: readonly ToolDefinition[] = [
     {
       name: 'document.getWorldTransforms',
       title: 'Get world transforms',
-      description: 'Solve the setup pose and return each bone world matrix [a, b, c, d, tx, ty].',
-      input: z.object({ documentId }).strict(),
+      description:
+        'Solve the pose and return each bone world matrix [a, b, c, d, tx, ty]. With no `animationId` ' +
+        'it solves the setup pose; with `animationId` (+ optional `time`, default 0) it runs the full ' +
+        'per-frame solve (timelines, IK, transform constraints, world pass) at that time, the NUMERIC ' +
+        'read-back a client needs to verify motion (render_frame is the visual twin).',
+      input: z
+        .object({
+          documentId,
+          animationId: animationId.optional(),
+          time: z.number().finite().optional(),
+        })
+        .strict(),
     },
     (deps, input) => {
-      const model = deps.sessions.get(input.documentId).document.model;
-      const exported = exportOrThrow(model);
+      const session = deps.sessions.get(input.documentId);
+      const exported = exportOrThrow(session.document.model);
       const pose = buildPose(exported);
-      resetToSetupPose(pose);
-      computeWorldTransforms(pose);
+      if (input.animationId === undefined) {
+        resetToSetupPose(pose);
+        computeWorldTransforms(pose);
+      } else {
+        const animation = requireAnimation(session, input.animationId);
+        sampleSkeleton(exported, animation.name, input.time ?? 0, pose);
+      }
       const transforms = pose.boneNames.map((name, index) => {
         const base = index * MAT2X3_STRIDE;
         return { name, world: Array.from(pose.world.subarray(base, base + MAT2X3_STRIDE)) };
       });
       return { transforms };
+    },
+  ),
+  defineTool(
+    {
+      name: 'mesh.sample',
+      title: 'Sample solved mesh vertices',
+      description:
+        'Solve and return a mesh attachment FINAL world-space vertices [x0, y0, x1, y1, ...] (skinning ' +
+        'plus deform offsets, solve-order step 5), with the mesh triangles for downstream area/extent ' +
+        'math. With no `animationId` it samples the setup pose (skin only, deform contributes nothing); ' +
+        'with `animationId` (+ optional `time`, default 0) it samples the full solve at that time. This ' +
+        'is the numeric loop-closer for detailed deform authoring: author a squash key, sample it back, ' +
+        'measure. `skin` is "default" or a named SkinId.',
+      input: z
+        .object({
+          documentId,
+          slotId,
+          name: attachmentName,
+          skin: deformSkinKey.default('default'),
+          animationId: animationId.optional(),
+          time: z.number().finite().optional(),
+        })
+        .strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      const slot = requireSlot(session, input.slotId);
+      const skinName = input.skin === 'default' ? 'default' : requireSkin(session, input.skin).name;
+      const exported = exportOrThrow(session.document.model);
+
+      // Resolve the mesh first (typed error before any solve) and to size the output buffer.
+      const attachment = exported.skins.find((s) => s.name === skinName)?.attachments[slot.name]?.[
+        input.name
+      ];
+      if (attachment === undefined || attachment.type !== 'mesh') {
+        throw new McpToolError(
+          'MESH_SAMPLE',
+          `mesh attachment ${attachment === undefined ? 'not found' : 'is not a mesh'}: ` +
+            `${skinName}/${slot.name}/${input.name}`,
+          { reason: attachment === undefined ? 'not-found' : 'not-a-mesh' },
+        );
+      }
+
+      const pose = buildPose(exported);
+      const out = new Float32Array(attachment.uvs.length);
+      let vertexCount: number;
+      if (input.animationId === undefined) {
+        resetToSetupPose(pose);
+        computeWorldTransforms(pose);
+        const slotIndex = pose.slotNames.indexOf(slot.name);
+        const slotBoneIndex = slotIndex >= 0 ? pose.slotBoneIndices[slotIndex]! : -1;
+        vertexCount = skinMeshInto(attachment, pose, slotBoneIndex, out);
+      } else {
+        const animation = requireAnimation(session, input.animationId);
+        try {
+          sampleSkeleton(exported, animation.name, input.time ?? 0, pose);
+          vertexCount = sampleMeshVertices(
+            exported,
+            animation.name,
+            input.time ?? 0,
+            pose,
+            skinName,
+            slot.name,
+            input.name,
+            out,
+          );
+        } catch (error) {
+          if (error instanceof MeshAttachmentError) {
+            throw new McpToolError('MESH_SAMPLE', error.message, { reason: error.reason });
+          }
+          throw error;
+        }
+      }
+      return {
+        vertexCount,
+        vertices: Array.from(out),
+        triangles: [...attachment.triangles],
+        hullLength: attachment.hullLength,
+      };
     },
   ),
   defineTool(

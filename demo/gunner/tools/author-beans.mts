@@ -14,7 +14,10 @@ import {
 // ground under the stance center. Beans is ~200 px tall to the ear tips INCLUDING the giant ears;
 // the head is more than half of him. Placement numbers were art-directed against source/refs/beans.png
 // by running this script and inspecting renders/beans-*.png, then corrected against alpha/color
-// measurements of the cut pieces (see the ear and mouth comments below).
+// measurements of the cut pieces. The EARS and the MOUTH are baked into full replacement heads
+// (gen-beans-heads.mts, the approved Gunner/Luna pattern): separately rigged ear pieces never sat
+// right on the dome and pasted mouth plates read as stickers, so the head slot swaps whole
+// nose-registered heads and only the EYES remain a separate overlay.
 //
 // Usage: tsx author-beans.mts
 
@@ -64,10 +67,10 @@ await call('atlas.set', { documentId, atlas: atlasForSet });
 
 // ---- bones ---------------------------------------------------------------------------------------
 // Beans stands ~190 px tall to the ear tips. Ground = y 0 at the root. Facing LEFT (negative x is
-// forward). The torso is tiny (bone at the belly center), the head bone pivots at the neck, each
-// giant ear hinges at its base ON the skull dome, and the legs are TORSO children so the hip and
-// shoulder sockets can never separate from the tiny body. Joint contract per the corrected Gunner
-// architecture: counter-rotation keys keep the paws planted wherever the torso leans hard.
+// forward). The torso is tiny (bone at the belly center), the head bone pivots at the neck (the
+// giant ears ride the head piece itself, no ear bones), and the legs are TORSO children so the
+// hip and shoulder sockets can never separate from the tiny body. Joint contract per the corrected
+// Gunner architecture: counter-rotation keys keep the paws planted wherever the torso leans hard.
 const bone = async (name: string, parentId: string | null, x: number, y: number, length = 40): Promise<string> => {
   const res = (await call('bone.create', {
     documentId,
@@ -83,18 +86,6 @@ const bone = async (name: string, parentId: string | null, x: number, y: number,
 const rootBone = await bone('root', null, 0, 0, 10);
 const torso = await bone('torso', rootBone, 0, -52, 50);
 const head = await bone('head', torso, -22, -28, 55);
-// Ear hinges sit ON the skull dome OUTLINE at the crown: the near hinge forward-left of the dome
-// top, the far hinge rear-right, both surface points of the head ellipse (head art local center
-// (-5,-35), half extents 40.6 x 40.5) at the x offsets the reference ear roots show (about +-0.57
-// half-widths). The ear art's base centroid then lands ~10 px past the hinge into the skull (the
-// attachment offset is minus the piece's measured base-centroid offset, y tuned so the base bottom
-// sits 10 px below the hinge), so flop/rattle extremes pivot at the base instead of sliding the
-// whole ear across the dome or drooping over the brow. Both ear layers were cut as the SAME
-// tip-up-RIGHT shape (alpha-measured: tip x-centroid 565..576, base 240 of ~670 wide), so the near
-// ear MIRRORS (scaleX -1) to sweep up-forward like the reference's near ear; the far ear keeps the
-// cut orientation and sweeps up-rearward.
-const earNear = await bone('ear-near', head, -28, -68, 40);
-const earFar = await bone('ear-far', head, 18, -68, 38);
 const tail = await bone('tail', torso, 30, -7, 20);
 // Legs are TORSO children so the shoulder/hip sockets can never separate from the tiny body: any
 // torso rotation carries the joints with it. Each pivot is pinned into the limb root the TORSO ART
@@ -150,33 +141,28 @@ async function regionSlot(spec: SlotSpec): Promise<string> {
 
 // far side first, then tail + torso, near legs, then the head stack. All LEG layers were cut facing
 // left (front toes and hind toes point left, hocks bend rearward-right; verified per piece on the
-// bottom-row alpha spans), so the legs need no mirroring; the ears are the one mirrored exception
-// (see the ear bone comment). There is NO leg-back-far region: that slot REUSES leg-back-near and is
-// tinted darker via slot.color so it reads as the far side. Leg sizes match the drawn root masses
-// (ref shin ~11.4 rig px -> front targetH 56/54; ref thigh top at world -46 -> back targetH 46/43,
-// the old 55 poked the thigh apex above the drawn rump line). Offsets keep each pivot on the
-// piece's drawn joint and the paw bottom exactly at ground: offsetY = |boneWorldY| - targetH/2.
+// bottom-row alpha spans), so no piece needs mirroring. leg-back-far is the forward leg carved out
+// of beans-parts piece-09 (gen-beans-farleg.mts), the artist's far hindquarters drawn in the same
+// darker warm tan as leg-front-far, replacing the old gray-tinted near-leg reuse that read as a
+// gray-green sliver between the hind legs. Its raw rump-side cut edge faces rearward-right, under
+// the torso and the near haunch. Leg sizes match the drawn root masses (ref shin ~11.4 rig px ->
+// front targetH 56/54; ref thigh top at world -46 -> back targetH 46; far leg 41.6 at piece-09's
+// native scale). Offsets keep each pivot on the piece's drawn joint and the paw bottom exactly at
+// ground: offsetY = |boneWorldY| - targetH/2.
 await regionSlot({ slot: 'leg-front-far', boneId: legFrontFar, region: 'leg-front-far', x: 1, y: 11, targetH: 54 });
-await regionSlot({ slot: 'leg-back-far', boneId: legBackFar, region: 'leg-back-near', x: 1.7, y: 16.5, targetH: 43 });
-await call('slot.color', {
-  documentId,
-  slotId: slotIds.get('leg-back-far'),
-  color: { r: 0.72, g: 0.72, b: 0.72, a: 1 },
-});
+await regionSlot({ slot: 'leg-back-far', boneId: legBackFar, region: 'leg-back-far', x: -1, y: 17.2, targetH: 41.6 });
 await regionSlot({ slot: 'tail', boneId: tail, region: 'tail', x: 6, y: -17, targetH: 40 });
 await regionSlot({ slot: 'torso', boneId: torso, region: 'torso', x: 2, y: 1, targetH: 56 });
 await regionSlot({ slot: 'leg-front-near', boneId: legFrontNear, region: 'leg-front-near', x: 1.2, y: 14.5, targetH: 56 });
 await regionSlot({ slot: 'leg-back-near', boneId: legBackNear, region: 'leg-back-near', x: 1.8, y: 18, targetH: 46 });
-await regionSlot({ slot: 'ear-far', boneId: earFar, region: 'ear-far', x: 7.2, y: -21, targetH: 62 });
-await regionSlot({ slot: 'head', boneId: head, region: 'head', x: -5, y: -35, targetH: 81 });
-await regionSlot({ slot: 'ear-near', boneId: earNear, region: 'ear-near', x: -8, y: -23, targetH: 66, scaleX: -1 });
-await regionSlot({ slot: 'eyes', boneId: head, region: 'eyes-open', x: -12, y: -28, targetH: 28 });
-// Every mouth region is a full muzzle PLATE (tan blob + nose + lips, cut front-facing and
-// x-symmetric, nose on the piece's center column). The head piece bakes a bare tan muzzle patch at
-// head-local x[-36..-1], y[-25.5..2.4] (color-measured on head.png) and NO nose or lip stroke, so
-// each plate is anchored to pin its drawn NOSE center at head-local (-19,-17.5) and sized to cover
-// the baked patch: variant swaps never shift the nose and no bare-patch edge shows beside a plate.
-await regionSlot({ slot: 'mouth', boneId: head, region: 'mouth-closed', x: -19, y: -10.7, targetH: 29 });
+// The head pieces carry the giant ears and the mouth state baked in; every variant is
+// nose/cheek-registered by gen-beans-heads.mts against the original head's anchors (nose pinned
+// at head-local (-19,-17.5)), so the skull and ears do not move a pixel when the attachment
+// swaps. Transforms come verbatim from that script's output.
+// one shared composition delta (+4,+9) on the head variants AND the eyes overlay seats the skull
+// over the torso's drawn neck stump (nose registration alone left the collar rim exposed as a gap)
+await regionSlot({ slot: 'head', boneId: head, region: 'head', x: -15, y: -42.9, targetH: 119.6 });
+await regionSlot({ slot: 'eyes', boneId: head, region: 'eyes-open', x: -8, y: -19, targetH: 28 });
 
 // extra attachment variants on the eye / mouth slots (player and animations swap them)
 async function addVariant(slot: string, region: string, targetH: number, x: number, y: number): Promise<void> {
@@ -190,21 +176,22 @@ async function addVariant(slot: string, region: string, targetH: number, x: numb
     ...sized(region, targetH),
   });
 }
-await addVariant('eyes', 'eyes-closed', 27, -12, -28);
-await addVariant('eyes', 'eyes-worried', 28, -12, -28);
-// nose-pinned mouth plates (see the mouth comment above): nose center at head-local (-19,-17.5).
-// mouth-small nose sits 95.5 trimmed px above the piece center -> y = -17.5 + 95.5*(31/449);
-// mouth-bark-huge nose sits 222.5 px above center -> y = -17.5 + 222.5*(42/605).
-await addVariant('mouth', 'mouth-small', 31, -19, -10.9);
-await addVariant('mouth', 'mouth-bark-huge', 42, -18.9, -2.1);
+await addVariant('eyes', 'eyes-closed', 27, -8, -19);
+await addVariant('eyes', 'eyes-worried', 28, -8, -19);
+// full replacement heads (gen-beans-heads.mts output plus the shared +4,+9 composition delta):
+// closed smile is the base 'head' region, the others swap in on the same slot with their own
+// nose-registered transforms
+await addVariant('head', 'head-talk', 122.6, -15, -41.4);
+await addVariant('head', 'head-bark', 137.3, -14.9, -34);
+await addVariant('head', 'head-worried', 119.4, -15, -42.9);
 
 // restore the default active attachments after variant adds
 await call('slot.activeAttachment', { documentId, slotId: slotIds.get('eyes'), attachment: 'eyes-open' });
-await call('slot.activeAttachment', { documentId, slotId: slotIds.get('mouth'), attachment: 'mouth-closed' });
+await call('slot.activeAttachment', { documentId, slotId: slotIds.get('head'), attachment: 'head' });
 
 // ---- animation helpers -----------------------------------------------------------------------------
 const boneIdByName: Record<string, string> = {
-  root: rootBone, torso, head, 'ear-near': earNear, 'ear-far': earFar, tail,
+  root: rootBone, torso, head, tail,
   'leg-front-near': legFrontNear, 'leg-front-far': legFrontFar,
   'leg-back-near': legBackNear, 'leg-back-far': legBackFar,
 };
@@ -274,27 +261,23 @@ function jitter(t0: number, t1: number, step: number, amp: number, startSign = 1
 // ---- the animation set -------------------------------------------------------------------------------
 // Rotation sign (verified against single-bone probe renders): positive = clockwise on screen.
 // Torso: positive rears the chest UP; negative pitches forward. Head: positive lifts the nose;
-// negative snaps it down-forward. Legs hang down: positive swings the foot forward (toward the nose).
-// Ears (near mirrored tip-up-forward, far tip-up-rearward): POSITIVE sweeps either tip rearward,
-// so same-sign keys stream both ears back (walk/run) and near-POSITIVE with far-NEGATIVE converges
-// both tips upright (perk/rise in strut and mega-bark).
+// negative snaps it down-forward. Legs hang down: positive swings the foot forward (toward the
+// nose). The ears ride the head piece, so every head jitter/nod carries them for free.
 
-// idle: a permanent tiny nervous shiver. Head +-1.5 at 8 Hz feel (keys every 0.1s), ears
-// counter-tremble +-2, body breathing y +-3. Translate keys are DELTAS from setup; paws planted.
+// idle: a permanent tiny nervous shiver. Head +-1.5 at 8 Hz feel (keys every 0.1s, the baked
+// ears tremble with it), body breathing y +-3. Translate keys are DELTAS from setup; paws planted.
 await author({
   name: 'idle', duration: 1.6,
   rotate: {
     head: jitter(0, 1.6, 0.1, 1.5, 1),
-    'ear-near': jitter(0, 1.6, 0.1, 2, -1),
-    'ear-far': jitter(0, 1.6, 0.1, 2, -1),
   },
   translate: {
     torso: [[0, 0, 0, EASE_IN_OUT], [0.8, 0, -3, EASE_IN_OUT], [1.6, 0, 0]],
   },
 });
 
-// walk: quick scamper. Legs +-20, body bounce 5 px twice per stride, ears flop trailing by 0.05s.
-// The torso never rotates here (bounce is pure translate), so the gait needs no counter keys.
+// walk: quick scamper. Legs +-20, body bounce 5 px twice per stride, a small head nod flops the
+// baked ears. The torso never rotates here (bounce is pure translate), so no counter keys.
 await author({
   name: 'walk', duration: 0.5,
   rotate: {
@@ -302,9 +285,7 @@ await author({
     'leg-front-far': [[0, -20, EASE_IN_OUT], [0.25, 20, EASE_IN_OUT], [0.5, -20]],
     'leg-back-near': [[0, -18, EASE_IN_OUT], [0.25, 18, EASE_IN_OUT], [0.5, -18]],
     'leg-back-far': [[0, 18, EASE_IN_OUT], [0.25, -18, EASE_IN_OUT], [0.5, 18]],
-    head: [[0, 1, EASE_IN_OUT], [0.25, -1, EASE_IN_OUT], [0.5, 1]],
-    'ear-near': [[0, 2, EASE_IN_OUT], [0.05, 6, EASE_IN_OUT], [0.3, -6, EASE_IN_OUT], [0.5, 2]],
-    'ear-far': [[0, 2, EASE_IN_OUT], [0.05, 5, EASE_IN_OUT], [0.3, -5, EASE_IN_OUT], [0.5, 2]],
+    head: [[0, 2, EASE_IN_OUT], [0.25, -2, EASE_IN_OUT], [0.5, 2]],
   },
   translate: {
     torso: [[0, 0, 0, EASE_OUT], [0.125, 0, -5, EASE_IN], [0.25, 0, 0, EASE_OUT],
@@ -315,7 +296,7 @@ await author({
 // run: frantic dash. World gait +-26 with the body pitched forward 8 to 10; the torso exceeds the
 // 6 deg counter threshold, so every leg key is COUNTER-ROTATED (local = world gait minus torso at
 // that time) at the torso's key times with matching curves, keeping the swing arcs plumb under
-// the lean. Ears streaming back with flutter.
+// the lean. The head bobs against the lean and the baked ears stream with it.
 await author({
   name: 'run', duration: 0.4,
   rotate: {
@@ -325,21 +306,17 @@ await author({
     'leg-back-far': [[0, 29, EASE_IN_OUT], [0.2, -11, EASE_IN_OUT], [0.4, 29]],
     torso: [[0, -8, EASE_IN_OUT], [0.2, -10, EASE_IN_OUT], [0.4, -8]],
     head: [[0, 4, EASE_IN_OUT], [0.2, 7, EASE_IN_OUT], [0.4, 4]],
-    'ear-near': [[0, 16, EASE_IN_OUT], [0.1, 21, EASE_IN_OUT], [0.2, 16, EASE_IN_OUT], [0.3, 11, EASE_IN_OUT], [0.4, 16]],
-    'ear-far': [[0, 14, EASE_IN_OUT], [0.1, 9, EASE_IN_OUT], [0.2, 14, EASE_IN_OUT], [0.3, 19, EASE_IN_OUT], [0.4, 14]],
   },
   translate: {
     torso: [[0, 0, 2, EASE_OUT], [0.2, 0, -9, EASE_IN], [0.4, 0, 2]],
   },
 });
 
-// talk: bouncy nervous head bobs +-3, ears twitch.
+// talk: bouncy nervous head bobs +-3 (the baked ears bob along).
 await author({
   name: 'talk', duration: 1.0,
   rotate: {
     head: [[0, 0, EASE_IN_OUT], [0.2, 3, EASE_IN_OUT], [0.45, -3, EASE_IN_OUT], [0.7, 2, EASE_IN_OUT], [1.0, 0]],
-    'ear-near': [[0, 0, EASE_OUT], [0.2, -5, EASE_OUT], [0.35, 0, EASE_OUT], [0.7, -3, EASE_OUT], [0.85, 0, 'linear'], [1.0, 0]],
-    'ear-far': [[0, 0, EASE_OUT], [0.45, 4, EASE_OUT], [0.6, 0, EASE_OUT], [1.0, 0]],
   },
   translate: {
     torso: [[0, 0, 0, EASE_IN_OUT], [0.5, 0, -2, EASE_IN_OUT], [1.0, 0, 0]],
@@ -347,9 +324,10 @@ await author({
 });
 
 // freeze-shiver: INTENSE shiver. Torso x jitter +-4 every 0.08s (a DELTA; the whole dog rattles as
-// one rigid block, legs included, which reads as a full-body tremble), head +-3 alternating, ears
-// rattle +-8, legs locked stiff and splayed slightly (held single keys). The torso never ROTATES
-// here and the head jitter is tiny, so no counter keys are needed.
+// one rigid block, legs included, which reads as a full-body tremble), head +-3 alternating (the
+// giant baked ears rattle with it), legs locked stiff and splayed slightly (held single keys).
+// The torso never ROTATES here and the head jitter is tiny, so no counter keys are needed. The
+// face is the worried set: wavy-frown head variant plus worried eyes.
 const shiverTorso: VecKey[] = [];
 {
   let sign = 1;
@@ -362,22 +340,20 @@ await author({
   name: 'freeze-shiver', duration: 0.8,
   rotate: {
     head: jitter(0, 0.8, 0.08, 3, -1),
-    'ear-near': jitter(0, 0.8, 0.08, 8, 1),
-    'ear-far': jitter(0, 0.8, 0.08, 8, -1),
     'leg-front-near': [[0, 10]],
     'leg-front-far': [[0, 7]],
     'leg-back-near': [[0, -10]],
     'leg-back-far': [[0, -7]],
   },
   translate: { torso: shiverTorso },
-  attachments: { eyes: [[0, 'eyes-worried']] },
+  attachments: { eyes: [[0, 'eyes-worried']], head: [[0, 'head-worried']] },
 });
 
 // mega-bark: the hero moment (one-shot).
-// 0..0.6 huge inhale: torso+head swell (compound head scale ~1.25), body rears back 10, ears rise,
-// mouth to mouth-small. At 0.6 the bark fires: mouth swaps to mouth-bark-huge, head snaps forward
-// 15 deg nose-down, scale pops to ~1.05 with recoil, body pushed back x +12. 0.6..1.1 hold with a
-// small tremble. 1.1..1.6 settle back to neutral; mouth to mouth-closed at 1.3.
+// 0..0.6 huge inhale: torso+head swell (compound head scale ~1.25), body rears back 10, head to
+// the talk variant. At 0.6 the bark fires: the head swaps to head-bark (huge open jaw baked in),
+// snaps forward 15 deg nose-down, scale pops to ~1.05 with recoil, body pushed back x +12.
+// 0.6..1.1 hold with a small tremble. 1.1..1.6 settle back to neutral; head closes at 1.3.
 // Legs are torso children, so the rear-back (+10) and the blast recoil (-3/-4 tremble) both
 // exceed or ride the counter threshold: every leg key sits at the torso's OWN key times with the
 // torso's curves, value = world brace minus torso angle. World brace: gather under the rear-back
@@ -396,8 +372,6 @@ await author({
             [0.9, -3, 'linear'], [1.0, -4, 'linear'], [1.1, -3, EASE_IN_OUT], [1.6, 0]],
     head: [[0, 0, EASE_IN_OUT], [0.6, 14, EASE_OUT], [0.66, -15, EASE_OUT], [0.8, -13, 'linear'],
            [0.9, -15, 'linear'], [1.0, -13, 'linear'], [1.1, -14, EASE_IN_OUT], [1.6, 0]],
-    'ear-near': [[0, 0, EASE_IN_OUT], [0.6, 8, EASE_OUT], [0.66, 16, EASE_OUT], [1.1, 10, EASE_IN_OUT], [1.6, 0]],
-    'ear-far': [[0, 0, EASE_IN_OUT], [0.6, -8, EASE_OUT], [0.66, -16, EASE_OUT], [1.1, -10, EASE_IN_OUT], [1.6, 0]],
     'leg-front-near': [[0, 0, EASE_IN_OUT], [0.6, -13, EASE_OUT], [0.66, 11, EASE_OUT], [0.8, 12, 'linear'],
                        [0.9, 11, 'linear'], [1.0, 12, 'linear'], [1.1, 9, EASE_IN_OUT], [1.6, 0]],
     'leg-front-far': [[0, 0, EASE_IN_OUT], [0.6, -12, EASE_OUT], [0.66, 9, EASE_OUT], [0.8, 10, 'linear'],
@@ -413,14 +387,15 @@ await author({
             [1.1, 12, 2, EASE_IN_OUT], [1.6, 0, 0]],
   },
   attachments: {
-    mouth: [[0, 'mouth-closed'], [0.15, 'mouth-small'], [0.6, 'mouth-bark-huge'], [1.3, 'mouth-closed']],
+    head: [[0, 'head'], [0.15, 'head-talk'], [0.6, 'head-bark'], [1.3, 'head']],
     eyes: [[0, 'eyes-open'], [0.55, 'eyes-closed'], [1.2, 'eyes-open']],
   },
 });
 
 // proud-strut: walk but chest up (torso held at a constant +8, past the 6 deg counter threshold),
-// head high, ears perked, slower bounce. Every leg gait key is world gait minus 8, so the stride
-// arcs stay plumb (world +-20/18) under the lifted chest and the hips never tear open.
+// head high (the baked ears perk with the lifted head), slower bounce. Every leg gait key is
+// world gait minus 8, so the stride arcs stay plumb (world +-20/18) under the lifted chest and
+// the hips never tear open.
 await author({
   name: 'proud-strut', duration: 0.7,
   rotate: {
@@ -430,8 +405,6 @@ await author({
     'leg-back-far': [[0, 10, EASE_IN_OUT], [0.35, -26, EASE_IN_OUT], [0.7, 10]],
     torso: [[0, 8]],
     head: [[0, 6, EASE_IN_OUT], [0.35, 4, EASE_IN_OUT], [0.7, 6]],
-    'ear-near': [[0, 6]],
-    'ear-far': [[0, -6]],
   },
   translate: {
     torso: [[0, 0, -2, EASE_OUT], [0.175, 0, -6, EASE_IN], [0.35, 0, -2, EASE_OUT],
@@ -439,14 +412,16 @@ await author({
   },
 });
 
-// micro state animations for the player's face tracks (one attachment key each).
-// mouth-wide uses the mouth-bark-huge region: it is his loud talking mouth.
+// micro state animations for the player's face tracks (one attachment key each). The lip-sync
+// micros keep their historical names (the player's MOUTH_MAP references them) but now swap the
+// whole head, whose mouth is drawn into the muzzle; mouth-wide uses the head-bark variant, his
+// loud talking mouth.
 const face = async (name: string, slot: string, region: string): Promise<void> => {
   await author({ name, duration: 0.05, attachments: { [slot]: [[0, region]] } });
 };
-await face('mouth-closed', 'mouth', 'mouth-closed');
-await face('mouth-small', 'mouth', 'mouth-small');
-await face('mouth-wide', 'mouth', 'mouth-bark-huge');
+await face('mouth-closed', 'head', 'head');
+await face('mouth-small', 'head', 'head-talk');
+await face('mouth-wide', 'head', 'head-bark');
 await face('eyes-open', 'eyes', 'eyes-open');
 await face('eyes-closed', 'eyes', 'eyes-closed');
 await face('eyes-worried', 'eyes', 'eyes-worried');

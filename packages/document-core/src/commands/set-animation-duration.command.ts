@@ -21,6 +21,19 @@ function lastKeyframeTime(animation: AnimationEntity): number {
     for (const kf of set.color) if (kf.time > max) max = kf.time;
     for (const frame of set.attachment) if (frame.time > max) max = frame.time;
   }
+  for (const frames of animation.ik.values()) {
+    for (const kf of frames) if (kf.time > max) max = kf.time;
+  }
+  for (const frames of animation.transform.values()) {
+    for (const kf of frames) if (kf.time > max) max = kf.time;
+  }
+  for (const bySlot of animation.deform.values()) {
+    for (const byName of bySlot.values()) {
+      for (const frames of byName.values()) {
+        for (const kf of frames) if (kf.time > max) max = kf.time;
+      }
+    }
+  }
   return max;
 }
 

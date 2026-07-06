@@ -24,6 +24,7 @@ export interface ActorPlacement {
   readonly actor: string; // gunner | pip | luna | beans | mama | duckling-1..3
   readonly anim: string;
   readonly loop?: boolean; // default true
+  readonly after?: string; // anim to crossfade into once a non-looping `anim` completes (default 'idle')
   readonly x: number;
   readonly y: number;
   readonly scale?: number;
@@ -322,6 +323,7 @@ export const SHOTS: readonly Shot[] = [
     start: 52.5,
     end: 55,
     bg: 'bg-meadow',
+    transitionOut: { kind: 'fade', at: 1.7 },
     actors: [
       {
         actor: 'beans',
@@ -344,6 +346,7 @@ export const SHOTS: readonly Shot[] = [
     start: 55,
     end: 63,
     bg: 'bg-creek',
+    transitionIn: { kind: 'fade', duration: 0.8 },
     actors: [
       {
         actor: 'mama',
@@ -379,7 +382,7 @@ export const SHOTS: readonly Shot[] = [
         x: -250,
         y: GROUND_Y,
         flip: true,
-        tweens: [{ t0: 0.5, t1: 2.2, to: { x: 480, y: GROUND_Y }, ease: 'out', animAfter: 'idle' }],
+        tweens: [{ t0: 0.5, t1: 2.2, to: { x: 560, y: GROUND_Y }, ease: 'out', animAfter: 'idle' }],
       },
       {
         actor: 'luna',
@@ -387,7 +390,7 @@ export const SHOTS: readonly Shot[] = [
         x: -420,
         y: GROUND_Y,
         flip: true,
-        tweens: [{ t0: 0.7, t1: 2.6, to: { x: 300, y: GROUND_Y }, ease: 'out', animAfter: 'idle' }],
+        tweens: [{ t0: 0.7, t1: 2.6, to: { x: 220, y: GROUND_Y }, ease: 'out', animAfter: 'idle' }],
       },
       {
         actor: 'beans',
@@ -395,7 +398,7 @@ export const SHOTS: readonly Shot[] = [
         x: -560,
         y: GROUND_Y,
         flip: true,
-        tweens: [{ t0: 0.9, t1: 3.0, to: { x: 660, y: GROUND_Y }, ease: 'out', animAfter: 'idle' }],
+        tweens: [{ t0: 0.9, t1: 3.0, to: { x: 860, y: GROUND_Y }, ease: 'out', animAfter: 'idle' }],
       },
       {
         actor: 'pip',
@@ -403,7 +406,7 @@ export const SHOTS: readonly Shot[] = [
         x: -300,
         y: 400,
         flip: true,
-        tweens: [{ t0: 0.5, t1: 2.4, to: { x: 560, y: GROUND_Y - 170 }, ease: 'out', animAfter: 'hover' }],
+        tweens: [{ t0: 0.5, t1: 2.4, to: { x: 810, y: GROUND_Y - 410 }, ease: 'out', animAfter: 'hover' }],
       },
     ],
     audio: [
@@ -420,10 +423,10 @@ export const SHOTS: readonly Shot[] = [
     bg: 'bg-creek',
     camera: { from: CAM_CENTER, to: { x: 550, y: 700, zoom: 1.3 }, ease: 'inout' },
     actors: [
-      { actor: 'gunner', anim: 'idle', x: 480, y: GROUND_Y, flip: true, eyes: 'eyes-happy' },
-      { actor: 'luna', anim: 'talk', x: 300, y: GROUND_Y, flip: true, eyes: 'eyes-happy' },
-      { actor: 'beans', anim: 'idle', x: 660, y: GROUND_Y, flip: true, eyes: 'eyes-open' },
-      { actor: 'pip', anim: 'hover', x: 560, y: GROUND_Y - 170, flip: true },
+      { actor: 'gunner', anim: 'idle', x: 560, y: GROUND_Y, flip: true, eyes: 'eyes-happy' },
+      { actor: 'luna', anim: 'talk', x: 220, y: GROUND_Y, flip: true, eyes: 'eyes-happy' },
+      { actor: 'beans', anim: 'idle', x: 860, y: GROUND_Y, flip: true, eyes: 'eyes-open' },
+      { actor: 'pip', anim: 'hover', x: 810, y: GROUND_Y - 410, flip: true },
     ],
     audio: [
       { id: 'creek-flow', at: 0, kind: 'sfx', loop: true, volume: 0.55 },
@@ -438,10 +441,10 @@ export const SHOTS: readonly Shot[] = [
     end: 79,
     bg: 'bg-creek',
     actors: [
-      { actor: 'gunner', anim: 'idle', x: 480, y: GROUND_Y, flip: true },
-      { actor: 'luna', anim: 'idle', x: 300, y: GROUND_Y, flip: true },
-      { actor: 'beans', anim: 'idle', x: 660, y: GROUND_Y, flip: true },
-      { actor: 'pip', anim: 'hover', x: 560, y: GROUND_Y - 170, flip: true },
+      { actor: 'gunner', anim: 'idle', x: 560, y: GROUND_Y, flip: true },
+      { actor: 'luna', anim: 'idle', x: 220, y: GROUND_Y, flip: true },
+      { actor: 'beans', anim: 'idle', x: 860, y: GROUND_Y, flip: true },
+      { actor: 'pip', anim: 'hover', x: 810, y: GROUND_Y - 410, flip: true },
       { actor: 'mama', anim: 'idle', x: 980, y: WATER_Y },
       {
         actor: 'duckling-1',
@@ -513,9 +516,9 @@ export const SHOTS: readonly Shot[] = [
         y: WATER_Y - 30,
         tweens: [{ t0: 0, t1: 7, to: { x: 1970, y: WATER_Y - 30 }, ease: 'linear' }],
       },
-      { actor: 'gunner', anim: 'idle', x: 480, y: GROUND_Y, flip: true },
-      { actor: 'luna', anim: 'idle', x: 300, y: GROUND_Y, flip: true },
-      { actor: 'beans', anim: 'idle', x: 660, y: GROUND_Y, flip: true, eyes: 'eyes-worried' },
+      { actor: 'gunner', anim: 'idle', x: 560, y: GROUND_Y, flip: true },
+      { actor: 'luna', anim: 'idle', x: 220, y: GROUND_Y, flip: true },
+      { actor: 'beans', anim: 'idle', x: 860, y: GROUND_Y, flip: true, eyes: 'eyes-worried' },
     ],
     props: [
       {
@@ -539,15 +542,16 @@ export const SHOTS: readonly Shot[] = [
     start: 86,
     end: 90,
     bg: 'bg-creek',
+    transitionOut: { kind: 'iris', at: 3.2 },
     camera: { from: { x: 700, y: 600, zoom: 1.25 }, to: { x: 600, y: 700, zoom: 1.3 }, ease: 'inout' },
     actors: [
-      { actor: 'pip', anim: 'hover', x: 700, y: 450, flip: true },
+      { actor: 'pip', anim: 'hover', x: 810, y: 460, flip: true },
       {
-        actor: 'gunner', anim: 'idle', x: 480, y: GROUND_Y, flip: true,
-        tweens: [{ t0: 1.8, t1: 1.85, to: { x: 480, y: GROUND_Y }, animAfter: 'hero-pose' }],
+        actor: 'gunner', anim: 'idle', x: 560, y: GROUND_Y, flip: true,
+        tweens: [{ t0: 1.8, t1: 1.85, to: { x: 560, y: GROUND_Y }, animAfter: 'hero-pose' }],
       },
-      { actor: 'luna', anim: 'idle', x: 300, y: GROUND_Y, flip: true },
-      { actor: 'beans', anim: 'idle', x: 660, y: GROUND_Y, flip: true, eyes: 'eyes-worried' },
+      { actor: 'luna', anim: 'idle', x: 220, y: GROUND_Y, flip: true },
+      { actor: 'beans', anim: 'idle', x: 860, y: GROUND_Y, flip: true, eyes: 'eyes-worried' },
     ],
     audio: [
       { id: 'creek-flow', at: 0, kind: 'sfx', loop: true, volume: 0.5 },
@@ -564,11 +568,12 @@ export const SHOTS: readonly Shot[] = [
     end: 100,
     bg: 'bg-bank-run',
     bgScroll: 260,
+    transitionIn: { kind: 'iris', duration: 0.8 },
     actors: [
-      { actor: 'gunner', anim: 'run', x: 620, y: GROUND_Y, flip: true },
-      { actor: 'luna', anim: 'run', x: 430, y: GROUND_Y, flip: true },
-      { actor: 'beans', anim: 'run', x: 260, y: GROUND_Y, flip: true },
-      { actor: 'pip', anim: 'fly', x: 760, y: 520, flip: true },
+      { actor: 'gunner', anim: 'run', x: 820, y: GROUND_Y, flip: true },
+      { actor: 'luna', anim: 'run', x: 460, y: GROUND_Y, flip: true },
+      { actor: 'beans', anim: 'run', x: 150, y: GROUND_Y, flip: true },
+      { actor: 'pip', anim: 'fly', x: 1080, y: 460, flip: true },
       { actor: 'duckling-1', anim: 'panic', x: 1450, y: WATER_Y - 35 },
       { actor: 'duckling-2', anim: 'bob-float', x: 1390, y: WATER_Y - 25 },
       { actor: 'duckling-3', anim: 'panic', x: 1510, y: WATER_Y - 25 },
@@ -586,9 +591,9 @@ export const SHOTS: readonly Shot[] = [
     bg: 'bg-bank-run',
     bgScroll: 260,
     actors: [
-      { actor: 'gunner', anim: 'run', x: 620, y: GROUND_Y, flip: true },
-      { actor: 'luna', anim: 'run', x: 430, y: GROUND_Y, flip: true },
-      { actor: 'beans', anim: 'run', x: 260, y: GROUND_Y, flip: true },
+      { actor: 'gunner', anim: 'run', x: 820, y: GROUND_Y, flip: true },
+      { actor: 'luna', anim: 'run', x: 460, y: GROUND_Y, flip: true },
+      { actor: 'beans', anim: 'run', x: 150, y: GROUND_Y, flip: true },
       {
         actor: 'pip',
         anim: 'fly',
@@ -616,7 +621,14 @@ export const SHOTS: readonly Shot[] = [
     bg: 'bg-bank-run',
     camera: { from: { x: 1250, y: 600, zoom: 1.25 }, to: { x: 1250, y: 600, zoom: 1.25 } },
     actors: [
-      { actor: 'pip', anim: 'lift-strain', x: 1450, y: WATER_Y - 120, flip: true, at: 1.0 },
+      {
+        actor: 'pip',
+        anim: 'fly',
+        x: 1700,
+        y: 480,
+        flip: false,
+        tweens: [{ t0: 0.2, t1: 1.2, to: { x: 1450, y: WATER_Y - 120 }, ease: 'out', animAfter: 'lift-strain' }],
+      },
       { actor: 'duckling-1', anim: 'panic', x: 1450, y: WATER_Y - 35 },
       { actor: 'duckling-2', anim: 'bob-float', x: 1390, y: WATER_Y - 25 },
       { actor: 'duckling-3', anim: 'panic', x: 1510, y: WATER_Y - 25 },
@@ -636,16 +648,16 @@ export const SHOTS: readonly Shot[] = [
     bg: 'bg-bank-run',
     camera: { from: { x: 700, y: 650, zoom: 1.3 }, to: { x: 700, y: 650, zoom: 1.3 } },
     actors: [
-      { actor: 'gunner', anim: 'idle', x: 620, y: GROUND_Y, flip: true },
+      { actor: 'gunner', anim: 'idle', x: 700, y: GROUND_Y, flip: true },
       {
         actor: 'pip',
         anim: 'fly',
         x: 1300,
         y: 400,
-        tweens: [{ t0: 0.1, t1: 0.5, to: { x: 640, y: GROUND_Y - 300 }, ease: 'out', animAfter: 'idle' }],
+        tweens: [{ t0: 0.1, t1: 0.5, to: { x: 860, y: GROUND_Y - 300 }, ease: 'out', animAfter: 'idle' }],
       },
-      { actor: 'luna', anim: 'idle', x: 430, y: GROUND_Y, flip: true },
-      { actor: 'beans', anim: 'idle', x: 800, y: GROUND_Y },
+      { actor: 'luna', anim: 'idle', x: 350, y: GROUND_Y, flip: true },
+      { actor: 'beans', anim: 'idle', x: 1020, y: GROUND_Y },
     ],
     audio: [
       { id: 'river-fast', at: 0, kind: 'sfx', loop: true, volume: 0.5 },
@@ -660,11 +672,12 @@ export const SHOTS: readonly Shot[] = [
     end: 130,
     bg: 'bg-bank-run',
     bgScroll: 260,
+    transitionOut: { kind: 'fade', at: 9.2 },
     actors: [
-      { actor: 'luna', anim: 'talk', x: 430, y: GROUND_Y, flip: true, tweens: [{ t0: 5.0, t1: 5.4, to: { x: 430, y: GROUND_Y }, animAfter: 'run' }] },
-      { actor: 'gunner', anim: 'run', x: 620, y: GROUND_Y, flip: true },
-      { actor: 'beans', anim: 'run', x: 260, y: GROUND_Y, flip: true },
-      { actor: 'pip', anim: 'fly', x: 760, y: 520, flip: true },
+      { actor: 'luna', anim: 'talk', x: 460, y: GROUND_Y, flip: true, tweens: [{ t0: 5.0, t1: 5.4, to: { x: 460, y: GROUND_Y }, animAfter: 'run' }] },
+      { actor: 'gunner', anim: 'run', x: 820, y: GROUND_Y, flip: true },
+      { actor: 'beans', anim: 'run', x: 150, y: GROUND_Y, flip: true },
+      { actor: 'pip', anim: 'fly', x: 1080, y: 460, flip: true },
     ],
     audio: [
       { id: 'river-fast', at: 0, kind: 'sfx', loop: true, volume: 0.6 },
@@ -679,6 +692,7 @@ export const SHOTS: readonly Shot[] = [
     start: 130,
     end: 137,
     bg: 'bg-log-bend',
+    transitionIn: { kind: 'fade', duration: 0.8 },
     actors: [
       {
         actor: 'gunner',
@@ -686,7 +700,7 @@ export const SHOTS: readonly Shot[] = [
         x: -200,
         y: GROUND_Y,
         flip: true,
-        tweens: [{ t0: 0.2, t1: 1.4, to: { x: 520, y: GROUND_Y }, ease: 'out', animAfter: 'idle' }],
+        tweens: [{ t0: 0.2, t1: 1.4, to: { x: 620, y: GROUND_Y }, ease: 'out', animAfter: 'idle' }],
       },
       {
         actor: 'luna',
@@ -694,7 +708,7 @@ export const SHOTS: readonly Shot[] = [
         x: -350,
         y: GROUND_Y,
         flip: true,
-        tweens: [{ t0: 0.4, t1: 1.8, to: { x: 300, y: GROUND_Y }, ease: 'out', animAfter: 'crank-gadget' }],
+        tweens: [{ t0: 0.4, t1: 1.8, to: { x: 260, y: GROUND_Y }, ease: 'out', animAfter: 'crank-gadget' }],
       },
       {
         actor: 'beans',
@@ -702,7 +716,7 @@ export const SHOTS: readonly Shot[] = [
         x: -500,
         y: GROUND_Y,
         flip: true,
-        tweens: [{ t0: 0.6, t1: 2.2, to: { x: 680, y: GROUND_Y }, ease: 'out', animAfter: 'idle' }],
+        tweens: [{ t0: 0.6, t1: 2.2, to: { x: 940, y: GROUND_Y }, ease: 'out', animAfter: 'idle' }],
       },
       {
         actor: 'pip',
@@ -710,7 +724,7 @@ export const SHOTS: readonly Shot[] = [
         x: -250,
         y: 420,
         flip: true,
-        tweens: [{ t0: 0.2, t1: 1.6, to: { x: 620, y: GROUND_Y - 180 }, ease: 'out', animAfter: 'hover' }],
+        tweens: [{ t0: 0.2, t1: 1.6, to: { x: 780, y: GROUND_Y - 230 }, ease: 'out', animAfter: 'hover' }],
       },
     ],
     props: [{ prop: 'wagon-catapult', x: 180, y: GROUND_Y - 40, scale: 0.8 }],
@@ -727,9 +741,9 @@ export const SHOTS: readonly Shot[] = [
     end: 143,
     bg: 'bg-log-bend',
     actors: [
-      { actor: 'luna', anim: 'talk', x: 300, y: GROUND_Y, flip: true },
-      { actor: 'gunner', anim: 'idle', x: 520, y: GROUND_Y, flip: true },
-      { actor: 'beans', anim: 'idle', x: 680, y: GROUND_Y, flip: true },
+      { actor: 'luna', anim: 'talk', x: 260, y: GROUND_Y, flip: true },
+      { actor: 'gunner', anim: 'idle', x: 620, y: GROUND_Y, flip: true },
+      { actor: 'beans', anim: 'idle', x: 940, y: GROUND_Y, flip: true },
     ],
     props: [
       { prop: 'wagon-catapult', x: 180, y: GROUND_Y - 40, scale: 0.8 },
@@ -758,10 +772,10 @@ export const SHOTS: readonly Shot[] = [
     bg: 'bg-log-bend',
     camera: { from: CAM_CENTER, to: { x: 1050, y: 620, zoom: 1.2 }, ease: 'inout' },
     actors: [
-      { actor: 'beans', anim: 'talk', x: 680, y: GROUND_Y, flip: true,
+      { actor: 'beans', anim: 'talk', x: 940, y: GROUND_Y, flip: true,
         tweens: [{ t0: 3.2, t1: 6.5, to: { x: 1080, y: 640 }, ease: 'inout', animDuring: 'proud-strut', animAfter: 'idle' }] },
-      { actor: 'gunner', anim: 'idle', x: 520, y: GROUND_Y, flip: true },
-      { actor: 'luna', anim: 'idle', x: 300, y: GROUND_Y, flip: true },
+      { actor: 'gunner', anim: 'idle', x: 620, y: GROUND_Y, flip: true },
+      { actor: 'luna', anim: 'idle', x: 260, y: GROUND_Y, flip: true },
     ],
     props: [{ prop: 'branch', x: 1150, y: 620, scale: 0.5, rotation: 0.06 }],
     audio: [
@@ -805,7 +819,7 @@ export const SHOTS: readonly Shot[] = [
       {
         actor: 'gunner',
         anim: 'talk',
-        x: 520,
+        x: 620,
         y: GROUND_Y,
         flip: true,
         tweens: [{ t0: 2.4, t1: 3.0, to: { x: 860, y: GROUND_Y }, ease: 'out', animDuring: 'yank-grab', animAfter: 'idle' }],
@@ -819,7 +833,7 @@ export const SHOTS: readonly Shot[] = [
         eyes: 'eyes-worried',
         tweens: [{ t0: 3.4, t1: 4.0, to: { x: 900, y: GROUND_Y }, ease: 'out', arc: 100, animAfter: 'idle' }],
       },
-      { actor: 'luna', anim: 'idle', x: 300, y: GROUND_Y, flip: true },
+      { actor: 'luna', anim: 'idle', x: 260, y: GROUND_Y, flip: true },
     ],
     props: [
       {
@@ -845,10 +859,11 @@ export const SHOTS: readonly Shot[] = [
     start: 165,
     end: 170,
     bg: 'bg-log-bend',
+    transitionOut: { kind: 'fade', at: 4.2 },
     camera: { from: CAM_CENTER, to: { x: 500, y: 700, zoom: 1.25 }, ease: 'inout' },
     actors: [
       { actor: 'beans', anim: 'idle', x: 900, y: GROUND_Y, flip: true, eyes: 'eyes-worried' },
-      { actor: 'luna', anim: 'talk', x: 300, y: GROUND_Y, flip: true },
+      { actor: 'luna', anim: 'talk', x: 260, y: GROUND_Y, flip: true },
       { actor: 'gunner', anim: 'idle', x: 620, y: GROUND_Y, flip: true },
     ],
     audio: [
@@ -864,22 +879,23 @@ export const SHOTS: readonly Shot[] = [
     start: 170,
     end: 177,
     bg: 'bg-fog-hollow',
+    transitionIn: { kind: 'fade', duration: 1.0 },
     actors: [
       {
-        actor: 'gunner', anim: 'walk', x: 300, y: GROUND_Y, flip: true,
-        tweens: [{ t0: 0, t1: 6.8, to: { x: 700, y: GROUND_Y }, ease: 'linear' }],
+        actor: 'gunner', anim: 'walk', x: 380, y: GROUND_Y, flip: true,
+        tweens: [{ t0: 0, t1: 6.8, to: { x: 780, y: GROUND_Y }, ease: 'linear' }],
       },
       {
-        actor: 'luna', anim: 'walk', x: 120, y: GROUND_Y, flip: true,
-        tweens: [{ t0: 0, t1: 6.8, to: { x: 520, y: GROUND_Y }, ease: 'linear' }],
+        actor: 'luna', anim: 'walk', x: 40, y: GROUND_Y, flip: true,
+        tweens: [{ t0: 0, t1: 6.8, to: { x: 440, y: GROUND_Y }, ease: 'linear' }],
       },
       {
-        actor: 'beans', anim: 'walk', x: 480, y: GROUND_Y, flip: true, eyes: 'eyes-worried',
-        tweens: [{ t0: 0, t1: 6.8, to: { x: 880, y: GROUND_Y }, ease: 'linear' }],
+        actor: 'beans', anim: 'walk', x: 720, y: GROUND_Y, flip: true, eyes: 'eyes-worried',
+        tweens: [{ t0: 0, t1: 6.8, to: { x: 1120, y: GROUND_Y }, ease: 'linear' }],
       },
       {
-        actor: 'pip', anim: 'hover', x: 350, y: 560, flip: true,
-        tweens: [{ t0: 0, t1: 6.8, to: { x: 750, y: 560 }, ease: 'linear' }],
+        actor: 'pip', anim: 'hover', x: 600, y: 360, flip: true,
+        tweens: [{ t0: 0, t1: 6.8, to: { x: 1000, y: 360 }, ease: 'linear' }],
       },
     ],
     audio: [
@@ -893,12 +909,12 @@ export const SHOTS: readonly Shot[] = [
     start: 177,
     end: 186,
     bg: 'bg-fog-hollow',
-    camera: { from: CAM_CENTER, to: { x: 880, y: 720, zoom: 1.35 }, ease: 'inout' },
+    camera: { from: CAM_CENTER, to: { x: 1120, y: 720, zoom: 1.3 }, ease: 'inout' },
     actors: [
-      { actor: 'beans', anim: 'talk', x: 880, y: GROUND_Y, flip: true, eyes: 'eyes-worried' },
-      { actor: 'gunner', anim: 'idle', x: 640, y: GROUND_Y, flip: true },
-      { actor: 'luna', anim: 'idle', x: 460, y: GROUND_Y, flip: true },
-      { actor: 'pip', anim: 'hover', x: 700, y: 560, flip: true },
+      { actor: 'beans', anim: 'talk', x: 1120, y: GROUND_Y, flip: true, eyes: 'eyes-worried' },
+      { actor: 'gunner', anim: 'idle', x: 780, y: GROUND_Y, flip: true },
+      { actor: 'luna', anim: 'idle', x: 440, y: GROUND_Y, flip: true },
+      { actor: 'pip', anim: 'hover', x: 1000, y: 360, flip: true },
     ],
     audio: [
       { id: 'fog-wind', at: 0, kind: 'sfx', loop: true, volume: 0.6 },
@@ -910,12 +926,12 @@ export const SHOTS: readonly Shot[] = [
     start: 186,
     end: 194,
     bg: 'bg-fog-hollow',
-    camera: { from: { x: 760, y: 700, zoom: 1.25 }, to: { x: 760, y: 700, zoom: 1.25 } },
+    camera: { from: { x: 780, y: 700, zoom: 1.2 }, to: { x: 780, y: 700, zoom: 1.2 } },
     actors: [
-      { actor: 'gunner', anim: 'talk', x: 640, y: GROUND_Y, flip: true },
-      { actor: 'beans', anim: 'idle', x: 880, y: GROUND_Y, flip: true, eyes: 'eyes-worried' },
-      { actor: 'luna', anim: 'idle', x: 460, y: GROUND_Y, flip: true },
-      { actor: 'pip', anim: 'hover', x: 700, y: 560, flip: true },
+      { actor: 'gunner', anim: 'talk', x: 780, y: GROUND_Y, flip: true },
+      { actor: 'beans', anim: 'idle', x: 1120, y: GROUND_Y, flip: true, eyes: 'eyes-worried' },
+      { actor: 'luna', anim: 'idle', x: 440, y: GROUND_Y, flip: true },
+      { actor: 'pip', anim: 'hover', x: 1000, y: 360, flip: true },
     ],
     audio: [
       { id: 'fog-wind', at: 0, kind: 'sfx', loop: true, volume: 0.6 },
@@ -929,20 +945,21 @@ export const SHOTS: readonly Shot[] = [
     start: 194,
     end: 200,
     bg: 'bg-fog-hollow',
-    camera: { from: { x: 880, y: 700, zoom: 1.2 }, to: CAM_CENTER, ease: 'inout' },
+    transitionOut: { kind: 'fade', at: 5.2 },
+    camera: { from: { x: 1120, y: 700, zoom: 1.2 }, to: CAM_CENTER, ease: 'inout' },
     actors: [
       {
-        actor: 'beans', anim: 'idle', x: 880, y: GROUND_Y, flip: true,
-        tweens: [{ t0: 0.5, t1: 0.55, to: { x: 880, y: GROUND_Y }, animAfter: 'mega-bark' }],
+        actor: 'beans', anim: 'idle', x: 1120, y: GROUND_Y, flip: true,
+        tweens: [{ t0: 0.5, t1: 0.55, to: { x: 1120, y: GROUND_Y }, animAfter: 'mega-bark' }],
       },
-      { actor: 'gunner', anim: 'idle', x: 640, y: GROUND_Y, flip: true },
+      { actor: 'gunner', anim: 'idle', x: 780, y: GROUND_Y, flip: true },
       {
-        actor: 'luna', anim: 'idle', x: 460, y: GROUND_Y,
-        tweens: [{ t0: 3.8, t1: 3.85, to: { x: 460, y: GROUND_Y }, animAfter: 'point' }],
+        actor: 'luna', anim: 'idle', x: 440, y: GROUND_Y,
+        tweens: [{ t0: 3.8, t1: 3.85, to: { x: 440, y: GROUND_Y }, animAfter: 'point' }],
       },
-      { actor: 'pip', anim: 'hover', x: 700, y: 560, flip: true },
+      { actor: 'pip', anim: 'hover', x: 1000, y: 360, flip: true },
     ],
-    props: [{ prop: 'cloud', x: 880, y: 750, scale: 0.01, at: 1.1, behavior: 'bark-ring' }],
+    props: [{ prop: 'cloud', x: 1120, y: 750, scale: 0.01, at: 1.1, behavior: 'bark-ring' }],
     audio: [
       { id: 'fog-wind', at: 0, kind: 'sfx', loop: true, volume: 0.55 },
       { id: 'mega-bark', at: 1.0, kind: 'sfx' },
@@ -961,6 +978,7 @@ export const SHOTS: readonly Shot[] = [
     start: 200,
     end: 206,
     bg: 'bg-waterfall',
+    transitionIn: { kind: 'fade', duration: 0.8 },
     actors: [
       { actor: 'duckling-1', anim: 'panic', x: 950, y: WATER_Y - 35,
         tweens: [{ t0: 0, t1: 6, to: { x: 1350, y: WATER_Y - 35 }, ease: 'linear' }] },
@@ -970,19 +988,19 @@ export const SHOTS: readonly Shot[] = [
         tweens: [{ t0: 0, t1: 6, to: { x: 1410, y: WATER_Y - 25 }, ease: 'linear' }] },
       {
         actor: 'gunner', anim: 'run', x: -200, y: GROUND_Y, flip: true,
-        tweens: [{ t0: 0.5, t1: 1.8, to: { x: 380, y: GROUND_Y }, ease: 'out', animAfter: 'idle' }],
+        tweens: [{ t0: 0.5, t1: 1.8, to: { x: 480, y: GROUND_Y }, ease: 'out', animAfter: 'idle' }],
       },
       {
         actor: 'luna', anim: 'run', x: -350, y: GROUND_Y, flip: true,
-        tweens: [{ t0: 0.7, t1: 2.1, to: { x: 200, y: GROUND_Y }, ease: 'out', animAfter: 'idle' }],
+        tweens: [{ t0: 0.7, t1: 2.1, to: { x: 150, y: GROUND_Y }, ease: 'out', animAfter: 'idle' }],
       },
       {
         actor: 'beans', anim: 'run', x: -500, y: GROUND_Y, flip: true,
-        tweens: [{ t0: 0.9, t1: 2.4, to: { x: 540, y: GROUND_Y }, ease: 'out', animAfter: 'idle' }],
+        tweens: [{ t0: 0.9, t1: 2.4, to: { x: 820, y: GROUND_Y }, ease: 'out', animAfter: 'idle' }],
       },
       {
         actor: 'pip', anim: 'fly', x: -250, y: 400, flip: true,
-        tweens: [{ t0: 0.5, t1: 2.0, to: { x: 460, y: GROUND_Y - 190 }, ease: 'out', animAfter: 'hover' }],
+        tweens: [{ t0: 0.5, t1: 2.0, to: { x: 650, y: GROUND_Y - 240 }, ease: 'out', animAfter: 'hover' }],
       },
     ],
     props: [{ prop: 'float-donut', x: 950, y: WATER_Y + 35, scale: 0.5, behavior: 'float-bob',
@@ -997,12 +1015,12 @@ export const SHOTS: readonly Shot[] = [
     start: 206,
     end: 215,
     bg: 'bg-waterfall',
-    camera: { from: CAM_CENTER, to: { x: 420, y: 700, zoom: 1.3 }, ease: 'inout' },
+    camera: { from: CAM_CENTER, to: { x: 480, y: 700, zoom: 1.25 }, ease: 'inout' },
     actors: [
-      { actor: 'gunner', anim: 'talk', x: 380, y: GROUND_Y, flip: true },
-      { actor: 'luna', anim: 'idle', x: 200, y: GROUND_Y, flip: true },
-      { actor: 'beans', anim: 'idle', x: 540, y: GROUND_Y, flip: true },
-      { actor: 'pip', anim: 'hover', x: 460, y: GROUND_Y - 190, flip: true },
+      { actor: 'gunner', anim: 'talk', x: 480, y: GROUND_Y, flip: true },
+      { actor: 'luna', anim: 'idle', x: 150, y: GROUND_Y, flip: true },
+      { actor: 'beans', anim: 'idle', x: 820, y: GROUND_Y, flip: true },
+      { actor: 'pip', anim: 'hover', x: 650, y: GROUND_Y - 240, flip: true },
     ],
     audio: [
       { id: 'waterfall-roar', at: 0, kind: 'sfx', loop: true, volume: 0.5 },
@@ -1017,7 +1035,7 @@ export const SHOTS: readonly Shot[] = [
     camera: { from: { x: 300, y: 720, zoom: 1.4 }, to: { x: 300, y: 720, zoom: 1.4 } },
     actors: [
       { actor: 'luna', anim: 'tie-knot', loop: false, x: 260, y: GROUND_Y, flip: true },
-      { actor: 'gunner', anim: 'idle', x: 480, y: GROUND_Y, flip: true },
+      { actor: 'gunner', anim: 'idle', x: 620, y: GROUND_Y, flip: true },
     ],
     props: [{ prop: 'float-donut', x: 330, y: GROUND_Y - 15, scale: 0.4 }],
     rope: {
@@ -1044,7 +1062,7 @@ export const SHOTS: readonly Shot[] = [
         actor: 'pip', anim: 'fly', x: 400, y: 600, flip: true,
         tweens: [{ t0: 0.5, t1: 4.0, to: { x: 1380, y: WATER_Y - 90 }, ease: 'inout', animAfter: 'hover' }],
       },
-      { actor: 'gunner', anim: 'idle', x: 380, y: GROUND_Y, flip: true },
+      { actor: 'gunner', anim: 'idle', x: 480, y: GROUND_Y, flip: true },
       { actor: 'duckling-1', anim: 'panic', x: 1400, y: WATER_Y - 35 },
       { actor: 'duckling-2', anim: 'panic', x: 1340, y: WATER_Y - 25 },
       { actor: 'duckling-3', anim: 'panic', x: 1460, y: WATER_Y - 25 },
@@ -1069,11 +1087,11 @@ export const SHOTS: readonly Shot[] = [
     start: 228,
     end: 234,
     bg: 'bg-waterfall',
-    camera: { from: { x: 500, y: 750, zoom: 1.25 }, to: { x: 500, y: 750, zoom: 1.25 } },
+    camera: { from: { x: 768, y: 648, zoom: 1.25 }, to: { x: 768, y: 648, zoom: 1.25 } },
     actors: [
-      { actor: 'gunner', anim: 'dig-in', loop: false, x: 380, y: GROUND_Y, flip: true },
-      { actor: 'beans', anim: 'talk', x: 700, y: GROUND_Y - 60, flip: true },
-      { actor: 'luna', anim: 'idle', x: 200, y: GROUND_Y, flip: true },
+      { actor: 'gunner', anim: 'dig-in', loop: false, after: 'tug-strain', x: 560, y: GROUND_Y, flip: true },
+      { actor: 'beans', anim: 'talk', x: 330, y: GROUND_Y, flip: true },
+      { actor: 'luna', anim: 'idle', x: 90, y: GROUND_Y, flip: true },
     ],
     props: [
       { prop: 'boulder', x: 700, y: GROUND_Y + 10, scale: 0.7 },
@@ -1099,10 +1117,10 @@ export const SHOTS: readonly Shot[] = [
     bg: 'bg-waterfall',
     camera: { from: { x: 900, y: 640, zoom: 1.1 }, to: { x: 1000, y: 620, zoom: 1.15 }, ease: 'inout' },
     actors: [
-      { actor: 'gunner', anim: 'tug-strain', x: 420, y: GROUND_Y, flip: true },
-      { actor: 'luna', anim: 'idle', x: 200, y: GROUND_Y, flip: true },
-      { actor: 'beans', anim: 'idle', x: 700, y: GROUND_Y - 60, flip: true },
-      { actor: 'pip', anim: 'hover', x: 900, y: 420, flip: true },
+      { actor: 'gunner', anim: 'tug-strain', x: 560, y: GROUND_Y, flip: true },
+      { actor: 'luna', anim: 'idle', x: 90, y: GROUND_Y, flip: true },
+      { actor: 'beans', anim: 'idle', x: 330, y: GROUND_Y, flip: true },
+      { actor: 'pip', anim: 'hover', x: 950, y: 400, flip: true },
       { actor: 'duckling-1', anim: 'panic', x: 1680, y: WATER_Y - 35 },
       { actor: 'duckling-2', anim: 'panic', x: 1620, y: WATER_Y - 25 },
       { actor: 'duckling-3', anim: 'panic', x: 1740, y: WATER_Y - 25 },
@@ -1130,10 +1148,10 @@ export const SHOTS: readonly Shot[] = [
     end: 250,
     bg: 'bg-waterfall',
     actors: [
-      { actor: 'gunner', anim: 'yank-grab', loop: false, x: 420, y: GROUND_Y, flip: true, at: 0.8 },
-      { actor: 'luna', anim: 'idle', x: 200, y: GROUND_Y, flip: true, eyes: 'eyes-happy' },
-      { actor: 'beans', anim: 'idle', x: 700, y: GROUND_Y - 60, flip: true, eyes: 'eyes-happy' },
-      { actor: 'pip', anim: 'hover', x: 900, y: 420, flip: true },
+      { actor: 'gunner', anim: 'yank-grab', loop: false, x: 560, y: GROUND_Y, flip: true, at: 0.8 },
+      { actor: 'luna', anim: 'idle', x: 90, y: GROUND_Y, flip: true, eyes: 'eyes-happy' },
+      { actor: 'beans', anim: 'idle', x: 330, y: GROUND_Y, flip: true, eyes: 'eyes-happy' },
+      { actor: 'pip', anim: 'hover', x: 950, y: 400, flip: true },
       { actor: 'duckling-1', anim: 'panic', x: 1680, y: WATER_Y - 35,
         tweens: [{ t0: 1.0, t1: 2.8, to: { x: 700, y: GROUND_Y - 20 }, ease: 'out', arc: 140, animDuring: 'quack-hop', animAfter: 'waddle' }] },
       { actor: 'duckling-2', anim: 'panic', x: 1620, y: WATER_Y - 25,
@@ -1165,6 +1183,7 @@ export const SHOTS: readonly Shot[] = [
     start: 250,
     end: 262,
     bg: 'bg-waterfall',
+    transitionOut: { kind: 'fade', at: 11.2 },
     camera: { from: CAM_CENTER, to: { x: 640, y: 700, zoom: 1.2 }, ease: 'inout' },
     actors: [
       {
@@ -1174,13 +1193,13 @@ export const SHOTS: readonly Shot[] = [
       { actor: 'duckling-1', anim: 'waddle', x: 700, y: GROUND_Y - 20,
         tweens: [{ t0: 1.6, t1: 2.4, to: { x: 580, y: GROUND_Y - 15 }, ease: 'inout', animAfter: 'imprint-pose' }] },
       { actor: 'duckling-2', anim: 'waddle', x: 600, y: GROUND_Y - 10,
-        tweens: [{ t0: 1.7, t1: 2.4, to: { x: 500, y: GROUND_Y - 5 }, ease: 'inout', animAfter: 'imprint-pose' }] },
+        tweens: [{ t0: 1.7, t1: 2.4, to: { x: 380, y: GROUND_Y - 5 }, ease: 'inout', animAfter: 'imprint-pose' }] },
       { actor: 'duckling-3', anim: 'waddle', x: 800, y: GROUND_Y - 10,
         tweens: [{ t0: 1.8, t1: 2.5, to: { x: 660, y: GROUND_Y - 5 }, ease: 'inout', animAfter: 'imprint-pose' }] },
-      { actor: 'gunner', anim: 'idle', x: 900, y: GROUND_Y, flip: true, eyes: 'eyes-happy' },
-      { actor: 'luna', anim: 'talk', x: 1100, y: GROUND_Y, flip: false, eyes: 'eyes-happy' },
-      { actor: 'beans', anim: 'idle', x: 1250, y: GROUND_Y, flip: false, eyes: 'eyes-happy' },
-      { actor: 'pip', anim: 'hover', x: 1000, y: 500, flip: false },
+      { actor: 'gunner', anim: 'idle', x: 880, y: GROUND_Y, flip: true, eyes: 'eyes-happy' },
+      { actor: 'luna', anim: 'talk', x: 1180, y: GROUND_Y, flip: false, eyes: 'eyes-happy' },
+      { actor: 'beans', anim: 'idle', x: 1400, y: GROUND_Y, flip: false, eyes: 'eyes-happy' },
+      { actor: 'pip', anim: 'hover', x: 1040, y: 470, flip: false },
     ],
     audio: [
       { id: 'waterfall-roar', at: 0, kind: 'sfx', loop: true, volume: 0.45 },
@@ -1200,21 +1219,21 @@ export const SHOTS: readonly Shot[] = [
     bg: 'bg-golden-meadow',
     transitionIn: { kind: 'fade', duration: 1.0 },
     actors: [
-      { actor: 'gunner', anim: 'idle', x: 800, y: GROUND_Y, flip: true, eyes: 'eyes-half' },
+      { actor: 'gunner', anim: 'idle', x: 860, y: GROUND_Y, flip: true, eyes: 'eyes-half' },
       { actor: 'luna', anim: 'idle', x: 560, y: GROUND_Y, flip: true, eyes: 'eyes-half' },
-      { actor: 'beans', anim: 'talk', x: 1000, y: GROUND_Y, flip: false },
-      { actor: 'pip', anim: 'talk', x: 1250, y: GROUND_Y, flip: false },
-      { actor: 'mama', anim: 'idle', x: 350, y: GROUND_Y },
-      { actor: 'duckling-1', anim: 'bob-float', x: 1450, y: GROUND_Y },
-      { actor: 'duckling-2', anim: 'bob-float', x: 1550, y: GROUND_Y },
-      { actor: 'duckling-3', anim: 'bob-float', x: 1650, y: GROUND_Y },
+      { actor: 'beans', anim: 'talk', x: 1140, y: GROUND_Y, flip: false },
+      { actor: 'pip', anim: 'talk', x: 1340, y: GROUND_Y, flip: false },
+      { actor: 'mama', anim: 'idle', x: 300, y: GROUND_Y },
+      { actor: 'duckling-1', anim: 'bob-float', x: 1480, y: GROUND_Y },
+      { actor: 'duckling-2', anim: 'bob-float', x: 1580, y: GROUND_Y },
+      { actor: 'duckling-3', anim: 'bob-float', x: 1680, y: GROUND_Y },
     ],
     props: [
-      { prop: 'basket', x: 1780, y: GROUND_Y - 10, scale: 0.85 },
-      { prop: 'blanket', x: 1700, y: GROUND_Y + 40, scale: 1.0 },
-      { prop: 'leaf-hat', x: 1450, y: GROUND_Y - 78, scale: 0.4 },
-      { prop: 'leaf-hat', x: 1550, y: GROUND_Y - 74, scale: 0.36 },
-      { prop: 'leaf-hat', x: 1650, y: GROUND_Y - 70, scale: 0.34 },
+      { prop: 'basket', x: 1800, y: GROUND_Y - 10, scale: 0.85 },
+      { prop: 'blanket', x: 1720, y: GROUND_Y + 40, scale: 1.0 },
+      { prop: 'leaf-hat', x: 1480, y: GROUND_Y - 78, scale: 0.4 },
+      { prop: 'leaf-hat', x: 1580, y: GROUND_Y - 74, scale: 0.36 },
+      { prop: 'leaf-hat', x: 1680, y: GROUND_Y - 70, scale: 0.34 },
     ],
     audio: [
       { id: 'birds-evening', at: 0, kind: 'sfx', loop: true, volume: 0.5 },
@@ -1229,11 +1248,11 @@ export const SHOTS: readonly Shot[] = [
     start: 270,
     end: 279,
     bg: 'bg-golden-meadow',
-    camera: { from: CAM_CENTER, to: { x: 800, y: 660, zoom: 1.25 }, ease: 'inout' },
+    camera: { from: CAM_CENTER, to: { x: 860, y: 660, zoom: 1.25 }, ease: 'inout' },
     actors: [
-      { actor: 'gunner', anim: 'talk', x: 800, y: GROUND_Y, flip: true },
+      { actor: 'gunner', anim: 'talk', x: 860, y: GROUND_Y, flip: true },
       { actor: 'luna', anim: 'idle', x: 560, y: GROUND_Y, flip: true, eyes: 'eyes-half' },
-      { actor: 'beans', anim: 'idle', x: 1000, y: GROUND_Y, flip: false },
+      { actor: 'beans', anim: 'idle', x: 1140, y: GROUND_Y, flip: false },
     ],
     audio: [
       { id: 'birds-evening', at: 0, kind: 'sfx', loop: true, volume: 0.5 },
@@ -1246,14 +1265,15 @@ export const SHOTS: readonly Shot[] = [
     start: 279,
     end: 285,
     bg: 'bg-golden-meadow',
+    transitionOut: { kind: 'fade', at: 5.2 },
     actors: [
-      { actor: 'gunner', anim: 'idle', x: 800, y: GROUND_Y, flip: true, eyes: 'eyes-happy' },
-      { actor: 'duckling-1', anim: 'waddle', x: 1450, y: GROUND_Y,
-        tweens: [{ t0: 0.2, t1: 1.4, to: { x: 1000, y: GROUND_Y }, ease: 'inout', animAfter: 'imprint-pose' }] },
-      { actor: 'duckling-2', anim: 'waddle', x: 1550, y: GROUND_Y,
-        tweens: [{ t0: 0.4, t1: 1.7, to: { x: 1090, y: GROUND_Y }, ease: 'inout', animAfter: 'imprint-pose' }] },
-      { actor: 'duckling-3', anim: 'waddle', x: 1650, y: GROUND_Y,
-        tweens: [{ t0: 0.6, t1: 2.0, to: { x: 1180, y: GROUND_Y }, ease: 'inout', animAfter: 'imprint-pose' }] },
+      { actor: 'gunner', anim: 'idle', x: 860, y: GROUND_Y, flip: true, eyes: 'eyes-happy' },
+      { actor: 'duckling-1', anim: 'waddle', x: 1480, y: GROUND_Y,
+        tweens: [{ t0: 0.2, t1: 1.4, to: { x: 1060, y: GROUND_Y }, ease: 'inout', animAfter: 'imprint-pose' }] },
+      { actor: 'duckling-2', anim: 'waddle', x: 1580, y: GROUND_Y,
+        tweens: [{ t0: 0.4, t1: 1.7, to: { x: 1150, y: GROUND_Y }, ease: 'inout', animAfter: 'imprint-pose' }] },
+      { actor: 'duckling-3', anim: 'waddle', x: 1680, y: GROUND_Y,
+        tweens: [{ t0: 0.6, t1: 2.0, to: { x: 1240, y: GROUND_Y }, ease: 'inout', animAfter: 'imprint-pose' }] },
       { actor: 'luna', anim: 'idle', x: 560, y: GROUND_Y, flip: true, eyes: 'eyes-half' },
     ],
     audio: [
@@ -1271,6 +1291,7 @@ export const SHOTS: readonly Shot[] = [
     end: 292,
     bg: 'bg-title-skyline',
     bgTint: 0xffc9a0,
+    transitionIn: { kind: 'fade', duration: 0.8 },
     transitionOut: { kind: 'iris', at: 5.5 },
     actors: [
       {

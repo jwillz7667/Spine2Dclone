@@ -12,29 +12,28 @@ import {
 // through the literal MCP tool handlers (Law 2: commands on the live History), the same surface an
 // external AI speaks over stdio. The rig faces LEFT. World units are pixels, y-down, root at the
 // ground under the torso center. Placement numbers were art-directed by running this script and
-// inspecting renders/luna-*.png against source/refs/luna.png.
+// inspecting renders/luna-*.png against source-sheets/luna-ref.png.
 //
-// Sheet-piece orientation notes (verified against source-layers/luna/*.png):
-// - torso is cut VERTICALLY (neck at top, hips at bottom): rotated -90 so the neck points left.
-// - tail is cut VERTICALLY (thick base at top-left): rotated -90 so it arcs up and back to the right.
-// - both back-leg pieces ALREADY face left in the raw art (hock at the rear, toes forward); they are
-//   NOT mirrored. An earlier scaleX -1 mirror had the hind toes pointing backward.
-// - both front-leg pieces also face left (toes forward). Per the reference the FAR (dark-pawed) leg
-//   stands FORWARD at the chest edge and the NEAR (white-pawed) leg slightly rearward; do not swap.
-// - ear-far leans left like ear-near but the reference far ear leans right: mirrored with scaleX -1.
-// - EAR ROOTS sit on the skull CROWN (alpha-measured head-piece top contour: apex world (-79,-304),
-//   falling to -276 by x -22). The near ear roots at head-local (-40,-106) with an 8 deg clockwise
-//   attachment tilt so the tip stands up over the goggles band like the reference instead of
-//   flopping over the face's left outline; its trailing bottom tail hides behind the left lens.
-//   The crown falls away too steeply on the right for a behind-the-head far ear to both root and
-//   show (the old (42,-100) root floated it beside the face at goggle height), so the far ear draws
-//   OVER the head at (38,-95), matching the reference read: outline visible against the crown, the
-//   ear-to-head seam hidden behind the right lens and the goggles strap tail.
+// BODY (gen-luna-body.mts pieces; all face LEFT in the raw art, so nothing is mirrored):
+// - torso is a HORIZONTAL side-view mass (1183x701): white chest patch at the left, haunch bulge
+//   at the right. No rotation (the old vertical mannequin cut needed -90; this piece does not).
+// - the four legs hang straight with the paws at the bottom, toes pointing LEFT; the front pieces
+//   have an un-outlined open cut at the top that must stay buried inside the torso silhouette.
+// - tail is cut with the thick base at the BOTTOM-LEFT, arcing up and to the right; the tail bone
+//   pins the alpha-measured base centroid (piece (132, 721) of 688x799).
 //
-// Leg roots are alpha-measured from the torso art (source-layers/luna/torso.png through the -90
-// attachment transform) and cross-checked against source/refs/luna.png: the near front leg roots at
-// the drawn shoulder crease (world x -56..-24, y ~-104), the near hip at the drawn haunch circle
-// (center world (62,-139)), the far legs where the reference shows them emerge (x -72 front, x 37 rear).
+// HEAD (gen-luna-heads.mts): the mouth states are FULL REPLACEMENT HEADS with the ears and the
+// aviator goggles BAKED IN (the old separate ear/goggle pieces and the fringed gray mouth plates
+// are gone). Each variant is nose/cheek-registered by that script against the canonical anchor
+// (head-local nose (-29.1, -45.2), cheek row 151.3 display px), so the skull does not move a pixel
+// when the head slot swaps attachments. HEAD_DX/DY below re-seat that shared anchor on the new
+// body (the same delta on every variant keeps the registration intact).
+//
+// Leg pivots are alpha-measured into the torso art through its display transform: front pivots sit
+// above the rising chest underline (bottom edge world -91 at x -40, -108 at x -72) with the open
+// cut edges 22-25 px inside; back pivots sit at the drawn thigh-cap centers so hip rotation never
+// opens the hip. Torso rotations across the animation set stay within 6 deg (walk 1.5, run 5,
+// crank 5, tie-knot 4, point 3), under the burial depth, so no leg counter-rotation keys are needed.
 //
 // Usage: tsx author-luna.mts
 
@@ -84,7 +83,7 @@ for (const page of atlasForSet.pages) {
 await call('atlas.set', { documentId, atlas: atlasForSet });
 
 // ---- bones ---------------------------------------------------------------------------------------
-// Luna stands ~300 px tall at the head top; slimmer than Gunner. Ground = y 0 at the root. Facing LEFT.
+// Luna stands ~300 px tall at the skull, ~350 at the ear tips. Ground = y 0 at the root. Facing LEFT.
 const bone = async (
   name: string,
   parentId: string | null,
@@ -108,28 +107,24 @@ const bone = async (
 const rootBone = await bone('root', null, 0, 0, 10);
 const torso = await bone('torso', rootBone, 0, -140, 100);
 const head = await bone('head', torso, -72, -40, 60);
-const earNear = await bone('ear-near', head, -40, -106, 30);
-const earFar = await bone('ear-far', head, 38, -95, 30);
-const tail = await bone('tail', torso, 95, -32, 80);
+// no ear bones and no goggles slot: ears and goggles are BAKED into the generated head variants
+// (user direction, same as Gunner: separate pieces never sat right on the skull)
+const tail = await bone('tail', torso, 88, -28, 80);
 // Legs are TORSO children so the shoulder/hip sockets can never separate from the body. Each
-// pivot is pinned into the limb root the TORSO ART draws (alpha-measured, see the header note):
-// - leg-front-near at the drawn shoulder crease center, world (-40,-104): pivot 29 px inside the
-//   piece top (it raises to 60 deg in point and cranks a full circle, so it needs the deepest
-//   chest overlap; the chest at x -40 is its tallest, 108 px).
-// - leg-front-far at the reference far-shoulder, world (-72,-110): 22 px burial.
-// - leg-back-near at the drawn haunch-circle center, world (62,-139): the pivot sits at the
-//   CENTER of the thigh teardrop's round cap (radius ~37), so rotation never opens the hip.
-//   Setup lean +4 puts the hock flush with the rump outline like the reference.
-// - leg-back-far keeps its hip beside the near hip, world (50,-139), with setup lean +18 so the
-//   shin strides forward like the reference while the wide thigh bulk stays hidden behind the
-//   belly and the near thigh (a forward hip let the thigh's front edge peek below the waist).
-//   Its walk/run keys subtract the lean so world gait angles stay as designed (rotate keys add
-//   to setup rotation).
-// Feet stay visually planted because any animation rotating the torso beyond ~6 deg must carry
-// COUNTER-ROTATION keys on the legs at the same times/curves (leg key = gait-or-brace angle
-// minus torso angle). Audit of this rig's torso rotations: walk +-1.5, run 5/-2, crank-gadget 5,
-// tie-knot 4, point -3; all 6 deg or less, drifting the sockets less than the burial depth, so
-// no torso counter keys are needed. Positions are torso-local (world minus the torso at (0,-140)).
+// pivot is pinned inside the new torso silhouette (world spans x -97.6..101.6, y -207..-89;
+// the chest underline rises toward the front: bottom edge world -91 at x -40, -108 at x -72):
+// - leg-front-near at world (-40,-104): 13 px above the local underline, open cut edge 21.6 px
+//   above the pivot (it raises to 60 deg in point and cranks a full circle, matching the old rig's
+//   tuck keys).
+// - leg-front-far at world (-72,-110): the shaft emerges below the rising chest underline like the
+//   reference; only the un-outlined top cut (25 px above the pivot, world -135) must stay buried,
+//   and the torso covers y -195..-108 at that column.
+// - leg-back-near at world (62,-139): the pivot sits at the CENTER of the drawn thigh cap
+//   (alpha-measured piece centroid (216, 220) of 432x903), so rotation never opens the hip.
+//   Setup lean +4 keeps the hock flush with the rump outline like the reference.
+// - leg-back-far at world (50,-139) with setup lean +18 so the shin strides forward while the
+//   thigh bulk hides behind the belly and the near thigh. Its walk/run keys subtract the lean so
+//   world gait angles stay as designed (rotate keys add to setup rotation).
 const legFrontNear = await bone('leg-front-near', torso, -40, 36, 80);
 const legFrontFar = await bone('leg-front-far', torso, -72, 30, 78);
 const legBackNear = await bone('leg-back-near', torso, 62, 1, 82, 4);
@@ -143,8 +138,8 @@ interface SlotSpec {
   readonly x: number;
   readonly y: number;
   readonly targetH: number;
-  readonly scaleX?: number; // -1 mirrors the far ear (drawn leaning left; the reference leans it right)
-  readonly rotation?: number; // torso/tail are cut vertically (-90 lays them out); ear-near tilts +8 upright
+  readonly scaleX?: number;
+  readonly rotation?: number;
 }
 
 const slotIds = new Map<string, string>();
@@ -170,27 +165,38 @@ async function regionSlot(spec: SlotSpec): Promise<string> {
   return slotId;
 }
 
-// back-to-front: far legs, tail, NEAR LEGS, then torso (leg tops hide under the torso
-// silhouette). Front attachments: y = targetH/2 minus the burial (29 near / 22 far); x +4 centers
-// the drawn shoulder bulge (22 piece px left of the sheet center) on the pivot. Back attachments:
-// x +7 / y +50 put the thigh cap's center exactly on the hip pivot, and targetH 175 lands the paw
-// on the ground while the rendered thigh width (88) matches the reference haunch (89).
-await regionSlot({ slot: 'leg-front-far', boneId: legFrontFar, region: 'leg-front-far', x: 4, y: 44, targetH: 132 });
-await regionSlot({ slot: 'leg-back-far', boneId: legBackFar, region: 'leg-back-far', x: 7, y: 50, targetH: 175 });
-await regionSlot({ slot: 'tail', boneId: tail, region: 'tail', x: 74, y: -29, targetH: 172, rotation: -90 });
-await regionSlot({ slot: 'leg-front-near', boneId: legFrontNear, region: 'leg-front-near', x: 4, y: 37.5, targetH: 133 });
-await regionSlot({ slot: 'leg-back-near', boneId: legBackNear, region: 'leg-back-near', x: 7, y: 50, targetH: 175 });
-await regionSlot({ slot: 'torso', boneId: torso, region: 'torso', x: 0, y: -6, targetH: 200, rotation: -90 });
-await regionSlot({ slot: 'head', boneId: head, region: 'head', x: -6, y: -60, targetH: 130 });
-await regionSlot({ slot: 'ear-far', boneId: earFar, region: 'ear-far', x: 4, y: -25, targetH: 70, scaleX: -1 });
-await regionSlot({ slot: 'ear-near', boneId: earNear, region: 'ear-near', x: -4, y: -29, targetH: 78, rotation: 8 });
-await regionSlot({ slot: 'goggles', boneId: head, region: 'goggles', x: -9, y: -113, targetH: 72 });
-await regionSlot({ slot: 'eyes', boneId: head, region: 'eyes-open', x: -8, y: -63, targetH: 48 });
-// the mouth piece is a soft-edged dark patch carrying the pink nose + mouth marks; kept small and
-// seated low-left on the muzzle so the soft edge blends into the blank black face
-await regionSlot({ slot: 'mouth', boneId: head, region: 'mouth-closed', x: -29, y: -33, targetH: 62 });
+// The four gen-luna-heads.mts registration outputs (nose-pinned to head-local (-29.1, -45.2)),
+// plus one shared composition delta that seats the new symmetric front face on the new body (the
+// old anchor came from the off-center muzzle plate; applying the SAME delta to every variant
+// preserves the cross-variant registration, so the skull stays pixel-still on mouth swaps).
+const HEAD_DX = 28;
+const HEAD_DY = -10;
+const HEAD_VARIANTS: ReadonlyArray<{ region: string; x: number; y: number; targetH: number }> = [
+  { region: 'head', x: -29.1, y: -81.7, targetH: 170.7 },
+  { region: 'head-talk', x: -28.9, y: -81.8, targetH: 170.3 },
+  { region: 'head-smile', x: -29.1, y: -80.7, targetH: 166.6 },
+  { region: 'head-oo', x: -30.4, y: -81.1, targetH: 169.8 },
+];
+const headAt = (i: number): { x: number; y: number; targetH: number } => ({
+  x: HEAD_VARIANTS[i]!.x + HEAD_DX,
+  y: HEAD_VARIANTS[i]!.y + HEAD_DY,
+  targetH: HEAD_VARIANTS[i]!.targetH,
+});
 
-// extra attachment variants on the eye / mouth slots (player and animations swap them)
+// back-to-front: far legs, tail, NEAR LEGS, then torso (leg tops and thigh caps hide under the
+// torso silhouette), then the head stack. Front-leg attachments pin the pivot at piece (140, 150)
+// (the shaft's top center, inside the open cut); back-leg attachments pin the pivot at the thigh
+// cap centroid; every targetH lands the paw bottom on the ground (y 0) from its pivot height.
+await regionSlot({ slot: 'leg-front-far', boneId: legFrontFar, region: 'leg-front-far', x: 2, y: 44, targetH: 134 });
+await regionSlot({ slot: 'leg-back-far', boneId: legBackFar, region: 'leg-back-far', x: 6, y: 46.6, targetH: 182 });
+await regionSlot({ slot: 'tail', boneId: tail, region: 'tail', x: 46.4, y: -70.4, targetH: 175 });
+await regionSlot({ slot: 'leg-front-near', boneId: legFrontNear, region: 'leg-front-near', x: 2, y: 41.5, targetH: 126 });
+await regionSlot({ slot: 'leg-back-near', boneId: legBackNear, region: 'leg-back-near', x: 0, y: 46.7, targetH: 182 });
+await regionSlot({ slot: 'torso', boneId: torso, region: 'torso', x: 2, y: -8, targetH: 118 });
+await regionSlot({ slot: 'head', boneId: head, region: 'head', ...headAt(0) });
+await regionSlot({ slot: 'eyes', boneId: head, region: 'eyes-open', x: -1, y: -80, targetH: 48 });
+
+// extra attachment variants on the eye / head slots (player and animations swap them)
 async function addVariant(slot: string, region: string, targetH: number, x: number, y: number): Promise<void> {
   await call('attach.region.add', {
     documentId,
@@ -202,19 +208,22 @@ async function addVariant(slot: string, region: string, targetH: number, x: numb
     ...sized(region, targetH),
   });
 }
-// variant heights match the eyes-open WIDTH (~141 px) so the lid strips line up with the open eyes
-await addVariant('eyes', 'eyes-half', 44, -8, -64);
-await addVariant('eyes', 'eyes-closed', 19, -8, -59);
-await addVariant('mouth', 'mouth-small', 63, -29, -33);
-await addVariant('mouth', 'mouth-smile', 64, -29, -33);
+// lid strips line up with the open eyes (same art as before, recentered on the new face: the
+// blank eye band sits between the goggles and the muzzle, centered over the nose)
+await addVariant('eyes', 'eyes-half', 44, -1, -81);
+await addVariant('eyes', 'eyes-closed', 19, -1, -76);
+for (let i = 1; i < HEAD_VARIANTS.length; i += 1) {
+  const t = headAt(i);
+  await addVariant('head', HEAD_VARIANTS[i]!.region, t.targetH, t.x, t.y);
+}
 
 // restore the default active attachments after variant adds
 await call('slot.activeAttachment', { documentId, slotId: slotIds.get('eyes'), attachment: 'eyes-open' });
-await call('slot.activeAttachment', { documentId, slotId: slotIds.get('mouth'), attachment: 'mouth-closed' });
+await call('slot.activeAttachment', { documentId, slotId: slotIds.get('head'), attachment: 'head' });
 
 // ---- animation helpers -----------------------------------------------------------------------------
 const boneIdByName: Record<string, string> = {
-  root: rootBone, torso, head, 'ear-near': earNear, 'ear-far': earFar, tail,
+  root: rootBone, torso, head, tail,
   'leg-front-near': legFrontNear, 'leg-front-far': legFrontFar,
   'leg-back-near': legBackNear, 'leg-back-far': legBackFar,
 };
@@ -281,7 +290,6 @@ await author({
   rotate: {
     tail: [[0, 0, EASE_IN_OUT], [0.9, 14, EASE_IN_OUT], [1.7, -6, EASE_IN_OUT], [2.4, 0]],
     head: [[0, 0, EASE_IN_OUT], [1.2, 1.5, EASE_IN_OUT], [2.4, 0]],
-    'ear-near': [[0, 0], [1.7, 0, EASE_OUT], [1.8, -12, EASE_OUT], [1.95, 0]],
   },
 });
 
@@ -316,7 +324,6 @@ await author({
     head: [[0, -4, EASE_IN_OUT], [0.275, 1, EASE_IN_OUT], [0.55, -4]],
     // streams behind: lifted (-20 raises the tip on this rig) with a small wave
     tail: [[0, -20, EASE_IN_OUT], [0.275, -25, EASE_IN_OUT], [0.55, -20]],
-    'ear-near': [[0, 8]], 'ear-far': [[0, 7]],
   },
   translate: {
     torso: [[0, 0, 4, EASE_OUT], [0.275, 0, -10, EASE_IN], [0.55, 0, 4]],
@@ -367,7 +374,7 @@ await author({
   name: 'point', duration: 0.8,
   rotate: {
     // raises the near paw forward and HOLDS (one-shot, no return key). 60 deg, not 80: with the
-    // 29 px pivot burial the proximal edge stays inside the narrow chest at full raise.
+    // pivot burial the proximal edge stays inside the narrow chest at full raise.
     'leg-front-near': [[0, 0, EASE_OUT_BACK], [0.35, 60], [0.8, 60]],
     head: [[0, 0, EASE_OUT], [0.3, -5], [0.8, -5]],
     torso: [[0, 0, EASE_OUT], [0.35, -3], [0.8, -3]],
@@ -380,13 +387,16 @@ await author({
   },
 });
 
-// micro state animations for the player's face tracks (one attachment key each)
+// micro state animations for the player's face tracks (one attachment key each).
+// Lip-sync micros keep their historical names (the player's MOUTH_MAP references them) but now
+// swap the whole head, whose mouth is drawn into the muzzle (same pattern as author-gunner.mts).
 const face = async (name: string, slot: string, region: string): Promise<void> => {
   await author({ name, duration: 0.05, attachments: { [slot]: [[0, region]] } });
 };
-await face('mouth-closed', 'mouth', 'mouth-closed');
-await face('mouth-small', 'mouth', 'mouth-small');
-await face('mouth-smile', 'mouth', 'mouth-smile');
+await face('mouth-closed', 'head', 'head');
+await face('mouth-small', 'head', 'head-talk');
+await face('mouth-smile', 'head', 'head-smile');
+await face('mouth-oo', 'head', 'head-oo');
 await face('eyes-open', 'eyes', 'eyes-open');
 await face('eyes-half', 'eyes', 'eyes-half');
 await face('eyes-closed', 'eyes', 'eyes-closed');
@@ -401,13 +411,14 @@ const { ok } = (await call('document.validate', { documentId })) as { ok: boolea
 console.log(`document.validate: ${ok}`);
 
 mkdirSync(join(root, 'renders'), { recursive: true });
-async function render(name: string, animation?: string, time?: number): Promise<void> {
+type Fit = 'content' | { x: number; y: number; w: number; h: number };
+async function render(name: string, animation?: string, time?: number, fit?: Fit): Promise<void> {
   const res = (await call('render_frame', {
     documentId,
     ...(animation !== undefined ? { animation, time } : {}),
     width: 512,
     height: 512,
-    fit: 'content',
+    fit: fit ?? 'content',
     background: { r: 0.94, g: 0.93, b: 0.9, a: 1 },
   })) as { pngBase64: string };
   writeFileSync(join(root, 'renders', `${name}.png`), Buffer.from(res.pngBase64, 'base64'));
@@ -422,4 +433,13 @@ await render('luna-crank', 'crank-gadget', 0.4);
 await render('luna-tie', 'tie-knot', 0.3);
 await render('luna-blink', 'blink', 0.15);
 await render('luna-smile', 'mouth-smile', 0.02);
+// head-variant registration probes: swap the head slot's active attachment in-memory (AFTER the
+// save, so the rig file keeps 'head') and photograph the same fixed head rect; the skull, ears
+// and goggles must be pixel-still across all four while only the mouth changes.
+const HEAD_RECT: Fit = { x: -175, y: -390, w: 230, h: 250 };
+for (const v of ['head', 'head-talk', 'head-smile', 'head-oo'] as const) {
+  await call('slot.activeAttachment', { documentId, slotId: slotIds.get('head'), attachment: v });
+  await render(`luna-head-${v}`, undefined, undefined, HEAD_RECT);
+}
+await call('slot.activeAttachment', { documentId, slotId: slotIds.get('head'), attachment: 'head' });
 console.log('LUNA authored.');

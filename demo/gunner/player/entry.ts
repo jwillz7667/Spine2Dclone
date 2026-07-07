@@ -131,9 +131,16 @@ async function main(): Promise<void> {
   window.addEventListener('resize', layout);
 
   // ---- load atlases + rigs ---------------------------------------------------------------------
+  // decode data URLs by hand: Chrome's fetch() rejects large data: URLs under memory pressure
+  // ("Failed to fetch" on multi-MB pages), while atob has no such cliff
+  function bytesFromDataUrl(dataUrl: string): Uint8Array {
+    const bin = atob(dataUrl.slice(dataUrl.indexOf(',') + 1));
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i += 1) bytes[i] = bin.charCodeAt(i);
+    return bytes;
+  }
   async function textureFromDataUrl(dataUrl: string): Promise<Texture> {
-    const res = await fetch(dataUrl);
-    const bitmap = await createImageBitmap(await res.blob());
+    const bitmap = await createImageBitmap(new Blob([bytesFromDataUrl(dataUrl)]));
     return Texture.from(bitmap);
   }
   const pageTextures = new Map<string, Texture>();
@@ -191,9 +198,8 @@ async function main(): Promise<void> {
   const buffers = new Map<string, AudioBuffer>();
   async function loadAudio(): Promise<void> {
     const jobs = Object.entries(AUDIO).map(async ([id, dataUrl]) => {
-      const res = await fetch(dataUrl);
-      const bytes = await res.arrayBuffer();
-      buffers.set(id, await actx.decodeAudioData(bytes));
+      const bytes = bytesFromDataUrl(dataUrl);
+      buffers.set(id, await actx.decodeAudioData(bytes.buffer as ArrayBuffer));
     });
     await Promise.all(jobs);
   }

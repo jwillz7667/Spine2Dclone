@@ -49,12 +49,6 @@ function sized(region: string, targetH: number): { width: number; height: number
   if (s === undefined) throw new Error(`unknown region ${region}; have: ${[...regionSize.keys()].join(', ')}`);
   return { width: (s.w / s.h) * targetH, height: targetH };
 }
-function sizedW(region: string, targetW: number): number {
-  const s = regionSize.get(region);
-  if (s === undefined) throw new Error(`unknown region ${region}`);
-  return (s.h / s.w) * targetW;
-}
-
 const { documentId } = (await call('document.new', { name: 'gunner' })) as { documentId: string };
 // atlas-ref page files are relative to atlas/gunner/; the FileStore root is demo/gunner, so prefix.
 const atlasForSet = JSON.parse(readFileSync(join(root, 'atlas', 'gunner', 'atlas-ref.json'), 'utf8')) as {
@@ -81,20 +75,22 @@ const bone = async (name: string, parentId: string | null, x: number, y: number,
 
 const rootBone = await bone('root', null, 0, 0, 10);
 const torso = await bone('torso', rootBone, 0, -175, 120);
-const head = await bone('head', torso, -105, -55, 90);
-// no ear bones: the ears are BAKED into the generated head variants (user direction, they do not
-// need independent motion and separate pieces never sat right on the dome)
-// Legs are TORSO children so the shoulder/hip sockets can never separate from the body, with
-// pivots buried ~22 px inside the silhouette at the joints. Feet stay visually planted because
-// every animation that rotates the torso beyond ~6 deg carries COUNTER-ROTATION keys on the legs
-// (leg world angle = gait angle, independent of the body lean). Rotations of 6 deg or less drift
-// the sockets less than the pivot burial depth and need no counters.
-const legFrontNear = await bone('leg-front-near', torso, -27, 70, 90);
-// the far front leg sits 24px further back than its near twin: at -108 its shoulder cap cleared
-// the chest outline and read as a detached blob (round-4 user report)
-const legFrontFar = await bone('leg-front-far', torso, -64, 62, 85);
-const legBackNear = await bone('leg-back-near', torso, 100, 45, 95);
-const legBackFar = await bone('leg-back-far', torso, 78, 48, 90);
+// ALL bone positions and attachment transforms below come from cut-gunner-vector.mts, which renders
+// the user's layered Illustrator export (source-sheets/Gunner.svg + SVG/face*.svg) piece by piece in
+// ONE shared document coordinate space: the numbers are exact arithmetic, never eyeballed. The torso
+// bone stays pinned at (0,-175) so every torso translate key survives the art swap.
+const head = await bone('head', torso, -103.6, -78.8, 90);
+// no ear bones: the ears are part of the drawn head (user direction, they do not need independent
+// motion). Legs are TORSO children so the shoulder/hip sockets can never separate from the body;
+// pivots sit at the drawn shoulder/haunch centroid (top 26% of alpha rows). Feet stay visually
+// planted because every animation that rotates the torso beyond ~6 deg carries COUNTER-ROTATION
+// keys on the legs (leg world angle = gait angle, independent of the body lean).
+const legFrontNear = await bone('leg-front-near', torso, -26.4, 45.9, 90);
+// the art is a 3/4 view: the far front leg is the LEADING leg, planted well forward of its near
+// twin and drawn OVER the chest edge in the source (paint order preserved below)
+const legFrontFar = await bone('leg-front-far', torso, -147.8, 38.4, 85);
+const legBackNear = await bone('leg-back-near', torso, 68.5, 18.5, 95);
+const legBackFar = await bone('leg-back-far', torso, 30.9, 16.8, 90);
 
 // ---- slots + attachments (created back-to-front; creation order = draw order) ---------------------
 interface SlotSpec {
@@ -131,23 +127,17 @@ async function regionSlot(spec: SlotSpec): Promise<string> {
   return slotId;
 }
 
-// far legs behind the torso, then the torso, then the NEAR legs ON TOP of the body (the Beans
-// architecture, user-directed): each leg piece is a COMPLETE limb with its shoulder/haunch mass
-// drawn in (gen-gunner-legs.mts), pivot pinned at the drawn thigh centroid and paw at ground, so
-// a swinging leg reads as a limb over the body silhouette instead of a stump poking from under it.
-// EVERY body piece on the sheet is drawn facing RIGHT (toes right, nose right); the rig faces
-// LEFT, so torso, head and all four legs carry scaleX -1. Face landmarks on the MIRRORED head:
-// nose centroid (-72.6, -4.1) (the registration anchor), blaze (-53, -69). The head pieces carry
-// baked ears, so the piece extends above the old dome and the attachment center sits higher; all
-// head and leg transforms below come from the gen scripts' output, never eyeballed.
-await regionSlot({ slot: 'leg-front-far', boneId: legFrontFar, region: 'leg-front-far', x: -1.2, y: 46.7, targetH: 134.1, scaleX: -1 });
-await regionSlot({ slot: 'leg-back-far', boneId: legBackFar, region: 'leg-back-far', x: 1.5, y: 52.4, targetH: 150.6, scaleX: -1 });
-await regionSlot({ slot: 'torso', boneId: torso, region: 'torso', x: 10, y: -15, targetH: 240, scaleX: -1 });
-await regionSlot({ slot: 'leg-back-near', boneId: legBackNear, region: 'leg-back-near', x: -1.6, y: 53.5, targetH: 154.4, scaleX: -1 });
-await regionSlot({ slot: 'leg-front-near', boneId: legFrontNear, region: 'leg-front-near', x: 0.5, y: 43.5, targetH: 124.4, scaleX: -1 });
-await regionSlot({ slot: 'head', boneId: head, region: 'head', x: -24.8, y: -36.2, targetH: 281.9, scaleX: -1 });
-await regionSlot({ slot: 'brows', boneId: head, region: 'brows', x: -50, y: -88, targetH: sizedW('brows', 120) });
-await regionSlot({ slot: 'eyes', boneId: head, region: 'eyes-open', x: -50, y: -57, targetH: 75 });
+// draw order preserves the source document's paint order (the artist's stacking): far back leg
+// behind the body, then the near legs OVER the body, then the far FRONT leg on top (in the 3/4
+// view it reads against the chest's leading edge), then the head, then the eyes. Every piece is
+// drawn facing RIGHT in the source; the rig faces LEFT, so everything carries scaleX -1.
+await regionSlot({ slot: 'leg-back-far', boneId: legBackFar, region: 'leg-back-far', x: -3.8, y: 50.7, targetH: 146.4, scaleX: -1 });
+await regionSlot({ slot: 'torso', boneId: torso, region: 'torso', x: 0, y: 5.9, targetH: 199.7, scaleX: -1 });
+await regionSlot({ slot: 'leg-front-near', boneId: legFrontNear, region: 'leg-front-near', x: -6.7, y: 46.2, targetH: 133.6, scaleX: -1 });
+await regionSlot({ slot: 'leg-back-near', boneId: legBackNear, region: 'leg-back-near', x: -1.9, y: 63.8, targetH: 185.4, scaleX: -1 });
+await regionSlot({ slot: 'leg-front-far', boneId: legFrontFar, region: 'leg-front-far', x: 22.1, y: 44.7, targetH: 133.4, scaleX: -1 });
+await regionSlot({ slot: 'head', boneId: head, region: 'head', x: -20.3, y: -38.2, targetH: 232.4, scaleX: -1 });
+await regionSlot({ slot: 'eyes', boneId: head, region: 'eyes-open', x: -41.5, y: -59.1, targetH: 45.3, scaleX: -1 });
 // extra attachment variants on the eye / brow / head slots (player and animations swap them)
 async function addVariant(
   slot: string,
@@ -168,22 +158,23 @@ async function addVariant(
     ...sized(region, targetH),
   });
 }
-await addVariant('eyes', 'eyes-half', 75, -50, -57);
-await addVariant('eyes', 'eyes-closed', 72, -50, -57);
-await addVariant('eyes', 'eyes-happy', 72, -50, -57);
-await addVariant('eyes', 'eyes-worried', 88, -50, -55);
-// mouth states are FULL REPLACEMENT HEADS (gen-head-variants.mts), not pasted overlays: the mouth
-// is drawn into the muzzle and the ears into the skull by Gemini, and each variant is
-// nose/cheek-registered against the original head so the skull does not move a pixel when the
-// attachment swaps. Transforms come from that script's output.
-await addVariant('head', 'head-talk', 288.6, -24.6, -32.8, -1);
-await addVariant('head', 'head-wide', 298.7, -22.3, -27.9, -1);
-await addVariant('head', 'head-grit', 284.7, -22.2, -34.9, -1);
+// all five eye states share one canvas (cut-gunner-vector.mts synthesizes lids over the isolated
+// vector eyes), so one transform fits all and the eyes cannot jitter between states
+await addVariant('eyes', 'eyes-half', 45.3, -41.5, -59.1, -1);
+await addVariant('eyes', 'eyes-closed', 45.3, -41.5, -59.1, -1);
+await addVariant('eyes', 'eyes-happy', 45.3, -41.5, -59.1, -1);
+await addVariant('eyes', 'eyes-worried', 45.3, -41.5, -59.1, -1);
+// mouth states are FULL REPLACEMENT HEADS (the user's face2/3/4.svg redraws of the same skull),
+// nose/cheek-registered against the master head so the skull does not move a pixel when the
+// attachment swaps. head = face4 closed smile, head-talk = face3 small open mouth, head-wide =
+// the Gunner.svg original open smile, head-grit = face2 clenched teeth.
+await addVariant('head', 'head-talk', 237.3, -20.3, -35.5, -1);
+await addVariant('head', 'head-wide', 244.0, -18.4, -31.2, -1);
+await addVariant('head', 'head-grit', 234.3, -18.5, -37.1, -1);
 
 // restore the default active attachments after variant adds
 await call('slot.activeAttachment', { documentId, slotId: slotIds.get('eyes'), attachment: 'eyes-open' });
 await call('slot.activeAttachment', { documentId, slotId: slotIds.get('head'), attachment: 'head' });
-await call('slot.activeAttachment', { documentId, slotId: slotIds.get('brows'), attachment: 'brows' });
 
 // ---- animation helpers -----------------------------------------------------------------------------
 const boneIdByName: Record<string, string> = {
@@ -274,9 +265,12 @@ await author({
   name: 'run', duration: 0.5,
   rotate: {
     'leg-front-near': [[0, 21, EASE_IN_OUT], [0.25, -22, EASE_IN_OUT], [0.5, 21]],
-    'leg-front-far': [[0, 16, EASE_IN_OUT], [0.28, -17, EASE_IN_OUT], [0.5, 16]],
+    // far legs run in OPPOSITE phase to their near twins: in the 3/4 vector art the far paws are
+    // light like the near ones, and a same-phase gather stacked three paws into one cluster that
+    // read as a loose flap (verification finding); alternating them keeps every paw separated
+    'leg-front-far': [[0, -17, EASE_IN_OUT], [0.28, 16, EASE_IN_OUT], [0.5, -17]],
     'leg-back-near': [[0, -32, EASE_IN_OUT], [0.25, 27, EASE_IN_OUT], [0.5, -32]],
-    'leg-back-far': [[0, -27, EASE_IN_OUT], [0.28, 22, EASE_IN_OUT], [0.5, -27]],
+    'leg-back-far': [[0, 22, EASE_IN_OUT], [0.28, -27, EASE_IN_OUT], [0.5, 22]],
     torso: [[0, 7, EASE_IN_OUT], [0.25, -3, EASE_IN_OUT], [0.5, 7]],
     head: [[0, -5, EASE_IN_OUT], [0.25, 2, EASE_IN_OUT], [0.5, -5]],
   },
@@ -300,12 +294,20 @@ await author({
     head: [[0, -10, EASE_IN_OUT], [0.5, -13, EASE_IN_OUT], [1.0, -10]],
     'leg-front-near': [[0, 54, EASE_IN_OUT], [0.25, 57, EASE_IN_OUT], [0.5, 53, EASE_IN_OUT], [0.75, 57, EASE_IN_OUT], [1.0, 54]],
     'leg-front-far': [[0, 46, EASE_IN_OUT], [0.25, 49, EASE_IN_OUT], [0.5, 45, EASE_IN_OUT], [0.75, 49, EASE_IN_OUT], [1.0, 46]],
-    'leg-back-near': [[0, -18, EASE_IN_OUT], [0.25, -15, EASE_IN_OUT], [0.5, -19, EASE_IN_OUT], [0.75, -15, EASE_IN_OUT], [1.0, -18]],
-    'leg-back-far': [[0, -12, EASE_IN_OUT], [0.25, -9, EASE_IN_OUT], [0.5, -13, EASE_IN_OUT], [0.75, -9, EASE_IN_OUT], [1.0, -12]],
+    // the vector art's hip sockets sit ~27px higher than the old raster hips, so the hind legs
+    // must extend much further to keep the rear paws planted under the lifted-chest strain pose
+    // (verification finding: the rear floated 45px off the ground with the old -18/-12 keys)
+    'leg-back-near': [[0, -34, EASE_IN_OUT], [0.25, -31, EASE_IN_OUT], [0.5, -35, EASE_IN_OUT], [0.75, -31, EASE_IN_OUT], [1.0, -34]],
+    'leg-back-far': [[0, -28, EASE_IN_OUT], [0.25, -25, EASE_IN_OUT], [0.5, -29, EASE_IN_OUT], [0.75, -25, EASE_IN_OUT], [1.0, -28]],
   },
   translate: {
     torso: [[0, 6, -160, 'linear'], [0.12, 9, -160, 'linear'], [0.25, 5, -161, 'linear'], [0.37, 9, -159, 'linear'],
             [0.5, 6, -160, 'linear'], [0.62, 9, -161, 'linear'], [0.75, 5, -160, 'linear'], [0.87, 8, -159, 'linear'], [1.0, 6, -160]],
+    // DELTA keys (under the fix-translate-deltas threshold, added to the setup socket): drop the
+    // extended hind legs so the paws PLANT while the strain pose lifts the rear hips; rotation
+    // alone can never reach the ground (leg vertical reach is L*cos(theta))
+    'leg-back-near': [[0, 6, 54]],
+    'leg-back-far': [[0, 6, 54]],
   },
   attachments: { head: [[0, 'head-grit']], eyes: [[0, 'eyes-half']] },
 });
@@ -384,10 +386,7 @@ await face('mouth-grit', 'head', 'head-grit');
 await face('eyes-open', 'eyes', 'eyes-open');
 await face('eyes-half', 'eyes', 'eyes-half');
 await face('eyes-happy', 'eyes', 'eyes-happy');
-await author({
-  name: 'eyes-worried', duration: 0.05,
-  attachments: { eyes: [[0, 'eyes-worried']], brows: [[0, null]] },
-});
+await face('eyes-worried', 'eyes', 'eyes-worried');
 await author({
   name: 'blink', duration: 0.3,
   attachments: { eyes: [[0, 'eyes-open'], [0.08, 'eyes-half'], [0.12, 'eyes-closed'], [0.2, 'eyes-half'], [0.26, 'eyes-open']] },
@@ -395,8 +394,15 @@ await author({
 
 // ---- save + QA renders -------------------------------------------------------------------------------
 await call('document.save', { documentId, path: 'rigs/gunner.rig.json' });
-const { valid } = (await call('document.validate', { documentId })) as { valid: boolean };
-console.log(`document.validate: ${valid}`);
+const validation = (await call('document.validate', { documentId })) as {
+  ok: boolean;
+  errors: Array<{ code: string; message: string }>;
+};
+console.log(`document.validate: ${validation.ok}`);
+if (!validation.ok) {
+  for (const e of validation.errors) console.error(`  ${e.code}: ${e.message}`);
+  process.exit(1);
+}
 
 mkdirSync(join(root, 'renders'), { recursive: true });
 async function render(name: string, animation?: string, time?: number): Promise<void> {

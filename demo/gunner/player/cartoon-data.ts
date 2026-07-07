@@ -1099,7 +1099,9 @@ export const SHOTS: readonly Shot[] = [
     ],
     rope: {
       fromActor: 'gunner',
-      fromOffset: { x: 95, y: -132 },
+      // vector-head mouth in the tug-strain pose (chest up) sits higher than the old raster
+      // mouth did; measured against the drawn teeth line at t=232
+      fromOffset: { x: 117, y: -178 },
       toProp: 'float-donut',
       toOffset: { x: -80, y: -20 },
       sag: 25,
@@ -1131,7 +1133,7 @@ export const SHOTS: readonly Shot[] = [
     ],
     rope: {
       fromActor: 'gunner',
-      fromOffset: { x: 95, y: -132 },
+      fromOffset: { x: 117, y: -178 },
       toProp: 'float-donut',
       toOffset: { x: -80, y: -20 },
       sag: 8,
@@ -1165,7 +1167,7 @@ export const SHOTS: readonly Shot[] = [
     ],
     rope: {
       fromActor: 'gunner',
-      fromOffset: { x: 95, y: -132 },
+      fromOffset: { x: 117, y: -178 },
       toProp: 'float-donut',
       toOffset: { x: -80, y: -20 },
       sag: 40,

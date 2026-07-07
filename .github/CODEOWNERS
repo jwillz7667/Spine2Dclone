@@ -1,0 +1,8 @@
+# Armature 2D is proprietary to Viral Ventures LLC; all changes require owner review.
+* @jwillz7667
+
+# The format is the contract (Law 3) and the solve is the behavioral spec:
+# changes here are format/behavior changes and must not merge without the owner.
+/packages/format/ @jwillz7667
+/packages/runtime-core/ @jwillz7667
+/packages/conformance/ @jwillz7667

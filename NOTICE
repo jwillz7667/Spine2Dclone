@@ -1,0 +1,27 @@
+Armature 2D (codename Marionette)
+Copyright (c) 2026 Viral Ventures LLC, Maple Grove, Minnesota, USA.
+All rights reserved. See LICENSE for terms.
+
+This product includes third-party open-source software components, installed
+as package dependencies and not copied into this repository's source. Each
+remains under its own license, as declared in its package metadata and
+distributed license text (see pnpm-lock.yaml for the exact dependency set and
+versions). Principal runtime and tooling dependencies include:
+
+  - PixiJS (pixi.js)                        MIT
+  - React, React DOM                        MIT
+  - Electron                                MIT
+  - Zod                                     MIT
+  - Zustand                                 MIT
+  - dockview                                MIT
+  - maxrects-packer                         MIT
+  - pngjs                                   MIT
+  - @noble/hashes                           MIT
+  - @modelcontextprotocol/sdk               MIT
+  - TypeScript, Vitest, Turborepo, ESLint,
+    Prettier, esbuild, electron-vite        MIT / Apache-2.0
+
+The skeletal animation system is an original implementation built from first
+principles. It is not derived from, does not include, and does not claim
+compatibility with the Spine Runtimes or any Esoteric Software source code or
+binary formats.

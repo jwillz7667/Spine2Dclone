@@ -1,0 +1,25 @@
+# Normalize line endings to LF for all text files (matches .editorconfig).
+* text=auto eol=lf
+
+# Lockfile: treat as generated in diffs.
+pnpm-lock.yaml text eol=lf linguist-generated=true
+
+# Binary assets: never diff or normalize.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.icns binary
+*.wav binary
+*.mp3 binary
+*.ogg binary
+*.ttf binary
+*.otf binary
+*.woff binary
+*.woff2 binary
+*.ai binary
+*.psd binary
+*.bin binary
+*.ktx2 binary

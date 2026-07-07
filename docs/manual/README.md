@@ -58,3 +58,6 @@ manual that is expressed as a tool or command works today, headlessly and in the
 command layer; where a GUI surface is still landing, the MCP tools are the complete interface.
 Native Unity and Godot runtimes are planned and specified (the TypeScript core is their
 behavioral source of truth) but not yet implemented; web playback is complete.
+
+Armature 2D is proprietary software of Viral Ventures LLC, Maple Grove, Minnesota. See the
+repository LICENSE file for terms.

@@ -12,6 +12,12 @@ pnpm-lock.yaml
 docs/
 **/*.md
 
+# Plain-text legal and git config files: no prettier parser exists for them.
+LICENSE
+NOTICE
+.gitattributes
+.github/CODEOWNERS
+
 # Generated, byte-asserted golden fixture (serialized via JSON.stringify and compared
 # byte-for-byte in golden.test.ts; reformatting it would break that drift guard).
 packages/runtime-core/test/golden/

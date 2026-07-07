@@ -1,5 +1,8 @@
 # Armature 2D
 
+Proprietary software. Copyright (c) 2026 Viral Ventures LLC, Maple Grove, Minnesota.
+All rights reserved; see [LICENSE](LICENSE) and [NOTICE](NOTICE). Not open source.
+
 Armature 2D (internal codename Marionette) is a desktop authoring tool (Electron + React + PixiJS
 v8) that produces the full visual presentation of top-tier 2D slot games: a skeletal animation
 editor (a Spine-equivalent built from first principles), a particle/VFX subsystem, and a slot

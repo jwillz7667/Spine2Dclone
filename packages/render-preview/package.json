@@ -2,6 +2,8 @@
   "name": "@marionette/render-preview",
   "version": "0.0.0",
   "private": true,
+  "license": "UNLICENSED",
+  "author": "Viral Ventures LLC (Maple Grove, MN)",
   "type": "module",
   "exports": {
     ".": {

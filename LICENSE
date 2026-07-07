@@ -1,0 +1,83 @@
+ARMATURE 2D PROPRIETARY SOFTWARE LICENSE
+
+Copyright (c) 2026 Viral Ventures LLC, Maple Grove, Minnesota, USA.
+All rights reserved.
+
+1. OWNERSHIP
+
+This software, including all source code, object code, data formats, schemas,
+documentation, specifications, artwork, fixtures, and other materials in this
+repository (collectively, the "Software", marketed as "Armature 2D" and
+internally codenamed "Marionette"), is the proprietary and confidential
+property of Viral Ventures LLC ("the Company"). The Software is protected by
+copyright, trade secret, and other intellectual property laws.
+
+2. NO LICENSE GRANTED
+
+No license, right, or interest in the Software is granted by making this
+repository available to you. Except as set out in a separate written agreement
+signed by an authorized officer of the Company, you may NOT:
+
+  (a) use, copy, modify, adapt, translate, or create derivative works of the
+      Software, in whole or in part;
+  (b) distribute, sublicense, lease, rent, loan, sell, or otherwise transfer
+      the Software to any third party;
+  (c) publish, disclose, or otherwise make the Software or any part of it
+      available to any third party;
+  (d) reverse engineer, decompile, or disassemble any compiled or binary
+      artifact of the Software, except to the extent such restriction is
+      prohibited by applicable law;
+  (e) remove, alter, or obscure any proprietary notices in or on the Software;
+  (f) use the Software to develop a competing product or service.
+
+3. AUTHORIZED USE
+
+Access to this repository is limited to employees and contractors of the
+Company, and to third parties who have executed a written agreement with the
+Company covering such access. Any such use is governed by that agreement and
+this notice, whichever is more restrictive, and is limited to the Company's
+business purposes.
+
+4. CONTRIBUTIONS
+
+Unless a separate written agreement provides otherwise, all contributions to
+the Software (including code, documentation, and other materials submitted by
+employees or contractors) are works made for hire for the Company or are
+hereby assigned to the Company, and are subject to this notice.
+
+5. THIRD-PARTY COMPONENTS
+
+The Software depends on third-party open-source packages that are NOT owned by
+the Company. Those packages remain governed by their own licenses (see the
+NOTICE file and each dependency's license text distributed with it). Nothing
+in this notice restricts rights granted by those licenses to their respective
+components. No third-party open-source code is incorporated into the
+Software's proprietary source files except as permitted by the applicable
+open-source license.
+
+6. NO WARRANTY
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE, TITLE, AND NON-INFRINGEMENT.
+
+7. LIMITATION OF LIABILITY
+
+IN NO EVENT SHALL THE COMPANY BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT, OR OTHERWISE, ARISING FROM,
+OUT OF, OR IN CONNECTION WITH THE SOFTWARE OR THE USE OF OR INABILITY TO USE
+THE SOFTWARE.
+
+8. TERMINATION
+
+Any authorization to access or use the Software terminates automatically upon
+breach of this notice. Upon termination you must destroy all copies of the
+Software in your possession or control.
+
+9. GOVERNING LAW
+
+This notice is governed by the laws of the State of Minnesota, USA, without
+regard to its conflict-of-laws rules. Exclusive venue for any dispute lies in
+the state and federal courts located in Hennepin County, Minnesota.
+
+For licensing inquiries, contact Viral Ventures LLC, Maple Grove, Minnesota.

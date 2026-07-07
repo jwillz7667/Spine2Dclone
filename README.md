@@ -12,7 +12,8 @@ codename scope for now (the deep package rename is deferred to its own change).
 
 The authoritative spec is `MARIONETTE_HANDOFF.md`. The plan of record lives in `docs/plan/`, with
 the master index and dependency graph in `docs/DEV_PLAN.md`. Project laws and conventions are in
-`CLAUDE.md`.
+`CLAUDE.md`. The user manual (creating animations with the program: rigging, animation, VFX,
+composition, playback, plus the complete tool and format references) is `docs/manual/README.md`.
 
 ## Status
 

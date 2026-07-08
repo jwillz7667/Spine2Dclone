@@ -24,8 +24,11 @@ const TEXT_EXT = new Set([
   '.yaml',
   '.html',
   '.css',
+  '.cs',
+  '.gd',
+  '.csproj',
 ]);
-const SCAN_DIRS = ['docs', 'packages', 'apps', 'tools', '.github'];
+const SCAN_DIRS = ['docs', 'packages', 'apps', 'tools', '.github', 'runtimes'];
 const SCAN_ROOT_FILES = ['README.md'];
 const EXCLUDE_DIRS = new Set(['node_modules', 'dist', 'out', 'coverage', '.turbo', '.git']);
 const EXCLUDE_FILES = new Set(['pnpm-lock.yaml', 'MARIONETTE_HANDOFF.md', 'CLAUDE.md']);

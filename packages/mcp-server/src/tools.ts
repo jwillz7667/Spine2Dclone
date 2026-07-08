@@ -60,6 +60,7 @@ import {
   SetActiveAttachmentCommand,
   SetAnimationDurationCommand,
   SetBoneLengthCommand,
+  SetBoneShearCommand,
   SetBoneTransformModeCommand,
   SetCurveCommand,
   SetDeformKeyframeCommand,
@@ -2597,6 +2598,27 @@ export const TOOLS: readonly ToolDefinition[] = [
         new ScaleBoneCommand(asBoneId(input.boneId), {
           scaleX: input.scaleX,
           scaleY: input.scaleY,
+        }),
+      );
+      return { revision: session.document.model.revision };
+    },
+  ),
+  defineTool(
+    {
+      name: 'bone.shear',
+      title: 'Shear bone',
+      description: 'Set a bone local shear in degrees (shearX, shearY).',
+      input: z
+        .object({ documentId, boneId, shearX: z.number().finite(), shearY: z.number().finite() })
+        .strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireBone(session, input.boneId);
+      session.document.history.execute(
+        new SetBoneShearCommand(asBoneId(input.boneId), {
+          shearX: input.shearX,
+          shearY: input.shearY,
         }),
       );
       return { revision: session.document.model.revision };

@@ -148,6 +148,30 @@ describe('MCP tools', () => {
     expect(asRecord(moved.bone).x).toBe(0);
   });
 
+  it('bone.shear sets the shear channel through History and coalesces in a session', async () => {
+    const deps = makeDeps();
+    const { documentId } = asRecord(await call(deps, 'document.new', { name: 'sh' }));
+    const { boneId } = asRecord(
+      await call(deps, 'bone.create', { documentId, name: 'root', length: 40 }),
+    );
+
+    await call(deps, 'bone.shear', { documentId, boneId, shearX: 15, shearY: -8 });
+    const sheared = asRecord(await call(deps, 'bone.get', { documentId, boneId }));
+    expect(asRecord(sheared.bone).shearX).toBe(15);
+    expect(asRecord(sheared.bone).shearY).toBe(-8);
+
+    // A begin/endInteraction folds several shear edits into ONE undo step, restoring the pre-drag shear.
+    await call(deps, 'history.beginInteraction', { documentId });
+    await call(deps, 'bone.shear', { documentId, boneId, shearX: 20, shearY: -10 });
+    await call(deps, 'bone.shear', { documentId, boneId, shearX: 25, shearY: -12 });
+    await call(deps, 'history.endInteraction', { documentId, label: 'Shear' });
+
+    await call(deps, 'history.undo', { documentId });
+    const undone = asRecord(await call(deps, 'bone.get', { documentId, boneId }));
+    expect(asRecord(undone.bone).shearX).toBe(15);
+    expect(asRecord(undone.bone).shearY).toBe(-8);
+  });
+
   it('round-trips a document through save and open via the file store', async () => {
     const files = inMemoryFiles();
     const deps: ToolDeps = { sessions: new SessionRegistry(), files: files.store };

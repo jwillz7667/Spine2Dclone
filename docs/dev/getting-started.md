@@ -58,7 +58,7 @@ pnpm --filter @marionette/mcp-server build
 node packages/mcp-server/dist/cli.js <projectRoot>
 ```
 
-Register it in an MCP host to drive all 142 authoring tools; see
+Register it in an MCP host to drive all 143 authoring tools; see
 `packages/mcp-server/README.md` and the tool reference `docs/manual/09-tool-reference.md`. All
 file access is sandboxed to `<projectRoot>`.
 

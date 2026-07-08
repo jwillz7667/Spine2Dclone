@@ -5,7 +5,7 @@ The GUI panels and the MCP tools drive the exact same command layer (`@marionett
 so everything in this reference is also a precise description of what the editor itself can do.
 Anything you can click, you can script; anything you can script, you can undo.
 
-This chapter is the complete reference: 142 tools across 20 namespaces. For a guided walkthrough
+This chapter is the complete reference: 143 tools across 20 namespaces. For a guided walkthrough
 that uses a small subset of these, read Chapter 1 (Getting Started) first.
 
 ## Conventions used by every tool
@@ -64,6 +64,7 @@ Always check `document.validate` returns `{ ok: true }` before treating a docume
 | `bone.move` | Set local translation | `boneId`, `x`, `y` |
 | `bone.rotate` | Set local rotation in degrees | `boneId`, `rotation` |
 | `bone.scale` | Set local scale | `boneId`, `scaleX`, `scaleY` |
+| `bone.shear` | Set local shear in degrees | `boneId`, `shearX`, `shearY` |
 | `bone.setLength` | Set the bone's length | `boneId`, `length` |
 | `bone.rename` | Rename a bone | `boneId`, `name` |
 | `bone.delete` | Delete a bone and all of its descendants | `boneId` |

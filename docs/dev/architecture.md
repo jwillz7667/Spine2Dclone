@@ -24,8 +24,8 @@ packages/
   format/            # THE CONTRACT: Zod schemas, validators, hashing, migrations, MRNT binary
   runtime-core/      # platform-agnostic solve: skeleton, effects, slot sequencer (no PixiJS/DOM/Node)
   runtime-web/       # PixiJS v8 playback; also powers the editor viewport
-  document-core/     # DocumentModel + 100 commands + History (shared by GUI and MCP; ADR-0001)
-  mcp-server/        # 142 MCP tools over stdio: full headless authoring control (AI + scripts)
+  document-core/     # DocumentModel + 101 commands + History (shared by GUI and MCP; ADR-0001)
+  mcp-server/        # 143 MCP tools over stdio: full headless authoring control (AI + scripts)
   render-preview/    # deterministic CPU rasterizer -> PNG for headless render feedback (ADR-0006)
   atlas-pack/        # deterministic sprite-atlas pipeline (ADR-0007)
   math-bridge/       # the LAW 1 boundary: SpinResult contract, validator, mock + real engine adapter
@@ -36,8 +36,9 @@ demo/                # sample productions built with the tool (not product code)
 slot-assets/         # loose demo art assets
 ```
 
-`runtimes/unity` and `runtimes/godot` do not exist yet; they are Phase 5 work packages (WP-5.3,
-WP-5.4) with CI already scaffolded for their arrival (`.github/workflows/conformance-native.yml`).
+`runtimes/unity` holds the shared C# solve core (PP-E1, fixture-conformant; see
+`runtimes/unity/README.md`); `runtimes/godot` is still pending (PP-E2), with native CI scaffolded
+for both (`.github/workflows/conformance-native.yml`).
 
 ## Dependency direction (machine-enforced)
 
@@ -86,7 +87,7 @@ Full text in `CLAUDE.md`; every subsystem below is shaped by them.
    GUI panels / viewport tools            MCP client (AI agent)
               |                                   |
               v                                   v
-   apps/editor renderer                 packages/mcp-server (142 tools, stdio)
+   apps/editor renderer                 packages/mcp-server (143 tools, stdio)
               \                                   /
                \                                 /
                 +--> @marionette/document-core <-+
@@ -172,7 +173,7 @@ section 10 and are CI-gated (`check:format-semver`, `check:format-version-stable
 | Behavior | Pinned by |
 |---|---|
 | Solve order and numeric results | `packages/conformance` fixtures + drift gate + closed-form oracle |
-| Command undo correctness | the round-trip harness over all 100 commands |
+| Command undo correctness | the round-trip harness over all 101 commands |
 | Coalescing (250 ms window, sessions) | `coalesce.test.ts`, `cancel-interaction.test.ts` |
 | Format acceptance/rejection | positive corpus + negative fixtures named by exact error code |
 | Content hash | hash oracle + stability tests |

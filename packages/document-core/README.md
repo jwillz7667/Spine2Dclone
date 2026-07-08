@@ -14,9 +14,9 @@ excluded from the barrel; a `Mutator` is only handed to a command by `History` d
 - **`Command`** (`src/command/command.ts`): `kind`, `label`, `do(ctx)`, `undo(ctx)`, optional
   `coalesceWith(prev)` (same kind and same target only; omitted means never coalesces), optional
   `selectionHint(phase)`. `CommandContext` is `{ mutate, effects, ids }` and nothing else.
-- **100 commands total**, registered in two CI-guarded registries (a discovery guard globs
+- **101 commands total**, registered in two CI-guarded registries (a discovery guard globs
   `*.command.ts` and asserts one registered spec per file):
-  - **79 skeletal commands** (`src/commands/registry.ts`): bone (create/move/rotate/scale/length/
+  - **80 skeletal commands** (`src/commands/registry.ts`): bone (create/move/rotate/scale/length/
     transform-mode/rename/reparent/delete/normalize-rotation), slot, region attachment, animation,
     keyframe and curve, mesh creation and topology editing (WP-2.1), mesh-to-bone binding (WP-2.3),
     weight painting (WP-2.4), IK constraints (WP-2.6), transform constraints (WP-2.7), skins

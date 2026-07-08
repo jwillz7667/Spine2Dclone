@@ -35,10 +35,22 @@ runtime must match exactly:
 | Affine math | `math/affine.ts` | The 2x3 matrix library: `compose`, `decompose`, `multiply`, `invert`, in-place `*Into` variants |
 | Pose | `skeleton/pose.ts`, `build-pose.ts` | The `Pose` structure-of-arrays buffers (Float64), built once from a `SkeletonDocument` |
 | Sampling | `skeleton/sample.ts`, `curve.ts`, `prepared.ts` | Single-animation sampling, the bezier table sampler (`BEZIER_SEGMENTS`), the prepared-animation cache |
+| Skin state | `skeleton/skin-state.ts` | Runtime skin selection (PP-B3): `buildSkinState`, `setActiveSkin`, `resolveAttachment`, `resolveSlotAttachment`. An allocation-free lookup of the attachment a slot presents under the active skin (default-skin fallback), so a renderer switches skins live without rebuilding the `Pose`. A pure lookup over document skins + `pose.slotAttachment`; changes no solve output |
 | AnimationState | `skeleton/animation-state.ts` | Multi-track playback per ADR-0005: `setAnimation`, `crossfadeTo`, `queueAnimation`, additive layering |
 | Solve primitives | `solve/` | `resolveWorld`, one/two-bone IK, transform constraint, weighted/unweighted skinning, deform |
 | Effects | `effects/` | Mulberry32 PRNG (`makePrng`, `hash32`, `spinSeed` = FNV-1a-32 over UTF-8), the normative per-particle draw order, SoA particle pools with integer age steps, life curves, the emitter/sprite-animator/ribbon solvers, `EffectSystem` (quality tiers, `DEFAULT_MAX_LIVE_PARTICLES = 2000` budget with eviction) |
 | Slot | `slot/` | `sequence(result, scene)` producing a `PresentationTimeline` (pure function of a `SpinResult`, LAW 1), the integer fixed-point `rollupValueAt`, the column-down cascade `solveCascadeStep` |
+
+## Runtime skin selection (PP-B3)
+
+`buildSkinState(document)` builds an allocation-free `SkinState` whose active skin defaults to `default`.
+A renderer solves the pose once with `sampleSkeleton`, then reads each slot's geometry with
+`resolveSlotAttachment(state, pose, slotIndex)`, which returns the `Attachment` the slot presents (or
+`null`). `setActiveSkin(state, name)` switches skins live (a re-costumed character) and throws the typed
+`UnknownSkinError` for an unknown name; an attachment the active skin does not define falls back to the
+`default` skin, so a costume skin can override only some slots and inherit the rest. This is a pure
+lookup over `pose.slotAttachment` (the resolved attachment NAME the solve writes at step 2) plus the
+document skins: it adds no per-frame allocation, changes no solve output, and touches no fixture.
 
 ## Determinism rules
 

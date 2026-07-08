@@ -12,7 +12,7 @@ All under `src/`:
 
 | Track | Rigs / inputs | Fixtures | Lock |
 |---|---|---|---|
-| **Skeleton** | `rigs/` (7 rigs, each committed as `.json` AND a binary `.bin` twin): rig-2bone, rig-rigid-mesh, rig-weighted-mesh, rig-one-bone-ik, rig-two-bone-ik, rig-transform-constraint, rig-deform | `fixtures/` (7, driven by `sample-spec/`) | `.fixtures.lock` |
+| **Skeleton** | `rigs/` (9 rigs, each committed as `.json` AND a binary `.bin` twin): rig-2bone, rig-rigid-mesh, rig-weighted-mesh, rig-one-bone-ik, rig-two-bone-ik, rig-transform-constraint, rig-deform, rig-transform-modes, rig-blendmodes | `fixtures/` (9, driven by `sample-spec/`) | `.fixtures.lock` |
 | **Effects / particles** | `effects-rigs/` (4): coin-burst, ribbon-trail, circle-spawn, god-rays-sprite | `effects-fixtures/` (4) | `.effects-fixtures.lock` |
 | **AnimationState** (ADR-0005) | `anim-state-rigs/anim-state-rig.json` | `anim-state-fixtures/` (4): discrete-flip, additive-layer, queue-loop-boundary, crossfade-fractions | `.anim-state-fixtures.lock` |
 | **Slot** | `slot/scenes/` (4 scenes) x `slot/spins/` (6 spins) via `slot/sample-spec/` | `slot/expected/` (6 golden `PresentationTimeline`s) | `.slot.fixtures.lock` |
@@ -25,6 +25,17 @@ reproduce these bit for bit.
 
 Lock files are sha256 manifests over rig + spec + fixture + binary twin, keyed to the pinned
 toolchain (`node-22.13.1-v8`).
+
+The last two skeleton rigs are the PP-B1 coverage pair (conformance A.2): **rig-transform-modes**
+exercises all five bone transform modes under a rotated, non-uniformly-scaled, reflected animated
+parent, so every `worldFromParentByMode` branch (including the `noScaleOrReflection` reflection-removal
+path) is observed in the per-bone world affine; **rig-blendmodes** carries the four slot blend modes on
+four slots and animates each slot's color. To make the blend track observable, a fixture sample gained
+an optional `slots` member (`{ slot, blendMode, color }` per captured slot): a rig's sample-spec opts in
+with a `slots: [names]` list, so bone-only and mesh-only fixtures stay byte-identical. `blendMode` is a
+discrete exact-compare lane; `color` rides the `COLOR` tolerance. Together they close two of the four
+`a2-coverage` `it.todo` entries (the remaining two, draw-order and events, are blocked on the F1 format
+stage).
 
 ## Structure
 

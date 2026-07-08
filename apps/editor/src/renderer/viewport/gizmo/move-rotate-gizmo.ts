@@ -15,13 +15,7 @@ import {
 // Which gizmo handle a screen point hits. 'none' means the point is off the gizmo (the caller then
 // falls back to a bone pick / deselect). The scale handles align to the bone's local axes, so they are
 // classified in the bone-local frame (see hitTest); the move/rotate handles stay world-axis-aligned.
-export type GizmoHandle =
-  | 'move-x'
-  | 'move-y'
-  | 'move-free'
-  | 'rotate'
-  | ScaleHandle
-  | 'none';
+export type GizmoHandle = 'move-x' | 'move-y' | 'move-free' | 'rotate' | ScaleHandle | 'none';
 
 // Handle geometry in SCREEN pixels: the gizmo container counter-scales the camera zoom so the widget
 // stays a constant size, and the hit regions below mirror exactly what drawHandles draws.

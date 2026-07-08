@@ -7,6 +7,7 @@ import { atlasTextureStore } from '../editor-state/atlas-texture-store';
 import { useCameraStore } from '../editor-state/camera-store';
 import { useMeshEditStore } from '../editor-state/mesh-edit-store';
 import { useSelectionStore } from '../editor-state/selection-store';
+import { useMarqueeStore } from '../editor-state/marquee-store';
 import { useSlotSelectionStore } from '../editor-state/slot-selection-store';
 import { useWeightPaintStore } from '../editor-state/weight-paint-store';
 import { usePlaybackStore } from '../editor-state/playback-store';
@@ -18,6 +19,7 @@ import { resolveMeshEditTarget } from './mesh-edit';
 import { MeshEditOverlay } from './mesh-overlay';
 import { resolveWeightPaintTarget } from './weight-paint';
 import { WeightPaintOverlay } from './weight-overlay';
+import { MarqueeOverlay } from './marquee-overlay';
 import { solveWorldById } from './scene-solve';
 import { attachToolInput } from './tool-input';
 import { CreateBoneTool } from './tools/create-bone-tool';
@@ -63,6 +65,7 @@ export function ViewportPanelContent(): ReactElement {
     let unsubscribeMeshEdit: (() => void) | null = null;
     let unsubscribeWeightPaint: (() => void) | null = null;
     let unsubscribeTool: (() => void) | null = null;
+    let unsubscribeMarquee: (() => void) | null = null;
 
     void (async () => {
       const created = new Application();
@@ -92,6 +95,8 @@ export function ViewportPanelContent(): ReactElement {
       layers.overlay.addChild(meshOverlay.container);
       const weightOverlay = new WeightPaintOverlay();
       layers.overlay.addChild(weightOverlay.container);
+      const marqueeOverlay = new MarqueeOverlay();
+      layers.overlay.addChild(marqueeOverlay.container);
 
       // The mesh overlay redraws on document revision, slot/vertex selection, tool, and zoom changes
       // (event-driven, never per idle frame); the tick applies it below, mirroring the gizmo pattern.
@@ -99,6 +104,8 @@ export function ViewportPanelContent(): ReactElement {
       // The weight overlay redraws on document revision, slot/bone selection, brush state, tool, and zoom
       // changes (same event-driven contract); the brush cursor follows via the brush-state subscription.
       let weightOverlayDirty = true;
+      // The marquee overlay redraws when the marquee store changes (drag start/update/clear) and on zoom.
+      let marqueeDirty = true;
 
       const applyCamera = (camera: Camera): void => {
         layers.world.position.set(camera.x, camera.y);
@@ -106,8 +113,10 @@ export function ViewportPanelContent(): ReactElement {
         gizmo.applyZoom(camera.zoom); // keep handles a constant pixel size as zoom changes
         meshOverlay.applyZoom(camera.zoom);
         weightOverlay.applyZoom(camera.zoom);
+        marqueeOverlay.applyZoom(camera.zoom);
         meshOverlayDirty = true;
         weightOverlayDirty = true;
+        marqueeDirty = true;
       };
       applyCamera(useCameraStore.getState());
       unsubscribeCamera = useCameraStore.subscribe(applyCamera);
@@ -153,6 +162,9 @@ export function ViewportPanelContent(): ReactElement {
       unsubscribeTool = useToolStore.subscribe(() => {
         meshOverlayDirty = true;
         weightOverlayDirty = true;
+      });
+      unsubscribeMarquee = useMarqueeStore.subscribe(() => {
+        marqueeDirty = true;
       });
 
       // The region texture resolver is ephemeral editor state (the atlas pixels are loaded per import
@@ -283,6 +295,11 @@ export function ViewportPanelContent(): ReactElement {
           );
           weightOverlayDirty = false;
         }
+
+        if (marqueeDirty) {
+          marqueeOverlay.refresh(useMarqueeStore.getState().rect);
+          marqueeDirty = false;
+        }
       };
       app.ticker.add(tick);
     })();
@@ -298,6 +315,7 @@ export function ViewportPanelContent(): ReactElement {
       unsubscribeMeshEdit?.();
       unsubscribeWeightPaint?.();
       unsubscribeTool?.();
+      unsubscribeMarquee?.();
       if (app !== null) {
         app.destroy({ removeView: true }, { children: true });
         app = null;

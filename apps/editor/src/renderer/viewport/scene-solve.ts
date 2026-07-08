@@ -112,6 +112,28 @@ export function hitTestBone(
   return best;
 }
 
+// The internal ids of every bone whose solved world ORIGIN falls inside the world-space rectangle, in
+// document (boneOrder) order. Used by the viewport marquee: a bone is captured when its origin is inside
+// the box (the same origin the gizmo pivots on), which is a stable, zoom-independent hit rule. The rect is
+// given by its min/max corners so the caller need not pre-sort a drag that went right-to-left or up.
+export function bonesInRect(
+  model: DocumentReadModel,
+  minX: number,
+  minY: number,
+  maxX: number,
+  maxY: number,
+): BoneId[] {
+  const worldById = solveWorldById(model);
+  const hits: BoneId[] = [];
+  for (const bone of model.bones()) {
+    const world = worldById.get(bone.id);
+    if (world === undefined) continue;
+    const [ox, oy] = getTranslation(world);
+    if (ox >= minX && ox <= maxX && oy >= minY && oy <= maxY) hits.push(bone.id);
+  }
+  return hits;
+}
+
 // Shortest distance from point (px, py) to the segment (ax, ay) to (bx, by). A degenerate (zero-length)
 // segment collapses to the point distance, which keeps a length-0 bone selectable at its origin.
 function distanceToSegment(

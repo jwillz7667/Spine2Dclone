@@ -56,6 +56,7 @@ function projectForSolve(model: DocumentReadModel): SkeletonDocument {
     skins: [{ name: 'default', attachments: {} }],
     ikConstraints: [],
     transformConstraints: [],
+    events: [],
     animations: {},
     atlas: { pages: [] },
   };

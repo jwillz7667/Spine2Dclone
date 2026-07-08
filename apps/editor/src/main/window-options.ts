@@ -7,6 +7,9 @@ import type { BrowserWindowConstructorOptions } from 'electron';
 export interface WindowOptionsInput {
   /** Absolute path to the built preload script. */
   readonly preloadPath: string;
+  /** Absolute path to the app icon PNG (the Armature A mark). Windows/Linux window icon; macOS
+   *  ignores it on BrowserWindow (the dock icon is set separately in main.ts). */
+  readonly iconPath?: string | undefined;
 }
 
 export function createWindowOptions(input: WindowOptionsInput): BrowserWindowConstructorOptions {
@@ -18,6 +21,7 @@ export function createWindowOptions(input: WindowOptionsInput): BrowserWindowCon
     minHeight: 640,
     backgroundColor: '#1e1e1e',
     show: false,
+    ...(input.iconPath ? { icon: input.iconPath } : {}),
     webPreferences: {
       preload: input.preloadPath,
       contextIsolation: true,

@@ -1,5 +1,7 @@
 # Armature 2D
 
+<img src="apps/editor/resources/armature-wordmark.png" alt="Armature 2D" width="420">
+
 Proprietary software. Copyright (c) 2026 Viral Ventures LLC, Maple Grove, Minnesota.
 All rights reserved; see [LICENSE](LICENSE) and [NOTICE](NOTICE). Not open source.
 

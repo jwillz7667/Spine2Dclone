@@ -2,7 +2,8 @@
 // and the secure IPC registration. The renderer is loaded from the Vite dev server in dev and from
 // the bundled file in prod. No business logic lives here.
 
-import { app, BrowserWindow, Menu, session } from 'electron';
+import { app, BrowserWindow, Menu, nativeImage, session } from 'electron';
+import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { cspForMode, type BuildMode } from './csp';
@@ -13,6 +14,26 @@ import { IpcChannel } from '../shared';
 
 const currentDir = dirname(fileURLToPath(import.meta.url));
 const mode: BuildMode = app.isPackaged ? 'prod' : 'dev';
+
+// The Armature A mark (apps/editor/resources/icon.png). Packaged builds carry it in resources
+// (and macOS uses build/icon.icns); in dev the source tree path applies. Cosmetic: a missing file
+// is warned about, never fatal.
+function resolveIconPath(): string | undefined {
+  const candidate = app.isPackaged
+    ? join(process.resourcesPath, 'icon.png')
+    : join(currentDir, '../../resources/icon.png');
+  if (existsSync(candidate)) return candidate;
+  console.warn(`[marionette] app icon not found at ${candidate}`);
+  return undefined;
+}
+
+// In dev on macOS the dock shows the stock Electron icon unless set explicitly (packaged builds
+// get it from icon.icns instead).
+function applyDevDockIcon(iconPath: string | undefined): void {
+  if (app.isPackaged || process.platform !== 'darwin' || !iconPath || !app.dock) return;
+  const image = nativeImage.createFromPath(iconPath);
+  if (!image.isEmpty()) app.dock.setIcon(image);
+}
 
 function applyCspHeader(): void {
   const policy = cspForMode(mode);
@@ -42,7 +63,9 @@ function installApplicationMenu(window: BrowserWindow): void {
 
 async function createWindow(): Promise<void> {
   const preloadPath = join(currentDir, '../preload/preload.cjs');
-  const window = new BrowserWindow(createWindowOptions({ preloadPath }));
+  const iconPath = resolveIconPath();
+  applyDevDockIcon(iconPath);
+  const window = new BrowserWindow(createWindowOptions({ preloadPath, iconPath }));
   window.once('ready-to-show', () => window.show());
 
   // Surface a preload load failure loudly in the main-process console instead of a silent bridge outage

@@ -269,7 +269,10 @@ which is what makes five-way parallelism safe.
     Windows, and Linux (AppImage plus deb/rpm), signing and notarization where the platform
     supports it, an integrity-checked and strictly OPT-IN auto-update feed (the local-only
     privacy directive: the app makes no other network request), and a tag-triggered release
-    workflow gated on `ci-pass` + `conformance-native-pass`.
+    workflow gated on `ci-pass` + `conformance-native-pass`. Brand assets are committed: the
+    wordmark and the square A-mark icon live in `apps/editor/resources/`, and
+    `apps/editor/build/` holds `icon.icns` and the 512 px `icon.png` for the packager (a
+    Windows `.ico` is generated in the release workflow).
   - **PP-E6:** mobile device profiling (WP-5.6): the profiling harness, budget assertions from
     the phase plan, and a written report per reference device.
   - **Chase work:** after every merged F-stage, port the new solve behavior and turn the new

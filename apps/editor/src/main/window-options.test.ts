@@ -26,4 +26,11 @@ describe('createWindowOptions security posture', () => {
   it('wires the provided preload path', () => {
     expect(webPreferences?.preload).toBe('/abs/path/preload.cjs');
   });
+
+  it('sets the window icon only when an icon path is provided', () => {
+    expect(createWindowOptions({ preloadPath: '/p.cjs' }).icon).toBeUndefined();
+    expect(createWindowOptions({ preloadPath: '/p.cjs', iconPath: '/abs/icon.png' }).icon).toBe(
+      '/abs/icon.png',
+    );
+  });
 });

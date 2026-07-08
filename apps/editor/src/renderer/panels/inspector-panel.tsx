@@ -32,11 +32,7 @@ import { useSlotSelectionStore } from '../editor-state/slot-selection-store';
 import { usePlaybackStore } from '../editor-state/playback-store';
 import { useDocumentRevision } from '../editor-state/use-document-revision';
 import { dispatchBoneTransform, type EditDispatchContext } from '../viewport/edit-dispatcher';
-import {
-  buildBoneEdit,
-  parseBoneField,
-  type BoneTransformField,
-} from './bone-inspector-logic';
+import { buildBoneEdit, parseBoneField, type BoneTransformField } from './bone-inspector-logic';
 import { MeshError } from '../modules/mesh/mesh-error';
 import { autoGridFillMesh, generateMeshFromRegion } from '../modules/mesh/mesh-tool';
 import { regionToMeshInit } from '../modules/mesh/region-to-mesh';
@@ -122,10 +118,7 @@ export function InspectorPanel(_props: IDockviewPanelProps): ReactElement {
   return (
     <div style={rootStyle}>
       {primaryBone !== undefined && (
-        <BoneTransformSection
-          bone={primaryBone}
-          selectionCount={selectedBoneIds.length}
-        />
+        <BoneTransformSection bone={primaryBone} selectionCount={selectedBoneIds.length} />
       )}
 
       <div style={sectionStyle}>

@@ -8,14 +8,7 @@ import type { DispatchableBoneEdit } from '../viewport/edit-dispatcher';
 // and lint.
 
 // The seven editable local transform fields, grouped by the channel they route to.
-export type BoneTransformField =
-  | 'x'
-  | 'y'
-  | 'rotation'
-  | 'scaleX'
-  | 'scaleY'
-  | 'shearX'
-  | 'shearY';
+export type BoneTransformField = 'x' | 'y' | 'rotation' | 'scaleX' | 'scaleY' | 'shearX' | 'shearY';
 
 // The live local transform the inspector reads and edits (a structural subset of BoneEntity, so a real
 // BoneEntity is assignable here and tests can pass a plain object).

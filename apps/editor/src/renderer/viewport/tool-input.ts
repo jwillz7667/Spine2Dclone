@@ -27,7 +27,15 @@ export function attachToolInput(target: HTMLElement, deps: ToolInputDeps): () =>
     const screenY = event.clientY - rect.top;
     const camera = deps.getCamera();
     const [worldX, worldY] = screenToWorld(camera, screenX, screenY);
-    return { screenX, screenY, worldX, worldY, camera, shiftKey: event.shiftKey };
+    return {
+      screenX,
+      screenY,
+      worldX,
+      worldY,
+      camera,
+      shiftKey: event.shiftKey,
+      additive: event.shiftKey || event.metaKey || event.ctrlKey,
+    };
   };
 
   const onKeyDown = (event: KeyboardEvent): void => {

@@ -33,6 +33,7 @@ export function HierarchyPanel(_props: IDockviewPanelProps): ReactElement {
 
   const rows = useMemo(() => buildHierarchyRows(model.bones()), [model, revision]);
   const selectedSet = useMemo(() => new Set(selectedBoneIds), [selectedBoneIds]);
+  const primaryId = selectedBoneIds.length > 0 ? selectedBoneIds[0]! : null;
 
   // A transient, non-blocking message (a rejected reparent). It auto-clears so it never lingers; the
   // timer is cleared on replacement and on unmount.
@@ -56,9 +57,11 @@ export function HierarchyPanel(_props: IDockviewPanelProps): ReactElement {
   const draggedId = useRef<BoneId | null>(null);
 
   // Select a bone: EPHEMERAL editor state (the document/editor wall, LAW 1), never a command and never on
-  // History. The viewport gizmo reads the same store, so selecting in the tree drives the gizmo too.
-  function selectBone(id: BoneId): void {
-    useSelectionStore.getState().select([id]);
+  // History. The viewport gizmo reads the same store, so selecting in the tree drives the gizmo too. A
+  // plain click selects just this bone; an additive (shift/cmd/ctrl) click toggles it into the ordered
+  // multi-selection, keeping the two panels and the gizmo in sync.
+  function selectBone(id: BoneId, additive: boolean): void {
+    useSelectionStore.getState().click(id, additive);
   }
 
   // Rename through History (LAW 2). Identity is the BoneId, so the selection (keyed by id) survives the
@@ -168,6 +171,7 @@ export function HierarchyPanel(_props: IDockviewPanelProps): ReactElement {
             name={row.name}
             depth={row.depth}
             isSelected={selectedSet.has(row.id)}
+            isPrimary={row.id === primaryId}
             onSelect={selectBone}
             onRename={renameBone}
             onAddChild={addBone}
@@ -205,7 +209,8 @@ interface HierarchyRowProps {
   readonly name: string;
   readonly depth: number;
   readonly isSelected: boolean;
-  readonly onSelect: (id: BoneId) => void;
+  readonly isPrimary: boolean;
+  readonly onSelect: (id: BoneId, additive: boolean) => void;
   readonly onRename: (id: BoneId, name: string) => void;
   readonly onAddChild: (id: BoneId) => void;
   readonly onDelete: (id: BoneId) => void;
@@ -216,7 +221,7 @@ interface HierarchyRowProps {
 }
 
 function HierarchyRow(props: HierarchyRowProps): ReactElement {
-  const { id, name, depth, isSelected } = props;
+  const { id, name, depth, isSelected, isPrimary } = props;
 
   // The name field is UNCONTROLLED and keyed by its committed value plus this nonce (the same pattern as
   // the animation panel): a committed rename changes the prop, so the key changes and the field remounts
@@ -237,12 +242,13 @@ function HierarchyRow(props: HierarchyRowProps): ReactElement {
   return (
     <div
       draggable
-      title="Drag to reparent, click to select"
+      title="Drag to reparent, click to select, shift or cmd click to multi-select"
       style={{
         ...(isSelected ? { ...rowStyle, ...rowActiveStyle } : rowStyle),
+        ...(isPrimary ? rowPrimaryStyle : null),
         paddingLeft: 8 + depth * INDENT_PX,
       }}
-      onClick={() => props.onSelect(id)}
+      onClick={(event) => props.onSelect(id, event.shiftKey || event.metaKey || event.ctrlKey)}
       onDragStart={(event) => {
         event.dataTransfer.effectAllowed = 'move';
         props.onDragStart(id);
@@ -339,6 +345,12 @@ const rowStyle: CSSProperties = {
 const rowActiveStyle: CSSProperties = {
   background: '#26354a',
   boxShadow: `inset 2px 0 0 ${ACCENT}`,
+};
+
+// The primary selection (index 0, the gizmo pivot) gets a brighter left accent than the other selected
+// rows so the pivot bone is unmistakable in a multi-selection.
+const rowPrimaryStyle: CSSProperties = {
+  boxShadow: `inset 3px 0 0 #ffffff`,
 };
 
 const nameInputStyle: CSSProperties = {

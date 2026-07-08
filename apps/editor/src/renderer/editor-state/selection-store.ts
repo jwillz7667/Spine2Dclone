@@ -1,13 +1,20 @@
 import { create } from 'zustand';
 import type { BoneId, SelectionHint } from '@marionette/document-core';
+import { applyClick, applyMarquee } from './selection-ops';
 
-// Ephemeral selection (handoff 8.2): which bones are selected. NEVER undoable, NEVER serialized, keyed
-// by internal BoneId so it survives renames and reorders. A command never reads or writes this store;
-// History events drive it through applyHint (the per-phase SelectionHint) and prune (reconciliation
-// after a command removes an entity). This is the editor-state side of the document/editor wall.
+// Ephemeral selection (handoff 8.2): which bones are selected, as an ORDERED set (index 0 is the PRIMARY,
+// the gizmo pivot). NEVER undoable, NEVER serialized, keyed by internal BoneId so it survives renames and
+// reorders. A command never reads or writes this store; History events drive it through applyHint (the
+// per-phase SelectionHint) and prune (reconciliation after a command removes an entity). This is the
+// editor-state side of the document/editor wall (LAW 1).
 interface SelectionStore {
   readonly selectedBoneIds: readonly BoneId[];
+  // Replace the selection outright (used by selection hints and programmatic selects).
   select(ids: readonly BoneId[]): void;
+  // Resolve a viewport/hierarchy click: plain click selects just this bone; additive (shift/cmd) toggles.
+  click(id: BoneId, additive: boolean): void;
+  // Resolve a marquee release with the bones it covered; additive unions onto the current selection.
+  marquee(ids: readonly BoneId[], additive: boolean): void;
   clear(): void;
   // Apply a command's per-phase selection hint (resolved by History). 'preserve'/undefined are no-ops.
   applyHint(hint: SelectionHint | undefined): void;
@@ -18,6 +25,10 @@ interface SelectionStore {
 export const useSelectionStore = create<SelectionStore>((set) => ({
   selectedBoneIds: [],
   select: (ids) => set({ selectedBoneIds: [...ids] }),
+  click: (id, additive) =>
+    set((state) => ({ selectedBoneIds: applyClick(state.selectedBoneIds, id, additive) })),
+  marquee: (ids, additive) =>
+    set((state) => ({ selectedBoneIds: applyMarquee(state.selectedBoneIds, ids, additive) })),
   clear: () => set({ selectedBoneIds: [] }),
   applyHint: (hint) =>
     set((state) => {

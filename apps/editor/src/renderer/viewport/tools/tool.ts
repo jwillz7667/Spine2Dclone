@@ -14,6 +14,9 @@ export interface ViewportPointer {
   // Shift held at the event (WP-2.1: the mesh tool's add-vertex modifier). Carried on the pointer so a
   // tool never reads the DOM event itself, keeping tools unit-testable with plain pointer values.
   readonly shiftKey: boolean;
+  // The additive-selection modifier (shift OR cmd/ctrl), for multi-select click and marquee (PP-D1).
+  // Precomputed so tools stay decoupled from platform key conventions and unit-testable with plain values.
+  readonly additive: boolean;
 }
 
 // A viewport tool consumes one pointer gesture (down, then moves, then up). The input router binds the

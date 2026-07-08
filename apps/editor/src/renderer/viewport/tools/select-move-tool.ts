@@ -85,12 +85,17 @@ export class SelectMoveTool implements ViewportTool {
       return;
     }
 
-    // Not on a handle: select the bone under the cursor, or clear when clicking empty space.
+    // Not on a handle: select the bone under the cursor (shift/cmd adds to the ordered multi-selection),
+    // or clear when a plain click lands on empty space. An additive click on empty space leaves the
+    // selection untouched so a mis-aimed shift click never wipes a multi-selection.
     const model = documentHost.current().model;
     const hit = hitTestBone(model, pointer.screenX, pointer.screenY, pointer.camera);
     const selection = useSelectionStore.getState();
-    if (hit === null) selection.clear();
-    else selection.select([hit]);
+    if (hit === null) {
+      if (!pointer.additive) selection.clear();
+    } else {
+      selection.click(hit, pointer.additive);
+    }
   }
 
   onPointerMove(pointer: ViewportPointer): void {

@@ -1,7 +1,7 @@
 {
-  "formatVersion": "0.2.0",
+  "formatVersion": "0.3.0",
   "name": "mesh-limb-rig",
-  "hash": "b0af538696b448f1f4d8111cfeec692b0fd9b8b8ce27a50f841a57d8bbc9fa58",
+  "hash": "4588bf9cbb5de44872cbaa1e000ab5a19bc826d02cabb5fe423d1de062160a1c",
   "bones": [
     {
       "name": "root",
@@ -124,6 +124,7 @@
     }
   ],
   "transformConstraints": [],
+  "events": [],
   "animations": {
     "wave": {
       "duration": 1,
@@ -237,7 +238,9 @@
             ]
           }
         }
-      }
+      },
+      "drawOrder": [],
+      "events": []
     }
   },
   "atlas": {

@@ -6,9 +6,9 @@ import { findAnimationSnapshot, type CommandSpec } from './spec';
 
 // Create a new, empty animation (command-history catalog CreateAnimation, `anim.create`). Structural,
 // never coalesces. The AnimationId is minted by the caller so redo reuses the same id. The animation
-// starts with the given duration and empty bone/slot timeline maps; on export it projects to exactly
-// `{ duration, bones: {}, slots: {} }`, which the format validator accepts (no empty ik/transform/
-// deform/drawOrder/events collections exist in the implemented format).
+// starts with the given duration, empty bone/slot timeline maps, and empty ik/transform/deform/drawOrder/
+// events collections; on export it projects to `{ duration, bones: {}, slots: {}, ik: {}, transform: {},
+// deform: {}, drawOrder: [], events: [] }`, exactly the shape the 0.3.0 format validator requires.
 export class CreateAnimationCommand implements Command {
   readonly kind = 'anim.create';
   readonly label = 'Create Animation';
@@ -27,6 +27,11 @@ export class CreateAnimationCommand implements Command {
       bones: new Map(),
       slots: new Map(),
       ...emptyAnimationConstraintTimelines(),
+      // Stage F1 (ADR-0008) draw-order and event timelines: a fresh animation keys neither, so both start
+      // empty. They are carried verbatim (no authoring command touches them until PP-D9), matching how the
+      // format projects an animation that reorders nothing and fires no events.
+      drawOrder: [],
+      events: [],
     };
     ctx.mutate.insertAnimation(entity);
   }

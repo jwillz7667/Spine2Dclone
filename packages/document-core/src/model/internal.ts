@@ -1,5 +1,5 @@
 import { decodeWeightedVertices, encodeWeightedVertices } from '@marionette/format';
-import type { AtlasRef } from '@marionette/format/types';
+import type { AtlasRef, DrawOrderKeyframe, EventKeyframe } from '@marionette/format/types';
 import type {
   FeatureFlowGraph,
   GridConfig,
@@ -255,6 +255,10 @@ interface MutableAnimation {
   ik: Map<IkConstraintId, IkKeyframeEntity[]>;
   transform: Map<TransformConstraintId, TransformKeyframeEntity[]>;
   deform: MutableDeformMap;
+  // Draw-order and event timelines are carried verbatim (ADR-0008; no command edits them in this slice).
+  // They are replaced wholesale, never patched in place, so a shared array reference is safe.
+  drawOrder: readonly DrawOrderKeyframe[];
+  events: readonly EventKeyframe[];
 }
 
 function toMutableBoneSet(set: BoneTimelineSet): MutableBoneTimelineSet {
@@ -331,6 +335,8 @@ function toMutableAnimation(animation: AnimationEntity): MutableAnimation {
     ik,
     transform,
     deform: cloneDeformMap(animation.deform),
+    drawOrder: animation.drawOrder,
+    events: animation.events,
   };
 }
 
@@ -363,6 +369,8 @@ function cloneMutableAnimation(a: MutableAnimation): MutableAnimation {
     ik,
     transform,
     deform: cloneDeformMap(a.deform),
+    drawOrder: a.drawOrder,
+    events: a.events,
   };
 }
 
@@ -404,6 +412,8 @@ function freezeAnimation(a: MutableAnimation): AnimationEntity {
     ik,
     transform,
     deform: freezeDeformMap(a.deform),
+    drawOrder: Object.freeze(a.drawOrder.slice()),
+    events: Object.freeze(a.events.slice()),
   });
 }
 
@@ -556,6 +566,8 @@ export class DocumentModelInternal implements DocumentReadModel {
     this.slotSceneValue = cloneSlotSceneState(state.slotScene);
     this.preservedContent = deepFreeze({
       atlas: state.preserved.atlas,
+      events: state.preserved.events,
+      metadata: state.preserved.metadata,
     });
   }
 
@@ -1495,7 +1507,13 @@ export class DocumentModelInternal implements DocumentReadModel {
   // a discrete edit, never part of a drag. NO content hash is computed here (the exporter is the sole hash
   // owner, LAW 3).
   setAtlas(atlas: AtlasRef): void {
-    this.preservedContent = deepFreeze({ atlas });
+    // Preserve the sibling event definitions and metadata block: setAtlas replaces only the atlas ref, so
+    // the rest of the preserved content carries through unchanged (ADR-0008).
+    this.preservedContent = deepFreeze({
+      atlas,
+      events: this.preservedContent.events,
+      metadata: this.preservedContent.metadata,
+    });
     this.revisionValue += 1;
   }
 

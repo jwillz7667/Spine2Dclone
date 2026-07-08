@@ -4,7 +4,11 @@ import type {
   AtlasRef,
   BlendMode,
   CurveType,
+  DrawOrderKeyframe,
+  EventDef,
+  EventKeyframe,
   RGBA,
+  SkeletonMeta,
   TransformMode,
 } from '@marionette/format/types';
 import type {
@@ -265,6 +269,12 @@ export interface AnimationEntity {
     DeformSkinKey,
     ReadonlyMap<SlotId, ReadonlyMap<string, readonly DeformKeyframeEntity[]>>
   >;
+  // Stage F1 (ADR-0008, formatVersion 0.3.0) draw-order and event timelines. They are carried VERBATIM
+  // from the format in this slice (like preserved.atlas): authoring commands for them are PP-D9, so the
+  // model neither mints ids for their keys nor exposes editing here. They round-trip load -> export
+  // unchanged, which is what keeps a 0.3.0 document identical across a load/export cycle.
+  readonly drawOrder: readonly DrawOrderKeyframe[];
+  readonly events: readonly EventKeyframe[];
 }
 
 // An IK constraint (WP-2.6, format IkConstraint), mirrored BY VALUE except `bones`/`target`, which are
@@ -317,6 +327,11 @@ export interface SkinEntity {
 // Non-default skins are no longer preserved here: WP-2.8 promotes them to first-class DocState.skins.
 export interface PreservedContent {
   readonly atlas: AtlasRef;
+  // Stage F1 (ADR-0008, formatVersion 0.3.0) document-level content carried VERBATIM until its authoring
+  // lands (event definitions are PP-D9). `events` is the REQUIRED EventDef[] collection (empty when the rig
+  // defines none); `metadata` is the OPTIONAL skeleton metadata block (undefined when the document omits it).
+  readonly events: readonly EventDef[];
+  readonly metadata: SkeletonMeta | undefined;
 }
 
 // The full internal document state. Bones, slots, animations, constraints, and named skins are the
@@ -356,6 +371,8 @@ export interface DocState {
 export function emptyPreservedContent(): PreservedContent {
   return {
     atlas: { pages: [] },
+    events: [],
+    metadata: undefined,
   };
 }
 

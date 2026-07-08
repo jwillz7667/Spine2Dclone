@@ -85,6 +85,7 @@ function richDocument(): SkeletonDocument {
     ],
     ikConstraints: [],
     transformConstraints: [],
+    events: [],
     animations: {},
     atlas: {
       pages: [
@@ -191,6 +192,7 @@ function meshDocument(): SkeletonDocument {
     ],
     ikConstraints: [],
     transformConstraints: [],
+    events: [],
     animations: {},
     atlas: {
       pages: [
@@ -255,6 +257,7 @@ describe('save / load seam', () => {
         'skins',
         'slots',
         'transformConstraints',
+        'events',
         'animations',
       ].sort(),
     );
@@ -338,13 +341,16 @@ describe('save / load seam', () => {
     const doc = loadDocument(seeds.animated, makeTestEnv().env);
     const json1 = exportDocument(doc.model);
 
-    // Phase 2 (ADR-0004): the format Animation is now { duration, bones, slots, ik, transform, deform }.
-    // The model authors only bone/slot timelines today, so ik/transform/deform export as empty records.
+    // Phase 2 (ADR-0004) plus Stage F1 (ADR-0008): the format Animation is now { duration, bones, slots,
+    // ik, transform, deform, drawOrder, events }. The model authors only bone/slot timelines today, so
+    // ik/transform/deform export as empty records and drawOrder/events as empty arrays.
     expect(Object.keys(json1.animations)).toEqual(['idle']);
     expect(Object.keys(json1.animations.idle!).sort()).toEqual([
       'bones',
       'deform',
+      'drawOrder',
       'duration',
+      'events',
       'ik',
       'slots',
       'transform',
@@ -358,6 +364,58 @@ describe('save / load seam', () => {
     const reloaded = loadDocument(json1, makeTestEnv().env);
     const json2 = exportDocument(reloaded.model);
     expect(json2).toEqual(json1);
+  });
+
+  it('round-trips a 0.3.0 document carrying events and draw-order keys, deep-equal', () => {
+    // Stage F1 (ADR-0008): event definitions and per-animation draw-order/event timelines are carried
+    // VERBATIM as preserved content (PP-D9 owns their authoring). This proves load -> export reproduces a
+    // 0.3.0 document with real events and a draw-order reorder EXACTLY, hash included, so the F1 additions
+    // survive the model round-trip and never silently drop.
+    const draft: SkeletonDocument = {
+      formatVersion: CURRENT_FORMAT_VERSION,
+      name: 'events-and-draworder',
+      hash: '',
+      bones: [{ name: 'root', parent: null, ...GEOM, rotation: 0 }],
+      slots: [
+        { name: 'back', bone: 'root', color: { r: 1, g: 1, b: 1, a: 1 }, attachment: null, blendMode: 'normal' },
+        { name: 'front', bone: 'root', color: { r: 1, g: 1, b: 1, a: 1 }, attachment: null, blendMode: 'normal' },
+      ],
+      skins: [{ name: 'default', attachments: {} }],
+      ikConstraints: [],
+      transformConstraints: [],
+      // A named event with an int payload and an audio hint, referenced by the animation's event timeline.
+      events: [
+        { name: 'footstep', int: 3, audio: { path: 'sfx/footstep.wav', volume: 0.8, balance: -0.25 } },
+      ],
+      animations: {
+        walk: {
+          duration: 1,
+          bones: {},
+          slots: {},
+          ik: {},
+          transform: {},
+          deform: {},
+          // At t=0.5 move `back` forward one position (target index 1); `front` implicitly fills index 0.
+          // A consistent single-slot reorder (no colliding or out-of-range offsets).
+          drawOrder: [{ time: 0.5, offsets: [{ slot: 'back', offset: 1 }] }],
+          // Fire `footstep` twice (coincident-legal ordering), overriding the int payload on the second.
+          events: [
+            { time: 0.25, name: 'footstep' },
+            { time: 0.75, name: 'footstep', int: 7 },
+          ],
+        },
+      },
+      atlas: { pages: [] },
+    };
+    const original: SkeletonDocument = { ...draft, hash: computeContentHash(draft) };
+
+    const doc = loadDocument(original, makeTestEnv().env);
+    const exported = exportDocument(doc.model);
+
+    expect(exported).toEqual(original); // lossless, events + draw-order + hash included
+    // And re-loading the export reproduces it again (idempotent projection).
+    const reloaded = loadDocument(exported, makeTestEnv().env);
+    expect(exportDocument(reloaded.model)).toEqual(original);
   });
 
   it('exports an animation the WP-1.4 sampler consumes without throwing and to a sane pose', () => {

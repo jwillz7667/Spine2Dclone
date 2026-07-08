@@ -5,6 +5,8 @@ import type {
   Bone,
   BoneTimelines,
   DeformTimelines,
+  DrawOrderKeyframe,
+  EventKeyframe,
   IkConstraint,
   IkFrame,
   Keyframe,
@@ -230,7 +232,21 @@ function animationToFormat(
     }
     if (Object.keys(bySlotOut).length > 0) deform[skinName] = bySlotOut;
   }
-  return { duration: animation.duration, bones, slots, ik, transform, deform };
+  // Draw-order and event timelines are carried VERBATIM (ADR-0008, PP-D9 owns their authoring). They are
+  // REQUIRED format collections, so they always emit (empty when the animation reorders nothing / fires
+  // nothing). Arrays are copied so the exported document never aliases the model's frozen arrays.
+  const drawOrder: DrawOrderKeyframe[] = animation.drawOrder.map((key) => ({
+    time: key.time,
+    offsets: key.offsets.map((offset) => ({ slot: offset.slot, offset: offset.offset })),
+  }));
+  const events: EventKeyframe[] = animation.events.map((key) => ({
+    time: key.time,
+    name: key.name,
+    ...(key.int !== undefined ? { int: key.int } : {}),
+    ...(key.float !== undefined ? { float: key.float } : {}),
+    ...(key.string !== undefined ? { string: key.string } : {}),
+  }));
+  return { duration: animation.duration, bones, slots, ik, transform, deform, drawOrder, events };
 }
 
 // Resolve a deform skin key to its on-disk name: the literal 'default' passes through; a SkinId resolves
@@ -372,6 +388,10 @@ export function exportDocument(model: DocumentReadModel): SkeletonDocument {
     );
   }
 
+  // Document-level events and the optional metadata block are carried VERBATIM from preserved content
+  // (ADR-0008; PP-D9 owns event-definition authoring). `events` is REQUIRED (empty when the rig defines
+  // none); `metadata` is emitted only when present, per exactOptionalPropertyTypes.
+  const preserved = model.preserved();
   const draft: SkeletonDocument = {
     formatVersion: CURRENT_FORMAT_VERSION,
     name: model.name,
@@ -381,8 +401,24 @@ export function exportDocument(model: DocumentReadModel): SkeletonDocument {
     skins,
     ikConstraints,
     transformConstraints,
+    events: preserved.events.map((event) => ({
+      name: event.name,
+      ...(event.int !== undefined ? { int: event.int } : {}),
+      ...(event.float !== undefined ? { float: event.float } : {}),
+      ...(event.string !== undefined ? { string: event.string } : {}),
+      ...(event.audio !== undefined
+        ? {
+            audio: {
+              path: event.audio.path,
+              volume: event.audio.volume,
+              balance: event.audio.balance,
+            },
+          }
+        : {}),
+    })),
     animations,
-    atlas: model.preserved().atlas,
+    atlas: preserved.atlas,
+    ...(preserved.metadata !== undefined ? { metadata: preserved.metadata } : {}),
   };
   const withHash: SkeletonDocument = { ...draft, hash: computeContentHash(draft) };
 

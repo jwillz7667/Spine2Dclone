@@ -318,6 +318,11 @@ function formatToDocState(document: SkeletonDocument, ids: IdFactory): DocState 
       ik: ikTracks,
       transform: transformTracks,
       deform: deformTracks,
+      // Draw-order and event timelines are carried VERBATIM from the (already-migrated) format document
+      // (ADR-0008; PP-D9 owns their authoring). Slicing detaches the model from the parsed document; the
+      // entries themselves are immutable value objects the model never mutates in this slice.
+      drawOrder: animation.drawOrder.slice(),
+      events: animation.events.slice(),
     });
   }
 
@@ -343,6 +348,11 @@ function formatToDocState(document: SkeletonDocument, ids: IdFactory): DocState 
     slotScene: defaultSlotSceneState(),
     preserved: {
       atlas: document.atlas,
+      // Document-level events and the optional metadata block ride through as preserved content (ADR-0008;
+      // PP-D9 owns event-definition authoring). Both are carried verbatim from the migrated document, so a
+      // 0.3.0 file round-trips load -> export unchanged.
+      events: document.events.slice(),
+      metadata: document.metadata,
     },
   };
 }

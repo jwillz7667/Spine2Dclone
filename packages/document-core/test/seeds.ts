@@ -218,6 +218,11 @@ function riggedDoc(): SkeletonDocument {
         },
       },
     },
+    // Stage F1 (ADR-0008, formatVersion 0.3.0) required timelines: this seed reorders no slots and fires
+    // no events, so both are empty. Present because the doc is stamped at the CURRENT version (no migration
+    // injects them, unlike the 0.1.0 doc() builder below).
+    drawOrder: [],
+    events: [],
   };
   return {
     formatVersion: CURRENT_FORMAT_VERSION,
@@ -231,6 +236,7 @@ function riggedDoc(): SkeletonDocument {
     ],
     ikConstraints,
     transformConstraints,
+    events: [],
     animations: { move: moveAnimation },
     atlas: {
       pages: [

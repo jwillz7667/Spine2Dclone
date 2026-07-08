@@ -47,7 +47,11 @@ is tracked for Phase 4/5 in `docs/plan/product-editions.md`. Do not add edition 
    bumps `formatVersion` with a tested migration; a non-schema change (validator refactor, comment, error wording)
    does NOT bump it. Validate on import; malformed docs fail loudly with a typed `FormatError`.
 4. **LEGAL BOUNDARY ON SPINE.** Implement skeletal animation from first principles. Do NOT copy Spine runtime
-   source, do NOT vendor it, do NOT claim or rely on Spine binary-format compatibility. Our format is our own.
+   source, do NOT vendor it, do NOT open Spine source while working on this repo, ever. Our format is our own
+   and we NEVER write/export Spine's formats. One sanctioned exception (owner directive 2026-07-08,
+   `docs/plan/pro-parity-execution-plan.md` PP-A5): an import-only, strictly clean-room Spine-project importer
+   (built solely from published format documentation and user-owned exported files) that converts to our
+   format on import, quarantined in `packages/import-spine`.
 5. **PHASE INDEPENDENCE, BUILD IN ORDER.** Each phase ends with a usable artifact. Do not start a phase before the
    prior phase's milestone passes. Do not skip ahead.
 

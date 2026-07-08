@@ -46,11 +46,23 @@ machine-enforced boundaries.
 - **Export breadth.** The user exports a finished project in the format they need: portable JSON,
   MRNT binary, packed atlases (done), engine playback (web done; Unity/Godot per Lane E), and
   rendered media (PNG sequence, animated GIF/APNG, video) per PP-C10.
-- **Format expressive parity, zero Spine compatibility.** The product NEVER reads or writes
-  Spine's `.skel`/`.json` formats and never claims compatibility (LAW 4). Instead, OUR format
-  must be able to express everything Spine's format can express: every concept in the audit's
-  section 3.1 table gets a first-principles representation of our own design (the F1 to F4
-  staging is exactly this). Capability mirror, original encoding, original code.
+- **Format expressive parity.** OUR format must be able to express everything Spine's format can
+  express: every concept in the audit's section 3.1 table gets a first-principles representation
+  of our own design (the F1 to F4 staging is exactly this). Capability mirror, original encoding,
+  original code. The product never WRITES Spine's formats and never claims Spine compatibility as
+  a specification promise.
+- **Spine project import, migration path (owner directive, 2026-07-08).** To let Spine users
+  switch, the product IMPORTS user-owned projects exported from Spine (JSON first, `.skel` binary
+  second) and converts them to our format immediately on import. Non-negotiable guardrails, which
+  refine but do not repeal LAW 4: (1) import-only, never export; (2) strict clean-room:
+  implemented exclusively from Esoteric's PUBLISHED format documentation and inspection of
+  user-owned exported files, NEVER from Spine runtime or editor source code, which no contributor
+  or agent may open while working on this repo; (3) the importer lives in its own quarantined
+  package (`packages/import-spine`, enters the allowlist through the normal process) that only
+  PRODUCES our validated format, so the core never grows a second dialect; (4) unsupported or
+  ambiguous constructs fail loudly with typed errors and a written import report, never silent
+  approximation; (5) product copy uses nominative, factual wording pending counsel review. This
+  is work package **PP-A5** (owned by Lane A once F-stages allow, GUI surface via Lane D).
 
 ## 2. Non-negotiables (read before any code)
 

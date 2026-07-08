@@ -76,7 +76,8 @@ Full text in `CLAUDE.md`; every subsystem below is shaped by them.
 1. **Math/presentation boundary.** Presentation is a pure deterministic function of a `SpinResult`.
 2. **All mutations are commands** with do/undo and a mandatory round-trip test.
 3. **The format is the contract**: versioned, validated on import, fails loudly with typed errors.
-4. **Legal boundary on Spine**: first-principles implementation, own format, no Spine source.
+4. **Legal boundary on Spine**: first-principles implementation, own format, no Spine source; the
+   clean-room import-only migration path (PP-A5) is the single sanctioned exception.
 5. **Phase independence, build in order**: each phase ships a usable artifact.
 
 ## Data flow

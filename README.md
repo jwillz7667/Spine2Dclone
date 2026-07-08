@@ -99,5 +99,7 @@ cross-language determinism vectors and is scaffolded for the Unity/Godot runtime
    decides outcomes.
 2. All document mutations are commands (do / undo, coalescing); the round-trip test is mandatory.
 3. The format is the contract: validate on import, fail loudly, version with semver.
-4. Legal boundary on Spine: first-principles skeletal animation, our own format, no Spine source.
+4. Legal boundary on Spine: first-principles skeletal animation, our own format, no Spine source;
+   the only sanctioned contact with Spine's formats is the clean-room import-only migration path
+   (PP-A5 in the parity plan).
 5. Phase independence: each phase ships a usable artifact; build in order.

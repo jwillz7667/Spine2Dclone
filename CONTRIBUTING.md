@@ -11,7 +11,9 @@ A reviewer rejects any PR that breaks one; full text in `CLAUDE.md`.
 1. Presentation is a pure, deterministic function of a `SpinResult`; it never influences outcome.
 2. Every document mutation is a Command with do/undo through History; there is no other path.
 3. The format is the contract: validated on import, typed errors, semver with tested migrations.
-4. First-principles skeletal animation: no Spine source, no Spine format compatibility claims.
+4. First-principles skeletal animation: no Spine source ever, never write Spine's formats; the
+   clean-room import-only migration path (PP-A5) is the single sanctioned exception, and working
+   on it still forbids opening Spine source.
 5. Build in phase order; each phase ships a usable artifact; do not skip ahead.
 
 ## Workflow

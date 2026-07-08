@@ -10,9 +10,6 @@
 export type AtlasErrorCode =
   // Configuration the caller controls is invalid (page size, padding, concurrency, page count).
   | 'ATLAS_INVALID_CONFIG'
-  // allowRotation was requested. Rotation is disabled in Phase 1 (the rotated-UV render path has no
-  // parity test yet, phase-1 section 4.2), so the pack rejects it rather than emit untestable output.
-  | 'ATLAS_ROTATION_UNSUPPORTED'
   // A trimmed sprite is larger than a single page; it can never be packed.
   | 'ATLAS_SPRITE_TOO_LARGE'
   // Two sprites resolve to the same region name; the AtlasRef would be ambiguous.

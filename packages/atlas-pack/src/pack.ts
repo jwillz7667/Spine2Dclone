@@ -12,7 +12,11 @@ export interface PackConfig {
   readonly maxPageSize?: number;
   // Transparent gap reserved between packed regions, in pixels. Default 2.
   readonly padding?: number;
-  // Always false in Phase 1. The field exists to match the format and to fail loudly if a caller flips it.
+  // Opt-in deterministic 90-degree rotation packing. Default false (backward compatible: no region is ever
+  // rotated). When true, the packer may store a sprite turned 90 degrees clockwise to fit more per page; a
+  // rotated region carries `rotated: true` and its LOGICAL (unrotated) w/h, and both renderers turn it
+  // back (runtime-web via PixiJS rotate=2, render-preview via its RegionSampler). Results stay
+  // deterministic: the packer holds no clock or RNG and OUR fixed add order (below) is authoritative.
   readonly allowRotation?: boolean;
 }
 
@@ -50,6 +54,7 @@ const PAGE_FILE_PREFIX = 'atlas';
 interface ResolvedConfig {
   readonly maxPageSize: number;
   readonly padding: number;
+  readonly allowRotation: boolean;
 }
 
 function resolveConfig(config: PackConfig | undefined): ResolvedConfig {
@@ -57,12 +62,6 @@ function resolveConfig(config: PackConfig | undefined): ResolvedConfig {
   const padding = config?.padding ?? DEFAULT_PADDING;
   const allowRotation = config?.allowRotation ?? false;
 
-  if (allowRotation) {
-    throw new AtlasError(
-      'ATLAS_ROTATION_UNSUPPORTED',
-      'allowRotation is disabled in Phase 1 (the rotated-UV render path has no parity test)',
-    );
-  }
   if (!Number.isInteger(maxPageSize) || maxPageSize < 1 || maxPageSize > MAX_PAGE_SIZE_LIMIT) {
     throw new AtlasError(
       'ATLAS_INVALID_CONFIG',
@@ -75,7 +74,7 @@ function resolveConfig(config: PackConfig | undefined): ResolvedConfig {
       `padding must be a non-negative integer, received ${padding}`,
     );
   }
-  return { maxPageSize, padding };
+  return { maxPageSize, padding, allowRotation };
 }
 
 function validateSprites(sprites: readonly TrimmedSprite[], maxPageSize: number): void {
@@ -140,8 +139,37 @@ function blit(
   }
 }
 
+// Blit a sprite rotated 90 degrees CLOCKWISE into an (h x w) page rectangle at (x, y). This is the
+// storage convention both renderers read back: a logical pixel (lx, ly) of the w x h content lands at
+// page pixel (x + (h - 1 - ly), y + lx), which is PixiJS rotate=2 (its spritesheet parser's rotated
+// frame) and the (u, v) -> (1 - v, u) mapping render-preview's RegionSampler uses. Verified end to end by
+// the rotated-vs-unrotated pixel-parity test; keep this and those samplers in lockstep.
+function blitRotated(
+  page: Uint8Array,
+  pageWidth: number,
+  sprite: TrimmedSprite,
+  x: number,
+  y: number,
+): void {
+  const w = sprite.trimmedW;
+  const h = sprite.trimmedH;
+  const src = sprite.pixels;
+  for (let ly = 0; ly < h; ly += 1) {
+    const srcRow = ly * w * 4;
+    const dstX = x + (h - 1 - ly);
+    for (let lx = 0; lx < w; lx += 1) {
+      const s = srcRow + lx * 4;
+      const d = ((y + lx) * pageWidth + dstX) * 4;
+      page[d] = src[s]!;
+      page[d + 1] = src[s + 1]!;
+      page[d + 2] = src[s + 2]!;
+      page[d + 3] = src[s + 3]!;
+    }
+  }
+}
+
 export function packAtlas(sprites: readonly TrimmedSprite[], config?: PackConfig): PackResult {
-  const { maxPageSize, padding } = resolveConfig(config);
+  const { maxPageSize, padding, allowRotation } = resolveConfig(config);
   validateSprites(sprites, maxPageSize);
 
   if (sprites.length === 0) {
@@ -152,11 +180,13 @@ export function packAtlas(sprites: readonly TrimmedSprite[], config?: PackConfig
   // Rectangle and stashes our sprite on `.data`, so bin.rects are Rectangles we read coordinates from.
   const packer = new MaxRectsPacker(maxPageSize, maxPageSize, padding, {
     // Fixed, reproducible options. smart:false fixes page dimensions at maxPageSize; pot/square off so
-    // pages are not rounded; allowRotation:false (Phase 1); MAX_AREA pins the placement scoring; tag:false.
+    // pages are not rounded; allowRotation from config (default false); MAX_AREA pins the placement
+    // scoring; tag:false. The packer holds no clock or RNG, so with OUR fixed add order the rotation
+    // decisions are deterministic (locked by the rotation determinism test).
     smart: false,
     pot: false,
     square: false,
-    allowRotation: false,
+    allowRotation,
     border: 0,
     tag: false,
     logic: PACKING_LOGIC.MAX_AREA,
@@ -179,14 +209,21 @@ export function packAtlas(sprites: readonly TrimmedSprite[], config?: PackConfig
       // maxrects-packer types Rectangle.data as `any`; this single narrowing recovers the sprite metadata
       // we attached at add() time. It is the one unavoidable assertion at the library seam.
       const sprite = rect.data as TrimmedSprite;
-      blit(rgba, pageWidth, sprite, rect.x, rect.y);
+      // rect.rot is set by the packer when it stored the sprite turned 90 degrees to fit; only possible
+      // when allowRotation is on. The region keeps its LOGICAL (unrotated) w/h and offsets; the PAGE
+      // footprint is (h x w), which is what blitRotated fills and what the renderers reconstruct.
+      if (rect.rot) {
+        blitRotated(rgba, pageWidth, sprite, rect.x, rect.y);
+      } else {
+        blit(rgba, pageWidth, sprite, rect.x, rect.y);
+      }
       regions.push({
         name: sprite.name,
         x: rect.x,
         y: rect.y,
         w: sprite.trimmedW,
         h: sprite.trimmedH,
-        rotated: false,
+        rotated: rect.rot,
         offsetX: sprite.offsetX,
         offsetY: sprite.offsetY,
         originalW: sprite.originalW,

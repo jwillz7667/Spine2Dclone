@@ -133,13 +133,13 @@ describe('packAtlas', () => {
     expect(result.pageBitmaps).toEqual([]);
   });
 
-  it('rejects allowRotation in Phase 1', () => {
-    try {
-      packAtlas([sprite('a', 10, 10)], { allowRotation: true });
-      throw new Error('expected packAtlas to throw');
-    } catch (error) {
-      expect(isAtlasError(error) && error.code).toBe('ATLAS_ROTATION_UNSUPPORTED');
-    }
+  it('never rotates a region when allowRotation is left at its default (false)', () => {
+    const sprites = [sprite('wide', 60, 20), sprite('tall', 20, 60), sprite('sq', 40, 40)];
+
+    const result = packAtlas(sprites, { maxPageSize: 80, padding: 2 });
+
+    const rotatedFlags = result.atlas.pages.flatMap((p) => p.regions.map((r) => r.rotated));
+    expect(rotatedFlags.every((flag) => flag === false)).toBe(true);
   });
 
   it('rejects a maxPageSize above the 4096 limit', () => {

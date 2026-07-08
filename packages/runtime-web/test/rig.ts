@@ -1,3 +1,4 @@
+import { CURRENT_FORMAT_VERSION } from '@marionette/format';
 import type {
   Animation,
   AtlasRegion,
@@ -123,9 +124,11 @@ export function makeDocument(parts: DocumentParts): SkeletonDocument {
     ...atlasOverrides[name],
   }));
 
-  // Normalize each animation to the 0.2.0 shape (ADR-0004): the required ik/transform/deform timelines
-  // default to empty so a caller that keys only bone/slot channels still produces a valid current
-  // document (no migration on sync), which is what lets the hash-verification tests detect a tamper.
+  // Normalize each animation to the CURRENT format shape: the required ik/transform/deform timelines
+  // (ADR-0004) and the drawOrder/events timelines (ADR-0008) default to empty so a caller that keys only
+  // bone/slot channels still produces a valid current-version document (no migration on sync), which is
+  // what lets the hash-verification tests detect a tamper (a below-current document would migrate and
+  // recompute its hash on load, masking the tamper).
   const animations: Record<string, Animation> = {};
   for (const [name, anim] of Object.entries(parts.animations ?? {})) {
     animations[name] = {
@@ -133,11 +136,13 @@ export function makeDocument(parts: DocumentParts): SkeletonDocument {
       ik: anim.ik ?? {},
       transform: anim.transform ?? {},
       deform: anim.deform ?? {},
+      drawOrder: anim.drawOrder ?? [],
+      events: anim.events ?? [],
     };
   }
 
   return {
-    formatVersion: '0.2.0',
+    formatVersion: CURRENT_FORMAT_VERSION,
     name: parts.name ?? 'rig',
     hash: '',
     bones: parts.bones,
@@ -145,6 +150,7 @@ export function makeDocument(parts: DocumentParts): SkeletonDocument {
     skins: [{ name: 'default', attachments: skin }],
     ikConstraints: [],
     transformConstraints: [],
+    events: [],
     animations,
     atlas: {
       pages: regions.length > 0 ? [{ file: 'atlas.png', width: 128, height: 128, regions }] : [],

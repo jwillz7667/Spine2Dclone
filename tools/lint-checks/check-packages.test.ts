@@ -19,14 +19,17 @@ describe('findForbiddenPackages (LAW 5)', () => {
     root = mkdtempSync(join(tmpdir(), 'mc-package-guard-'));
     mkdirSync(join(root, 'packages', 'format'), { recursive: true });
     // A package not in the allowed set is flagged. math-bridge is now ALLOWED (it landed in Phase 4,
-    // WP-4.1), so a still-forbidden name is used as the example; runtimes are Phase 5 (none yet).
+    // WP-4.1), so a still-forbidden name is used as the example. runtimes/unity is now ALLOWED (it
+    // landed with PP-E1, the shared C# solve core), so a still-forbidden runtime name is the example.
     mkdirSync(join(root, 'packages', 'not-a-real-package'), { recursive: true });
     mkdirSync(join(root, 'runtimes', 'unity'), { recursive: true });
+    mkdirSync(join(root, 'runtimes', 'not-a-real-runtime'), { recursive: true });
 
     const violations = findForbiddenPackages(root);
 
     expect(violations).toContain('packages/not-a-real-package');
-    expect(violations).toContain('runtimes/unity');
+    expect(violations).toContain('runtimes/not-a-real-runtime');
+    expect(violations).not.toContain('runtimes/unity');
     expect(violations).not.toContain('packages/format');
   });
 
@@ -52,6 +55,8 @@ describe('findForbiddenPackages (LAW 5)', () => {
       mkdirSync(join(root, 'packages', pkg), { recursive: true });
     }
     mkdirSync(join(root, 'apps', 'editor'), { recursive: true });
+    // runtimes/unity is the shared C# solve core (PP-E1, ADR-0001), the one runtime allowed so far.
+    mkdirSync(join(root, 'runtimes', 'unity'), { recursive: true });
 
     expect(findForbiddenPackages(root)).toEqual([]);
   });

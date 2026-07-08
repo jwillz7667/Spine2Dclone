@@ -36,7 +36,10 @@ const ALLOWED = {
     'math-bridge',
   ]),
   apps: new Set(['editor']),
-  runtimes: new Set(), // Unity and Godot are Phase 5; none may exist yet.
+  // The two native runtimes are the only workspace directories the frozen dependency graph admits
+  // beyond packages/ and apps/ (pro-parity-execution-plan.md section 2 rule 5). unity lands with
+  // PP-E1 (the shared C# solve core, ADR-0001); godot lands with PP-E2 and joins this set then.
+  runtimes: new Set(['unity']),
 };
 
 /**

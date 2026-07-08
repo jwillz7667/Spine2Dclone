@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The engine-agnostic C# solve core (ADR-0001). It targets netstandard2.1 so Unity (and any other
+    C# host) can consume it unchanged, and it references NOTHING beyond the base class library: no
+    UnityEngine, no third party packages. It mirrors packages/runtime-core function for function so the
+    committed conformance fixtures and cross language integer vectors validate this port against the
+    TypeScript oracle (INV-2).
+  -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AssemblyName>Marionette.Runtime.Core</AssemblyName>
+    <RootNamespace>Marionette.Runtime.Core</RootNamespace>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <Deterministic>true</Deterministic>
+  </PropertyGroup>
+
+</Project>

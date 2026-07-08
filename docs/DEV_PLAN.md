@@ -70,6 +70,7 @@ lint, CI guard tests, and the do/undo round-trip harness, not by reviewer trust 
 | `docs/plan/phase-3-vfx-particles.md` | Particle designer, emitter runtime, slot effect presets, blend modes, determinism | Phase 3 |
 | `docs/plan/phase-4-slot-composer.md` | Grid/reel config, symbol library, win sequencer, feature flows, tumble, math-bridge | Phase 4 |
 | `docs/plan/phase-5-production-hardening.md` | Binary export, atlas optimization, Unity + Godot runtimes, conformance green across three, mobile profiling, release | Phase 5 |
+| `docs/plan/pro-parity-execution-plan.md` | The five-lane parallel program closing every remaining Spine Pro parity gap (owns the `PP-*` IDs; composes with Phase 5) | Executing the parity remainder |
 
 ## 5. Phase roadmap and milestone gates
 

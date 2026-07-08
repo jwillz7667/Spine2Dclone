@@ -2,6 +2,7 @@ import {
   MoveBoneCommand,
   RotateBoneCommand,
   ScaleBoneCommand,
+  SetBoneShearCommand,
   SetKeyframeCommand,
   type AnimationId,
   type BoneId,
@@ -13,11 +14,10 @@ import {
 import type { PlaybackMode } from '../editor-state/playback-store';
 import { setupDelta, type BoneTransformEdit } from './setup-delta';
 
-// The channels a gizmo edit can route to a SETUP-pose command in Phase 1. Bone shear has no setup-pose
-// command in the Phase 1 catalog (only Move/Rotate/Scale exist), so the dispatcher is scoped to the
-// channels that do. setupDelta still covers all four channels so the sampler inverse stays total and is
-// unit-tested directly; this subset is what the gizmo actually drives today (move + rotate, scale-ready).
-export type DispatchableBoneEdit = Exclude<BoneTransformEdit, { readonly channel: 'shear' }>;
+// The channels a gizmo or numeric-field edit can route to a SETUP-pose command. All four bone transform
+// channels now have a setup-pose command (Move/Rotate/Scale/SetBoneShear, PP-D1), so the dispatcher is
+// total over BoneTransformEdit and setupDelta's inverse (which was already total) is fully reachable.
+export type DispatchableBoneEdit = BoneTransformEdit;
 
 // The ephemeral editor state the dispatcher routes on (section 6), passed EXPLICITLY (no hidden global,
 // no Zustand reach-in here): mode picks setup-vs-keyframe, autoKey gates keying, and activeAnimation +
@@ -33,7 +33,7 @@ export interface EditDispatchContext {
 // What the dispatcher did, so the tool/UI can reflect it and tests can assert the routing without
 // reaching into History internals. Exactly one outcome per call; only 'setup' and 'keyed' mutate.
 export type EditOutcome =
-  | { readonly kind: 'setup' } // issued a setup-pose command (RotateBone / MoveBone / ScaleBone)
+  | { readonly kind: 'setup' } // issued a setup-pose command (Move / Rotate / Scale / SetBoneShear)
   | { readonly kind: 'keyed' } // issued a SetKeyframe at the playhead (the setup-relative delta)
   | { readonly kind: 'not-keying' } // animation mode, autoKey off: no command, no mutation
   | { readonly kind: 'no-active-animation' } // animation mode, autoKey on, no active animation: no-op
@@ -80,5 +80,7 @@ function setupCommand(boneId: BoneId, edit: DispatchableBoneEdit): Command {
       return new MoveBoneCommand(boneId, { x: edit.x, y: edit.y });
     case 'scale':
       return new ScaleBoneCommand(boneId, { scaleX: edit.scaleX, scaleY: edit.scaleY });
+    case 'shear':
+      return new SetBoneShearCommand(boneId, { shearX: edit.shearX, shearY: edit.shearY });
   }
 }

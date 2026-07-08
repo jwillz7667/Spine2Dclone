@@ -19,6 +19,7 @@ const BANNED = [
   { name: 'MoveBoneCommand', re: /new\s+MoveBoneCommand\b/ },
   { name: 'RotateBoneCommand', re: /new\s+RotateBoneCommand\b/ },
   { name: 'ScaleBoneCommand', re: /new\s+ScaleBoneCommand\b/ },
+  { name: 'SetBoneShearCommand', re: /new\s+SetBoneShearCommand\b/ },
 ] as const;
 
 const DISPATCHER_KEY = './edit-dispatcher.ts';

@@ -75,6 +75,11 @@ function angleOf(value: KeyframeValue): number {
   return value.angle;
 }
 
+function vec2Of(value: KeyframeValue): { x: number; y: number } {
+  if (!('x' in value) || !('y' in value)) throw new Error('expected a vec2 value');
+  return { x: value.x, y: value.y };
+}
+
 const SETUP_DEFAULTS: SetupTransform = {
   rotation: 0,
   x: 0,
@@ -139,6 +144,30 @@ describe('dispatchBoneTransform: animation mode + auto-key', () => {
     const local = decompose(solveLocalAt(doc, 'idle', 0.5));
     expect(local.scaleX).toBeCloseTo(3, 9); // setup 2 * delta 1.5
     expect(local.scaleY).toBeCloseTo(2, 9); // setup 0.5 * delta 4
+  });
+
+  it('keys the setup-relative shear delta (vec2) against a non-zero setup shear', () => {
+    const { doc, boneId } = makeDoc({ ...SETUP_DEFAULTS, shearX: 10, shearY: -4 });
+    const animId = addIdle(doc);
+
+    const outcome = dispatchBoneTransform(
+      doc.history,
+      doc.model,
+      boneId,
+      { channel: 'shear', shearX: 25, shearY: -20 },
+      animationCtx(animId),
+    );
+
+    expect(outcome.kind).toBe('keyed');
+    const set = doc.model.getAnimation(animId)?.bones.get(boneId);
+    expect(set?.shear.length).toBe(1);
+    expect(set?.shear[0]?.time).toBe(0.5);
+    // The sampler ADDS shear onto setup, so the stored delta is desired minus setup (matching the rotate
+    // and translate inverse). Asserting the value directly (not the solved matrix) because decompose folds
+    // shearY into shearX, which would obscure a per-axis delta.
+    const delta = vec2Of(set!.shear[0]!.value);
+    expect(delta.x).toBeCloseTo(15, 12); // 25 - 10
+    expect(delta.y).toBeCloseTo(-16, 12); // -20 - (-4)
   });
 
   it('editing the same bone at the same playhead updates the keyframe (no duplicate)', () => {

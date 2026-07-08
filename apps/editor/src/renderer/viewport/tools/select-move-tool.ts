@@ -10,6 +10,7 @@ import { useSelectionStore } from '../../editor-state/selection-store';
 import { usePlaybackStore } from '../../editor-state/playback-store';
 import { dispatchBoneTransform, type EditDispatchContext } from '../edit-dispatcher';
 import type { GizmoHandle, MoveRotateGizmo } from '../gizmo/move-rotate-gizmo';
+import { scaleFromDrag, type ScaleHandle } from '../gizmo/gizmo-scale';
 import { hitTestBone, solveWorldById } from '../scene-solve';
 import type { ViewportPointer, ViewportTool } from './tool';
 
@@ -40,7 +41,25 @@ interface RotateSession {
   readonly ctx: EditDispatchContext; // see MoveSession.ctx
 }
 
-type Session = MoveSession | RotateSession;
+interface ScaleSession {
+  readonly kind: 'scale';
+  readonly handle: ScaleHandle;
+  readonly bone: BoneId;
+  readonly originWorld: readonly [number, number]; // bone world origin at pointerdown
+  // Unit world directions of the bone's local x/y axes (its world matrix columns, normalized). Fixed for
+  // the drag: changing the bone's own scale never rotates these, so projecting the cursor onto them and
+  // dividing by the grab projection yields a parent-rotation/scale-invariant scale factor.
+  readonly axisX: readonly [number, number];
+  readonly axisY: readonly [number, number];
+  readonly startScaleX: number;
+  readonly startScaleY: number;
+  readonly grabProjX: number; // (grab - origin) . axisX at pointerdown
+  readonly grabProjY: number; // (grab - origin) . axisY at pointerdown
+  readonly grabDist: number; // |grab - origin| at pointerdown (uniform handle)
+  readonly ctx: EditDispatchContext; // see MoveSession.ctx
+}
+
+type Session = MoveSession | RotateSession | ScaleSession;
 
 // Select-and-move tool (handoff 8.3, 8.4). Click selects the bone under the cursor, a non-undoable
 // selection-store change that is NEVER a command (the editor/document wall). With a bone selected,
@@ -78,7 +97,8 @@ export class SelectMoveTool implements ViewportTool {
     const session = this.session;
     if (session === null) return;
     if (session.kind === 'move') this.applyMove(session, pointer);
-    else this.applyRotate(session, pointer);
+    else if (session.kind === 'rotate') this.applyRotate(session, pointer);
+    else this.applyScale(session, pointer);
   }
 
   onPointerUp(_pointer: ViewportPointer): void {
@@ -111,6 +131,29 @@ export class SelectMoveTool implements ViewportTool {
         startRotation: entity.rotation,
         lastAngle: Math.atan2(pointer.worldY - origin[1], pointer.worldX - origin[0]),
         total: 0,
+        ctx,
+      };
+      return;
+    }
+
+    if (handle === 'scale-x' || handle === 'scale-y' || handle === 'scale-uniform') {
+      const world = worldById.get(bone) ?? identity();
+      const axisX = normalize(world[0], world[1]);
+      const axisY = normalize(world[2], world[3]);
+      const gx = pointer.worldX - origin[0];
+      const gy = pointer.worldY - origin[1];
+      this.session = {
+        kind: 'scale',
+        handle,
+        bone,
+        originWorld: origin,
+        axisX,
+        axisY,
+        startScaleX: entity.scaleX,
+        startScaleY: entity.scaleY,
+        grabProjX: gx * axisX[0] + gy * axisX[1],
+        grabProjY: gx * axisY[0] + gy * axisY[1],
+        grabDist: Math.hypot(gx, gy),
         ctx,
       };
       return;
@@ -165,6 +208,37 @@ export class SelectMoveTool implements ViewportTool {
       session.ctx,
     );
   }
+
+  private applyScale(session: ScaleSession, pointer: ViewportPointer): void {
+    const vx = pointer.worldX - session.originWorld[0];
+    const vy = pointer.worldY - session.originWorld[1];
+    const { scaleX, scaleY } = scaleFromDrag({
+      handle: session.handle,
+      startScaleX: session.startScaleX,
+      startScaleY: session.startScaleY,
+      grabProjX: session.grabProjX,
+      grabProjY: session.grabProjY,
+      grabDist: session.grabDist,
+      projX: vx * session.axisX[0] + vy * session.axisX[1],
+      projY: vx * session.axisY[0] + vy * session.axisY[1],
+      dist: Math.hypot(vx, vy),
+    });
+    const host = documentHost.current();
+    dispatchBoneTransform(
+      host.history,
+      host.model,
+      session.bone,
+      { channel: 'scale', scaleX, scaleY },
+      session.ctx,
+    );
+  }
+}
+
+// Unit vector of (x, y), or (1, 0) for a degenerate zero vector (never hit in practice: a bone's world
+// axis column is non-zero unless its scale is exactly zero, which the scale gizmo does not produce).
+function normalize(x: number, y: number): readonly [number, number] {
+  const length = Math.hypot(x, y);
+  return length < 1e-9 ? [1, 0] : [x / length, y / length];
 }
 
 function selectedBoneId(): BoneId | null {
@@ -188,7 +262,8 @@ function editorContext(): EditDispatchContext {
 function interactionLabel(session: Session): string {
   const keying = session.ctx.mode === 'animation';
   if (session.kind === 'move') return keying ? 'Key Bone Position' : 'Move Bone';
-  return keying ? 'Key Bone Rotation' : 'Rotate Bone';
+  if (session.kind === 'rotate') return keying ? 'Key Bone Rotation' : 'Rotate Bone';
+  return keying ? 'Key Bone Scale' : 'Scale Bone';
 }
 
 // Wrap a raw angle delta into (-pi, pi] so accumulated rotation stays continuous across the seam.

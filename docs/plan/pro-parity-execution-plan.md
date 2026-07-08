@@ -46,6 +46,11 @@ machine-enforced boundaries.
 - **Export breadth.** The user exports a finished project in the format they need: portable JSON,
   MRNT binary, packed atlases (done), engine playback (web done; Unity/Godot per Lane E), and
   rendered media (PNG sequence, animated GIF/APNG, video) per PP-C10.
+- **Format expressive parity, zero Spine compatibility.** The product NEVER reads or writes
+  Spine's `.skel`/`.json` formats and never claims compatibility (LAW 4). Instead, OUR format
+  must be able to express everything Spine's format can express: every concept in the audit's
+  section 3.1 table gets a first-principles representation of our own design (the F1 to F4
+  staging is exactly this). Capability mirror, original encoding, original code.
 
 ## 2. Non-negotiables (read before any code)
 

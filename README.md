@@ -9,70 +9,89 @@ editor (a Spine-equivalent built from first principles), a particle/VFX subsyste
 composition layer. It exports one portable data format that web, Unity, and Godot runtimes play
 back. A pre-existing certified math engine drives outcomes; Armature 2D authors presentation only.
 
+Two control surfaces drive the exact same command layer: the desktop GUI, and a headless MCP
+server exposing all 142 authoring tools so an AI agent or script can build, inspect, render, and
+save everything a person can, with the same undo history.
+
 The product is planned to ship in two editions, Essentials and Pro; the tier split is tracked for
-Phase 4/5 and is documented in `docs/plan/product-editions.md`. Package names keep the `@marionette`
-codename scope for now (the deep package rename is deferred to its own change).
+Phase 4/5 in `docs/plan/product-editions.md`. Package names keep the `@marionette` codename scope
+for now (the deep package rename is deferred to its own change).
 
-The authoritative spec is `MARIONETTE_HANDOFF.md`. The plan of record lives in `docs/plan/`, with
-the master index and dependency graph in `docs/DEV_PLAN.md`. Project laws and conventions are in
-`CLAUDE.md`. The user manual (creating animations with the program: rigging, animation, VFX,
-composition, playback, plus the complete tool and format references) is `docs/manual/README.md`.
+## Documentation
 
-## Status
+The portal is [`docs/README.md`](docs/README.md). Highlights:
 
-Phase 0 (Foundations) and Phase 1 (Bone puppet, Tier 0) are complete and green. Phase 2 (Rigging)
-adds mesh deform, linear blend skinning, weight painting, analytic IK, transform constraints, named
-skins, and deform timelines. See `docs/plan/phase-2-rigging.md` for the work-package breakdown and
-`docs/DEV_PLAN.md` for the phase roadmap.
+- **User manual** (rigging, animation, VFX, slots, export, the full tool and format references):
+  [`docs/manual/README.md`](docs/manual/README.md)
+- **Developer docs** (architecture, setup, testing/CI, security, releasing, troubleshooting):
+  [`docs/dev/`](docs/dev/)
+- **Contributing** (workflow and the Definition of Done): [`CONTRIBUTING.md`](CONTRIBUTING.md)
+- **Spec and plan of record**: `MARIONETTE_HANDOFF.md` (authoritative spec), `docs/DEV_PLAN.md`
+  (roadmap, status), `docs/plan/` (per-phase plans and cross-cutting contracts), `docs/adr/`
+  (decision records), `CLAUDE.md` (the enforced laws and conventions)
+- **Per-package references**: a README in every workspace (see the portal for the list)
 
-Launch the editor shell in development:
+## Status (see `docs/DEV_PLAN.md` section 9 for the tracker)
 
-```bash
-pnpm --filter editor dev      # opens the window with the hierarchy/viewport/inspector panels
-```
+Phases 0 to 4 (foundations, bone puppet, rigging, VFX/particles, slot composer) are complete and
+green in CI-verifiable form: the document model, the 100-command layer with exact undo, the
+deterministic solve, the effects and slot runtimes, the `math-bridge` engine boundary, the MCP
+control surface, and the four-track conformance suite. Phase 5 (production hardening) is in
+progress: the headless spine is landed (MRNT binary codec, export-profile core, cross-language
+determinism vectors, texture-variant selection); the Unity/Godot native runtimes, device
+profiling, and the signed release pipeline are the remainder. The authoring GUI intentionally
+trails the finished backend and is being completed in phase order; where a panel is still landing,
+the MCP tools are the complete interface. The verified gap map against Spine Pro is
+`docs/audit/spine-pro-parity-audit.md`.
 
 ## Repository layout
 
 ```
-packages/
-  format/          # Zod-sourced types + validators + content hashing (the shared contract)
-  runtime-core/    # platform-agnostic solve (TS, no PixiJS); behavioral source of truth
-  runtime-web/     # TS + PixiJS playback; also powers the editor viewport
 apps/
-  editor/          # Electron main / preload / renderer (renderer hosts the editor UI)
-tools/             # repo guards (package guard, dash guard, format-semver) + lint guard tests
-docs/              # plan of record and cross-cutting contracts
+  editor/          # Electron + React + PixiJS authoring app
+packages/
+  format/          # THE CONTRACT: Zod schemas, validators, hashing, migrations, MRNT binary
+  runtime-core/    # platform-agnostic solve (skeleton, effects, slot); behavioral source of truth
+  runtime-web/     # TS + PixiJS v8 playback; also powers the editor viewport
+  document-core/   # DocumentModel + commands + History, shared by GUI and MCP (ADR-0001)
+  mcp-server/      # headless MCP control surface (142 tools over stdio)
+  render-preview/  # deterministic CPU rasterizer -> PNG for headless render feedback
+  atlas-pack/      # deterministic sprite-atlas packing pipeline
+  math-bridge/     # SpinResult contract + validator + mock engine + real-engine adapter
+  conformance/     # reference rigs, committed fixtures, drift gates, cross-language vectors
+tools/             # repo guards (package allowlist, dash ban, format semver) + lint guard tests
+docs/              # portal, user manual, developer docs, plan of record, ADRs
+demo/              # sample productions built with the tool
 ```
 
-Dependency direction is machine-enforced: `format` <- `runtime-core` <- `runtime-web` <-
-`apps/editor`. `runtime-core` and `format` carry no PixiJS, no DOM, and no Node built-ins.
+Dependency direction is machine-enforced (ESLint boundaries plus guard tests); `runtime-core` and
+`format` carry no PixiJS, no DOM, and no Node built-ins. The full graph is in
+[`docs/dev/architecture.md`](docs/dev/architecture.md).
 
 ## Prerequisites
 
-- Node 22 LTS (pinned in `.node-version` to the exact patch used to generate fixtures).
-- pnpm (pinned via the root `package.json` `packageManager` field; enable with `corepack enable`).
+- Node 22 LTS, pinned in `.node-version` (22.13.1, the exact patch used to generate fixtures).
+- pnpm 11.8.0 via the root `packageManager` field (enable with `corepack enable`).
 
 ## Quickstart
 
 ```bash
-pnpm install        # install the workspace from the committed lockfile
-pnpm typecheck      # tsc --noEmit across every package (TS strict)
-pnpm lint           # ESLint flat config: boundaries, platform-agnostic core, INV-6 dashes
-pnpm test           # Vitest unit suites (incl. the boundary lint guard tests)
-pnpm build          # tsc build for the libraries; editor bundle lands in WP-0.2
-```
+pnpm install                # from the committed lockfile
+pnpm ci:local               # typecheck + lint + test + build + package guard + dash guard
+pnpm --filter editor dev    # launch the editor (hierarchy/viewport/inspector/timeline panels)
 
-Convenience aggregate (mirrors the CI required checks):
-
-```bash
-pnpm ci:local       # typecheck + lint + test + build + package guard + dash guard
+# headless authoring (MCP over stdio; sandboxed to the given project root)
+pnpm --filter @marionette/mcp-server build
+node packages/mcp-server/dist/cli.js <projectRoot>
 ```
 
 ## CI
 
-`.github/workflows/ci.yml` runs typecheck, lint (plus the em-dash guard), unit tests, build, the
-format semver gate, and the Phase-0 forbidden-package guard. A single `ci-pass` job aggregates the
-required checks; its dependency set grows per phase per `docs/plan/cross-cutting/conformance-and-ci.md`.
+`.github/workflows/ci.yml` runs typecheck, lint (including the dash guard), tests, build, the
+format semver gates, the package allowlist guard, the Phase 3 acceptance harness, and commitlint;
+a single `ci-pass` job aggregates the required checks. `conformance-native.yml` already runs the
+cross-language determinism vectors and is scaffolded for the Unity/Godot runtimes. Details:
+[`docs/dev/testing-and-ci.md`](docs/dev/testing-and-ci.md).
 
 ## The five laws (a reviewer rejects any PR that breaks one)
 

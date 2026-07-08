@@ -284,3 +284,44 @@ character with this instead of Spine."
 - Decide whether the deferred deep package rename (Marionette to Armature 2D)
   happens before the first public runtime API, since the npm package names are
   about to become user-facing in Tier 2 item 16.
+
+---
+
+## 5. Addendum: verified deltas since the 2026-07-02 audit (recorded 2026-07-08)
+
+Re-verified against the working tree. The following audit findings are now CLOSED:
+
+- **Tier 1 item 1 (mesh rendering), most of it.** `runtime-web` renders mesh
+  attachments (`src/scene/mesh-display.ts`; geometry built once, positions
+  rewritten in place from the skinned vertices) and the editor viewport renders
+  through the same `SkeletonView`. Per-slot blend modes are now assigned
+  (`test/blend-assignment.test.ts`). Still open from item 1: trim offsets are
+  still not applied in the region slicer (documented in
+  `src/scene/region-textures.ts`), and rotated regions still throw.
+- **Tier 1 items 2 and 3 (mesh tool and weights UI).** The viewport now has
+  four wired tools including `mesh-tool.ts` and `weight-paint-tool.ts`
+  (toolbar keys V/B/M/W), with mesh-edit and weight-paint overlays and stores.
+- **Tier 1 item 7 (AnimationState).** Landed per ADR-0005:
+  `runtime-core/src/skeleton/animation-state.ts` (tracks, crossfade, additive,
+  queue), mirrored as `SkeletonView.syncState`, locked by four committed
+  anim-state conformance fixtures.
+- **Section 3.4 panel gaps, partially.** Nine panels now exist and are mounted
+  (hierarchy, assets, slot, viewport, inspector, effects, animations,
+  dopesheet, curve editor); the effects and slot panels expose substantially
+  more than the audit's "partial" rows recorded.
+- **Tier 2 item 17, the MCP half.** The MCP surface grew from 88 to 142 tools
+  and now covers the effects and slot composers, plus headless render feedback
+  (`render_frame` over the ADR-0006 CPU rasterizer) and deterministic atlas
+  packing (`atlas.pack`, ADR-0007).
+- **The CLAUDE.md staleness note in section 1** was fixed (status and repo map
+  now match `docs/DEV_PLAN.md`).
+
+Still open and unchanged in kind: format 0.3.0 (draw-order and event
+timelines) and everything behind it, path and physics constraints, linked
+meshes and sequences, clipping/tint-black rendering, runtime skin switching
+beyond the default skin, GL particle and slot rendering, the packaged player
+API and asset loader, gizmo completion (scale handle, shear, numeric entry,
+multi-select), onion skinning and the graph view, import/export breadth,
+atlas-texture restore on document load, the Unity and Godot runtimes, the live
+engine transport, device profiling, and the release pipeline. The
+`rig-transform-modes` fixture is still not in `RIG_IDS`.

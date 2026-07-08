@@ -33,6 +33,20 @@ machine-enforced boundaries.
    web player, Unity, and Godot.
 5. `pnpm ci:local` plus the native conformance workflow pass on a signed, packaged build.
 
+**Product requirements (owner directives, 2026-07-08; these bind every lane):**
+
+- **Standalone and local-only.** The finished product is a desktop application that runs entirely
+  locally and saves projects to the user's device. NO user data is stored, collected, or
+  transmitted: no telemetry, no accounts, no cloud dependency. The only permissible network touch
+  is an opt-in update check in the packaged app.
+- **Installers for macOS (Apple Silicon and Intel), Windows, and Linux.** PP-E5 covers all three
+  platforms; Linux is a first-class target, not an afterthought.
+- **Free product.** Armature 2D ships free. The Essentials/Pro edition split in
+  `docs/plan/product-editions.md` is superseded: no edition gating, no licensing mechanism, ever.
+- **Export breadth.** The user exports a finished project in the format they need: portable JSON,
+  MRNT binary, packed atlases (done), engine playback (web done; Unity/Godot per Lane E), and
+  rendered media (PNG sequence, animated GIF/APNG, video) per PP-C10.
+
 ## 2. Non-negotiables (read before any code)
 
 These bind every lane and every PR. They restate nothing new; they are the existing repo law
@@ -166,6 +180,12 @@ which is what makes five-way parallelism safe.
 - **Stage F3/F4:** **PP-C9:** path and physics rendering support (mostly free via core; verify
   with playback parity tests) and the export-pipeline GPU remainder (WP-5.2: scale variants,
   mips, KTX2/UASTC transcode, blend binning) behind the frozen export profile.
+- **Any stage:** **PP-C10 (rendered-media export):** deterministic PNG-sequence export from
+  render-preview frames (an animation sampled at a chosen fps), animated GIF and APNG encoding
+  (pure-JS encoders, same determinism bar as pngjs), and video export (WebM/MP4) via a bundled
+  encoder at the editor edge only (never a runtime dependency). The editor export dialog surface
+  belongs to Lane D (PP-D6); the frame pipeline and encoders are Lane C. This is the "export a
+  finished cartoon or clip in whatever format the user wants" requirement.
 - **Standing orders:** every render feature lands in BOTH runtime-web and render-preview (or an
   ADR records why not), with a shared-math parity test, because `render_frame` is how the AI
   authoring loop sees its work.
@@ -228,9 +248,11 @@ which is what makes five-way parallelism safe.
   - **PP-E4:** the live certified-engine transport for `RealEngineAdapter` (WP-5.8): concrete
     non-transacting resolve client with timeouts, typed failures, and a contract test against the
     mock's vocabulary; still lint-unreachable from presentation.
-  - **PP-E5:** release pipeline (WP-5.7): electron-builder packaging for macOS arm64+x64 and
-    Windows, signing and notarization, integrity-checked auto-update feed, a tag-triggered
-    release workflow gated on `ci-pass` + `conformance-native-pass`.
+  - **PP-E5:** release pipeline (WP-5.7): electron-builder packaging for macOS arm64+x64,
+    Windows, and Linux (AppImage plus deb/rpm), signing and notarization where the platform
+    supports it, an integrity-checked and strictly OPT-IN auto-update feed (the local-only
+    privacy directive: the app makes no other network request), and a tag-triggered release
+    workflow gated on `ci-pass` + `conformance-native-pass`.
   - **PP-E6:** mobile device profiling (WP-5.6): the profiling harness, budget assertions from
     the phase plan, and a written report per reference device.
   - **Chase work:** after every merged F-stage, port the new solve behavior and turn the new

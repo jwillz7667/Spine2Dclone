@@ -44,3 +44,11 @@ Revisit during Phase 4 (slot composer) or Phase 5 (production hardening), whiche
 and licensing work. At that point: pin the exact per-edition feature boundary, decide the gating mechanism
 (build-time flag, runtime license check, or both), and add it as a dedicated work package with tests. Update
 this note from "direction" to "specification" then.
+
+## Superseded: the product ships free (owner directive, 2026-07-08)
+
+The product owner has decided Armature 2D will be offered FREE as a single full-capability
+edition. The Essentials/Pro split above is superseded and retained only as history: build NO
+edition gating and NO licensing mechanism. The binding product requirements (free, standalone,
+local-only data, macOS/Windows/Linux installers, full export breadth) are recorded in
+`docs/plan/pro-parity-execution-plan.md` section 1.

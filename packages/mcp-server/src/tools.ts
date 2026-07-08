@@ -2357,8 +2357,6 @@ function mapRenderError(error: unknown): never {
         throw new McpToolError('RENDER_ZERO_CONTENT', error.message);
       case 'INVALID_VIEWPORT':
         throw new McpToolError('RENDER_INVALID_VIEWPORT', error.message);
-      case 'ROTATED_REGION_UNSUPPORTED':
-        throw new McpToolError('RENDER_ROTATED_REGION', error.message);
       case 'MALFORMED_ATLAS_PAGE':
         throw new McpToolError('RENDER_MALFORMED_ATLAS_PAGE', error.message);
       case 'INVALID_EFFECT_TRIGGER':

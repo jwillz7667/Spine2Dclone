@@ -3,17 +3,13 @@
 // unknown animation, a malformed atlas page buffer) is a distinct `code` on a single base class so a host
 // (the MCP server first) can branch on the reason and report it precisely.
 //
-// ROTATED_REGION_UNSUPPORTED is RETIRED (PP-C2): rotated atlas regions are now sampled turned-back
-// (atlas.ts RegionSampler), matching runtime-web, so render-preview never emits this code and the
-// RotatedRegionUnsupportedError class is gone. The code string is kept RESERVED in the union so the MCP
-// server's exhaustive render-error mapping (mcp-server tools.ts) stays valid without a cross-lane edit;
-// dropping it there and here is a small Lane D follow-up.
+// ROTATED_REGION_UNSUPPORTED was RETIRED in PP-C2: rotated atlas regions are sampled turned-back
+// (atlas.ts RegionSampler), matching runtime-web, so the code and its class are gone.
 
 export type RenderPreviewErrorCode =
   | 'INVALID_VIEWPORT'
   | 'ZERO_CONTENT_FIT'
   | 'UNKNOWN_ANIMATION'
-  | 'ROTATED_REGION_UNSUPPORTED'
   | 'MALFORMED_ATLAS_PAGE'
   | 'INVALID_EFFECT_TRIGGER';
 

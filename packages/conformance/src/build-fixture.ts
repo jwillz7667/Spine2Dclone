@@ -3,9 +3,10 @@ import {
   MAT2X3_STRIDE,
   sampleMeshVertices,
   sampleSkeleton,
+  SLOT_COLOR_STRIDE,
 } from '@marionette/runtime-core';
 import type { SkeletonDocument } from '@marionette/format/types';
-import type { Affine, Fixture, FixtureSample, MeshVertices } from './schema/fixture';
+import type { Affine, Fixture, FixtureSample, MeshVertices, SlotState } from './schema/fixture';
 import type { SampleSpec } from './schema/sample-spec';
 
 // The pure fixture builder (conformance-and-ci.md A.6, WP-V.2). This is the behavioral source of truth
@@ -35,6 +36,33 @@ function readAffine(world: Float64Array, boneIndex: number): Affine {
   return [world[o]!, world[o + 1]!, world[o + 2]!, world[o + 3]!, world[o + 4]!, world[o + 5]!];
 }
 
+// Resolve the pose slot index and the document blend mode for each slot name the spec asks to capture,
+// once, before the sample loop (PP-B1, rig-blendmodes). A name that is not a slot fails loudly (Law 3):
+// a bad capture request is an authoring error in the sample-spec, never a silently dropped slot. The
+// order mirrors spec.slots so the emitted `slots` array (and its diff) is stable and author-controlled.
+interface SlotCaptureTarget {
+  readonly name: string;
+  readonly poseIndex: number;
+  readonly blendMode: SlotState['blendMode'];
+}
+
+function resolveSlotCaptureTargets(
+  document: SkeletonDocument,
+  slotNames: readonly string[],
+): SlotCaptureTarget[] {
+  const poseIndexByName = new Map<string, number>();
+  document.slots.forEach((slot, index) => poseIndexByName.set(slot.name, index));
+  const blendModeByName = new Map(document.slots.map((slot) => [slot.name, slot.blendMode]));
+  return slotNames.map((name) => {
+    const poseIndex = poseIndexByName.get(name);
+    const blendMode = blendModeByName.get(name);
+    if (poseIndex === undefined || blendMode === undefined) {
+      throw new Error(`sample-spec names slot "${name}" to capture, but the rig has no such slot`);
+    }
+    return { name, poseIndex, blendMode };
+  });
+}
+
 // Sample the document at every poseTime in the spec and capture the per-bone world affines. The pose
 // buffer is allocated once and reused across times (runtime-core writes into it in place), matching the
 // allocation-free solve contract. Bones are emitted in document order (pose.boneNames order, which the
@@ -42,6 +70,12 @@ function readAffine(world: Float64Array, boneIndex: number): Affine {
 export function buildFixtureSamples(document: SkeletonDocument, spec: SampleSpec): FixtureSample[] {
   const pose = buildPose(document);
   const samples: FixtureSample[] = [];
+  // Slot capture targets (blend mode + resolved color), resolved once. Empty when the spec omits slots,
+  // so bone-only and mesh-only rigs never gain a `slots` member and their fixtures stay byte-identical.
+  const slotTargets =
+    spec.slots !== undefined && spec.slots.length > 0
+      ? resolveSlotCaptureTargets(document, spec.slots)
+      : [];
   // Mesh-vertex sampling reuses one scratch buffer across all times and meshes (allocation-free contract);
   // it is sized to the largest sampled mesh once. The spec.meshes order is normalized to a deterministic
   // (skin, slot, attachment) sort so the emitted JSON is stable for diffs regardless of authoring order.
@@ -84,6 +118,24 @@ export function buildFixtureSamples(document: SkeletonDocument, spec: SampleSpec
         });
       }
       sample.meshes = meshes;
+    }
+    if (slotTargets.length > 0) {
+      // Read the resolved color sampleSkeleton just wrote into pose.slotColor (setup color for a slot
+      // with no color timeline, the blended value otherwise). Blend mode is a static document property.
+      const slots: SlotState[] = slotTargets.map((target) => {
+        const base = target.poseIndex * SLOT_COLOR_STRIDE;
+        return {
+          slot: target.name,
+          blendMode: target.blendMode,
+          color: [
+            pose.slotColor[base]!,
+            pose.slotColor[base + 1]!,
+            pose.slotColor[base + 2]!,
+            pose.slotColor[base + 3]!,
+          ],
+        };
+      });
+      sample.slots = slots;
     }
     samples.push(sample);
   }

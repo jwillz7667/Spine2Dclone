@@ -1,5 +1,5 @@
-import type { Affine, Fixture, MeshVertices } from '../schema/fixture';
-import { VERTEX, withinTolerance, WORLD_BASIS, WORLD_TRANSLATION } from './tolerance';
+import type { Affine, Fixture, MeshVertices, SlotState } from '../schema/fixture';
+import { COLOR, VERTEX, withinTolerance, WORLD_BASIS, WORLD_TRANSLATION } from './tolerance';
 import type { Tolerance } from './tolerance';
 
 // The skeletal parity comparison engine (conformance-and-ci.md B.5, WP-V.0/V.3). It compares two
@@ -17,7 +17,15 @@ import type { Tolerance } from './tolerance';
 // Affine lane names [a, b, c, d, tx, ty] for human-readable failure messages.
 const LANE_NAMES = ['a', 'b', 'c', 'd', 'tx', 'ty'] as const;
 
-export type QuantityClass = 'worldBasis' | 'worldTranslation' | 'vertex' | 'structural';
+export type QuantityClass =
+  | 'worldBasis'
+  | 'worldTranslation'
+  | 'vertex'
+  | 'slotColor'
+  | 'structural';
+
+// Slot-color lane names [r, g, b, a] for human-readable failure messages.
+const COLOR_LANE_NAMES = ['r', 'g', 'b', 'a'] as const;
 
 // One localized parity failure. Numeric fields are populated for a numeric (per-lane) drift; for a
 // structural failure they are null and `message` carries the discrete mismatch.
@@ -145,6 +153,67 @@ function compareMeshes(
   }
 }
 
+// Compare the per-slot presentation state of one sample (PP-B1, rig-blendmodes). The slot SET (by name)
+// and each slot's `blendMode` are DISCRETE (exact equality, A.5): a blend-mode mismatch is a real
+// step-6 bug, never float noise. The `color` channels are compared within the COLOR tolerance (bounded
+// 0..1, no relative term). Absent on both sides (a bone-only or mesh-only rig) is a match.
+function compareSlots(
+  expected: readonly SlotState[] | undefined,
+  actual: readonly SlotState[] | undefined,
+  rigId: string,
+  time: number,
+  failures: DriftFailure[],
+): void {
+  const e = expected ?? [];
+  const a = actual ?? [];
+  const expectedNames = e.map((s) => s.slot).sort();
+  const actualNames = a.map((s) => s.slot).sort();
+  if (
+    expectedNames.length !== actualNames.length ||
+    expectedNames.some((n, i) => n !== actualNames[i])
+  ) {
+    failures.push(
+      structuralFailure(
+        rigId,
+        `sample at t=${time} slot set mismatch: expected [${expectedNames.join(', ')}], actual [${actualNames.join(', ')}]`,
+        time,
+      ),
+    );
+    return;
+  }
+  const actualByName = new Map(a.map((s) => [s.slot, s]));
+  for (const es of e) {
+    const as = actualByName.get(es.slot)!;
+    if (es.blendMode !== as.blendMode) {
+      failures.push(
+        structuralFailure(
+          rigId,
+          `slot "${es.slot}" at t=${time} blendMode mismatch: expected "${es.blendMode}", actual "${as.blendMode}"`,
+          time,
+        ),
+      );
+    }
+    for (let lane = 0; lane < 4; lane += 1) {
+      const expectedValue = es.color[lane]!;
+      const actualValue = as.color[lane]!;
+      if (withinTolerance(actualValue, expectedValue, COLOR)) continue;
+      failures.push({
+        rigId,
+        time,
+        bone: es.slot,
+        quantity: 'slotColor',
+        lane,
+        expected: expectedValue,
+        actual: actualValue,
+        absDelta: Math.abs(actualValue - expectedValue),
+        atol: COLOR.atol,
+        rtol: COLOR.rtol,
+        message: `slot "${es.slot}" color lane ${lane} (${COLOR_LANE_NAMES[lane]}) at t=${time} drifts beyond tolerance`,
+      });
+    }
+  }
+}
+
 function structuralFailure(rigId: string, message: string, time: number | null): DriftFailure {
   return {
     rigId,
@@ -237,6 +306,7 @@ export function compareFixtures(expected: Fixture, actual: Fixture): DriftReport
     }
 
     compareMeshes(e.meshes, a.meshes, rigId, e.time, failures);
+    compareSlots(e.slots, a.slots, rigId, e.time, failures);
   }
 
   return { ok: failures.length === 0, failures };

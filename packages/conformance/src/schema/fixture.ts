@@ -8,9 +8,11 @@ import { z } from 'zod';
 // Phase 1 scope (rig-2bone, phase-1-bone-puppet.md WP-1.12): a sample stores ONLY the canonical raw
 // world affine per bone in document order. Decomposed local rotation and a separately computed tip
 // position are NOT stored, because atan2/acos differ across language math libs and decomposition would
-// re-introduce that noise on read (A.3). The vertices / drawOrder / slots / events members of the full
-// A.3 shape arrive with the Phase 2 rigs (weighted mesh, draw order, events) and extend this schema as
-// optional members; the schema is `.strict()` so an unexpected member fails loudly until it is added.
+// re-introduce that noise on read (A.3). The vertices / slots / drawOrder / events members of the full
+// A.3 shape arrive with the Phase 2 rigs (weighted mesh, blend modes, draw order, events) and extend
+// this schema as optional members; the schema is `.strict()` so an unexpected member fails loudly
+// until it is added. PP-B1 adds the optional per-slot capture (blendMode + resolved color) that
+// rig-blendmodes needs to make solve-order step 6 (per-slot blend mode and color) observable.
 
 // A 2x3 affine [a, b, c, d, tx, ty] (runtime-core math/affine.ts layout): columns [a c tx; b d ty].
 const affineSchema = z.tuple([
@@ -36,6 +38,30 @@ const meshVerticesSchema = z
   })
   .strict();
 
+// Per-slot blend mode (handoff section 6 step 6): the four modes the renderer maps to GPU blend
+// functions. Defined here (not imported from format) so the fixture schema is the self-contained
+// cross-runtime contract a native runtime validates against (A.8); the values mirror the format's
+// BlendMode enum. A discrete quantity: compared with EXACT equality, no epsilon (A.5).
+const fixtureBlendModeSchema = z.enum(['normal', 'additive', 'multiply', 'screen']);
+
+// One slot's resolved presentation state at a sample time (solve-order step 6): its static `blendMode`
+// (a document property, compared EXACT) and the `color` the animation resolved to (pose.slotColor,
+// [r, g, b, a] in 0..1, compared within the COLOR tolerance). Present only on rigs whose sample-spec
+// names slots to capture (rig-blendmodes); omitted otherwise, so pre-PP-B1 fixtures stay byte-identical.
+// Keyed by slot name; emitted in the sample-spec's requested order so the diff reads one slot per line.
+const slotStateSchema = z
+  .object({
+    slot: z.string().min(1),
+    blendMode: fixtureBlendModeSchema,
+    color: z.tuple([
+      z.number().finite(),
+      z.number().finite(),
+      z.number().finite(),
+      z.number().finite(),
+    ]),
+  })
+  .strict();
+
 const fixtureSampleSchema = z
   .object({
     time: z.number().finite(),
@@ -46,6 +72,9 @@ const fixtureSampleSchema = z
     // Skinned + deformed mesh vertices, present only on rigs whose sample-spec names meshes to sample
     // (FIX-2.RM / FIX-2.W / FIX-2.DF). Omitted on bone-only rigs, so pre-Phase-2 fixtures stay valid.
     meshes: z.array(meshVerticesSchema).optional(),
+    // Per-slot blend mode + resolved color, present only on rigs whose sample-spec names slots to
+    // capture (rig-blendmodes). Omitted otherwise, so bone-only and mesh-only fixtures stay valid.
+    slots: z.array(slotStateSchema).optional(),
   })
   .strict();
 
@@ -63,6 +92,8 @@ export const fixtureSchema = z
 
 export type Affine = z.infer<typeof affineSchema>;
 export type MeshVertices = z.infer<typeof meshVerticesSchema>;
+export type FixtureBlendMode = z.infer<typeof fixtureBlendModeSchema>;
+export type SlotState = z.infer<typeof slotStateSchema>;
 export type FixtureSample = z.infer<typeof fixtureSampleSchema>;
 export type Fixture = z.infer<typeof fixtureSchema>;
 

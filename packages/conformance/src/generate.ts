@@ -108,27 +108,39 @@ function serializeMesh(mesh: NonNullable<FixtureSample['meshes']>[number], inden
   return `${indent}{ "skin": ${str(mesh.skin)}, "slot": ${str(mesh.slot)}, "attachment": ${str(mesh.attachment)}, "positions": ${positions} }`;
 }
 
+// One slot-state entry on a single line: the slot name, its blend mode, and a compact color array, so
+// a diff reads one slot per line (matching the one-mesh-per-line convention).
+function serializeSlot(slot: NonNullable<FixtureSample['slots']>[number], indent: string): string {
+  const color = `[${slot.color.map(num).join(', ')}]`;
+  return `${indent}{ "slot": ${str(slot.slot)}, "blendMode": ${str(slot.blendMode)}, "color": ${color} }`;
+}
+
 function serializeSample(sample: FixtureSample, indent: string): string {
   const i2 = `${indent}  `;
   const i3 = `${i2}  `;
   const boneLines = Object.entries(sample.bones).map(
     ([name, affine]) => `${i3}${str(name)}: ${serializeAffine(affine)}`,
   );
-  const lines = [
+  // Each JSON member is one self-contained block (no trailing comma); the commas that separate members
+  // come from the `,\n` join, so appending an optional member (meshes, slots) never disturbs the bytes
+  // of a fixture that lacks it. `bones` is always present; `meshes` then `slots` follow when captured.
+  const members = [`${i2}"bones": {\n${boneLines.join(',\n')}\n${i2}}`];
+  if (sample.meshes !== undefined && sample.meshes.length > 0) {
+    const meshLines = sample.meshes.map((mesh) => serializeMesh(mesh, i3));
+    members.push(`${i2}"meshes": [\n${meshLines.join(',\n')}\n${i2}]`);
+  }
+  if (sample.slots !== undefined && sample.slots.length > 0) {
+    const slotLines = sample.slots.map((slot) => serializeSlot(slot, i3));
+    members.push(`${i2}"slots": [\n${slotLines.join(',\n')}\n${i2}]`);
+  }
+  return [
     `${indent}{`,
     `${i2}"time": ${num(sample.time)},`,
     `${i2}"animation": ${str(sample.animation)},`,
     `${i2}"loop": ${sample.loop ? 'true' : 'false'},`,
-  ];
-  if (sample.meshes !== undefined && sample.meshes.length > 0) {
-    const meshLines = sample.meshes.map((mesh) => serializeMesh(mesh, i3));
-    lines.push(`${i2}"bones": {`, boneLines.join(',\n'), `${i2}},`);
-    lines.push(`${i2}"meshes": [`, meshLines.join(',\n'), `${i2}]`);
-  } else {
-    lines.push(`${i2}"bones": {`, boneLines.join(',\n'), `${i2}}`);
-  }
-  lines.push(`${indent}}`);
-  return lines.join('\n');
+    members.join(',\n'),
+    `${indent}}`,
+  ].join('\n');
 }
 
 function serializeFixture(fixture: Fixture): string {

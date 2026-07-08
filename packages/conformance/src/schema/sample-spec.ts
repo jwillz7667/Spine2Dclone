@@ -31,6 +31,11 @@ export const sampleSpecSchema = z
           .strict(),
       )
       .optional(),
+    // The slot names whose resolved blend mode + color are captured at every poseTime (PP-B1,
+    // rig-blendmodes). Opt-in and order-preserving: a spec that omits it captures no slots, so every
+    // pre-PP-B1 fixture regenerates byte-identically. Each name must be an existing slot; the generator
+    // captures them in this order so the fixture diff reads one slot per line.
+    slots: z.array(z.string().min(1)).optional(),
     eventStep: z
       .object({
         dt: z.number().finite().positive(),

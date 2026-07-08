@@ -28,7 +28,14 @@ export type { AnimStateId } from './registry';
 // Schemas + typed boundary validators (A.3, A.4, Law 3).
 export { validateRig } from './schema/rig';
 export { validateFixture, FixtureValidationError, fixtureSchema } from './schema/fixture';
-export type { Fixture, FixtureSample, Affine } from './schema/fixture';
+export type {
+  Fixture,
+  FixtureSample,
+  Affine,
+  MeshVertices,
+  SlotState,
+  FixtureBlendMode,
+} from './schema/fixture';
 export {
   validateSampleSpec,
   SampleSpecValidationError,

@@ -20,7 +20,12 @@ import {
 import type { AtlasIndex, TextureSampler } from './atlas';
 import type { Color } from './color';
 import { UnknownAnimationError } from './errors';
-import { regionWorldCorners, REGION_QUAD_TRIANGLES, REGION_QUAD_UVS } from './geometry';
+import {
+  regionWorldCorners,
+  REGION_QUAD_TRIANGLES,
+  REGION_QUAD_UVS,
+  type RegionTrim,
+} from './geometry';
 
 // The one skin render-preview draws, matching runtime-web (skeleton-view.ts DEFAULT_SKIN_NAME). Skin
 // switching is a later authoring surface; the solve and the records resolve attachments through this name.
@@ -119,7 +124,8 @@ export function gatherDrawItems(
     const sampler = atlas.resolve(attachment.path);
 
     if (attachment.type === 'region') {
-      items.push(regionItem(pose, boneIndex, attachment, tint, alpha, slot.blendMode, sampler));
+      const trim = atlas.regionTrim(attachment.path) ?? undefined;
+      items.push(regionItem(pose, boneIndex, attachment, tint, alpha, slot.blendMode, sampler, trim));
     } else {
       items.push(
         meshItem(
@@ -150,8 +156,9 @@ function regionItem(
   alpha: number,
   blend: BlendMode,
   sampler: TextureSampler,
+  trim: RegionTrim | undefined,
 ): DrawItem {
-  const corners = regionWorldCorners(readBoneWorld(pose, boneIndex), region);
+  const corners = regionWorldCorners(readBoneWorld(pose, boneIndex), region, trim);
   const worldPositions: number[] = [];
   for (const corner of corners) {
     worldPositions.push(corner.x, corner.y);

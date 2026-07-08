@@ -49,7 +49,7 @@ export { TRANSPARENT } from './color';
 // Placement parity primitives: the world-space region quad geometry, reproducing the runtime-web
 // region-placement math against runtime-core only (see geometry.ts). Exported so tooling and parity tests
 // can assert that what the rasterizer draws matches the runtimes' placement.
-export type { Point } from './geometry';
+export type { Point, RegionTrim } from './geometry';
 export {
   regionWorldCorners,
   regionSizedLocal,
@@ -62,7 +62,6 @@ export {
   InvalidViewportError,
   ZeroContentFitError,
   UnknownAnimationError,
-  RotatedRegionUnsupportedError,
   MalformedAtlasPageError,
   EffectTriggerError,
 } from './errors';

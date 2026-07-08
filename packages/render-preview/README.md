@@ -25,10 +25,13 @@ and effect state from a real `EffectSystem` stepped at the effect's `simulationD
   triangle fill rule (`src/raster.ts`); blend modes normal/additive/multiply/screen; `encodePng`
   (`src/png.ts`).
 - Typed errors: `InvalidViewportError`, `ZeroContentFitError`, `UnknownAnimationError`,
-  `RotatedRegionUnsupportedError`, `MalformedAtlasPageError`, `EffectTriggerError`.
+  `MalformedAtlasPageError`, `EffectTriggerError`. (`RotatedRegionUnsupportedError` was retired in PP-C2:
+  rotated regions are now sampled turned-back, matching runtime-web.)
 
 **In scope (v1):** region and mesh attachments, per-slot blend modes, slot x attachment tint and
-alpha, bilinear sampling, particle/bundle/composed rendering.
+alpha, bilinear sampling, particle/bundle/composed rendering. Atlas trim offsets (PP-C1) place a trimmed
+region where its untrimmed original would sit; rotated atlas regions (PP-C2) are sampled in place. Both
+mirror runtime-web exactly (`regionWorldCorners` + the trim/rotation samplers), locked by parity tests.
 **Out of scope (documented):** clipping masks, tint-black, point/bounding-box attachments,
 slot-scene composition.
 

@@ -1,7 +1,13 @@
 // Typed, loud errors for the headless render-preview boundary (CLAUDE.md error model: typed enums, never
 // bare strings). Every failure a caller can provoke (bad viewport, empty content under fit:content,
-// unknown animation, a rotated atlas region, a malformed atlas page buffer) is a distinct `code` on a
-// single base class so a host (the MCP server first) can branch on the reason and report it precisely.
+// unknown animation, a malformed atlas page buffer) is a distinct `code` on a single base class so a host
+// (the MCP server first) can branch on the reason and report it precisely.
+//
+// ROTATED_REGION_UNSUPPORTED is RETIRED (PP-C2): rotated atlas regions are now sampled turned-back
+// (atlas.ts RegionSampler), matching runtime-web, so render-preview never emits this code and the
+// RotatedRegionUnsupportedError class is gone. The code string is kept RESERVED in the union so the MCP
+// server's exhaustive render-error mapping (mcp-server tools.ts) stays valid without a cross-lane edit;
+// dropping it there and here is a small Lane D follow-up.
 
 export type RenderPreviewErrorCode =
   | 'INVALID_VIEWPORT'
@@ -44,20 +50,6 @@ export class UnknownAnimationError extends RenderPreviewError {
   constructor(readonly animationId: string) {
     super('UNKNOWN_ANIMATION', `animation "${animationId}" is not defined in the document`);
     this.name = 'UnknownAnimationError';
-  }
-}
-
-// An atlas region packed rotated 90 degrees. The current format never rotates regions (AtlasRegion.rotated
-// is always false; see runtime-web region-textures.ts RotatedRegionUnsupportedError) and an axis-aligned
-// sample of a rotated region would render it turned, which is silently wrong. Fail loud, exactly like the
-// runtime-web renderer, until the Phase 5 packer that produces rotated regions lands.
-export class RotatedRegionUnsupportedError extends RenderPreviewError {
-  constructor(readonly regionName: string) {
-    super(
-      'ROTATED_REGION_UNSUPPORTED',
-      `atlas region "${regionName}" is packed rotated, which render-preview does not support`,
-    );
-    this.name = 'RotatedRegionUnsupportedError';
   }
 }
 

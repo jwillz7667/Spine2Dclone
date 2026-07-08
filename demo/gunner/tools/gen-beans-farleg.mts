@@ -49,4 +49,6 @@ const targetH = trimH * S;
 // world y -38 puts the paw exactly on the ground
 const offsetY = 38 - targetH / 2;
 console.log(`leg-back-far: file ${piece.width}x${piece.height} trim ${trimW}x${trimH}`);
-console.log(`  suggested transform: targetH ${targetH.toFixed(1)}, attach y ${offsetY.toFixed(1)} (x art-directed, start near -1)`);
+console.log(
+  `  suggested transform: targetH ${targetH.toFixed(1)}, attach y ${offsetY.toFixed(1)} (x art-directed, start near -1)`,
+);

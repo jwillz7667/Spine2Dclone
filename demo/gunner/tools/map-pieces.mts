@@ -1,4 +1,4 @@
-import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { decodePng, encodePng, type DecodedImage } from './cut-core.mts';
@@ -27,7 +27,9 @@ interface PieceMeta {
 
 function loadPiece(sheet: string, piece: string): { img: DecodedImage; meta: PieceMeta } {
   const img = decodePng(readFileSync(join(layersDir, sheet, `${piece}.png`)));
-  const manifest = JSON.parse(readFileSync(join(layersDir, sheet, 'pieces.json'), 'utf8')) as PieceMeta[];
+  const manifest = JSON.parse(
+    readFileSync(join(layersDir, sheet, 'pieces.json'), 'utf8'),
+  ) as PieceMeta[];
   const meta = manifest.find((p) => p.file === `${piece}.png`);
   if (meta === undefined) throw new Error(`${sheet}/${piece} not in pieces.json`);
   return { img, meta };
@@ -89,7 +91,11 @@ function downscale(img: DecodedImage, factor: number): DecodedImage {
     for (let x = 0; x < w; x += 1) {
       const sx0 = Math.floor(x / factor);
       const sx1 = Math.min(img.width, Math.max(sx0 + 1, Math.floor((x + 1) / factor)));
-      let r = 0, g = 0, b = 0, a = 0, n = 0;
+      let r = 0,
+        g = 0,
+        b = 0,
+        a = 0,
+        n = 0;
       for (let sy = sy0; sy < sy1; sy += 1) {
         for (let sx = sx0; sx < sx1; sx += 1) {
           const si = (sy * img.width + sx) * 4;
@@ -145,7 +151,10 @@ function cropNose(img: DecodedImage): DecodedImage {
   const out = blank(img.width, h);
   out.rgba.set(img.rgba.subarray(cropY * img.width * 4));
   // tight trim afterwards
-  let minX = img.width, maxX = 0, minY = h, maxY = 0;
+  let minX = img.width,
+    maxX = 0,
+    minY = h,
+    maxY = 0;
   for (let y = 0; y < h; y += 1) {
     for (let x = 0; x < img.width; x += 1) {
       if (out.rgba[(y * img.width + x) * 4 + 3]! > 8) {

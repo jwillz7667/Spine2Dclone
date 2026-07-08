@@ -35,7 +35,10 @@ function loadApiKey(): string {
   const line = readFileSync(envPath, 'utf8')
     .split('\n')
     .find((l) => l.startsWith('GEMINI_API_KEY='));
-  const key = line?.slice('GEMINI_API_KEY='.length).trim().replace(/^["']|["']$/g, '');
+  const key = line
+    ?.slice('GEMINI_API_KEY='.length)
+    .trim()
+    .replace(/^["']|["']$/g, '');
   if (key === undefined || key.length === 0) throw new Error('GEMINI_API_KEY missing from .env');
   return key;
 }
@@ -70,17 +73,19 @@ async function generateSheet(): Promise<Buffer> {
     'ABSOLUTELY NO TEXT anywhere: no words, letters, numbers, labels or captions.',
   ].join(' ');
   // the .png-cache copy is the decode-safe real PNG (the raw sheet is JPEG bytes named .png)
-  const refChar = readFileSync(join(root, 'source-sheets', '.png-cache', 'luna-ref.png')).toString('base64');
+  const refChar = readFileSync(join(root, 'source-sheets', '.png-cache', 'luna-ref.png')).toString(
+    'base64',
+  );
   const body = JSON.stringify({
     contents: [
       {
-        parts: [
-          { text: prompt },
-          { inline_data: { mime_type: 'image/png', data: refChar } },
-        ],
+        parts: [{ text: prompt }, { inline_data: { mime_type: 'image/png', data: refChar } }],
       },
     ],
-    generationConfig: { responseModalities: ['IMAGE'], imageConfig: { aspectRatio: '1:1', imageSize: '2K' } },
+    generationConfig: {
+      responseModalities: ['IMAGE'],
+      imageConfig: { aspectRatio: '1:1', imageSize: '2K' },
+    },
   });
 
   let lastError = 'no attempt';
@@ -100,9 +105,13 @@ async function generateSheet(): Promise<Buffer> {
         break;
       }
       const json = (await res.json()) as {
-        candidates?: Array<{ content?: { parts?: Array<{ inlineData?: { data?: string } }> }; finishReason?: string }>;
+        candidates?: Array<{
+          content?: { parts?: Array<{ inlineData?: { data?: string } }> };
+          finishReason?: string;
+        }>;
       };
-      const image = json.candidates?.[0]?.content?.parts?.find((p) => p.inlineData?.data)?.inlineData?.data;
+      const image = json.candidates?.[0]?.content?.parts?.find((p) => p.inlineData?.data)
+        ?.inlineData?.data;
       if (image === undefined) {
         lastError = `${model}: no image (finishReason=${json.candidates?.[0]?.finishReason})`;
         await new Promise((r) => setTimeout(r, 3000));
@@ -138,10 +147,19 @@ function decodeSheet(path: string): DecodedImage {
 // ---- cut the six parts -----------------------------------------------------------------------------
 const sheet = decodeSheet(sheetPath);
 const removed = removeBackground(sheet, DEFAULT_WHITE_FLOOD);
-const comps = mergeAndFilter(labelComponents(sheet.width, sheet.height, removed.foreground), 24, 900);
+const comps = mergeAndFilter(
+  labelComponents(sheet.width, sheet.height, removed.foreground),
+  24,
+  900,
+);
 if (comps.length !== 6) {
-  console.log(`expected 6 components, found ${comps.length}: re-roll the sheet (--force) or adjust merge params`);
-  for (const c of comps) console.log(`  comp n=${c.area} bbox x[${c.bbox.minX}..${c.bbox.maxX}] y[${c.bbox.minY}..${c.bbox.maxY}]`);
+  console.log(
+    `expected 6 components, found ${comps.length}: re-roll the sheet (--force) or adjust merge params`,
+  );
+  for (const c of comps)
+    console.log(
+      `  comp n=${c.area} bbox x[${c.bbox.minX}..${c.bbox.maxX}] y[${c.bbox.minY}..${c.bbox.maxY}]`,
+    );
   process.exit(1);
 }
 // sheet contract: top row = torso, tail (by cx); bottom row = the four legs left to right
@@ -191,7 +209,7 @@ for (const { name, comp } of assignment) {
   const aspect = piece.width / piece.height;
   console.log(
     `${name}: ${piece.width}x${piece.height} aspect ${aspect.toFixed(2)}` +
-    ` whitePaw ${whitePawPct.toFixed(0)}% lum ${meanLum.toFixed(0)}`,
+      ` whitePaw ${whitePawPct.toFixed(0)}% lum ${meanLum.toFixed(0)}`,
   );
   if (name === 'torso' && aspect <= 1.15) {
     console.log('  WARNING: torso is not clearly horizontal (aspect <= 1.15)');
@@ -206,4 +224,6 @@ if (!shapeOk) {
   console.log('shape sanity failed: re-roll with --force rather than rigging bad art');
   process.exit(1);
 }
-console.log('done; VIEW each cut piece, then update the body transforms in author-luna.mts and rebuild the luna atlas');
+console.log(
+  'done; VIEW each cut piece, then update the body transforms in author-luna.mts and rebuild the luna atlas',
+);

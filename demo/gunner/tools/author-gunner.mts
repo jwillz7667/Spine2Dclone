@@ -20,7 +20,10 @@ const root = join(here, '..');
 const deps: ToolDeps = { sessions: new SessionRegistry(), files: createNodeFileStore(root) };
 const byName = new Map(TOOLS.map((t) => [t.name, t]));
 
-async function call(name: string, input: Record<string, unknown>): Promise<Record<string, unknown>> {
+async function call(
+  name: string,
+  input: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
   const tool = byName.get(name);
   if (tool === undefined) throw new Error(`no such tool: ${name}`);
   try {
@@ -39,19 +42,25 @@ const EASE_OUT_BACK: Bezier = { type: 'bezier', cx1: 0.34, cy1: 1.56, cx2: 0.64,
 type Curve = 'linear' | 'stepped' | Bezier;
 
 // ---- atlas ---------------------------------------------------------------------------------------
-const atlasRef = JSON.parse(readFileSync(join(root, 'atlas', 'gunner', 'atlas-ref.json'), 'utf8')) as {
+const atlasRef = JSON.parse(
+  readFileSync(join(root, 'atlas', 'gunner', 'atlas-ref.json'), 'utf8'),
+) as {
   pages: Array<{ regions: Array<{ name: string; w: number; h: number }> }>;
 };
 const regionSize = new Map<string, { w: number; h: number }>();
-for (const page of atlasRef.pages) for (const r of page.regions) regionSize.set(r.name, { w: r.w, h: r.h });
+for (const page of atlasRef.pages)
+  for (const r of page.regions) regionSize.set(r.name, { w: r.w, h: r.h });
 function sized(region: string, targetH: number): { width: number; height: number } {
   const s = regionSize.get(region);
-  if (s === undefined) throw new Error(`unknown region ${region}; have: ${[...regionSize.keys()].join(', ')}`);
+  if (s === undefined)
+    throw new Error(`unknown region ${region}; have: ${[...regionSize.keys()].join(', ')}`);
   return { width: (s.w / s.h) * targetH, height: targetH };
 }
 const { documentId } = (await call('document.new', { name: 'gunner' })) as { documentId: string };
 // atlas-ref page files are relative to atlas/gunner/; the FileStore root is demo/gunner, so prefix.
-const atlasForSet = JSON.parse(readFileSync(join(root, 'atlas', 'gunner', 'atlas-ref.json'), 'utf8')) as {
+const atlasForSet = JSON.parse(
+  readFileSync(join(root, 'atlas', 'gunner', 'atlas-ref.json'), 'utf8'),
+) as {
   pages: Array<{ file: string }>;
 };
 for (const page of atlasForSet.pages) {
@@ -61,7 +70,13 @@ await call('atlas.set', { documentId, atlas: atlasForSet });
 
 // ---- bones ---------------------------------------------------------------------------------------
 // Gunner stands ~420 px tall. Ground = y 0 at the root. Facing LEFT (negative x is forward).
-const bone = async (name: string, parentId: string | null, x: number, y: number, length = 40): Promise<string> => {
+const bone = async (
+  name: string,
+  parentId: string | null,
+  x: number,
+  y: number,
+  length = 40,
+): Promise<string> => {
   const res = (await call('bone.create', {
     documentId,
     name,
@@ -131,13 +146,69 @@ async function regionSlot(spec: SlotSpec): Promise<string> {
 // behind the body, then the near legs OVER the body, then the far FRONT leg on top (in the 3/4
 // view it reads against the chest's leading edge), then the head, then the eyes. Every piece is
 // drawn facing RIGHT in the source; the rig faces LEFT, so everything carries scaleX -1.
-await regionSlot({ slot: 'leg-back-far', boneId: legBackFar, region: 'leg-back-far', x: -3.8, y: 50.7, targetH: 146.4, scaleX: -1 });
-await regionSlot({ slot: 'torso', boneId: torso, region: 'torso', x: 0, y: 5.9, targetH: 199.7, scaleX: -1 });
-await regionSlot({ slot: 'leg-front-near', boneId: legFrontNear, region: 'leg-front-near', x: -6.7, y: 46.2, targetH: 133.6, scaleX: -1 });
-await regionSlot({ slot: 'leg-back-near', boneId: legBackNear, region: 'leg-back-near', x: -1.9, y: 63.8, targetH: 185.4, scaleX: -1 });
-await regionSlot({ slot: 'leg-front-far', boneId: legFrontFar, region: 'leg-front-far', x: 22.1, y: 44.7, targetH: 133.4, scaleX: -1 });
-await regionSlot({ slot: 'head', boneId: head, region: 'head', x: -20.3, y: -38.2, targetH: 232.4, scaleX: -1 });
-await regionSlot({ slot: 'eyes', boneId: head, region: 'eyes-open', x: -41.5, y: -59.1, targetH: 45.3, scaleX: -1 });
+await regionSlot({
+  slot: 'leg-back-far',
+  boneId: legBackFar,
+  region: 'leg-back-far',
+  x: -3.8,
+  y: 50.7,
+  targetH: 146.4,
+  scaleX: -1,
+});
+await regionSlot({
+  slot: 'torso',
+  boneId: torso,
+  region: 'torso',
+  x: 0,
+  y: 5.9,
+  targetH: 199.7,
+  scaleX: -1,
+});
+await regionSlot({
+  slot: 'leg-front-near',
+  boneId: legFrontNear,
+  region: 'leg-front-near',
+  x: -6.7,
+  y: 46.2,
+  targetH: 133.6,
+  scaleX: -1,
+});
+await regionSlot({
+  slot: 'leg-back-near',
+  boneId: legBackNear,
+  region: 'leg-back-near',
+  x: -1.9,
+  y: 63.8,
+  targetH: 185.4,
+  scaleX: -1,
+});
+await regionSlot({
+  slot: 'leg-front-far',
+  boneId: legFrontFar,
+  region: 'leg-front-far',
+  x: 22.1,
+  y: 44.7,
+  targetH: 133.4,
+  scaleX: -1,
+});
+await regionSlot({
+  slot: 'head',
+  boneId: head,
+  region: 'head',
+  x: -20.3,
+  y: -38.2,
+  targetH: 232.4,
+  scaleX: -1,
+});
+await regionSlot({
+  slot: 'eyes',
+  boneId: head,
+  region: 'eyes-open',
+  x: -41.5,
+  y: -59.1,
+  targetH: 45.3,
+  scaleX: -1,
+});
 // extra attachment variants on the eye / brow / head slots (player and animations swap them)
 async function addVariant(
   slot: string,
@@ -173,14 +244,26 @@ await addVariant('head', 'head-wide', 244.0, -18.4, -31.2, -1);
 await addVariant('head', 'head-grit', 234.3, -18.5, -37.1, -1);
 
 // restore the default active attachments after variant adds
-await call('slot.activeAttachment', { documentId, slotId: slotIds.get('eyes'), attachment: 'eyes-open' });
-await call('slot.activeAttachment', { documentId, slotId: slotIds.get('head'), attachment: 'head' });
+await call('slot.activeAttachment', {
+  documentId,
+  slotId: slotIds.get('eyes'),
+  attachment: 'eyes-open',
+});
+await call('slot.activeAttachment', {
+  documentId,
+  slotId: slotIds.get('head'),
+  attachment: 'head',
+});
 
 // ---- animation helpers -----------------------------------------------------------------------------
 const boneIdByName: Record<string, string> = {
-  root: rootBone, torso, head,
-  'leg-front-near': legFrontNear, 'leg-front-far': legFrontFar,
-  'leg-back-near': legBackNear, 'leg-back-far': legBackFar,
+  root: rootBone,
+  torso,
+  head,
+  'leg-front-near': legFrontNear,
+  'leg-front-far': legFrontFar,
+  'leg-back-near': legBackNear,
+  'leg-back-far': legBackFar,
 };
 
 type RotKey = readonly [time: number, angle: number, curve?: Curve];
@@ -191,7 +274,10 @@ interface AnimSpec {
   readonly rotate?: Record<string, readonly RotKey[]>;
   readonly translate?: Record<string, readonly VecKey[]>;
   readonly scale?: Record<string, readonly VecKey[]>;
-  readonly attachments?: Record<string, ReadonlyArray<readonly [time: number, name: string | null]>>;
+  readonly attachments?: Record<
+    string,
+    ReadonlyArray<readonly [time: number, name: string | null]>
+  >;
 }
 
 async function author(spec: AnimSpec): Promise<string> {
@@ -203,31 +289,50 @@ async function author(spec: AnimSpec): Promise<string> {
   for (const [boneName, keys] of Object.entries(spec.rotate ?? {})) {
     for (const [time, angle, curve] of keys) {
       await call('kf.set', {
-        documentId, animationId, channel: 'rotate', boneId: boneIdByName[boneName], time,
-        value: { angle }, ...(curve !== undefined ? { curve } : {}),
+        documentId,
+        animationId,
+        channel: 'rotate',
+        boneId: boneIdByName[boneName],
+        time,
+        value: { angle },
+        ...(curve !== undefined ? { curve } : {}),
       });
     }
   }
   for (const [boneName, keys] of Object.entries(spec.translate ?? {})) {
     for (const [time, x, y, curve] of keys) {
       await call('kf.set', {
-        documentId, animationId, channel: 'translate', boneId: boneIdByName[boneName], time,
-        value: { x, y }, ...(curve !== undefined ? { curve } : {}),
+        documentId,
+        animationId,
+        channel: 'translate',
+        boneId: boneIdByName[boneName],
+        time,
+        value: { x, y },
+        ...(curve !== undefined ? { curve } : {}),
       });
     }
   }
   for (const [boneName, keys] of Object.entries(spec.scale ?? {})) {
     for (const [time, x, y, curve] of keys) {
       await call('kf.set', {
-        documentId, animationId, channel: 'scale', boneId: boneIdByName[boneName], time,
-        value: { x, y }, ...(curve !== undefined ? { curve } : {}),
+        documentId,
+        animationId,
+        channel: 'scale',
+        boneId: boneIdByName[boneName],
+        time,
+        value: { x, y },
+        ...(curve !== undefined ? { curve } : {}),
       });
     }
   }
   for (const [slotName, keys] of Object.entries(spec.attachments ?? {})) {
     for (const [time, name] of keys) {
       await call('kf.attachment.set', {
-        documentId, animationId, slotId: slotIds.get(slotName), time, name,
+        documentId,
+        animationId,
+        slotId: slotIds.get(slotName),
+        time,
+        name,
       });
     }
   }
@@ -239,70 +344,198 @@ async function author(spec: AnimSpec): Promise<string> {
 // the chest DOWN toward the nose; negative lifts the chest. Verified against renders.
 
 await author({
-  name: 'idle', duration: 2.0,
-  translate: { torso: [[0, 0, -175, EASE_IN_OUT], [1.0, 0, -181, EASE_IN_OUT], [2.0, 0, -175]] },
+  name: 'idle',
+  duration: 2.0,
+  translate: {
+    torso: [
+      [0, 0, -175, EASE_IN_OUT],
+      [1.0, 0, -181, EASE_IN_OUT],
+      [2.0, 0, -175],
+    ],
+  },
   rotate: {
-    head: [[0, 0, EASE_IN_OUT], [1.1, 2.5, EASE_IN_OUT], [2.0, 0]],
+    head: [
+      [0, 0, EASE_IN_OUT],
+      [1.1, 2.5, EASE_IN_OUT],
+      [2.0, 0],
+    ],
   },
 });
 
 await author({
-  name: 'walk', duration: 0.8,
+  name: 'walk',
+  duration: 0.8,
   rotate: {
-    'leg-front-near': [[0, 18, EASE_IN_OUT], [0.4, -16, EASE_IN_OUT], [0.8, 18]],
-    'leg-front-far': [[0, -16, EASE_IN_OUT], [0.4, 18, EASE_IN_OUT], [0.8, -16]],
-    'leg-back-near': [[0, -15, EASE_IN_OUT], [0.4, 17, EASE_IN_OUT], [0.8, -15]],
-    'leg-back-far': [[0, 17, EASE_IN_OUT], [0.4, -15, EASE_IN_OUT], [0.8, 17]],
-    torso: [[0, 1.5, EASE_IN_OUT], [0.4, -1.5, EASE_IN_OUT], [0.8, 1.5]],
-    head: [[0, -1.5, EASE_IN_OUT], [0.4, 1.5, EASE_IN_OUT], [0.8, -1.5]],
+    'leg-front-near': [
+      [0, 18, EASE_IN_OUT],
+      [0.4, -16, EASE_IN_OUT],
+      [0.8, 18],
+    ],
+    'leg-front-far': [
+      [0, -16, EASE_IN_OUT],
+      [0.4, 18, EASE_IN_OUT],
+      [0.8, -16],
+    ],
+    'leg-back-near': [
+      [0, -15, EASE_IN_OUT],
+      [0.4, 17, EASE_IN_OUT],
+      [0.8, -15],
+    ],
+    'leg-back-far': [
+      [0, 17, EASE_IN_OUT],
+      [0.4, -15, EASE_IN_OUT],
+      [0.8, 17],
+    ],
+    torso: [
+      [0, 1.5, EASE_IN_OUT],
+      [0.4, -1.5, EASE_IN_OUT],
+      [0.8, 1.5],
+    ],
+    head: [
+      [0, -1.5, EASE_IN_OUT],
+      [0.4, 1.5, EASE_IN_OUT],
+      [0.8, -1.5],
+    ],
   },
   translate: {
-    torso: [[0, 0, -175, EASE_OUT], [0.2, 0, -180, EASE_IN], [0.4, 0, -175, EASE_OUT], [0.6, 0, -180, EASE_IN], [0.8, 0, -175]],
+    torso: [
+      [0, 0, -175, EASE_OUT],
+      [0.2, 0, -180, EASE_IN],
+      [0.4, 0, -175, EASE_OUT],
+      [0.6, 0, -180, EASE_IN],
+      [0.8, 0, -175],
+    ],
   },
 });
 
 await author({
-  name: 'run', duration: 0.5,
+  name: 'run',
+  duration: 0.5,
   rotate: {
-    'leg-front-near': [[0, 21, EASE_IN_OUT], [0.25, -22, EASE_IN_OUT], [0.5, 21]],
+    'leg-front-near': [
+      [0, 21, EASE_IN_OUT],
+      [0.25, -22, EASE_IN_OUT],
+      [0.5, 21],
+    ],
     // far legs run in OPPOSITE phase to their near twins: in the 3/4 vector art the far paws are
     // light like the near ones, and a same-phase gather stacked three paws into one cluster that
     // read as a loose flap (verification finding); alternating them keeps every paw separated
-    'leg-front-far': [[0, -17, EASE_IN_OUT], [0.28, 16, EASE_IN_OUT], [0.5, -17]],
-    'leg-back-near': [[0, -32, EASE_IN_OUT], [0.25, 27, EASE_IN_OUT], [0.5, -32]],
-    'leg-back-far': [[0, 22, EASE_IN_OUT], [0.28, -27, EASE_IN_OUT], [0.5, 22]],
-    torso: [[0, 7, EASE_IN_OUT], [0.25, -3, EASE_IN_OUT], [0.5, 7]],
-    head: [[0, -5, EASE_IN_OUT], [0.25, 2, EASE_IN_OUT], [0.5, -5]],
+    'leg-front-far': [
+      [0, -17, EASE_IN_OUT],
+      [0.28, 16, EASE_IN_OUT],
+      [0.5, -17],
+    ],
+    'leg-back-near': [
+      [0, -32, EASE_IN_OUT],
+      [0.25, 27, EASE_IN_OUT],
+      [0.5, -32],
+    ],
+    'leg-back-far': [
+      [0, 22, EASE_IN_OUT],
+      [0.28, -27, EASE_IN_OUT],
+      [0.5, 22],
+    ],
+    torso: [
+      [0, 7, EASE_IN_OUT],
+      [0.25, -3, EASE_IN_OUT],
+      [0.5, 7],
+    ],
+    head: [
+      [0, -5, EASE_IN_OUT],
+      [0.25, 2, EASE_IN_OUT],
+      [0.5, -5],
+    ],
   },
   translate: {
-    torso: [[0, 0, -168, EASE_OUT], [0.25, 0, -190, EASE_IN], [0.5, 0, -168]],
+    torso: [
+      [0, 0, -168, EASE_OUT],
+      [0.25, 0, -190, EASE_IN],
+      [0.5, 0, -168],
+    ],
   },
 });
 
 await author({
-  name: 'talk', duration: 1.2,
+  name: 'talk',
+  duration: 1.2,
   rotate: {
-    head: [[0, 0, EASE_IN_OUT], [0.3, 2, EASE_IN_OUT], [0.6, -1.5, EASE_IN_OUT], [0.9, 1, EASE_IN_OUT], [1.2, 0]],
+    head: [
+      [0, 0, EASE_IN_OUT],
+      [0.3, 2, EASE_IN_OUT],
+      [0.6, -1.5, EASE_IN_OUT],
+      [0.9, 1, EASE_IN_OUT],
+      [1.2, 0],
+    ],
   },
-  translate: { torso: [[0, 0, -175, EASE_IN_OUT], [0.6, 0, -178, EASE_IN_OUT], [1.2, 0, -175]] },
+  translate: {
+    torso: [
+      [0, 0, -175, EASE_IN_OUT],
+      [0.6, 0, -178, EASE_IN_OUT],
+      [1.2, 0, -175],
+    ],
+  },
 });
 
 await author({
-  name: 'tug-strain', duration: 1.0,
+  name: 'tug-strain',
+  duration: 1.0,
   rotate: {
-    torso: [[0, -16, EASE_IN_OUT], [0.25, -19, EASE_IN_OUT], [0.5, -15, EASE_IN_OUT], [0.75, -19, EASE_IN_OUT], [1.0, -16]],
-    head: [[0, -10, EASE_IN_OUT], [0.5, -13, EASE_IN_OUT], [1.0, -10]],
-    'leg-front-near': [[0, 54, EASE_IN_OUT], [0.25, 57, EASE_IN_OUT], [0.5, 53, EASE_IN_OUT], [0.75, 57, EASE_IN_OUT], [1.0, 54]],
-    'leg-front-far': [[0, 46, EASE_IN_OUT], [0.25, 49, EASE_IN_OUT], [0.5, 45, EASE_IN_OUT], [0.75, 49, EASE_IN_OUT], [1.0, 46]],
+    torso: [
+      [0, -16, EASE_IN_OUT],
+      [0.25, -19, EASE_IN_OUT],
+      [0.5, -15, EASE_IN_OUT],
+      [0.75, -19, EASE_IN_OUT],
+      [1.0, -16],
+    ],
+    head: [
+      [0, -10, EASE_IN_OUT],
+      [0.5, -13, EASE_IN_OUT],
+      [1.0, -10],
+    ],
+    'leg-front-near': [
+      [0, 54, EASE_IN_OUT],
+      [0.25, 57, EASE_IN_OUT],
+      [0.5, 53, EASE_IN_OUT],
+      [0.75, 57, EASE_IN_OUT],
+      [1.0, 54],
+    ],
+    'leg-front-far': [
+      [0, 46, EASE_IN_OUT],
+      [0.25, 49, EASE_IN_OUT],
+      [0.5, 45, EASE_IN_OUT],
+      [0.75, 49, EASE_IN_OUT],
+      [1.0, 46],
+    ],
     // the vector art's hip sockets sit ~27px higher than the old raster hips, so the hind legs
     // must extend much further to keep the rear paws planted under the lifted-chest strain pose
     // (verification finding: the rear floated 45px off the ground with the old -18/-12 keys)
-    'leg-back-near': [[0, -34, EASE_IN_OUT], [0.25, -31, EASE_IN_OUT], [0.5, -35, EASE_IN_OUT], [0.75, -31, EASE_IN_OUT], [1.0, -34]],
-    'leg-back-far': [[0, -28, EASE_IN_OUT], [0.25, -25, EASE_IN_OUT], [0.5, -29, EASE_IN_OUT], [0.75, -25, EASE_IN_OUT], [1.0, -28]],
+    'leg-back-near': [
+      [0, -34, EASE_IN_OUT],
+      [0.25, -31, EASE_IN_OUT],
+      [0.5, -35, EASE_IN_OUT],
+      [0.75, -31, EASE_IN_OUT],
+      [1.0, -34],
+    ],
+    'leg-back-far': [
+      [0, -28, EASE_IN_OUT],
+      [0.25, -25, EASE_IN_OUT],
+      [0.5, -29, EASE_IN_OUT],
+      [0.75, -25, EASE_IN_OUT],
+      [1.0, -28],
+    ],
   },
   translate: {
-    torso: [[0, 6, -160, 'linear'], [0.12, 9, -160, 'linear'], [0.25, 5, -161, 'linear'], [0.37, 9, -159, 'linear'],
-            [0.5, 6, -160, 'linear'], [0.62, 9, -161, 'linear'], [0.75, 5, -160, 'linear'], [0.87, 8, -159, 'linear'], [1.0, 6, -160]],
+    torso: [
+      [0, 6, -160, 'linear'],
+      [0.12, 9, -160, 'linear'],
+      [0.25, 5, -161, 'linear'],
+      [0.37, 9, -159, 'linear'],
+      [0.5, 6, -160, 'linear'],
+      [0.62, 9, -161, 'linear'],
+      [0.75, 5, -160, 'linear'],
+      [0.87, 8, -159, 'linear'],
+      [1.0, 6, -160],
+    ],
     // DELTA keys (under the fix-translate-deltas threshold, added to the setup socket): drop the
     // extended hind legs so the paws PLANT while the strain pose lifts the rear hips; rotation
     // alone can never reach the ground (leg vertical reach is L*cos(theta))
@@ -313,63 +546,190 @@ await author({
 });
 
 await author({
-  name: 'dig-in', duration: 1.0,
+  name: 'dig-in',
+  duration: 1.0,
   rotate: {
-    'leg-front-near': [[0, 0, EASE_OUT], [0.15, 45, EASE_OUT_BACK], [0.3, 38]],
-    'leg-front-far': [[0.2, 0, EASE_OUT], [0.35, 36, EASE_OUT_BACK], [0.5, 30]],
-    'leg-back-near': [[0.4, 0, EASE_OUT], [0.55, -40, EASE_OUT_BACK], [0.7, -34]],
-    'leg-back-far': [[0.6, 0, EASE_OUT], [0.75, -34, EASE_OUT_BACK], [0.9, -28]],
-    torso: [[0, 0, EASE_IN], [0.7, -6, EASE_OUT], [1.0, -7]],
+    'leg-front-near': [
+      [0, 0, EASE_OUT],
+      [0.15, 45, EASE_OUT_BACK],
+      [0.3, 38],
+    ],
+    'leg-front-far': [
+      [0.2, 0, EASE_OUT],
+      [0.35, 36, EASE_OUT_BACK],
+      [0.5, 30],
+    ],
+    'leg-back-near': [
+      [0.4, 0, EASE_OUT],
+      [0.55, -40, EASE_OUT_BACK],
+      [0.7, -34],
+    ],
+    'leg-back-far': [
+      [0.6, 0, EASE_OUT],
+      [0.75, -34, EASE_OUT_BACK],
+      [0.9, -28],
+    ],
+    torso: [
+      [0, 0, EASE_IN],
+      [0.7, -6, EASE_OUT],
+      [1.0, -7],
+    ],
   },
-  translate: { torso: [[0, 0, -175, EASE_IN], [0.7, 5, -163, EASE_OUT], [1.0, 6, -160]] },
+  translate: {
+    torso: [
+      [0, 0, -175, EASE_IN],
+      [0.7, 5, -163, EASE_OUT],
+      [1.0, 6, -160],
+    ],
+  },
   attachments: { head: [[0, 'head-grit']] },
 });
 
 await author({
-  name: 'hero-pose', duration: 1.5,
+  name: 'hero-pose',
+  duration: 1.5,
   rotate: {
-    torso: [[0, 0, EASE_OUT_BACK], [0.4, -11, EASE_IN_OUT], [1.5, -11]],
-    'leg-front-near': [[0, 0, EASE_OUT_BACK], [0.4, 11, EASE_IN_OUT], [1.5, 11]],
-    'leg-front-far': [[0, 0, EASE_OUT_BACK], [0.4, 11, EASE_IN_OUT], [1.5, 11]],
-    'leg-back-near': [[0, 0, EASE_OUT_BACK], [0.4, 11, EASE_IN_OUT], [1.5, 11]],
-    'leg-back-far': [[0, 0, EASE_OUT_BACK], [0.4, 11, EASE_IN_OUT], [1.5, 11]],
-    head: [[0, 0, EASE_OUT_BACK], [0.45, -9, EASE_IN_OUT], [1.5, -9]],
+    torso: [
+      [0, 0, EASE_OUT_BACK],
+      [0.4, -11, EASE_IN_OUT],
+      [1.5, -11],
+    ],
+    'leg-front-near': [
+      [0, 0, EASE_OUT_BACK],
+      [0.4, 11, EASE_IN_OUT],
+      [1.5, 11],
+    ],
+    'leg-front-far': [
+      [0, 0, EASE_OUT_BACK],
+      [0.4, 11, EASE_IN_OUT],
+      [1.5, 11],
+    ],
+    'leg-back-near': [
+      [0, 0, EASE_OUT_BACK],
+      [0.4, 11, EASE_IN_OUT],
+      [1.5, 11],
+    ],
+    'leg-back-far': [
+      [0, 0, EASE_OUT_BACK],
+      [0.4, 11, EASE_IN_OUT],
+      [1.5, 11],
+    ],
+    head: [
+      [0, 0, EASE_OUT_BACK],
+      [0.45, -9, EASE_IN_OUT],
+      [1.5, -9],
+    ],
   },
-  translate: { torso: [[0, 0, -175, EASE_OUT_BACK], [0.4, 0, -186, EASE_IN_OUT], [1.5, 0, -186]] },
+  translate: {
+    torso: [
+      [0, 0, -175, EASE_OUT_BACK],
+      [0.4, 0, -186, EASE_IN_OUT],
+      [1.5, 0, -186],
+    ],
+  },
   attachments: { head: [[0, 'head']], eyes: [[0, 'eyes-open']] },
 });
 
 await author({
-  name: 'wink', duration: 0.6,
-  rotate: { head: [[0, 0, EASE_OUT], [0.15, 4, EASE_IN_OUT], [0.45, 0]] },
+  name: 'wink',
+  duration: 0.6,
+  rotate: {
+    head: [
+      [0, 0, EASE_OUT],
+      [0.15, 4, EASE_IN_OUT],
+      [0.45, 0],
+    ],
+  },
   attachments: {
-    eyes: [[0, 'eyes-open'], [0.12, 'eyes-half'], [0.18, 'eyes-closed'], [0.38, 'eyes-half'], [0.44, 'eyes-open']],
+    eyes: [
+      [0, 'eyes-open'],
+      [0.12, 'eyes-half'],
+      [0.18, 'eyes-closed'],
+      [0.38, 'eyes-half'],
+      [0.44, 'eyes-open'],
+    ],
     head: [[0, 'head']],
   },
 });
 
 await author({
-  name: 'head-shake', duration: 0.7,
+  name: 'head-shake',
+  duration: 0.7,
   rotate: {
-    head: [[0, 0, EASE_IN_OUT], [0.12, 13, EASE_IN_OUT], [0.26, -11, EASE_IN_OUT], [0.4, 8, EASE_IN_OUT],
-           [0.54, -4, EASE_IN_OUT], [0.7, 0]],
+    head: [
+      [0, 0, EASE_IN_OUT],
+      [0.12, 13, EASE_IN_OUT],
+      [0.26, -11, EASE_IN_OUT],
+      [0.4, 8, EASE_IN_OUT],
+      [0.54, -4, EASE_IN_OUT],
+      [0.7, 0],
+    ],
   },
 });
 
 await author({
-  name: 'yank-grab', duration: 0.8,
+  name: 'yank-grab',
+  duration: 0.8,
   rotate: {
-    torso: [[0, 0, EASE_IN], [0.15, 5, EASE_OUT], [0.35, -9, EASE_IN_OUT], [0.6, -3, EASE_IN_OUT], [0.8, 0]],
-    head: [[0, 0, EASE_IN], [0.15, 5, EASE_OUT], [0.35, -8, EASE_IN_OUT], [0.8, 0]],
-    'leg-front-near': [[0, 0, EASE_IN], [0.15, -5, EASE_OUT], [0.35, 9, EASE_IN_OUT], [0.6, 3, EASE_IN_OUT], [0.8, 0]],
-    'leg-front-far': [[0, 0, EASE_IN], [0.15, -5, EASE_OUT], [0.35, 9, EASE_IN_OUT], [0.6, 3, EASE_IN_OUT], [0.8, 0]],
-    'leg-back-near': [[0, 0, EASE_IN], [0.15, -5, EASE_OUT], [0.35, 9, EASE_IN_OUT], [0.6, 3, EASE_IN_OUT], [0.8, 0]],
-    'leg-back-far': [[0, 0, EASE_IN], [0.15, -5, EASE_OUT], [0.35, 9, EASE_IN_OUT], [0.6, 3, EASE_IN_OUT], [0.8, 0]],
+    torso: [
+      [0, 0, EASE_IN],
+      [0.15, 5, EASE_OUT],
+      [0.35, -9, EASE_IN_OUT],
+      [0.6, -3, EASE_IN_OUT],
+      [0.8, 0],
+    ],
+    head: [
+      [0, 0, EASE_IN],
+      [0.15, 5, EASE_OUT],
+      [0.35, -8, EASE_IN_OUT],
+      [0.8, 0],
+    ],
+    'leg-front-near': [
+      [0, 0, EASE_IN],
+      [0.15, -5, EASE_OUT],
+      [0.35, 9, EASE_IN_OUT],
+      [0.6, 3, EASE_IN_OUT],
+      [0.8, 0],
+    ],
+    'leg-front-far': [
+      [0, 0, EASE_IN],
+      [0.15, -5, EASE_OUT],
+      [0.35, 9, EASE_IN_OUT],
+      [0.6, 3, EASE_IN_OUT],
+      [0.8, 0],
+    ],
+    'leg-back-near': [
+      [0, 0, EASE_IN],
+      [0.15, -5, EASE_OUT],
+      [0.35, 9, EASE_IN_OUT],
+      [0.6, 3, EASE_IN_OUT],
+      [0.8, 0],
+    ],
+    'leg-back-far': [
+      [0, 0, EASE_IN],
+      [0.15, -5, EASE_OUT],
+      [0.35, 9, EASE_IN_OUT],
+      [0.6, 3, EASE_IN_OUT],
+      [0.8, 0],
+    ],
   },
   translate: {
-    torso: [[0, 0, -175, EASE_IN], [0.15, 10, -170, EASE_OUT], [0.35, -32, -178, EASE_IN_OUT], [0.6, -4, -175, EASE_IN_OUT], [0.8, 0, -175]],
+    torso: [
+      [0, 0, -175, EASE_IN],
+      [0.15, 10, -170, EASE_OUT],
+      [0.35, -32, -178, EASE_IN_OUT],
+      [0.6, -4, -175, EASE_IN_OUT],
+      [0.8, 0, -175],
+    ],
   },
-  attachments: { head: [[0, 'head-talk'], [0.15, 'head-wide'], [0.45, 'head-grit'], [0.7, 'head']] },
+  attachments: {
+    head: [
+      [0, 'head-talk'],
+      [0.15, 'head-wide'],
+      [0.45, 'head-grit'],
+      [0.7, 'head'],
+    ],
+  },
 });
 
 // micro state animations for the player's face tracks (one attachment key each)
@@ -388,8 +748,17 @@ await face('eyes-half', 'eyes', 'eyes-half');
 await face('eyes-happy', 'eyes', 'eyes-happy');
 await face('eyes-worried', 'eyes', 'eyes-worried');
 await author({
-  name: 'blink', duration: 0.3,
-  attachments: { eyes: [[0, 'eyes-open'], [0.08, 'eyes-half'], [0.12, 'eyes-closed'], [0.2, 'eyes-half'], [0.26, 'eyes-open']] },
+  name: 'blink',
+  duration: 0.3,
+  attachments: {
+    eyes: [
+      [0, 'eyes-open'],
+      [0.08, 'eyes-half'],
+      [0.12, 'eyes-closed'],
+      [0.2, 'eyes-half'],
+      [0.26, 'eyes-open'],
+    ],
+  },
 });
 
 // ---- save + QA renders -------------------------------------------------------------------------------

@@ -1,6 +1,5 @@
 import { Application, Container, Graphics, Rectangle, Sprite, Texture } from 'pixi.js';
 import {
-  clearTrack,
   crossfadeTo,
   makeAnimationState,
   setAnimation,
@@ -8,10 +7,13 @@ import {
   type AnimationState,
 } from '@marionette/runtime-core';
 import { parseDocument, type SkeletonDocument } from '@marionette/format';
-import { buildRegionTextures, makeRegionTextureResolver, SkeletonView } from '@marionette/runtime-web';
+import {
+  buildRegionTextures,
+  makeRegionTextureResolver,
+  SkeletonView,
+} from '@marionette/runtime-web';
 import {
   ACTOR_SCALE,
-  GROUND_Y,
   MOUTH_MAP,
   NATIVE_FACES_RIGHT,
   RIG_OF_ACTOR,
@@ -20,7 +22,6 @@ import {
   STAGE_W,
   type ActorPlacement,
   type PropPlacement,
-  type Shot,
 } from './cartoon-data';
 
 // GUNNER! Episode 1 player: a 5-minute cartoon interpreter on the REAL @marionette/runtime-web
@@ -40,7 +41,17 @@ declare const PROPS_ATLAS: {
     file: string;
     width: number;
     height: number;
-    regions: Array<{ name: string; x: number; y: number; w: number; h: number; offsetX: number; offsetY: number; originalW: number; originalH: number }>;
+    regions: Array<{
+      name: string;
+      x: number;
+      y: number;
+      w: number;
+      h: number;
+      offsetX: number;
+      offsetY: number;
+      originalW: number;
+      originalH: number;
+    }>;
   }>;
 };
 
@@ -215,7 +226,12 @@ async function main(): Promise<void> {
   let liveActors: LiveActor[] = [];
   let liveProps: LiveProp[] = [];
   let scheduled: ScheduledAudio[] = [];
-  let currentMusic: { cue: string; source: AudioBufferSourceNode; gain: GainNode; startT: number } | null = null;
+  let currentMusic: {
+    cue: string;
+    source: AudioBufferSourceNode;
+    gain: GainNode;
+    startT: number;
+  } | null = null;
   let shotMusicStarted = new Set<string>();
   let bgSpriteA: Sprite | null = null;
   let bgSpriteB: Sprite | null = null;
@@ -261,17 +277,23 @@ async function main(): Promise<void> {
       old.gain.gain.setValueAtTime(old.gain.gain.value, actx.currentTime);
       old.gain.gain.linearRampToValueAtTime(0, actx.currentTime + Math.max(0.05, fade));
       const oldSource = old.source;
-      window.setTimeout(() => {
-        try {
-          oldSource.stop();
-        } catch {
-          /* noop */
-        }
-      }, fade * 1000 + 100);
+      window.setTimeout(
+        () => {
+          try {
+            oldSource.stop();
+          } catch {
+            /* noop */
+          }
+        },
+        fade * 1000 + 100,
+      );
     }
     gain.gain.setValueAtTime(fade > 0 ? 0 : 1, actx.currentTime);
     gain.gain.linearRampToValueAtTime(1, actx.currentTime + Math.max(0.02, fade));
-    source.start(0, loop ? offset % buf.duration : Math.min(offset, Math.max(0, buf.duration - 0.01)));
+    source.start(
+      0,
+      loop ? offset % buf.duration : Math.min(offset, Math.max(0, buf.duration - 0.01)),
+    );
     currentMusic = { cue, source, gain, startT: t - offset };
   }
 
@@ -341,7 +363,15 @@ async function main(): Promise<void> {
     }
 
     // props under/over actors: simple heuristic, blanket/basket/wagon behind actors, rest above
-    const behind = new Set(['blanket', 'basket', 'wagon-catapult', 'boulder', 'log', 'sun', 'cloud']);
+    const behind = new Set([
+      'blanket',
+      'basket',
+      'wagon-catapult',
+      'boulder',
+      'log',
+      'sun',
+      'cloud',
+    ]);
     const propLayerBack = new Container();
     const actorLayer = new Container();
     const propLayerFront = new Container();
@@ -358,8 +388,19 @@ async function main(): Promise<void> {
       if (placement.flip === true) sprite.scale.x *= -1;
       sprite.x = placement.x;
       sprite.y = placement.y;
-      const live: LiveProp = { placement, sprite, baseX: placement.x, baseY: placement.y, spawned: false };
-      const wantFront = placement.behavior === 'float-bob' || placement.prop === 'float-donut' || placement.prop === 'branch' || placement.prop === 'logo' || placement.prop === 'leaf-hat';
+      const live: LiveProp = {
+        placement,
+        sprite,
+        baseX: placement.x,
+        baseY: placement.y,
+        spawned: false,
+      };
+      const wantFront =
+        placement.behavior === 'float-bob' ||
+        placement.prop === 'float-donut' ||
+        placement.prop === 'branch' ||
+        placement.prop === 'logo' ||
+        placement.prop === 'leaf-hat';
       (behind.has(placement.prop) && !wantFront ? propLayerBack : propLayerFront).addChild(sprite);
       sprite.visible = false;
       liveProps.push(live);
@@ -459,7 +500,8 @@ async function main(): Promise<void> {
     }
     // mark music cues in the current shot that already fired
     for (const m of SHOTS[idx]!.music ?? []) {
-      if (SHOTS[idx]!.start + m.at <= t) shotMusicStarted.add(`${idx}:${m.cue}:${SHOTS[idx]!.start + m.at}`);
+      if (SHOTS[idx]!.start + m.at <= t)
+        shotMusicStarted.add(`${idx}:${m.cue}:${SHOTS[idx]!.start + m.at}`);
     }
     playing = resume;
   }
@@ -499,7 +541,12 @@ async function main(): Promise<void> {
     const localT = t - shot.start;
 
     // background scroll (period 2*STAGE_W: A normal, B mirrored, C normal)
-    if (shot.bgScroll !== undefined && bgSpriteA !== null && bgSpriteB !== null && bgSpriteC !== null) {
+    if (
+      shot.bgScroll !== undefined &&
+      bgSpriteA !== null &&
+      bgSpriteB !== null &&
+      bgSpriteC !== null
+    ) {
       const off = (localT * shot.bgScroll) % (2 * STAGE_W);
       bgSpriteA.x = -off;
       bgSpriteB.x = 2 * STAGE_W - off; // mirrored: covers [STAGE_W - off, 2*STAGE_W - off)
@@ -549,7 +596,10 @@ async function main(): Promise<void> {
             gain.connect(s.cue.loop === true ? ambGain : sfxGain);
           }
           const offset = Math.max(0, localT - s.cue.at);
-          source.start(0, s.cue.loop === true ? offset % buf.duration : Math.min(offset, buf.duration - 0.01));
+          source.start(
+            0,
+            s.cue.loop === true ? offset % buf.duration : Math.min(offset, buf.duration - 0.01),
+          );
           s.source = source;
           s.gain = gain;
           s.startedAt = t;
@@ -558,9 +608,7 @@ async function main(): Promise<void> {
       }
     }
     // ambience ducking under dialogue
-    const dialogueActive = scheduled.some(
-      (s) => s.cue.kind === 'dlg' && s.started && t < s.endsAt,
-    );
+    const dialogueActive = scheduled.some((s) => s.cue.kind === 'dlg' && s.started && t < s.endsAt);
     ambGain.gain.setTargetAtTime(dialogueActive ? 0.45 : 1, actx.currentTime, 0.15);
 
     // music cues for this shot
@@ -594,10 +642,18 @@ async function main(): Promise<void> {
         x = fromX + (tw.to.x - fromX) * e;
         y = fromY + (tw.to.y - fromY) * e;
         if (tw.arc !== undefined) y -= tw.arc * 4 * u * (1 - u);
-        if (u < 1 && tw.animDuring !== undefined && a.state.tracks[0]?.animationId !== tw.animDuring) {
+        if (
+          u < 1 &&
+          tw.animDuring !== undefined &&
+          a.state.tracks[0]?.animationId !== tw.animDuring
+        ) {
           safeCrossfade(a, tw.animDuring, 0.12);
         }
-        if (u >= 1 && tw.animAfter !== undefined && a.state.tracks[0]?.animationId !== tw.animAfter) {
+        if (
+          u >= 1 &&
+          tw.animAfter !== undefined &&
+          a.state.tracks[0]?.animationId !== tw.animAfter
+        ) {
           safeCrossfade(a, tw.animAfter, 0.15);
         }
       }
@@ -623,7 +679,8 @@ async function main(): Promise<void> {
 
       // lip sync
       const line = scheduled.find(
-        (s) => s.cue.kind === 'dlg' && s.cue.actor === a.placement.actor && s.started && t < s.endsAt,
+        (s) =>
+          s.cue.kind === 'dlg' && s.cue.actor === a.placement.actor && s.started && t < s.endsAt,
       );
       if (line?.analyser !== undefined) {
         line.analyser.getFloatTimeDomainData(analyserData);
@@ -673,13 +730,16 @@ async function main(): Promise<void> {
           const e = u < 1 ? 1 - (1 - u) ** 2 : 1;
           y = -260 + (p.baseY + 260) * e;
           const wob = Math.max(0, 1 - propLocal * 1.4);
-          p.sprite.scale.set((p.placement.scale ?? 1) * 0.5 * (1 + 0.08 * Math.sin(propLocal * 18) * wob));
+          p.sprite.scale.set(
+            (p.placement.scale ?? 1) * 0.5 * (1 + 0.08 * Math.sin(propLocal * 18) * wob),
+          );
           break;
         }
         case 'butterfly': {
           x += Math.sin(propLocal * 1.1) * 90;
           y += Math.sin(propLocal * 2.3) * 40 - propLocal * 6;
-          p.sprite.scale.y = (p.placement.scale ?? 1) * 0.5 * (0.75 + 0.25 * Math.sin(propLocal * 18));
+          p.sprite.scale.y =
+            (p.placement.scale ?? 1) * 0.5 * (0.75 + 0.25 * Math.sin(propLocal * 18));
           break;
         }
         case 'float-bob':
@@ -687,7 +747,8 @@ async function main(): Promise<void> {
           p.sprite.rotation = Math.sin(propLocal * 1.7) * 0.06;
           break;
         case 'branch-arc':
-          p.sprite.rotation = (p.placement.rotation ?? 0) + Math.min(1, propLocal / 2.2) * 1.1 - 1.0;
+          p.sprite.rotation =
+            (p.placement.rotation ?? 0) + Math.min(1, propLocal / 2.2) * 1.1 - 1.0;
           break;
         case 'branch-fall':
           p.sprite.rotation = (p.placement.rotation ?? 0) + Math.max(0, propLocal - 3.0) * 0.9;
@@ -803,9 +864,7 @@ async function main(): Promise<void> {
   function updateUi(): void {
     uiBar.clear();
     uiBar.rect(40, BAR_Y, STAGE_W - 80, 10).fill({ color: 0xffffff, alpha: 0.25 });
-    uiBar
-      .rect(40, BAR_Y, (STAGE_W - 80) * (t / TOTAL), 10)
-      .fill({ color: 0xf2b233, alpha: 0.95 });
+    uiBar.rect(40, BAR_Y, (STAGE_W - 80) * (t / TOTAL), 10).fill({ color: 0xf2b233, alpha: 0.95 });
   }
   updateUi();
 
@@ -815,9 +874,12 @@ async function main(): Promise<void> {
     .circle(STAGE_W / 2, STAGE_H / 2, 110)
     .fill({ color: 0xf2b233, alpha: 0.95 })
     .poly([
-      STAGE_W / 2 - 34, STAGE_H / 2 - 56,
-      STAGE_W / 2 + 62, STAGE_H / 2,
-      STAGE_W / 2 - 34, STAGE_H / 2 + 56,
+      STAGE_W / 2 - 34,
+      STAGE_H / 2 - 56,
+      STAGE_W / 2 + 62,
+      STAGE_H / 2,
+      STAGE_W / 2 - 34,
+      STAGE_H / 2 + 56,
     ])
     .fill({ color: 0x2b1a12 });
   uiLayer.addChild(overlay);
@@ -871,4 +933,6 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch((e) => { document.title = 'ERR:' + String(e).slice(0, 120); });
+main().catch((e) => {
+  document.title = 'ERR:' + String(e).slice(0, 120);
+});

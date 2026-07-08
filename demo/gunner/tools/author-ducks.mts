@@ -32,7 +32,10 @@ const root = join(here, '..');
 const deps: ToolDeps = { sessions: new SessionRegistry(), files: createNodeFileStore(root) };
 const byName = new Map(TOOLS.map((t) => [t.name, t]));
 
-async function call(name: string, input: Record<string, unknown>): Promise<Record<string, unknown>> {
+async function call(
+  name: string,
+  input: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
   const tool = byName.get(name);
   if (tool === undefined) throw new Error(`no such tool: ${name}`);
   try {
@@ -101,7 +104,10 @@ interface AnimSpec {
   readonly rotate?: Record<string, readonly RotKey[]>;
   readonly translate?: Record<string, readonly VecKey[]>;
   readonly scale?: Record<string, readonly VecKey[]>;
-  readonly attachments?: Record<string, ReadonlyArray<readonly [time: number, name: string | null]>>;
+  readonly attachments?: Record<
+    string,
+    ReadonlyArray<readonly [time: number, name: string | null]>
+  >;
 }
 
 interface Rig {
@@ -119,10 +125,12 @@ async function makeRig(name: string, atlas: AtlasJson): Promise<Rig> {
   await call('atlas.set', { documentId, atlas });
 
   const regionSize = new Map<string, { w: number; h: number }>();
-  for (const page of atlas.pages) for (const r of page.regions) regionSize.set(r.name, { w: r.w, h: r.h });
+  for (const page of atlas.pages)
+    for (const r of page.regions) regionSize.set(r.name, { w: r.w, h: r.h });
   const sized = (region: string, targetH: number): { width: number; height: number } => {
     const s = regionSize.get(region);
-    if (s === undefined) throw new Error(`unknown region ${region}; have: ${[...regionSize.keys()].join(', ')}`);
+    if (s === undefined)
+      throw new Error(`unknown region ${region}; have: ${[...regionSize.keys()].join(', ')}`);
     return { width: (s.w / s.h) * targetH, height: targetH };
   };
 
@@ -133,7 +141,8 @@ async function makeRig(name: string, atlas: AtlasJson): Promise<Rig> {
     documentId,
     async bone(boneName, parent, x, y, length = 30) {
       const parentId = parent !== null ? boneIds.get(parent) : undefined;
-      if (parent !== null && parentId === undefined) throw new Error(`unknown parent bone ${parent}`);
+      if (parent !== null && parentId === undefined)
+        throw new Error(`unknown parent bone ${parent}`);
       const res = (await call('bone.create', {
         documentId,
         name: boneName,
@@ -189,31 +198,50 @@ async function makeRig(name: string, atlas: AtlasJson): Promise<Rig> {
       for (const [boneName, keys] of Object.entries(spec.rotate ?? {})) {
         for (const [time, angle, curve] of keys) {
           await call('kf.set', {
-            documentId, animationId, channel: 'rotate', boneId: boneIds.get(boneName), time,
-            value: { angle }, ...(curve !== undefined ? { curve } : {}),
+            documentId,
+            animationId,
+            channel: 'rotate',
+            boneId: boneIds.get(boneName),
+            time,
+            value: { angle },
+            ...(curve !== undefined ? { curve } : {}),
           });
         }
       }
       for (const [boneName, keys] of Object.entries(spec.translate ?? {})) {
         for (const [time, x, y, curve] of keys) {
           await call('kf.set', {
-            documentId, animationId, channel: 'translate', boneId: boneIds.get(boneName), time,
-            value: { x, y }, ...(curve !== undefined ? { curve } : {}),
+            documentId,
+            animationId,
+            channel: 'translate',
+            boneId: boneIds.get(boneName),
+            time,
+            value: { x, y },
+            ...(curve !== undefined ? { curve } : {}),
           });
         }
       }
       for (const [boneName, keys] of Object.entries(spec.scale ?? {})) {
         for (const [time, x, y, curve] of keys) {
           await call('kf.set', {
-            documentId, animationId, channel: 'scale', boneId: boneIds.get(boneName), time,
-            value: { x, y }, ...(curve !== undefined ? { curve } : {}),
+            documentId,
+            animationId,
+            channel: 'scale',
+            boneId: boneIds.get(boneName),
+            time,
+            value: { x, y },
+            ...(curve !== undefined ? { curve } : {}),
           });
         }
       }
       for (const [slotName, keys] of Object.entries(spec.attachments ?? {})) {
         for (const [time, attachment] of keys) {
           await call('kf.attachment.set', {
-            documentId, animationId, slotId: slotIds.get(slotName), time, name: attachment,
+            documentId,
+            animationId,
+            slotId: slotIds.get(slotName),
+            time,
+            name: attachment,
           });
         }
       }
@@ -252,63 +280,182 @@ mkdirSync(join(root, 'renders'), { recursive: true });
   await mama.bone('wing', 'body', 15, -8, 50); // shoulder pivot; the wing folds over the body side
 
   // Slots back-to-front (creation order = draw order): body, neck, head, bills, wing on top.
-  await mama.regionSlot({ slot: 'body', bone: 'body', region: 'body', x: -5.8, y: 26.4, targetH: 168 });
-  await mama.regionSlot({ slot: 'neck', bone: 'neck', region: 'neck', x: 0.2, y: -31.3, targetH: 116 });
-  await mama.regionSlot({ slot: 'head', bone: 'head', region: 'head', x: -0.7, y: -32.6, targetH: 86 });
-  await mama.regionSlot({ slot: 'bill-top', bone: 'bill-top', region: 'bill-top', x: 20.4, y: 1.9, targetH: 40 });
-  await mama.regionSlot({ slot: 'bill-bottom', bone: 'bill-bottom', region: 'bill-bottom', x: 27, y: 5.5, targetH: 30 });
-  await mama.regionSlot({ slot: 'wing', bone: 'wing', region: 'wing', x: -32.6, y: 21.7, targetH: 76 });
+  await mama.regionSlot({
+    slot: 'body',
+    bone: 'body',
+    region: 'body',
+    x: -5.8,
+    y: 26.4,
+    targetH: 168,
+  });
+  await mama.regionSlot({
+    slot: 'neck',
+    bone: 'neck',
+    region: 'neck',
+    x: 0.2,
+    y: -31.3,
+    targetH: 116,
+  });
+  await mama.regionSlot({
+    slot: 'head',
+    bone: 'head',
+    region: 'head',
+    x: -0.7,
+    y: -32.6,
+    targetH: 86,
+  });
+  await mama.regionSlot({
+    slot: 'bill-top',
+    bone: 'bill-top',
+    region: 'bill-top',
+    x: 20.4,
+    y: 1.9,
+    targetH: 40,
+  });
+  await mama.regionSlot({
+    slot: 'bill-bottom',
+    bone: 'bill-bottom',
+    region: 'bill-bottom',
+    x: 27,
+    y: 5.5,
+    targetH: 30,
+  });
+  await mama.regionSlot({
+    slot: 'wing',
+    bone: 'wing',
+    region: 'wing',
+    x: -32.6,
+    y: 21.7,
+    targetH: 76,
+  });
 
   // idle: gentle breathe plus a soft head bob, 2.0s loop.
   await mama.author({
-    name: 'idle', duration: 2.0,
-    translate: { body: [[0, 0, 0, EASE_IN_OUT], [1.0, 0, -3.5, EASE_IN_OUT], [2.0, 0, 0]] },
+    name: 'idle',
+    duration: 2.0,
+    translate: {
+      body: [
+        [0, 0, 0, EASE_IN_OUT],
+        [1.0, 0, -3.5, EASE_IN_OUT],
+        [2.0, 0, 0],
+      ],
+    },
     rotate: {
-      head: [[0, 0, EASE_IN_OUT], [1.1, 2.5, EASE_IN_OUT], [2.0, 0]],
-      neck: [[0, 0, EASE_IN_OUT], [1.0, 1.5, EASE_IN_OUT], [2.0, 0]],
-      wing: [[0, 0, EASE_IN_OUT], [1.0, -2, EASE_IN_OUT], [2.0, 0]],
+      head: [
+        [0, 0, EASE_IN_OUT],
+        [1.1, 2.5, EASE_IN_OUT],
+        [2.0, 0],
+      ],
+      neck: [
+        [0, 0, EASE_IN_OUT],
+        [1.0, 1.5, EASE_IN_OUT],
+        [2.0, 0],
+      ],
+      wing: [
+        [0, 0, EASE_IN_OUT],
+        [1.0, -2, EASE_IN_OUT],
+        [2.0, 0],
+      ],
     },
   });
 
   // waddle: the body rocks +-6 deg, y bobs twice per cycle, the neck counter-sways, 0.8s loop.
   await mama.author({
-    name: 'waddle', duration: 0.8,
+    name: 'waddle',
+    duration: 0.8,
     rotate: {
-      body: [[0, -6, EASE_IN_OUT], [0.4, 6, EASE_IN_OUT], [0.8, -6]],
-      neck: [[0, 4, EASE_IN_OUT], [0.4, -4, EASE_IN_OUT], [0.8, 4]],
-      head: [[0, 2, EASE_IN_OUT], [0.4, -2, EASE_IN_OUT], [0.8, 2]],
+      body: [
+        [0, -6, EASE_IN_OUT],
+        [0.4, 6, EASE_IN_OUT],
+        [0.8, -6],
+      ],
+      neck: [
+        [0, 4, EASE_IN_OUT],
+        [0.4, -4, EASE_IN_OUT],
+        [0.8, 4],
+      ],
+      head: [
+        [0, 2, EASE_IN_OUT],
+        [0.4, -2, EASE_IN_OUT],
+        [0.8, 2],
+      ],
     },
     translate: {
-      body: [[0, 0, 0, EASE_OUT], [0.2, 0, -4, EASE_IN], [0.4, 0, 0, EASE_OUT], [0.6, 0, -4, EASE_IN], [0.8, 0, 0]],
+      body: [
+        [0, 0, 0, EASE_OUT],
+        [0.2, 0, -4, EASE_IN],
+        [0.4, 0, 0, EASE_OUT],
+        [0.6, 0, -4, EASE_IN],
+        [0.8, 0, 0],
+      ],
     },
   });
 
   // alarm-flap: the wing beats +-40 every 0.15s, the neck extends up 15px, the head shakes,
   // the body hops, the bill hangs open in alarm, 0.9s loop.
   await mama.author({
-    name: 'alarm-flap', duration: 0.9,
+    name: 'alarm-flap',
+    duration: 0.9,
     rotate: {
-      wing: [[0, -40, EASE_IN_OUT], [0.15, 40, EASE_IN_OUT], [0.3, -40, EASE_IN_OUT], [0.45, 40, EASE_IN_OUT],
-             [0.6, -40, EASE_IN_OUT], [0.75, 40, EASE_IN_OUT], [0.9, -40]],
-      head: [[0, -6, EASE_IN_OUT], [0.15, 6, EASE_IN_OUT], [0.3, -6, EASE_IN_OUT], [0.45, 6, EASE_IN_OUT],
-             [0.6, -6, EASE_IN_OUT], [0.75, 6, EASE_IN_OUT], [0.9, -6]],
+      wing: [
+        [0, -40, EASE_IN_OUT],
+        [0.15, 40, EASE_IN_OUT],
+        [0.3, -40, EASE_IN_OUT],
+        [0.45, 40, EASE_IN_OUT],
+        [0.6, -40, EASE_IN_OUT],
+        [0.75, 40, EASE_IN_OUT],
+        [0.9, -40],
+      ],
+      head: [
+        [0, -6, EASE_IN_OUT],
+        [0.15, 6, EASE_IN_OUT],
+        [0.3, -6, EASE_IN_OUT],
+        [0.45, 6, EASE_IN_OUT],
+        [0.6, -6, EASE_IN_OUT],
+        [0.75, 6, EASE_IN_OUT],
+        [0.9, -6],
+      ],
       'bill-bottom': [[0, 14]],
     },
     translate: {
       neck: [[0, 0, -15]],
-      body: [[0, 0, 0, EASE_OUT], [0.075, 0, -6, EASE_IN], [0.15, 0, 0, EASE_OUT], [0.225, 0, -6, EASE_IN],
-             [0.3, 0, 0, EASE_OUT], [0.375, 0, -6, EASE_IN], [0.45, 0, 0, EASE_OUT], [0.525, 0, -6, EASE_IN],
-             [0.6, 0, 0, EASE_OUT], [0.675, 0, -6, EASE_IN], [0.75, 0, 0, EASE_OUT], [0.825, 0, -6, EASE_IN],
-             [0.9, 0, 0]],
+      body: [
+        [0, 0, 0, EASE_OUT],
+        [0.075, 0, -6, EASE_IN],
+        [0.15, 0, 0, EASE_OUT],
+        [0.225, 0, -6, EASE_IN],
+        [0.3, 0, 0, EASE_OUT],
+        [0.375, 0, -6, EASE_IN],
+        [0.45, 0, 0, EASE_OUT],
+        [0.525, 0, -6, EASE_IN],
+        [0.6, 0, 0, EASE_OUT],
+        [0.675, 0, -6, EASE_IN],
+        [0.75, 0, 0, EASE_OUT],
+        [0.825, 0, -6, EASE_IN],
+        [0.9, 0, 0],
+      ],
     },
   });
 
   // talk-quack: the bill opens and closes twice, with a tiny head nod, 0.5s loop.
   await mama.author({
-    name: 'talk-quack', duration: 0.5,
+    name: 'talk-quack',
+    duration: 0.5,
     rotate: {
-      'bill-bottom': [[0, 0, EASE_OUT], [0.12, 20, EASE_IN_OUT], [0.25, 2, EASE_OUT], [0.37, 18, EASE_IN_OUT], [0.5, 0]],
-      head: [[0, 0, EASE_IN_OUT], [0.12, 1.5, EASE_IN_OUT], [0.25, 0.3, EASE_IN_OUT], [0.37, 1.2, EASE_IN_OUT], [0.5, 0]],
+      'bill-bottom': [
+        [0, 0, EASE_OUT],
+        [0.12, 20, EASE_IN_OUT],
+        [0.25, 2, EASE_OUT],
+        [0.37, 18, EASE_IN_OUT],
+        [0.5, 0],
+      ],
+      head: [
+        [0, 0, EASE_IN_OUT],
+        [0.12, 1.5, EASE_IN_OUT],
+        [0.25, 0.3, EASE_IN_OUT],
+        [0.37, 1.2, EASE_IN_OUT],
+        [0.5, 0],
+      ],
     },
   });
 
@@ -359,24 +506,41 @@ function rebuildLidPixels(): void {
   // Skin color: average opaque head pixels in a ring around the near eye. Head region sits at page
   // (0, 1327) with a (2, 3) trim offset; head-canvas (cx, cy) => page (cx - 2, cy - 3 + 1327).
   const ring: Array<[number, number]> = [
-    [119, 195], [195, 195], [157, 153], [157, 237], [130, 165], [184, 165], [130, 227], [184, 227],
+    [119, 195],
+    [195, 195],
+    [157, 153],
+    [157, 237],
+    [130, 165],
+    [184, 165],
+    [130, 227],
+    [184, 227],
   ];
-  let r = 0, g = 0, b = 0, n = 0;
+  let r = 0,
+    g = 0,
+    b = 0,
+    n = 0;
   for (const [cx, cy] of ring) {
     const idx = ((cy - 3 + 1327) * page.width + (cx - 2)) * 4;
     const alpha = page.rgba[idx + 3]!;
     const red = page.rgba[idx]!;
     if (alpha < 200 || red < 140) continue; // skip transparent or eye-dark samples
-    r += red; g += page.rgba[idx + 1]!; b += page.rgba[idx + 2]!; n += 1;
+    r += red;
+    g += page.rgba[idx + 1]!;
+    b += page.rgba[idx + 2]!;
+    n += 1;
   }
   if (n === 0) throw new Error('lid skin sampling found no opaque head pixels');
-  r = Math.round(r / n); g = Math.round(g / n); b = Math.round(b / n);
+  r = Math.round(r / n);
+  g = Math.round(g / n);
+  b = Math.round(b / n);
 
   // Wipe the whole lid window, then lay down the feathered skin ellipse.
   const { x: wx, y: wy, size } = LID_WINDOW;
   // The opaque core (radius * FEATHER_START) must out-size the baked eye INCLUDING its dark
   // outline, or the outline peeks around the patch as a ring.
-  const RX = 52, RY = 68, FEATHER_START = 0.86;
+  const RX = 52,
+    RY = 68,
+    FEATHER_START = 0.86;
   for (let y = wy; y < wy + size; y += 1) {
     for (let x = wx; x < wx + size; x += 1) {
       const idx = (y * page.width + x) * 4;
@@ -431,8 +595,14 @@ function rebuildLidPixels(): void {
   const eyesClosed = page.regions.find((reg) => reg.name === 'eyes-closed');
   if (eyesClosed === undefined) throw new Error('duckling atlas missing eyes-closed region');
   Object.assign(eyesClosed, {
-    x: LID_WINDOW.x, y: LID_WINDOW.y, w: LID_WINDOW.size, h: LID_WINDOW.size,
-    offsetX: 0, offsetY: 0, originalW: LID_WINDOW.size, originalH: LID_WINDOW.size,
+    x: LID_WINDOW.x,
+    y: LID_WINDOW.y,
+    w: LID_WINDOW.size,
+    h: LID_WINDOW.size,
+    offsetX: 0,
+    offsetY: 0,
+    originalW: LID_WINDOW.size,
+    originalH: LID_WINDOW.size,
   });
   page.regions.push({ ...eyesClosed, name: 'eye-lid-far' });
 
@@ -450,13 +620,63 @@ function rebuildLidPixels(): void {
   // already has the near wing painted on its side); then body, head, jaw BEHIND the top bill
   // (so the closed mouth hides the dark maw and only the orange lip peeks below), then the eye
   // overlays on top. The far wing tip peeks up-rear over the back line.
-  await duck.regionSlot({ slot: 'wing-nub', bone: 'wing-nub', region: 'wing-nub', x: 10, y: 0, targetH: 22, rotation: -12 });
-  await duck.regionSlot({ slot: 'body', bone: 'body', region: 'body', x: -5.9, y: 19.6, targetH: 61 });
-  await duck.regionSlot({ slot: 'head', bone: 'head', region: 'head', x: -4.1, y: -18.3, targetH: 54 });
-  await duck.regionSlot({ slot: 'bill-bottom', bone: 'bill-bottom', region: 'bill-bottom', x: -7.4, y: 1.5, targetH: 11 });
-  await duck.regionSlot({ slot: 'bill-top', bone: 'bill-top', region: 'bill-top', x: -1.5, y: -0.8, targetH: 16.5 });
-  await duck.regionSlot({ slot: 'eyes', bone: 'head', region: 'eyes-closed', x: -7.2, y: -17.4, targetH: 13 });
-  await duck.regionSlot({ slot: 'eyes-far', bone: 'head', region: 'eye-lid-far', x: 13.9, y: -19.3, targetH: 11 });
+  await duck.regionSlot({
+    slot: 'wing-nub',
+    bone: 'wing-nub',
+    region: 'wing-nub',
+    x: 10,
+    y: 0,
+    targetH: 22,
+    rotation: -12,
+  });
+  await duck.regionSlot({
+    slot: 'body',
+    bone: 'body',
+    region: 'body',
+    x: -5.9,
+    y: 19.6,
+    targetH: 61,
+  });
+  await duck.regionSlot({
+    slot: 'head',
+    bone: 'head',
+    region: 'head',
+    x: -4.1,
+    y: -18.3,
+    targetH: 54,
+  });
+  await duck.regionSlot({
+    slot: 'bill-bottom',
+    bone: 'bill-bottom',
+    region: 'bill-bottom',
+    x: -7.4,
+    y: 1.5,
+    targetH: 11,
+  });
+  await duck.regionSlot({
+    slot: 'bill-top',
+    bone: 'bill-top',
+    region: 'bill-top',
+    x: -1.5,
+    y: -0.8,
+    targetH: 16.5,
+  });
+  await duck.regionSlot({
+    slot: 'eyes',
+    bone: 'head',
+    region: 'eyes-closed',
+    x: -7.2,
+    y: -17.4,
+    targetH: 13,
+  });
+  await duck.regionSlot({
+    slot: 'eyes-far',
+    bone: 'head',
+    region: 'eye-lid-far',
+    x: 13.9,
+    y: -19.3,
+    targetH: 11,
+  });
   // Baked-in eyes show by default; the lid overlays are keyed on by animations only.
   await duck.setActive('eyes', null);
   await duck.setActive('eyes-far', null);
@@ -465,84 +685,201 @@ function rebuildLidPixels(): void {
 
   // bob-float: floating on water, one slow bob +-5 with a +-3 sway, 1.6s loop.
   await duck.author({
-    name: 'bob-float', duration: 1.6,
-    translate: { body: [[0, 0, 5, EASE_IN_OUT], [0.8, 0, -5, EASE_IN_OUT], [1.6, 0, 5]] },
+    name: 'bob-float',
+    duration: 1.6,
+    translate: {
+      body: [
+        [0, 0, 5, EASE_IN_OUT],
+        [0.8, 0, -5, EASE_IN_OUT],
+        [1.6, 0, 5],
+      ],
+    },
     rotate: {
-      body: [[0, -3, EASE_IN_OUT], [0.8, 3, EASE_IN_OUT], [1.6, -3]],
-      head: [[0, 2, EASE_IN_OUT], [0.8, -2, EASE_IN_OUT], [1.6, 2]],
+      body: [
+        [0, -3, EASE_IN_OUT],
+        [0.8, 3, EASE_IN_OUT],
+        [1.6, -3],
+      ],
+      head: [
+        [0, 2, EASE_IN_OUT],
+        [0.8, -2, EASE_IN_OUT],
+        [1.6, 2],
+      ],
     },
   });
 
   // waddle: quick side-to-side roll +-8 with little y hops, 0.5s loop.
   await duck.author({
-    name: 'waddle', duration: 0.5,
+    name: 'waddle',
+    duration: 0.5,
     rotate: {
-      body: [[0, -8, EASE_IN_OUT], [0.25, 8, EASE_IN_OUT], [0.5, -8]],
-      head: [[0, 3, EASE_IN_OUT], [0.25, -3, EASE_IN_OUT], [0.5, 3]],
+      body: [
+        [0, -8, EASE_IN_OUT],
+        [0.25, 8, EASE_IN_OUT],
+        [0.5, -8],
+      ],
+      head: [
+        [0, 3, EASE_IN_OUT],
+        [0.25, -3, EASE_IN_OUT],
+        [0.5, 3],
+      ],
     },
     translate: {
-      body: [[0, 0, 0, EASE_OUT], [0.125, 0, -4, EASE_IN], [0.25, 0, 0, EASE_OUT], [0.375, 0, -4, EASE_IN], [0.5, 0, 0]],
+      body: [
+        [0, 0, 0, EASE_OUT],
+        [0.125, 0, -4, EASE_IN],
+        [0.25, 0, 0, EASE_OUT],
+        [0.375, 0, -4, EASE_IN],
+        [0.5, 0, 0],
+      ],
     },
   });
 
   // quack-hop: crouch, hop up 22px with the bill wide open, land with a squash, settle. One-shot.
   await duck.author({
-    name: 'quack-hop', duration: 0.6,
+    name: 'quack-hop',
+    duration: 0.6,
     translate: {
-      body: [[0, 0, 0, EASE_IN], [0.12, 0, 8, EASE_OUT], [0.3, 0, -22, EASE_IN], [0.45, 0, 0, EASE_OUT], [0.6, 0, 0]],
+      body: [
+        [0, 0, 0, EASE_IN],
+        [0.12, 0, 8, EASE_OUT],
+        [0.3, 0, -22, EASE_IN],
+        [0.45, 0, 0, EASE_OUT],
+        [0.6, 0, 0],
+      ],
     },
     scale: {
-      body: [[0, 1, 1, EASE_IN], [0.12, 1.08, 0.9, EASE_OUT], [0.3, 0.92, 1.1, EASE_IN], [0.45, 1.15, 0.85, EASE_OUT], [0.6, 1, 1]],
+      body: [
+        [0, 1, 1, EASE_IN],
+        [0.12, 1.08, 0.9, EASE_OUT],
+        [0.3, 0.92, 1.1, EASE_IN],
+        [0.45, 1.15, 0.85, EASE_OUT],
+        [0.6, 1, 1],
+      ],
     },
     rotate: {
-      'bill-bottom': [[0, 0, EASE_OUT], [0.12, DUCK_OPEN * 2, EASE_OUT], [0.25, DUCK_OPEN * 24, EASE_IN_OUT], [0.45, DUCK_OPEN * 18, EASE_IN], [0.6, 0]],
-      head: [[0, 0, EASE_OUT], [0.3, 4, EASE_IN_OUT], [0.45, -3, EASE_OUT], [0.6, 0]],
-      'wing-nub': [[0, 0, EASE_OUT], [0.12, 20, EASE_IN_OUT], [0.3, -30, EASE_IN_OUT], [0.45, 10, EASE_OUT], [0.6, 0]],
+      'bill-bottom': [
+        [0, 0, EASE_OUT],
+        [0.12, DUCK_OPEN * 2, EASE_OUT],
+        [0.25, DUCK_OPEN * 24, EASE_IN_OUT],
+        [0.45, DUCK_OPEN * 18, EASE_IN],
+        [0.6, 0],
+      ],
+      head: [
+        [0, 0, EASE_OUT],
+        [0.3, 4, EASE_IN_OUT],
+        [0.45, -3, EASE_OUT],
+        [0.6, 0],
+      ],
+      'wing-nub': [
+        [0, 0, EASE_OUT],
+        [0.12, 20, EASE_IN_OUT],
+        [0.3, -30, EASE_IN_OUT],
+        [0.45, 10, EASE_OUT],
+        [0.6, 0],
+      ],
     },
   });
 
   // imprint-pose: chest puff, head up 8 deg, wing-nub raised like a salute, hold. One-shot.
   await duck.author({
-    name: 'imprint-pose', duration: 1.0,
-    scale: { body: [[0, 1, 1, EASE_OUT_BACK], [0.35, 1.1, 1.08, EASE_IN_OUT], [1.0, 1.1, 1.08]] },
-    rotate: {
-      head: [[0, 0, EASE_OUT_BACK], [0.35, 8, EASE_IN_OUT], [1.0, 8]],
-      'wing-nub': [[0, 0, EASE_OUT_BACK], [0.35, -75, EASE_IN_OUT], [1.0, -75]],
+    name: 'imprint-pose',
+    duration: 1.0,
+    scale: {
+      body: [
+        [0, 1, 1, EASE_OUT_BACK],
+        [0.35, 1.1, 1.08, EASE_IN_OUT],
+        [1.0, 1.1, 1.08],
+      ],
     },
-    translate: { body: [[0, 0, 0, EASE_OUT], [0.35, 0, -3, EASE_IN_OUT], [1.0, 0, -3]] },
+    rotate: {
+      head: [
+        [0, 0, EASE_OUT_BACK],
+        [0.35, 8, EASE_IN_OUT],
+        [1.0, 8],
+      ],
+      'wing-nub': [
+        [0, 0, EASE_OUT_BACK],
+        [0.35, -75, EASE_IN_OUT],
+        [1.0, -75],
+      ],
+    },
+    translate: {
+      body: [
+        [0, 0, 0, EASE_OUT],
+        [0.35, 0, -3, EASE_IN_OUT],
+        [1.0, 0, -3],
+      ],
+    },
   });
 
   // panic: fast trembles with the bill open and the wing fluttering, 0.5s loop (waterfall drift).
   await duck.author({
-    name: 'panic', duration: 0.5,
+    name: 'panic',
+    duration: 0.5,
     translate: {
-      body: [[0, -2, 0, 'linear'], [0.0625, 2, 0, 'linear'], [0.125, -2, 0, 'linear'], [0.1875, 2, 0, 'linear'],
-             [0.25, -2, 0, 'linear'], [0.3125, 2, 0, 'linear'], [0.375, -2, 0, 'linear'], [0.4375, 2, 0, 'linear'],
-             [0.5, -2, 0]],
+      body: [
+        [0, -2, 0, 'linear'],
+        [0.0625, 2, 0, 'linear'],
+        [0.125, -2, 0, 'linear'],
+        [0.1875, 2, 0, 'linear'],
+        [0.25, -2, 0, 'linear'],
+        [0.3125, 2, 0, 'linear'],
+        [0.375, -2, 0, 'linear'],
+        [0.4375, 2, 0, 'linear'],
+        [0.5, -2, 0],
+      ],
     },
     rotate: {
       'bill-bottom': [[0, DUCK_OPEN * 20]],
-      head: [[0, -5, EASE_IN_OUT], [0.125, 5, EASE_IN_OUT], [0.25, -5, EASE_IN_OUT], [0.375, 5, EASE_IN_OUT], [0.5, -5]],
-      'wing-nub': [[0, -25, EASE_IN_OUT], [0.125, 25, EASE_IN_OUT], [0.25, -25, EASE_IN_OUT], [0.375, 25, EASE_IN_OUT], [0.5, -25]],
+      head: [
+        [0, -5, EASE_IN_OUT],
+        [0.125, 5, EASE_IN_OUT],
+        [0.25, -5, EASE_IN_OUT],
+        [0.375, 5, EASE_IN_OUT],
+        [0.5, -5],
+      ],
+      'wing-nub': [
+        [0, -25, EASE_IN_OUT],
+        [0.125, 25, EASE_IN_OUT],
+        [0.25, -25, EASE_IN_OUT],
+        [0.375, 25, EASE_IN_OUT],
+        [0.5, -25],
+      ],
     },
   });
 
   // Micro state animations for the player's face tracks.
   await duck.author({ name: 'mouth-closed', duration: 0.05, rotate: { 'bill-bottom': [[0, 0]] } });
-  await duck.author({ name: 'mouth-wide', duration: 0.05, rotate: { 'bill-bottom': [[0, DUCK_OPEN * 20]] } });
   await duck.author({
-    name: 'eyes-closed', duration: 0.05,
+    name: 'mouth-wide',
+    duration: 0.05,
+    rotate: { 'bill-bottom': [[0, DUCK_OPEN * 20]] },
+  });
+  await duck.author({
+    name: 'eyes-closed',
+    duration: 0.05,
     attachments: { eyes: [[0, 'eyes-closed']], 'eyes-far': [[0, 'eye-lid-far']] },
   });
   await duck.author({
-    name: 'eyes-open', duration: 0.05,
+    name: 'eyes-open',
+    duration: 0.05,
     attachments: { eyes: [[0, null]], 'eyes-far': [[0, null]] },
   });
   await duck.author({
-    name: 'blink', duration: 0.3,
+    name: 'blink',
+    duration: 0.3,
     attachments: {
-      eyes: [[0, null], [0.1, 'eyes-closed'], [0.22, null]],
-      'eyes-far': [[0, null], [0.1, 'eye-lid-far'], [0.22, null]],
+      eyes: [
+        [0, null],
+        [0.1, 'eyes-closed'],
+        [0.22, null],
+      ],
+      'eyes-far': [
+        [0, null],
+        [0.1, 'eye-lid-far'],
+        [0.22, null],
+      ],
     },
   });
 

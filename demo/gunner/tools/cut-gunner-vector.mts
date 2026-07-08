@@ -30,8 +30,17 @@ const work = mkdtempSync(join(tmpdir(), 'gunner-vector-'));
 const TOTAL_H = 407;
 const TORSO_WORLD = { x: 0, y: -175 };
 
-interface DocBox { x0: number; y0: number; x1: number; y1: number }
-interface Rendered { img: DecodedImage; box: DocBox; scale: number }
+interface DocBox {
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+}
+interface Rendered {
+  img: DecodedImage;
+  box: DocBox;
+  scale: number;
+}
 
 function viewBoxOf(svg: string): DocBox {
   const m = svg.match(/viewBox="([\d. -]+)"/);
@@ -46,7 +55,10 @@ function renderSvg(svgText: string, css: string, box: DocBox, scale: number): De
   const h = Math.ceil((box.y1 - box.y0) * scale);
   const body = svgText
     .replace(/<\?xml[^>]*\?>\s*/, '')
-    .replace(/viewBox="[^"]*"/, `viewBox="${box.x0} ${box.y0} ${box.x1 - box.x0} ${box.y1 - box.y0}" width="${w}" height="${h}"`)
+    .replace(
+      /viewBox="[^"]*"/,
+      `viewBox="${box.x0} ${box.y0} ${box.x1 - box.x0} ${box.y1 - box.y0}" width="${w}" height="${h}"`,
+    )
     .replace('<defs>', `<style>${css}</style><defs>`);
   const page = join(work, `shot-${shot}.html`);
   const out = join(work, `shot-${shot}.png`);
@@ -54,14 +66,17 @@ function renderSvg(svgText: string, css: string, box: DocBox, scale: number): De
   writeFileSync(page, `<!doctype html><body style="margin:0">${body}</body>`);
   execSync(
     `"${CHROME}" --headless=new --screenshot="${out}" --window-size=${w},${h} ` +
-    `--default-background-color=00000000 --hide-scrollbars "file://${page}" 2>/dev/null`,
+      `--default-background-color=00000000 --hide-scrollbars "file://${page}" 2>/dev/null`,
   );
   return decodePng(readFileSync(out));
 }
 
 function alphaBox(img: DecodedImage): { x0: number; y0: number; x1: number; y1: number } {
   const { width: W, height: H, rgba } = img;
-  let x0 = W, y0 = H, x1 = -1, y1 = -1;
+  let x0 = W,
+    y0 = H,
+    x1 = -1,
+    y1 = -1;
   for (let y = 0; y < H; y += 1) {
     for (let x = 0; x < W; x += 1) {
       if (rgba[(y * W + x) * 4 + 3]! > 8) {
@@ -102,8 +117,10 @@ function renderPiece(svgText: string, css: string, docBox: DocBox, targetPx: num
   };
   const margin = 30;
   const crop: DocBox = {
-    x0: Math.max(docBox.x0, found.x0 - margin), y0: Math.max(docBox.y0, found.y0 - margin),
-    x1: Math.min(docBox.x1, found.x1 + margin), y1: Math.min(docBox.y1, found.y1 + margin),
+    x0: Math.max(docBox.x0, found.x0 - margin),
+    y0: Math.max(docBox.y0, found.y0 - margin),
+    x1: Math.min(docBox.x1, found.x1 + margin),
+    y1: Math.min(docBox.y1, found.y1 + margin),
   };
   const scale = targetPx / Math.max(crop.x1 - crop.x0, crop.y1 - crop.y0);
   const fine = trimPad(renderSvg(svgText, css, crop, scale));
@@ -122,15 +139,29 @@ function renderPiece(svgText: string, css: string, docBox: DocBox, targetPx: num
 // ---- master document pieces ------------------------------------------------------------------------
 const master = readFileSync(masterPath, 'utf8');
 const masterBox = viewBoxOf(master);
-const TOP_LEVEL = ['left-back-leg', 'body', 'right-front-leg', 'right-back-leg', 'left-front-leg', 'head'];
+const TOP_LEVEL = [
+  'left-back-leg',
+  'body',
+  'right-front-leg',
+  'right-back-leg',
+  'left-front-leg',
+  'head',
+];
 const hideExcept = (...keep: string[]): string =>
-  TOP_LEVEL.filter((id) => !keep.includes(id)).map((id) => `#${id}`).join(',') + '{display:none}';
+  TOP_LEVEL.filter((id) => !keep.includes(id))
+    .map((id) => `#${id}`)
+    .join(',') + '{display:none}';
 const HIDE_EYES = '#right_eye,#left-eye{display:none}';
 // head-2 carries one path as a DIRECT child (43 paths, subgroups hold 42), so hide non-group
 // children as well as the anonymous skull subgroups or the eye isolation includes a skull shape
 const ONLY_EYES = '#head-2>g:not(#right_eye):not(#left-eye),#head-2>:not(g){display:none}';
 
-interface PieceSpec { name: string; css: string; targetPx: number; save: boolean }
+interface PieceSpec {
+  name: string;
+  css: string;
+  targetPx: number;
+  save: boolean;
+}
 const specs: PieceSpec[] = [
   { name: 'leg-back-far', css: hideExcept('left-back-leg'), targetPx: 560, save: true },
   { name: 'leg-front-far', css: hideExcept('left-front-leg'), targetPx: 560, save: true },
@@ -139,8 +170,18 @@ const specs: PieceSpec[] = [
   { name: 'torso', css: hideExcept('body'), targetPx: 1100, save: true },
   { name: 'head-wide', css: hideExcept('head') + HIDE_EYES, targetPx: 950, save: true },
   { name: 'eyes-open', css: hideExcept('head') + ONLY_EYES, targetPx: 430, save: false },
-  { name: 'eye-near', css: hideExcept('head') + ONLY_EYES + '#left-eye{display:none}', targetPx: 260, save: false },
-  { name: 'eye-far', css: hideExcept('head') + ONLY_EYES + '#right_eye{display:none}', targetPx: 260, save: false },
+  {
+    name: 'eye-near',
+    css: hideExcept('head') + ONLY_EYES + '#left-eye{display:none}',
+    targetPx: 260,
+    save: false,
+  },
+  {
+    name: 'eye-far',
+    css: hideExcept('head') + ONLY_EYES + '#right_eye{display:none}',
+    targetPx: 260,
+    save: false,
+  },
 ];
 const rendered = new Map<string, Rendered>();
 for (const spec of specs) {
@@ -148,7 +189,7 @@ for (const spec of specs) {
   const r = rendered.get(spec.name)!;
   console.log(
     `${spec.name}: ${r.img.width}x${r.img.height}px doc [${r.box.x0.toFixed(0)},${r.box.y0.toFixed(0)}]..` +
-    `[${r.box.x1.toFixed(0)},${r.box.y1.toFixed(0)}]`,
+      `[${r.box.x1.toFixed(0)},${r.box.y1.toFixed(0)}]`,
   );
 }
 
@@ -165,10 +206,14 @@ const body = rendered.get('torso')!;
 const anchorX = (body.box.x0 + body.box.x1) / 2;
 const X = (docX: number): number => -(docX - anchorX) * K;
 const Y = (docY: number): number => (docY - groundY) * K;
-console.log(`\nmapping: ground doc y ${groundY.toFixed(0)}, top ${topY.toFixed(0)}, K ${K.toFixed(5)} world/doc px`);
+console.log(
+  `\nmapping: ground doc y ${groundY.toFixed(0)}, top ${topY.toFixed(0)}, K ${K.toFixed(5)} world/doc px`,
+);
 
-const centerOf = (r: Rendered): { x: number; y: number } =>
-  ({ x: X((r.box.x0 + r.box.x1) / 2), y: Y((r.box.y0 + r.box.y1) / 2) });
+const centerOf = (r: Rendered): { x: number; y: number } => ({
+  x: X((r.box.x0 + r.box.x1) / 2),
+  y: Y((r.box.y0 + r.box.y1) / 2),
+});
 
 // leg bone pivots sit at the centroid of the drawn shoulder/haunch mass (top 26% of alpha rows),
 // same joint definition the raster legs used, so the existing gait keys swing about the same anatomy
@@ -177,15 +222,24 @@ function topBandCentroid(r: Rendered): { x: number; y: number } {
   const rows: number[] = [];
   for (let y = 0; y < H; y += 1) {
     for (let x = 0; x < W; x += 1) {
-      if (rgba[(y * W + x) * 4 + 3]! > 128) { rows.push(y); break; }
+      if (rgba[(y * W + x) * 4 + 3]! > 128) {
+        rows.push(y);
+        break;
+      }
     }
   }
   const top = rows[0]!;
   const bandEnd = top + (rows[rows.length - 1]! - top) * 0.26;
-  let sx = 0, sy = 0, n = 0;
+  let sx = 0,
+    sy = 0,
+    n = 0;
   for (let y = top; y <= bandEnd; y += 1) {
     for (let x = 0; x < W; x += 1) {
-      if (rgba[(y * W + x) * 4 + 3]! > 128) { sx += x; sy += y; n += 1; }
+      if (rgba[(y * W + x) * 4 + 3]! > 128) {
+        sx += x;
+        sy += y;
+        n += 1;
+      }
     }
   }
   return { x: X(r.box.x0 + sx / n / r.scale), y: Y(r.box.y0 + sy / n / r.scale) };
@@ -197,7 +251,9 @@ boneWorld.set('torso', TORSO_WORLD);
 for (const n of legNames) {
   const w = topBandCentroid(rendered.get(n)!);
   boneWorld.set(n, w);
-  console.log(`bone ${n}: torso-local (${(w.x - TORSO_WORLD.x).toFixed(1)}, ${(w.y - TORSO_WORLD.y).toFixed(1)})`);
+  console.log(
+    `bone ${n}: torso-local (${(w.x - TORSO_WORLD.x).toFixed(1)}, ${(w.y - TORSO_WORLD.y).toFixed(1)})`,
+  );
 }
 // head pivot at the neck joint, reproducing the raster rig's pivot geometry within the head bbox
 // (41.5% from the rear edge, 62.8% down) so nod amplitudes read the same
@@ -207,13 +263,15 @@ const headPivot = {
   y: Y(headR.box.y0 + 0.628 * (headR.box.y1 - headR.box.y0)),
 };
 boneWorld.set('head', headPivot);
-console.log(`bone head: torso-local (${(headPivot.x - TORSO_WORLD.x).toFixed(1)}, ${(headPivot.y - TORSO_WORLD.y).toFixed(1)})`);
+console.log(
+  `bone head: torso-local (${(headPivot.x - TORSO_WORLD.x).toFixed(1)}, ${(headPivot.y - TORSO_WORLD.y).toFixed(1)})`,
+);
 
 function attachLine(piece: string, bone: string): { x: number; y: number; h: number } {
   const r = rendered.get(piece)!;
   const c = centerOf(r);
   const b = boneWorld.get(bone)!;
-  const h = ((r.box.y1 - r.box.y0) * K);
+  const h = (r.box.y1 - r.box.y0) * K;
   console.log(
     `attach ${piece} on ${bone}: x ${(c.x - b.x).toFixed(1)}, y ${(c.y - b.y).toFixed(1)}, targetH ${h.toFixed(1)} (scaleX -1)`,
   );
@@ -235,7 +293,8 @@ function measureNose(img: DecodedImage): { cx: number; cy: number } {
   const solid = (x: number, y: number): boolean => {
     for (let dy = -ERODE_RAD; dy <= ERODE_RAD; dy += 3) {
       for (let dx = -ERODE_RAD; dx <= ERODE_RAD; dx += 3) {
-        const px = x + dx, py = y + dy;
+        const px = x + dx,
+          py = y + dy;
         if (px < 0 || py < 0 || px >= W || py >= H || !dark(px, py)) return false;
       }
     }
@@ -248,14 +307,26 @@ function measureNose(img: DecodedImage): { cx: number; cy: number } {
       if (seen[ys * W + xs] === 1 || !solid(xs, ys)) continue;
       const queue = [ys * W + xs];
       seen[ys * W + xs] = 1;
-      let n = 0, sx = 0, sy = 0, by0 = ys;
+      let n = 0,
+        sx = 0,
+        sy = 0,
+        by0 = ys;
       while (queue.length > 0) {
         const idx = queue.pop()!;
-        const x = idx % W, y = (idx - x) / W;
-        n += 1; sx += x; sy += y;
+        const x = idx % W,
+          y = (idx - x) / W;
+        n += 1;
+        sx += x;
+        sy += y;
         if (y < by0) by0 = y;
-        for (const [dx, dy] of [[2, 0], [-2, 0], [0, 2], [0, -2]] as const) {
-          const nx = x + dx, ny = y + dy;
+        for (const [dx, dy] of [
+          [2, 0],
+          [-2, 0],
+          [0, 2],
+          [0, -2],
+        ] as const) {
+          const nx = x + dx,
+            ny = y + dy;
           if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
           const ni = ny * W + nx;
           if (seen[ni] === 1 || !solid(nx, ny)) continue;
@@ -272,13 +343,21 @@ function measureNose(img: DecodedImage): { cx: number; cy: number } {
 }
 function rowWidthAt(img: DecodedImage, cy: number): number {
   const { width: W, height: H, rgba } = img;
-  let sum = 0, n = 0;
+  let sum = 0,
+    n = 0;
   for (let y = Math.max(0, Math.round(cy) - 6); y <= Math.min(H - 1, Math.round(cy) + 6); y += 2) {
-    let x0 = -1, x1 = -1;
+    let x0 = -1,
+      x1 = -1;
     for (let x = 0; x < W; x += 1) {
-      if (rgba[(y * W + x) * 4 + 3]! > 128) { if (x0 < 0) x0 = x; x1 = x; }
+      if (rgba[(y * W + x) * 4 + 3]! > 128) {
+        if (x0 < 0) x0 = x;
+        x1 = x;
+      }
     }
-    if (x0 >= 0) { sum += x1 - x0 + 1; n += 1; }
+    if (x0 >= 0) {
+      sum += x1 - x0 + 1;
+      n += 1;
+    }
   }
   return sum / Math.max(1, n);
 }
@@ -289,16 +368,18 @@ const mNose = measureNose(headR.img);
 const mCheekPx = rowWidthAt(headR.img, mNose.cy);
 const kMaster = ((headR.box.y1 - headR.box.y0) * K) / headR.img.height;
 const noseLocal = {
-  x: (X(headR.box.x0 + mNose.cx / headR.scale)) - headBone.x,
-  y: (Y(headR.box.y0 + mNose.cy / headR.scale)) - headBone.y,
+  x: X(headR.box.x0 + mNose.cx / headR.scale) - headBone.x,
+  y: Y(headR.box.y0 + mNose.cy / headR.scale) - headBone.y,
 };
 const cheekWorld = mCheekPx * kMaster;
-console.log(`\nmaster head: nose local (${noseLocal.x.toFixed(1)}, ${noseLocal.y.toFixed(1)}), cheek ${cheekWorld.toFixed(1)} world px`);
+console.log(
+  `\nmaster head: nose local (${noseLocal.x.toFixed(1)}, ${noseLocal.y.toFixed(1)}), cheek ${cheekWorld.toFixed(1)} world px`,
+);
 
 const faceMap: Array<{ file: string; region: string }> = [
-  { file: 'face4.svg', region: 'head' },       // closed smile
-  { file: 'face3.svg', region: 'head-talk' },  // small open mouth
-  { file: 'face2.svg', region: 'head-grit' },  // clenched teeth
+  { file: 'face4.svg', region: 'head' }, // closed smile
+  { file: 'face3.svg', region: 'head-talk' }, // small open mouth
+  { file: 'face2.svg', region: 'head-grit' }, // clenched teeth
 ];
 for (const { file, region } of faceMap) {
   const svg = readFileSync(join(facesDir, file), 'utf8');
@@ -310,7 +391,9 @@ for (const { file, region } of faceMap) {
   const ax = noseLocal.x + (nose.cx - r.img.width / 2) * k;
   const ay = noseLocal.y - (nose.cy - r.img.height / 2) * k;
   writeFileSync(join(layersDir, `${region}.png`), encodePng(r.img));
-  console.log(`attach ${region} (${file}) on head: x ${ax.toFixed(1)}, y ${ay.toFixed(1)}, targetH ${targetH.toFixed(1)} (scaleX -1)`);
+  console.log(
+    `attach ${region} (${file}) on head: x ${ax.toFixed(1)}, y ${ay.toFixed(1)}, targetH ${targetH.toFixed(1)} (scaleX -1)`,
+  );
 }
 
 // ---- eye state synthesis -----------------------------------------------------------------------------
@@ -320,7 +403,12 @@ for (const { file, region } of faceMap) {
 const eyes = rendered.get('eyes-open')!;
 const LID_FILL = '#d79966';
 const LINE = '#58261b';
-interface EyeGeom { cx: number; cy: number; rx: number; ry: number }
+interface EyeGeom {
+  cx: number;
+  cy: number;
+  rx: number;
+  ry: number;
+}
 const eyeGeom = (name: string): EyeGeom => {
   const r = rendered.get(name)!;
   return {
@@ -341,21 +429,24 @@ function eyeOverlaySvg(kind: 'half' | 'closed' | 'happy' | 'worried'): string {
   let shapes = '';
   for (let i = 0; i < geoms.length; i += 1) {
     const g = geoms[i]!;
-    const rx = g.rx * 1.06, ry = g.ry * 1.06;
+    const rx = g.rx * 1.06,
+      ry = g.ry * 1.06;
     const clip = `<clipPath id="c${i}"><ellipse cx="${g.cx}" cy="${g.cy}" rx="${rx}" ry="${ry}"/></clipPath>`;
     if (kind === 'half') {
       const lidY = g.cy - ry + 2 * ry * 0.52;
-      shapes += clip +
+      shapes +=
+        clip +
         `<g clip-path="url(#c${i})"><rect x="${g.cx - rx}" y="${g.cy - ry}" width="${2 * rx}" height="${2 * ry * 0.52}" fill="${LID_FILL}"/></g>` +
         `<path d="M ${g.cx - rx} ${lidY} Q ${g.cx} ${lidY + ry * 0.12} ${g.cx + rx} ${lidY}" fill="none" stroke="${LINE}" stroke-width="${sw}" stroke-linecap="round"/>`;
     } else if (kind === 'worried') {
       // worried lids slant up toward the nose (inner high) and the nose sits BETWEEN the eyes,
       // so the near eye (canvas left) is high on its right edge and the far eye mirrors it
       const a = 0.34 * ry;
-      const mid = g.cy - ry + 2 * ry * 0.40;
+      const mid = g.cy - ry + 2 * ry * 0.4;
       const yL = i === 0 ? mid + a / 2 : mid - a / 2;
       const yR = i === 0 ? mid - a / 2 : mid + a / 2;
-      shapes += clip +
+      shapes +=
+        clip +
         `<g clip-path="url(#c${i})"><path d="M ${g.cx - rx} ${yL} L ${g.cx + rx} ${yR} L ${g.cx + rx} ${g.cy - ry} L ${g.cx - rx} ${g.cy - ry} Z" fill="${LID_FILL}"/></g>` +
         `<path d="M ${g.cx - rx} ${yL} L ${g.cx + rx} ${yR}" stroke="${LINE}" stroke-width="${sw}" stroke-linecap="round"/>`;
     } else if (kind === 'closed') {
@@ -391,14 +482,16 @@ for (const kind of ['half', 'closed', 'happy', 'worried'] as const) {
   writeFileSync(page, `<!doctype html><body style="margin:0">${eyeOverlaySvg(kind)}</body>`);
   execSync(
     `"${CHROME}" --headless=new --screenshot="${out}" --window-size=${W},${H} ` +
-    `--default-background-color=00000000 --hide-scrollbars "file://${page}" 2>/dev/null`,
+      `--default-background-color=00000000 --hide-scrollbars "file://${page}" 2>/dev/null`,
   );
   const overlay = decodePng(readFileSync(out));
   const withBase = kind === 'half' || kind === 'worried';
   const result = withBase ? compositeOver(eyes.img, overlay) : overlay;
   writeFileSync(join(layersDir, `eyes-${kind}.png`), encodePng(result));
 }
-console.log(`\neyes: all five states at ${W}x${H}, one transform: x ${eyesT.x.toFixed(1)}, y ${eyesT.y.toFixed(1)}, targetH ${eyesT.h.toFixed(1)}`);
+console.log(
+  `\neyes: all five states at ${W}x${H}, one transform: x ${eyesT.x.toFixed(1)}, y ${eyesT.y.toFixed(1)}, targetH ${eyesT.h.toFixed(1)}`,
+);
 
 // ---- save the master-document pieces ------------------------------------------------------------------
 mkdirSync(layersDir, { recursive: true });
@@ -407,4 +500,6 @@ for (const spec of specs) {
   writeFileSync(join(layersDir, `${spec.name}.png`), encodePng(rendered.get(spec.name)!.img));
 }
 rmSync(work, { recursive: true, force: true });
-console.log('done; paste the printed bone/attach values into author-gunner.mts, delete stale pieces, rebuild the atlas');
+console.log(
+  'done; paste the printed bone/attach values into author-gunner.mts, delete stale pieces, rebuild the atlas',
+);

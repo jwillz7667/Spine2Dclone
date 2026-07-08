@@ -22,7 +22,10 @@ function loadApiKey(): string {
   const line = readFileSync(envPath, 'utf8')
     .split('\n')
     .find((l) => l.startsWith('GEMINI_API_KEY='));
-  const key = line?.slice('GEMINI_API_KEY='.length).trim().replace(/^["']|["']$/g, '');
+  const key = line
+    ?.slice('GEMINI_API_KEY='.length)
+    .trim()
+    .replace(/^["']|["']$/g, '');
   if (key === undefined || key.length === 0) throw new Error('GEMINI_API_KEY missing from .env');
   return key;
 }
@@ -450,7 +453,8 @@ const onlyArg = args.includes('--only')
   ? new Set(String(args[args.indexOf('--only') + 1]).split(','))
   : undefined;
 
-const sheetPath = (id: string): string => (id === PHOTO ? REFERENCE_PHOTO : join(outDir, `${id}.png`));
+const sheetPath = (id: string): string =>
+  id === PHOTO ? REFERENCE_PHOTO : join(outDir, `${id}.png`);
 
 let generated = 0;
 let skipped = 0;
@@ -465,15 +469,24 @@ for (const sheet of SHEETS) {
   }
   const missingRefs = sheet.refs.filter((r) => !existsSync(sheetPath(r)));
   if (missingRefs.length > 0) {
-    throw new Error(`${sheet.id}: missing reference sheet(s) ${missingRefs.join(', ')}; run earlier rounds first`);
+    throw new Error(
+      `${sheet.id}: missing reference sheet(s) ${missingRefs.join(', ')}; run earlier rounds first`,
+    );
   }
   process.stdout.write(
     `GEN  ${sheet.id} (round ${sheet.round}, ${sheet.aspect} ${sheet.size}, refs: ${sheet.refs.join(',') || 'none'}) ... `,
   );
   const started = Date.now();
-  const png = await generateImage(sheet.prompt, sheet.aspect, sheet.size, sheet.refs.map(sheetPath));
+  const png = await generateImage(
+    sheet.prompt,
+    sheet.aspect,
+    sheet.size,
+    sheet.refs.map(sheetPath),
+  );
   writeFileSync(out, png);
-  console.log(`ok ${(png.length / 1024 / 1024).toFixed(1)}MB in ${((Date.now() - started) / 1000).toFixed(0)}s`);
+  console.log(
+    `ok ${(png.length / 1024 / 1024).toFixed(1)}MB in ${((Date.now() - started) / 1000).toFixed(0)}s`,
+  );
   generated += 1;
 }
 console.log(`DONE: ${generated} generated, ${skipped} skipped -> ${outDir}`);

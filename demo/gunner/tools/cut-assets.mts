@@ -1,5 +1,12 @@
 import { execFileSync } from 'node:child_process';
-import { copyFileSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
@@ -174,13 +181,21 @@ function orderRow(row: readonly Component[]): Component[] {
   });
   const stacks = [...groups.values()].map((members) => ({
     members: members.slice().sort((a, b) => a.centroidY - b.centroidY),
-    x: members.reduce((s, c) => s + c.centroidX * c.area, 0) / members.reduce((s, c) => s + c.area, 0),
+    x:
+      members.reduce((s, c) => s + c.centroidX * c.area, 0) /
+      members.reduce((s, c) => s + c.area, 0),
   }));
   stacks.sort((a, b) => a.x - b.x);
   return stacks.flatMap((s) => s.members);
 }
 
-function writeCrop(image: DecodedImage, bbox: Bbox, outAbs: string, outRel: string, sheet: string): DecodedImage {
+function writeCrop(
+  image: DecodedImage,
+  bbox: Bbox,
+  outAbs: string,
+  outRel: string,
+  sheet: string,
+): DecodedImage {
   mkdirSync(dirname(outAbs), { recursive: true });
   const crop = cropRegion(image, bbox, PAD);
   writeFileSync(outAbs, encodePng(crop));
@@ -300,7 +315,10 @@ function cutPieceSheet(sheet: string, rowCount: number): void {
   });
   writeFileSync(join(outDir, 'pieces.json'), `${JSON.stringify(entries, null, 2)}\n`);
   writeFileSync(join(outDir, 'contact.png'), encodePng(buildContactSheet(crops)));
-  rowCountReport.set(sheet, rows.map((r) => r.length));
+  rowCountReport.set(
+    sheet,
+    rows.map((r) => r.length),
+  );
   console.log(
     `${sheet}: ${flat.length} pieces cut, rows [${rows.map((r) => r.length).join(', ')}] -> source-layers/${sheetId}/`,
   );
@@ -315,7 +333,8 @@ function cutNamedSheet(
   mergeGap: number = GAP,
 ): void {
   const expected = rowCounts.reduce((sum, n) => sum + n, 0);
-  if (expected !== dests.length) throw new Error(`task bug: ${sheet} expects ${expected} parts but has ${dests.length} names`);
+  if (expected !== dests.length)
+    throw new Error(`task bug: ${sheet} expects ${expected} parts but has ${dests.length} names`);
   const { comps, cut } = loadSheet(sheet, mergeGap, PART_MIN_AREA);
   const rows = clusterRows(comps, rowCounts.length).map(orderRow);
   const total = rows.reduce((sum, r) => sum + r.length, 0);
@@ -323,7 +342,10 @@ function cutNamedSheet(
   if (!rowsOk) {
     throw new Error(
       `${sheet}: expected ${expected} components in rows [${rowCounts.join(', ')}], found ${total} in rows [${rows.map((r) => r.length).join(', ')}]\n${rows
-        .map((row, i) => `  row ${i}: ${row.length} comps\n${row.map((c) => `    ${fmtComp(c)}`).join('\n')}`)
+        .map(
+          (row, i) =>
+            `  row ${i}: ${row.length} comps\n${row.map((c) => `    ${fmtComp(c)}`).join('\n')}`,
+        )
         .join('\n')}`,
     );
   }
@@ -331,7 +353,10 @@ function cutNamedSheet(
   for (let i = 0; i < flat.length; i += 1) {
     writeCrop(cut, flat[i].bbox, join(gunnerDir, dests[i]), dests[i], sheet);
   }
-  rowCountReport.set(sheet, rows.map((r) => r.length));
+  rowCountReport.set(
+    sheet,
+    rows.map((r) => r.length),
+  );
   console.log(`${sheet}: ${flat.length} parts cut (rows ${rowCounts.join('+')})`);
 }
 
@@ -340,7 +365,11 @@ function cutNamedSheet(
 function cutLogo(sheet: string, dest: string): void {
   const img = decodeSheet(sheet);
   const { image, foreground } = removeBackground(img, DEFAULT_WHITE_FLOOD);
-  const comps = mergeAndFilter(labelComponents(img.width, img.height, foreground), LOGO_GAP, PART_MIN_AREA);
+  const comps = mergeAndFilter(
+    labelComponents(img.width, img.height, foreground),
+    LOGO_GAP,
+    PART_MIN_AREA,
+  );
   if (comps.length === 0) throw new Error(`${sheet}: no components above minArea ${PART_MIN_AREA}`);
   writeCrop(image, unionAll(comps), join(gunnerDir, dest), dest, sheet);
   console.log(`${sheet}: logo cut (${comps.length} component(s) unioned)`);
@@ -375,7 +404,9 @@ function cutDucksRef(sheet: string, destLeft: string, destRight: string): void {
   }
   writeCrop(cut, unionAll(byX.slice(0, split)), join(gunnerDir, destLeft), destLeft, sheet);
   writeCrop(cut, unionAll(byX.slice(split)), join(gunnerDir, destRight), destRight, sheet);
-  console.log(`${sheet}: 2 refs cut (mama ${split} comp(s), duckling ${byX.length - split} comp(s))`);
+  console.log(
+    `${sheet}: 2 refs cut (mama ${split} comp(s), duckling ${byX.length - split} comp(s))`,
+  );
 }
 
 // Backgrounds are full-canvas paintings: no cutting, no scaling. A real-PNG source copies verbatim;
@@ -401,13 +432,37 @@ interface Task {
 }
 
 const propsA = [
-  'float-donut', 'rope-coil', 'rope-straight', 'basket', 'blanket',
-  'wagon-catapult', 'branch', 'boulder', 'log', 'leaf-hat',
+  'float-donut',
+  'rope-coil',
+  'rope-straight',
+  'basket',
+  'blanket',
+  'wagon-catapult',
+  'branch',
+  'boulder',
+  'log',
+  'leaf-hat',
 ];
-const propsB = ['bush-round', 'bush-low', 'tree', 'willow-fronds', 'butterfly-up', 'butterfly-flat', 'sun', 'cloud'];
+const propsB = [
+  'bush-round',
+  'bush-low',
+  'tree',
+  'willow-fronds',
+  'butterfly-up',
+  'butterfly-flat',
+  'sun',
+  'cloud',
+];
 const bgs = [
-  'bg-title-skyline.png', 'bg-meadow.png', 'bg-creek.png', 'bg-bank-run.png', 'bg-log-bend.png',
-  'bg-fog-hollow.png', 'bg-waterfall.png', 'bg-golden-meadow.png', 'card-the-end.png',
+  'bg-title-skyline.png',
+  'bg-meadow.png',
+  'bg-creek.png',
+  'bg-bank-run.png',
+  'bg-log-bend.png',
+  'bg-fog-hollow.png',
+  'bg-waterfall.png',
+  'bg-golden-meadow.png',
+  'card-the-end.png',
 ];
 
 const propDest = (n: string): string => `source/props/${n}.png`;
@@ -423,17 +478,25 @@ const PIECE_SHEETS: ReadonlyArray<readonly [string, number]> = [
 ];
 
 const tasks: Task[] = [
-  ...PIECE_SHEETS.map(([sheet, rowCount]): Task => ({ sheet, run: () => cutPieceSheet(sheet, rowCount) })),
+  ...PIECE_SHEETS.map(
+    ([sheet, rowCount]): Task => ({ sheet, run: () => cutPieceSheet(sheet, rowCount) }),
+  ),
   { sheet: 'props-a.png', run: () => cutNamedSheet('props-a.png', [5, 5], propsA.map(propDest)) },
   // props-b needs merge gap 6: the tree canopy's bbox interleaves with bush-low's to within 7 empty
   // columns while their pixels stay far apart, so any gap >= 7 would union two grid cells.
-  { sheet: 'props-b.png', run: () => cutNamedSheet('props-b.png', [4, 4], propsB.map(propDest), 6) },
+  {
+    sheet: 'props-b.png',
+    run: () => cutNamedSheet('props-b.png', [4, 4], propsB.map(propDest), 6),
+  },
   { sheet: 'logo.png', run: () => cutLogo('logo.png', 'source/props/logo.png') },
   { sheet: 'gunner-ref.png', run: () => cutRefWhole('gunner-ref.png', 'source/refs/gunner.png') },
   { sheet: 'luna-ref.png', run: () => cutRefWhole('luna-ref.png', 'source/refs/luna.png') },
   { sheet: 'beans-ref.png', run: () => cutRefWhole('beans-ref.png', 'source/refs/beans.png') },
   { sheet: 'pip-ref.png', run: () => cutRefWhole('pip-ref.png', 'source/refs/pip.png') },
-  { sheet: 'ducks-ref.png', run: () => cutDucksRef('ducks-ref.png', 'source/refs/mama.png', 'source/refs/duckling.png') },
+  {
+    sheet: 'ducks-ref.png',
+    run: () => cutDucksRef('ducks-ref.png', 'source/refs/mama.png', 'source/refs/duckling.png'),
+  },
   ...bgs.map((bg): Task => ({ sheet: bg, run: () => copyBg(bg, `source/bg/${bg}`) })),
 ];
 

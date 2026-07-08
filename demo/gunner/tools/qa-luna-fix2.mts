@@ -19,7 +19,10 @@ const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, '..');
 const deps: ToolDeps = { sessions: new SessionRegistry(), files: createNodeFileStore(root) };
 const byName = new Map(TOOLS.map((t) => [t.name, t]));
-async function call(name: string, input: Record<string, unknown>): Promise<Record<string, unknown>> {
+async function call(
+  name: string,
+  input: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
   const tool = byName.get(name);
   if (tool === undefined) throw new Error(`no such tool: ${name}`);
   return (await tool.handler(deps, input)) as Record<string, unknown>;
@@ -36,7 +39,10 @@ type Fit = 'content' | { x: number; y: number; w: number; h: number };
 // world rect around the head + ears (head spans x -157..1, y -305..-175; ears reach y -352)
 const HEAD_RECT: Fit = { x: -175, y: -375, w: 200, h: 220 };
 
-async function shoot(name: string, opts: { animation?: string; time?: number; fit?: Fit }): Promise<void> {
+async function shoot(
+  name: string,
+  opts: { animation?: string; time?: number; fit?: Fit },
+): Promise<void> {
   const res = (await call('render_frame', {
     documentId,
     ...(opts.animation !== undefined ? { animation: opts.animation, time: opts.time } : {}),
@@ -71,5 +77,9 @@ for (const variant of ['mouth-closed', 'mouth-small', 'mouth-smile']) {
   await call('slot.activeAttachment', { documentId, slotId: mouthSlot.id, attachment: variant });
   await shoot(`head-${variant}`, { fit: HEAD_RECT });
 }
-await call('slot.activeAttachment', { documentId, slotId: mouthSlot.id, attachment: 'mouth-closed' });
+await call('slot.activeAttachment', {
+  documentId,
+  slotId: mouthSlot.id,
+  attachment: 'mouth-closed',
+});
 console.log('luna fix2 probes done.');

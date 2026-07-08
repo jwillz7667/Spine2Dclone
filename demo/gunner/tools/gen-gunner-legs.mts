@@ -37,7 +37,10 @@ function loadApiKey(): string {
   const line = readFileSync(envPath, 'utf8')
     .split('\n')
     .find((l) => l.startsWith('GEMINI_API_KEY='));
-  const key = line?.slice('GEMINI_API_KEY='.length).trim().replace(/^["']|["']$/g, '');
+  const key = line
+    ?.slice('GEMINI_API_KEY='.length)
+    .trim()
+    .replace(/^["']|["']$/g, '');
   if (key === undefined || key.length === 0) throw new Error('GEMINI_API_KEY missing from .env');
   return key;
 }
@@ -68,17 +71,19 @@ async function generateSheet(): Promise<Buffer> {
     'nothing overlapping, nothing touching the image border.',
     'ABSOLUTELY NO TEXT anywhere: no words, letters, numbers, labels or captions.',
   ].join(' ');
-  const refChar = readFileSync(join(root, 'source-sheets', '.png-cache', 'gunner-ref.png')).toString('base64');
+  const refChar = readFileSync(
+    join(root, 'source-sheets', '.png-cache', 'gunner-ref.png'),
+  ).toString('base64');
   const body = JSON.stringify({
     contents: [
       {
-        parts: [
-          { text: prompt },
-          { inline_data: { mime_type: 'image/png', data: refChar } },
-        ],
+        parts: [{ text: prompt }, { inline_data: { mime_type: 'image/png', data: refChar } }],
       },
     ],
-    generationConfig: { responseModalities: ['IMAGE'], imageConfig: { aspectRatio: '1:1', imageSize: '2K' } },
+    generationConfig: {
+      responseModalities: ['IMAGE'],
+      imageConfig: { aspectRatio: '1:1', imageSize: '2K' },
+    },
   });
 
   let lastError = 'no attempt';
@@ -98,9 +103,13 @@ async function generateSheet(): Promise<Buffer> {
         break;
       }
       const json = (await res.json()) as {
-        candidates?: Array<{ content?: { parts?: Array<{ inlineData?: { data?: string } }> }; finishReason?: string }>;
+        candidates?: Array<{
+          content?: { parts?: Array<{ inlineData?: { data?: string } }> };
+          finishReason?: string;
+        }>;
       };
-      const image = json.candidates?.[0]?.content?.parts?.find((p) => p.inlineData?.data)?.inlineData?.data;
+      const image = json.candidates?.[0]?.content?.parts?.find((p) => p.inlineData?.data)
+        ?.inlineData?.data;
       if (image === undefined) {
         lastError = `${model}: no image (finishReason=${json.candidates?.[0]?.finishReason})`;
         await new Promise((r) => setTimeout(r, 3000));
@@ -135,16 +144,28 @@ function decodeSheet(path: string): DecodedImage {
 // ---- cut the four legs -----------------------------------------------------------------------------
 const sheet = decodeSheet(sheetPath);
 const removed = removeBackground(sheet, DEFAULT_WHITE_FLOOD);
-const comps = mergeAndFilter(labelComponents(sheet.width, sheet.height, removed.foreground), 24, 900);
+const comps = mergeAndFilter(
+  labelComponents(sheet.width, sheet.height, removed.foreground),
+  24,
+  900,
+);
 if (comps.length !== 4) {
-  console.log(`expected 4 components, found ${comps.length}: re-roll the sheet (--force) or adjust merge params`);
-  for (const c of comps) console.log(`  comp n=${c.area} bbox x[${c.bbox.minX}..${c.bbox.maxX}] y[${c.bbox.minY}..${c.bbox.maxY}]`);
+  console.log(
+    `expected 4 components, found ${comps.length}: re-roll the sheet (--force) or adjust merge params`,
+  );
+  for (const c of comps)
+    console.log(
+      `  comp n=${c.area} bbox x[${c.bbox.minX}..${c.bbox.maxX}] y[${c.bbox.minY}..${c.bbox.maxY}]`,
+    );
   process.exit(1);
 }
 const cells = comps
   .map((c) => ({ c, cx: (c.bbox.minX + c.bbox.maxX) / 2, cy: (c.bbox.minY + c.bbox.maxY) / 2 }))
-  .sort((a, b) => (a.cy - b.cy) || (a.cx - b.cx));
-const rows = [cells.slice(0, 2).sort((a, b) => a.cx - b.cx), cells.slice(2, 4).sort((a, b) => a.cx - b.cx)];
+  .sort((a, b) => a.cy - b.cy || a.cx - b.cx);
+const rows = [
+  cells.slice(0, 2).sort((a, b) => a.cx - b.cx),
+  cells.slice(2, 4).sort((a, b) => a.cx - b.cx),
+];
 const assignment: Array<{ name: string; comp: Component; boneWorldY: number }> = [
   // bone world y = torso world (0,-175) + bone torso-local offset (author-gunner.mts)
   { name: 'leg-front-near', comp: rows[0]![0]!.c, boneWorldY: -105 },
@@ -183,7 +204,11 @@ function measure(img: DecodedImage): { thighCx: number; thighFrac: number; botto
       n += 1;
     }
   }
-  return { thighCx: sx / Math.max(1, n), thighFrac: sy / Math.max(1, n) / H, bottomFrac: (bottom + 1) / H };
+  return {
+    thighCx: sx / Math.max(1, n),
+    thighFrac: sy / Math.max(1, n) / H,
+    bottomFrac: (bottom + 1) / H,
+  };
 }
 
 let shapeOk = true;
@@ -198,7 +223,7 @@ for (const { name, comp, boneWorldY } of assignment) {
   const attachX = (thighCx - piece.width / 2) * k; // mirrored placement (scaleX -1)
   console.log(
     `${name}: ${piece.width}x${piece.height} aspect ${aspect.toFixed(2)} thigh (${thighCx.toFixed(0)}, ${(thighFrac * 100).toFixed(0)}%)` +
-    ` -> targetH ${targetH.toFixed(1)}, attach x ${attachX.toFixed(1)}, y ${attachY.toFixed(1)} (scaleX -1)`,
+      ` -> targetH ${targetH.toFixed(1)}, attach x ${attachX.toFixed(1)}, y ${attachY.toFixed(1)} (scaleX -1)`,
   );
   if (aspect >= 0.95) {
     console.log('  WARNING: leg is not clearly vertical (aspect >= 0.95)');
@@ -209,4 +234,6 @@ if (!shapeOk) {
   console.log('shape sanity failed: re-roll with --force rather than rigging bad art');
   process.exit(1);
 }
-console.log('done; VIEW each piece, update the leg transforms + draw order in author-gunner.mts, rebuild the gunner atlas');
+console.log(
+  'done; VIEW each piece, update the leg transforms + draw order in author-gunner.mts, rebuild the gunner atlas',
+);

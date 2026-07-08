@@ -21,7 +21,10 @@ const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, '..');
 const deps: ToolDeps = { sessions: new SessionRegistry(), files: createNodeFileStore(root) };
 const byName = new Map(TOOLS.map((t) => [t.name, t]));
-async function call(name: string, input: Record<string, unknown>): Promise<Record<string, unknown>> {
+async function call(
+  name: string,
+  input: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
   const tool = byName.get(name);
   if (tool === undefined) throw new Error(`no such tool: ${name}`);
   return (await tool.handler(deps, input)) as Record<string, unknown>;
@@ -31,7 +34,12 @@ interface RigJson {
   bones: Array<{ name: string; x: number; y: number }>;
   animations: Record<
     string,
-    { bones?: Record<string, { translate?: Array<{ time: number; value: { x: number; y: number }; curve?: unknown }> }> }
+    {
+      bones?: Record<
+        string,
+        { translate?: Array<{ time: number; value: { x: number; y: number }; curve?: unknown }> }
+      >;
+    }
   >;
 }
 

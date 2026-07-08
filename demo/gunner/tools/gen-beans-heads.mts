@@ -38,7 +38,10 @@ function loadApiKey(): string {
   const line = readFileSync(envPath, 'utf8')
     .split('\n')
     .find((l) => l.startsWith('GEMINI_API_KEY='));
-  const key = line?.slice('GEMINI_API_KEY='.length).trim().replace(/^["']|["']$/g, '');
+  const key = line
+    ?.slice('GEMINI_API_KEY='.length)
+    .trim()
+    .replace(/^["']|["']$/g, '');
   if (key === undefined || key.length === 0) throw new Error('GEMINI_API_KEY missing from .env');
   return key;
 }
@@ -77,7 +80,9 @@ async function generateSheet(): Promise<Buffer> {
   ].join(' ');
   const refHead = readFileSync(join(layersDir, 'head.png')).toString('base64');
   // the .png-cache copy is the decode-safe real PNG (the raw sheet is JPEG bytes named .png)
-  const refChar = readFileSync(join(root, 'source-sheets', '.png-cache', 'beans-ref.png')).toString('base64');
+  const refChar = readFileSync(join(root, 'source-sheets', '.png-cache', 'beans-ref.png')).toString(
+    'base64',
+  );
   const body = JSON.stringify({
     contents: [
       {
@@ -88,7 +93,10 @@ async function generateSheet(): Promise<Buffer> {
         ],
       },
     ],
-    generationConfig: { responseModalities: ['IMAGE'], imageConfig: { aspectRatio: '1:1', imageSize: '2K' } },
+    generationConfig: {
+      responseModalities: ['IMAGE'],
+      imageConfig: { aspectRatio: '1:1', imageSize: '2K' },
+    },
   });
 
   let lastError = 'no attempt';
@@ -108,9 +116,13 @@ async function generateSheet(): Promise<Buffer> {
         break;
       }
       const json = (await res.json()) as {
-        candidates?: Array<{ content?: { parts?: Array<{ inlineData?: { data?: string } }> }; finishReason?: string }>;
+        candidates?: Array<{
+          content?: { parts?: Array<{ inlineData?: { data?: string } }> };
+          finishReason?: string;
+        }>;
       };
-      const image = json.candidates?.[0]?.content?.parts?.find((p) => p.inlineData?.data)?.inlineData?.data;
+      const image = json.candidates?.[0]?.content?.parts?.find((p) => p.inlineData?.data)
+        ?.inlineData?.data;
       if (image === undefined) {
         lastError = `${model}: no image (finishReason=${json.candidates?.[0]?.finishReason})`;
         await new Promise((r) => setTimeout(r, 3000));
@@ -146,16 +158,28 @@ function decodeSheet(path: string): DecodedImage {
 // ---- cut the four grid cells ---------------------------------------------------------------------
 const sheet = decodeSheet(sheetPath);
 const removed = removeBackground(sheet, DEFAULT_WHITE_FLOOD);
-const comps = mergeAndFilter(labelComponents(sheet.width, sheet.height, removed.foreground), 24, 900);
+const comps = mergeAndFilter(
+  labelComponents(sheet.width, sheet.height, removed.foreground),
+  24,
+  900,
+);
 if (comps.length !== 4) {
-  console.log(`expected 4 components, found ${comps.length}: re-roll the sheet (--force) or adjust merge params`);
-  for (const c of comps) console.log(`  comp n=${c.area} bbox x[${c.bbox.minX}..${c.bbox.maxX}] y[${c.bbox.minY}..${c.bbox.maxY}]`);
+  console.log(
+    `expected 4 components, found ${comps.length}: re-roll the sheet (--force) or adjust merge params`,
+  );
+  for (const c of comps)
+    console.log(
+      `  comp n=${c.area} bbox x[${c.bbox.minX}..${c.bbox.maxX}] y[${c.bbox.minY}..${c.bbox.maxY}]`,
+    );
   process.exit(1);
 }
 const cells = comps
   .map((c) => ({ c, cx: (c.bbox.minX + c.bbox.maxX) / 2, cy: (c.bbox.minY + c.bbox.maxY) / 2 }))
-  .sort((a, b) => (a.cy - b.cy) || (a.cx - b.cx));
-const rows = [cells.slice(0, 2).sort((a, b) => a.cx - b.cx), cells.slice(2, 4).sort((a, b) => a.cx - b.cx)];
+  .sort((a, b) => a.cy - b.cy || a.cx - b.cx);
+const rows = [
+  cells.slice(0, 2).sort((a, b) => a.cx - b.cx),
+  cells.slice(2, 4).sort((a, b) => a.cx - b.cx),
+];
 const names = ['head', 'head-talk', 'head-bark', 'head-worried'];
 const grid = [rows[0]![0]!, rows[0]![1]!, rows[1]![0]!, rows[1]![1]!];
 
@@ -178,7 +202,11 @@ const ERODE_RAD = 9;
 // below the nose). The threshold is looser than Gunner's (r<160 vs r<135) because Beans' nose
 // carries a lighter warm-brown highlight lobe that must count as nose mass, and the erosion
 // radius is smaller because his nose is proportionally smaller on the piece.
-interface NoseInfo { cx: number; cy: number; w: number }
+interface NoseInfo {
+  cx: number;
+  cy: number;
+  w: number;
+}
 function measureNose(img: DecodedImage): NoseInfo {
   const { width: W, height: H, rgba } = img;
   const dark = (x: number, y: number): boolean => {
@@ -218,7 +246,12 @@ function measureNose(img: DecodedImage): NoseInfo {
         if (x < bx0) bx0 = x;
         if (x > bx1) bx1 = x;
         if (y < by0) by0 = y;
-        for (const [dx, dy] of [[2, 0], [-2, 0], [0, 2], [0, -2]] as const) {
+        for (const [dx, dy] of [
+          [2, 0],
+          [-2, 0],
+          [0, 2],
+          [0, -2],
+        ] as const) {
           const nx = x + dx;
           const ny = y + dy;
           if (nx < 0 || ny < Math.floor(H * 0.4) || nx >= W || ny >= H) continue;
@@ -295,7 +328,12 @@ const BLEND_BAND = 6; // display px
 const EAR_CLEAR_Y = -21; // ear lobes end ~display y -24; below -21 the row is jaw-only
 const FACE_X_FULL: readonly [number, number] = [-52, 14]; // inside the cheek outline (-57.8..19.7)
 const FACE_X_RAMP = 8;
-function composeOnBase(base: DecodedImage, baseReg: Reg, variant: DecodedImage, varReg: Reg): DecodedImage {
+function composeOnBase(
+  base: DecodedImage,
+  baseReg: Reg,
+  variant: DecodedImage,
+  varReg: Reg,
+): DecodedImage {
   const kB = baseReg.k;
   const kV = varReg.k;
   // extend the base canvas downward so a dropped jaw fits (display-space bottoms compared)
@@ -338,7 +376,7 @@ function composeOnBase(base: DecodedImage, baseReg: Reg, variant: DecodedImage, 
           ? 1
           : Math.min(
               clamp01((dx - (FACE_X_FULL[0] - FACE_X_RAMP)) / FACE_X_RAMP),
-              clamp01(((FACE_X_FULL[1] + FACE_X_RAMP) - dx) / FACE_X_RAMP),
+              clamp01((FACE_X_FULL[1] + FACE_X_RAMP - dx) / FACE_X_RAMP),
             );
       const t = tRow * gx;
       const vx = variant.width / 2 + (dx - varReg.ax) / kV;
@@ -382,11 +420,15 @@ for (let i = 0; i < 4; i += 1) {
   const pctDown = (100 * reg.nose.cy) / piece.height;
   console.log(
     `${name}: ${piece.width}x${piece.height} nose (${reg.nose.cx.toFixed(0)}, ${reg.nose.cy.toFixed(0)})` +
-    ` ${pctDown.toFixed(0)}% down cheek w ${reg.cheekW.toFixed(0)}` +
-    ` -> targetH ${targetH.toFixed(1)}, attach x ${reg.ax.toFixed(1)}, y ${reg.ay.toFixed(1)}`,
+      ` ${pctDown.toFixed(0)}% down cheek w ${reg.cheekW.toFixed(0)}` +
+      ` -> targetH ${targetH.toFixed(1)}, attach x ${reg.ax.toFixed(1)}, y ${reg.ay.toFixed(1)}`,
   );
   if (pctDown < 50 || pctDown > 85) {
-    console.log(`  WARNING: nose sits ${pctDown.toFixed(0)}% down (expected ~55-80%); verify the blob is the nose`);
+    console.log(
+      `  WARNING: nose sits ${pctDown.toFixed(0)}% down (expected ~55-80%); verify the blob is the nose`,
+    );
   }
 }
-console.log('done; update the head slot transforms in author-beans.mts and rebuild the beans atlas');
+console.log(
+  'done; update the head slot transforms in author-beans.mts and rebuild the beans atlas',
+);

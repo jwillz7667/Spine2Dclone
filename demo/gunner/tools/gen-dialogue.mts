@@ -20,8 +20,12 @@ function loadApiKey(): string {
   const line = readFileSync(envPath, 'utf8')
     .split('\n')
     .find((l) => l.startsWith('ELEVENLABS_API_KEY='));
-  const key = line?.slice('ELEVENLABS_API_KEY='.length).trim().replace(/^["']|["']$/g, '');
-  if (key === undefined || key.length === 0) throw new Error('ELEVENLABS_API_KEY missing from .env');
+  const key = line
+    ?.slice('ELEVENLABS_API_KEY='.length)
+    .trim()
+    .replace(/^["']|["']$/g, '');
+  if (key === undefined || key.length === 0)
+    throw new Error('ELEVENLABS_API_KEY missing from .env');
   return key;
 }
 const API_KEY = loadApiKey();
@@ -46,8 +50,16 @@ const LINES: readonly Line[] = [
   { id: 'G-101', char: 'gunner', text: '[excited] Little legs... BIG heart!' },
   { id: 'B-201', char: 'beans', text: 'I got it! I got it! ...I do NOT got it!' },
   { id: 'G-202', char: 'gunner', text: '[laughs] Nice try, Beans! One more round?' },
-  { id: 'L-203', char: 'luna', text: 'Or... you could test my new invention! The Fetch-O-Matic three thousand!' },
-  { id: 'P-204', char: 'pip', text: '[excited] Big news, big news! Mama Duck\'s eggs hatched! Three fuzzy ducklings, right down at Willow Creek!' },
+  {
+    id: 'L-203',
+    char: 'luna',
+    text: 'Or... you could test my new invention! The Fetch-O-Matic three thousand!',
+  },
+  {
+    id: 'P-204',
+    char: 'pip',
+    text: "[excited] Big news, big news! Mama Duck's eggs hatched! Three fuzzy ducklings, right down at Willow Creek!",
+  },
   { id: 'G-205', char: 'gunner', text: 'Ducklings? Picnic at the creek! Team Gunner, roll out!' },
   { id: 'B-206', char: 'beans', text: 'Wait for meee!' },
   { id: 'L-301', char: 'luna', text: 'Aww. They are so tiny.' },
@@ -61,18 +73,39 @@ const LINES: readonly Line[] = [
   { id: 'P-404', char: 'pip', text: 'The float is fine. My pride? Soggy.' },
   { id: 'L-405', char: 'luna', text: 'The creek bends at the old log! We can cut them off!' },
   { id: 'L-501', char: 'luna', text: 'Fetch-O-Matic... launch the bridge!' },
-  { id: 'B-502', char: 'beans', text: 'A bridge! I will grab them! Tiny paws, do not fail me now!' },
+  {
+    id: 'B-502',
+    char: 'beans',
+    text: 'A bridge! I will grab them! Tiny paws, do not fail me now!',
+  },
   { id: 'B-503', char: 'beans', text: '[whispers] So. Much. Water.', stability: 0 },
   { id: 'G-504', char: 'gunner', text: 'Hang on, buddy! I got you!' },
-  { id: 'L-505', char: 'luna', text: 'They are heading for Fog Hollow. We will never see them in there!' },
-  { id: 'G-601', char: 'gunner', text: 'I can\'t see a thing.' },
-  { id: 'B-602', char: 'beans', text: '[sad] This is all my fault. My paws were too tiny. My bark is too loud...', stability: 0 },
-  { id: 'G-603', char: 'gunner', text: 'Too loud? Beans... that\'s it! Your bark is not too loud. It is JUST loud enough!' },
+  {
+    id: 'L-505',
+    char: 'luna',
+    text: 'They are heading for Fog Hollow. We will never see them in there!',
+  },
+  { id: 'G-601', char: 'gunner', text: "I can't see a thing." },
+  {
+    id: 'B-602',
+    char: 'beans',
+    text: '[sad] This is all my fault. My paws were too tiny. My bark is too loud...',
+    stability: 0,
+  },
+  {
+    id: 'G-603',
+    char: 'gunner',
+    text: "Too loud? Beans... that's it! Your bark is not too loud. It is JUST loud enough!",
+  },
   { id: 'B-604', char: 'beans', text: 'You mean it?' },
   { id: 'G-605', char: 'gunner', text: 'Bark, buddy. Bark like you mean it!' },
   { id: 'L-606', char: 'luna', text: 'The quacks came from the left! This way!' },
   { id: 'P-701', char: 'pip', text: 'Waterfall! Dead ahead!' },
-  { id: 'G-702', char: 'gunner', text: 'Team Gunner, huddle up! Luna, tie your best knot. Pip, fly the loop to the float. Beans, count us down!' },
+  {
+    id: 'G-702',
+    char: 'gunner',
+    text: 'Team Gunner, huddle up! Luna, tie your best knot. Pip, fly the loop to the float. Beans, count us down!',
+  },
   { id: 'L-703', char: 'luna', text: 'Double sailor knot. Done!' },
   { id: 'P-704', char: 'pip', text: 'Loop is on! Go, go, go!' },
   { id: 'B-705', char: 'beans', text: '[shouting] Three! Two! One! TUG!', stability: 0 },
@@ -83,15 +116,23 @@ const LINES: readonly Line[] = [
   { id: 'P-801', char: 'pip', text: 'Extra, extra! Team Gunner saves the day!' },
   { id: 'B-802', char: 'beans', text: '[laughs] And nobody got soggy! ...Except Pip.' },
   { id: 'P-803', char: 'pip', text: 'My pride dried fast.' },
-  { id: 'G-804', char: 'gunner', text: 'See? You do not have to be big to save the day. You just have to be there for your friends.' },
+  {
+    id: 'G-804',
+    char: 'gunner',
+    text: 'See? You do not have to be big to save the day. You just have to be there for your friends.',
+  },
   { id: 'L-805', char: 'luna', text: 'And always bring a good rope.' },
   { id: 'G-806', char: 'gunner', text: '[chuckles] Aww. Welcome to the team.' },
   { id: 'G-901', char: 'gunner', text: '[excited] See you next time, pups!' },
 ];
 
 async function credits(): Promise<{ used: number; limit: number }> {
-  const res = await fetch('https://api.elevenlabs.io/v1/user', { headers: { 'xi-api-key': API_KEY } });
-  const json = (await res.json()) as { subscription: { character_count: number; character_limit: number } };
+  const res = await fetch('https://api.elevenlabs.io/v1/user', {
+    headers: { 'xi-api-key': API_KEY },
+  });
+  const json = (await res.json()) as {
+    subscription: { character_count: number; character_limit: number };
+  };
   return { used: json.subscription.character_count, limit: json.subscription.character_limit };
 }
 

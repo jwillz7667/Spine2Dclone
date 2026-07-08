@@ -79,7 +79,9 @@ const KNOWN = new Set([...CHARACTERS, 'props']);
 const requested = process.argv.slice(2);
 const invalid = requested.filter((t) => !KNOWN.has(t));
 if (invalid.length > 0) {
-  throw new Error(`unknown atlas target(s): ${invalid.join(', ')} (valid: ${[...KNOWN].join(', ')})`);
+  throw new Error(
+    `unknown atlas target(s): ${invalid.join(', ')} (valid: ${[...KNOWN].join(', ')})`,
+  );
 }
 const targets = requested.length > 0 ? requested : [...CHARACTERS, 'props'];
 for (const target of targets) {

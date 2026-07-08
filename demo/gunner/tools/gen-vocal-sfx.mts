@@ -19,12 +19,19 @@ function loadApiKey(): string {
   const line = readFileSync(envPath, 'utf8')
     .split('\n')
     .find((l) => l.startsWith('GEMINI_API_KEY='));
-  const key = line?.slice('GEMINI_API_KEY='.length).trim().replace(/^["']|["']$/g, '');
+  const key = line
+    ?.slice('GEMINI_API_KEY='.length)
+    .trim()
+    .replace(/^["']|["']$/g, '');
   if (key === undefined || key.length === 0) throw new Error('GEMINI_API_KEY missing from .env');
   return key;
 }
 const API_KEY = loadApiKey();
-const MODELS = ['gemini-3.1-flash-tts-preview', 'gemini-2.5-pro-preview-tts', 'gemini-2.5-flash-preview-tts'];
+const MODELS = [
+  'gemini-3.1-flash-tts-preview',
+  'gemini-2.5-pro-preview-tts',
+  'gemini-2.5-flash-preview-tts',
+];
 const FFMPEG = '/opt/homebrew/bin/ffmpeg';
 
 interface VocalSfx {
@@ -36,67 +43,79 @@ interface VocalSfx {
 }
 
 // Pitch helper: asetrate up + atempo down keeps duration, raises pitch
-const up = (f: number): string => `asetrate=24000*${f},aresample=44100,atempo=${(1 / f).toFixed(6)}`;
-const down = (f: number): string => `asetrate=24000*${f},aresample=44100,atempo=${(1 / f).toFixed(6)}`;
+const up = (f: number): string =>
+  `asetrate=24000*${f},aresample=44100,atempo=${(1 / f).toFixed(6)}`;
+const down = (f: number): string =>
+  `asetrate=24000*${f},aresample=44100,atempo=${(1 / f).toFixed(6)}`;
 
 const SFX: readonly VocalSfx[] = [
   {
     id: 'quack-mama',
     voice: 'Gacrux',
-    prompt: 'Perform ONLY the animal sound with no words: two warm motherly duck quacks, like a cartoon mother duck greeting her babies: Quack! Quack!',
+    prompt:
+      'Perform ONLY the animal sound with no words: two warm motherly duck quacks, like a cartoon mother duck greeting her babies: Quack! Quack!',
     filters: up(1.15),
   },
   {
     id: 'quack-babies',
     voice: 'Leda',
-    prompt: 'Perform ONLY the animal sound with no words: three tiny adorable baby duckling peeps in a row, high and squeaky: Peep! Peep! Peep!',
+    prompt:
+      'Perform ONLY the animal sound with no words: three tiny adorable baby duckling peeps in a row, high and squeaky: Peep! Peep! Peep!',
     filters: up(1.45),
   },
   {
     id: 'quack-alarm',
     voice: 'Gacrux',
-    prompt: 'Perform ONLY the animal sound with no words: rapid alarmed panicked duck quacking, five fast quacks rising in urgency: QuackQuackQuack! Quack! QUACK!',
+    prompt:
+      'Perform ONLY the animal sound with no words: rapid alarmed panicked duck quacking, five fast quacks rising in urgency: QuackQuackQuack! Quack! QUACK!',
     filters: up(1.2),
   },
   {
     id: 'quack-squeak',
     voice: 'Leda',
-    prompt: 'Perform ONLY the animal sound with no words: one single tiny squeaky baby duckling peep, short and cute: Peep!',
+    prompt:
+      'Perform ONLY the animal sound with no words: one single tiny squeaky baby duckling peep, short and cute: Peep!',
     filters: up(1.5),
   },
   {
     id: 'quack-distant',
     voice: 'Gacrux',
-    prompt: 'Perform ONLY the animal sound with no words: three worried duck quacks answering a call from far away: Quack! Quack! Quack!',
+    prompt:
+      'Perform ONLY the animal sound with no words: three worried duck quacks answering a call from far away: Quack! Quack! Quack!',
     filters: `${up(1.2)},lowpass=f=1800,volume=0.5,aecho=0.6:0.4:220:0.35`,
   },
   {
     id: 'mega-bark',
     voice: 'Puck',
-    prompt: 'Perform ONLY the sound with no words: one single gigantic mighty cartoon dog bark, the loudest bark in the world from the smallest dog: WOOF!',
+    prompt:
+      'Perform ONLY the sound with no words: one single gigantic mighty cartoon dog bark, the loudest bark in the world from the smallest dog: WOOF!',
     filters: `${down(0.92)},aecho=0.8:0.55:180|320:0.45|0.28,volume=1.4`,
   },
   {
     id: 'tug-growl',
     voice: 'Puck',
-    prompt: 'Perform ONLY the sound with no words: a playful determined little dog growl during a game of tug of war, sustained and rumbly but friendly: Grrrrrrrr!',
+    prompt:
+      'Perform ONLY the sound with no words: a playful determined little dog growl during a game of tug of war, sustained and rumbly but friendly: Grrrrrrrr!',
   },
   {
     id: 'strain-squeak',
     voice: 'Fenrir',
-    prompt: 'Perform ONLY the sound with no words: a tiny bird straining with all its might to lift something far too heavy, squeezed grunts: Nnngh! Hnnngh!',
+    prompt:
+      'Perform ONLY the sound with no words: a tiny bird straining with all its might to lift something far too heavy, squeezed grunts: Nnngh! Hnnngh!',
     filters: up(1.12),
   },
   {
     id: 'shiver-rattle',
     voice: 'Leda',
-    prompt: 'Perform ONLY the sound with no words: a tiny scared dog whimpering with chattering teeth, trembling: hhh-hhh-hhh, mmmm!',
+    prompt:
+      'Perform ONLY the sound with no words: a tiny scared dog whimpering with chattering teeth, trembling: hhh-hhh-hhh, mmmm!',
     filters: up(1.15),
   },
   {
     id: 'flap-panic',
     voice: 'Gacrux',
-    prompt: 'Perform ONLY the animal sound with no words: a mother duck honk-quacking in alarm while flapping, two sharp honks: HONK! HONK!',
+    prompt:
+      'Perform ONLY the animal sound with no words: a mother duck honk-quacking in alarm while flapping, two sharp honks: HONK! HONK!',
     filters: up(1.1),
   },
 ];
@@ -128,7 +147,8 @@ async function ttsPcm(item: VocalSfx): Promise<Buffer> {
       const json = (await res.json()) as {
         candidates?: Array<{ content?: { parts?: Array<{ inlineData?: { data?: string } }> } }>;
       };
-      const data = json.candidates?.[0]?.content?.parts?.find((p) => p.inlineData?.data)?.inlineData?.data;
+      const data = json.candidates?.[0]?.content?.parts?.find((p) => p.inlineData?.data)?.inlineData
+        ?.data;
       if (data === undefined) {
         lastError = `${model}: no audio in response`;
         await new Promise((r) => setTimeout(r, 3000));
@@ -156,11 +176,22 @@ for (const item of SFX) {
   const tmp = `${out}.pcm`;
   writeFileSync(tmp, pcm);
   execFileSync(FFMPEG, [
-    '-y', '-loglevel', 'error',
-    '-f', 's16le', '-ar', '24000', '-ac', '1',
-    '-i', tmp,
+    '-y',
+    '-loglevel',
+    'error',
+    '-f',
+    's16le',
+    '-ar',
+    '24000',
+    '-ac',
+    '1',
+    '-i',
+    tmp,
     ...(item.filters !== undefined ? ['-af', item.filters] : ['-ar', '44100']),
-    '-codec:a', 'libmp3lame', '-b:a', '128k',
+    '-codec:a',
+    'libmp3lame',
+    '-b:a',
+    '128k',
     out,
   ]);
   rmSync(tmp);

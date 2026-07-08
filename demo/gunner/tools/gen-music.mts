@@ -6,9 +6,9 @@
 // Run from repo root:
 //   packages/render-preview/node_modules/.bin/tsx demo/gunner/tools/gen-music.mts
 
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const SR = 22050;
 const TWO_PI = Math.PI * 2;
@@ -41,7 +41,7 @@ const SEMITONE: Record<string, number> = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B
 function p(name: string): number {
   const m = /^([A-G])([#b]?)(-?\d)$/.exec(name);
   if (!m) throw new Error(`bad note name: ${name}`);
-  const acc = m[2] === "#" ? 1 : m[2] === "b" ? -1 : 0;
+  const acc = m[2] === '#' ? 1 : m[2] === 'b' ? -1 : 0;
   return 12 * (parseInt(m[3], 10) + 1) + SEMITONE[m[1]] + acc;
 }
 
@@ -67,7 +67,7 @@ interface PartialSpec {
 interface Inst {
   gain: number;
   cutoff: number;
-  osc?: "sine" | "tri" | "square" | "saw2" | "leadmix" | "bassmix";
+  osc?: 'sine' | 'tri' | 'square' | 'saw2' | 'leadmix' | 'bassmix';
   adsr?: { a: number; d: number; s: number; r: number };
   partials?: PartialSpec[];
   detune?: number; // total cents between the two saws of saw2
@@ -77,7 +77,7 @@ interface Inst {
 // Chiptune-adjacent lead: triangle body with a soft square edge, gentle vibrato.
 const LEAD: Inst = {
   gain: 0.3,
-  osc: "leadmix",
+  osc: 'leadmix',
   adsr: { a: 0.012, d: 0.08, s: 0.72, r: 0.12 },
   cutoff: 3200,
   vib: { rate: 5.6, cents: 9, delay: 0.16 },
@@ -85,7 +85,7 @@ const LEAD: Inst = {
 
 const LEAD_SOFT: Inst = {
   gain: 0.24,
-  osc: "tri",
+  osc: 'tri',
   adsr: { a: 0.03, d: 0.1, s: 0.7, r: 0.18 },
   cutoff: 2400,
   vib: { rate: 5.2, cents: 7, delay: 0.2 },
@@ -94,7 +94,7 @@ const LEAD_SOFT: Inst = {
 // Warm pad: detuned saw pair through a dark one-pole lowpass.
 const PAD: Inst = {
   gain: 0.085,
-  osc: "saw2",
+  osc: 'saw2',
   detune: 9,
   adsr: { a: 0.18, d: 0.35, s: 0.8, r: 0.45 },
   cutoff: 1300,
@@ -102,7 +102,7 @@ const PAD: Inst = {
 
 const PAD_DARK: Inst = {
   gain: 0.12,
-  osc: "saw2",
+  osc: 'saw2',
   detune: 12,
   adsr: { a: 0.25, d: 0.4, s: 0.85, r: 0.8 },
   cutoff: 850,
@@ -111,14 +111,14 @@ const PAD_DARK: Inst = {
 // Round sine-based bass (fundamental plus a whisper of second harmonic).
 const BASS: Inst = {
   gain: 0.32,
-  osc: "bassmix",
+  osc: 'bassmix',
   adsr: { a: 0.008, d: 0.1, s: 0.85, r: 0.08 },
   cutoff: 750,
 };
 
 const BRASS: Inst = {
   gain: 0.26,
-  osc: "saw2",
+  osc: 'saw2',
   detune: 11,
   adsr: { a: 0.02, d: 0.1, s: 0.85, r: 0.2 },
   cutoff: 2400,
@@ -127,7 +127,7 @@ const BRASS: Inst = {
 
 const STAB: Inst = {
   gain: 0.22,
-  osc: "saw2",
+  osc: 'saw2',
   detune: 8,
   adsr: { a: 0.004, d: 0.3, s: 0.2, r: 0.18 },
   cutoff: 2200,
@@ -135,7 +135,7 @@ const STAB: Inst = {
 
 const WALTZ_PAH: Inst = {
   gain: 0.11,
-  osc: "saw2",
+  osc: 'saw2',
   detune: 8,
   adsr: { a: 0.03, d: 0.18, s: 0.45, r: 0.2 },
   cutoff: 1400,
@@ -143,7 +143,7 @@ const WALTZ_PAH: Inst = {
 
 const ARP_COUNTER: Inst = {
   gain: 0.11,
-  osc: "square",
+  osc: 'square',
   adsr: { a: 0.004, d: 0.1, s: 0.35, r: 0.06 },
   cutoff: 1700,
 };
@@ -215,7 +215,8 @@ function renderNote(
     for (let i = 0; i < n; i++) {
       const t = i / SR;
       let x = 0;
-      for (const q of parts) x += q.amp * Math.exp(-t / q.tau) * Math.sin(TWO_PI * f0 * q.ratio * t);
+      for (const q of parts)
+        x += q.amp * Math.exp(-t / q.tau) * Math.sin(TWO_PI * f0 * q.ratio * t);
       const att = Math.min(1, t / 0.002);
       lp += k * (x - lp);
       writeAt(dst, start + i, lp * att * vel * inst.gain, loop);
@@ -225,13 +226,13 @@ function renderNote(
 
   const e = inst.adsr;
   const osc = inst.osc;
-  if (!e || !osc) throw new Error("instrument needs adsr+osc or partials");
+  if (!e || !osc) throw new Error('instrument needs adsr+osc or partials');
   const total = durSec + e.r;
   const n = Math.floor(total * SR);
   const gate = (t: number): number =>
     t < e.a ? t / e.a : t < e.a + e.d ? 1 - (1 - e.s) * ((t - e.a) / e.d) : e.s;
   const endLevel = gate(Math.max(durSec, 0.0001));
-  const det = osc === "saw2" ? 2 ** ((inst.detune ?? 8) / 2 / 1200) : 1;
+  const det = osc === 'saw2' ? 2 ** ((inst.detune ?? 8) / 2 / 1200) : 1;
   let ph1 = 0;
   let ph2 = 0;
   for (let i = 0; i < n; i++) {
@@ -240,7 +241,9 @@ function renderNote(
     let f = f0;
     if (inst.vib && t > inst.vib.delay) {
       const ramp = Math.min(1, (t - inst.vib.delay) / 0.3);
-      f *= 2 ** ((inst.vib.cents * ramp * Math.sin(TWO_PI * inst.vib.rate * (t - inst.vib.delay))) / 1200);
+      f *=
+        2 **
+        ((inst.vib.cents * ramp * Math.sin(TWO_PI * inst.vib.rate * (t - inst.vib.delay))) / 1200);
     }
     ph1 += (f * det) / SR;
     ph2 += f / det / SR;
@@ -248,22 +251,22 @@ function renderNote(
     ph2 -= Math.floor(ph2);
     let x: number;
     switch (osc) {
-      case "sine":
+      case 'sine':
         x = Math.sin(TWO_PI * ph1);
         break;
-      case "tri":
+      case 'tri':
         x = 1 - 4 * Math.abs(ph1 - 0.5);
         break;
-      case "square":
+      case 'square':
         x = ph1 < 0.5 ? 0.8 : -0.8;
         break;
-      case "saw2":
+      case 'saw2':
         x = (ph1 * 2 - 1) * 0.5 + (ph2 * 2 - 1) * 0.5;
         break;
-      case "leadmix":
+      case 'leadmix':
         x = (1 - 4 * Math.abs(ph1 - 0.5)) * 0.62 + (ph1 < 0.5 ? 0.3 : -0.3);
         break;
-      case "bassmix":
+      case 'bassmix':
         x = Math.sin(TWO_PI * ph1) + 0.35 * Math.sin(2 * TWO_PI * ph1);
         break;
     }
@@ -276,7 +279,14 @@ function renderNote(
 // Percussion (writes straight into the mix buffer)
 // ---------------------------------------------------------------------------
 
-function drumKick(dst: Float64Array, loop: boolean, tSec: number, vel: number, rng: Rng, soft: boolean): void {
+function drumKick(
+  dst: Float64Array,
+  loop: boolean,
+  tSec: number,
+  vel: number,
+  rng: Rng,
+  soft: boolean,
+): void {
   const n = Math.floor(0.24 * SR);
   const start = Math.round(tSec * SR);
   const f0 = soft ? 95 : 155;
@@ -312,7 +322,14 @@ function drumSnare(dst: Float64Array, loop: boolean, tSec: number, vel: number, 
   }
 }
 
-function drumHat(dst: Float64Array, loop: boolean, tSec: number, vel: number, rng: Rng, open: boolean): void {
+function drumHat(
+  dst: Float64Array,
+  loop: boolean,
+  tSec: number,
+  vel: number,
+  rng: Rng,
+  open: boolean,
+): void {
   const n = Math.floor((open ? 0.25 : 0.07) * SR);
   const start = Math.round(tSec * SR);
   const k = lpCoef(5200);
@@ -327,7 +344,14 @@ function drumHat(dst: Float64Array, loop: boolean, tSec: number, vel: number, rn
   }
 }
 
-function drumTom(dst: Float64Array, loop: boolean, tSec: number, vel: number, freq: number, rng: Rng): void {
+function drumTom(
+  dst: Float64Array,
+  loop: boolean,
+  tSec: number,
+  vel: number,
+  freq: number,
+  rng: Rng,
+): void {
   const n = Math.floor(0.3 * SR);
   const start = Math.round(tSec * SR);
   let phase = 0;
@@ -372,7 +396,7 @@ interface TrackSpec {
   notes: NoteEv[];
 }
 
-type DrumType = "kick" | "kickSoft" | "snare" | "hat" | "openhat" | "tom" | "crash";
+type DrumType = 'kick' | 'kickSoft' | 'snare' | 'hat' | 'openhat' | 'tom' | 'crash';
 
 interface DrumEv {
   t: number; // beats
@@ -421,7 +445,7 @@ function motif(t: number, semis: number, vel: number, holdDur: number, step = 0.
 
 function hats8(drums: DrumEv[], from: number, to: number, hi: number, lo: number): void {
   for (let b = from; b < to - 1e-9; b += 0.5) {
-    drums.push({ t: b, type: "hat", vel: Number.isInteger(b) ? hi : lo });
+    drums.push({ t: b, type: 'hat', vel: Number.isInteger(b) ? hi : lo });
   }
 }
 
@@ -442,28 +466,54 @@ const V: Record<string, number[]> = {
 function themeCue(): CueSpec {
   const lead: NoteEv[] = [
     // Bouncy 2-bar intro arp.
-    N(0, "C5", 0.45, 0.7), N(0.5, "E5", 0.45, 0.7), N(1, "G5", 0.9, 0.75),
-    N(2, "E5", 0.45, 0.7), N(2.5, "G5", 0.45, 0.7), N(3, "A5", 0.9, 0.75),
-    N(4, "G5", 0.45, 0.7), N(4.5, "E5", 0.45, 0.68), N(5, "D5", 0.45, 0.68),
-    N(5.5, "C5", 0.45, 0.68), N(6, "D5", 1.4, 0.72),
+    N(0, 'C5', 0.45, 0.7),
+    N(0.5, 'E5', 0.45, 0.7),
+    N(1, 'G5', 0.9, 0.75),
+    N(2, 'E5', 0.45, 0.7),
+    N(2.5, 'G5', 0.45, 0.7),
+    N(3, 'A5', 0.9, 0.75),
+    N(4, 'G5', 0.45, 0.7),
+    N(4.5, 'E5', 0.45, 0.68),
+    N(5, 'D5', 0.45, 0.68),
+    N(5.5, 'C5', 0.45, 0.68),
+    N(6, 'D5', 1.4, 0.72),
     // Motif statement 1.
     ...motif(8, 0, 0.85, 3.5),
-    N(14, "C5", 0.45, 0.7), N(14.5, "B4", 0.45, 0.7), N(15, "A4", 0.45, 0.7), N(15.5, "B4", 0.45, 0.72),
+    N(14, 'C5', 0.45, 0.7),
+    N(14.5, 'B4', 0.45, 0.7),
+    N(15, 'A4', 0.45, 0.7),
+    N(15.5, 'B4', 0.45, 0.72),
     // Answer phrase.
-    N(16, "E5", 1, 0.8), N(17, "D5", 0.45, 0.75), N(17.5, "C5", 0.45, 0.75),
-    N(18, "A4", 1, 0.75), N(19, "G4", 1, 0.72),
-    N(20, "A4", 0.45, 0.72), N(20.5, "C5", 0.45, 0.75), N(21, "D5", 2, 0.8),
+    N(16, 'E5', 1, 0.8),
+    N(17, 'D5', 0.45, 0.75),
+    N(17.5, 'C5', 0.45, 0.75),
+    N(18, 'A4', 1, 0.75),
+    N(19, 'G4', 1, 0.72),
+    N(20, 'A4', 0.45, 0.72),
+    N(20.5, 'C5', 0.45, 0.75),
+    N(21, 'D5', 2, 0.8),
     // Motif statement 2, up an octave, with diatonic thirds below.
     ...motif(24, 12, 0.88, 3),
-    N(24, "E5", 0.45, 0.55), N(24.5, "E5", 0.45, 0.55), N(25, "F5", 0.45, 0.55),
-    N(25.5, "G5", 0.45, 0.55), N(26, "B5", 3, 0.58),
+    N(24, 'E5', 0.45, 0.55),
+    N(24.5, 'E5', 0.45, 0.55),
+    N(25, 'F5', 0.45, 0.55),
+    N(25.5, 'G5', 0.45, 0.55),
+    N(26, 'B5', 3, 0.58),
     // Turnaround.
-    N(32, "E5", 0.45, 0.78), N(32.5, "D5", 0.45, 0.75), N(33, "C5", 0.45, 0.75),
-    N(33.5, "D5", 0.45, 0.75), N(34, "E5", 1, 0.78), N(35, "G5", 1, 0.8),
-    N(36, "A5", 0.45, 0.8), N(36.5, "G5", 0.45, 0.76), N(37, "E5", 0.45, 0.74),
-    N(37.5, "D5", 0.45, 0.72), N(38, "C5", 0.9, 0.75),
+    N(32, 'E5', 0.45, 0.78),
+    N(32.5, 'D5', 0.45, 0.75),
+    N(33, 'C5', 0.45, 0.75),
+    N(33.5, 'D5', 0.45, 0.75),
+    N(34, 'E5', 1, 0.78),
+    N(35, 'G5', 1, 0.8),
+    N(36, 'A5', 0.45, 0.8),
+    N(36.5, 'G5', 0.45, 0.76),
+    N(37, 'E5', 0.45, 0.74),
+    N(37.5, 'D5', 0.45, 0.72),
+    N(38, 'C5', 0.9, 0.75),
     // Pickup and button.
-    N(39.5, "D5", 0.4, 0.85), N(40, "E5", 2.5, 0.95),
+    N(39.5, 'D5', 0.4, 0.85),
+    N(40, 'E5', 2.5, 0.95),
   ];
 
   const padBars = [V.C, V.F, V.C, V.G, V.F, V.C, V.C, V.G, V.F, V.G];
@@ -471,31 +521,53 @@ function themeCue(): CueSpec {
   pads.push(...chordNm(40, V.C, 2.4, 0.55));
 
   const bassBars: number[][] = [
-    [36, 40, 43, 45], [41, 45, 48, 47], [36, 43, 40, 43], [43, 47, 50, 47],
-    [41, 45, 48, 45], [36, 40, 43, 45], [36, 43, 36, 43], [43, 47, 50, 47],
+    [36, 40, 43, 45],
+    [41, 45, 48, 47],
+    [36, 43, 40, 43],
+    [43, 47, 50, 47],
+    [41, 45, 48, 45],
+    [36, 40, 43, 45],
+    [36, 43, 36, 43],
+    [43, 47, 50, 47],
     [41, 45, 48, 50],
   ];
-  const bass: NoteEv[] = bassBars.flatMap((walk, b) => walk.map((m, q) => Nm(4 * b + q, m, 0.9, 0.8)));
+  const bass: NoteEv[] = bassBars.flatMap((walk, b) =>
+    walk.map((m, q) => Nm(4 * b + q, m, 0.9, 0.8)),
+  );
   bass.push(Nm(36, 43, 0.9, 0.8), Nm(37, 45, 0.9, 0.8), Nm(38, 47, 0.9, 0.8));
   bass.push(Nm(39.5, 43, 0.4, 0.85), Nm(40, 36, 2.5, 0.95));
 
   const drums: DrumEv[] = [];
   hats8(drums, 0, 40, 0.42, 0.26);
   for (let b = 0; b < 9; b++) {
-    drums.push({ t: 4 * b, type: "kick", vel: 0.9 }, { t: 4 * b + 2, type: "kick", vel: 0.75 });
-    drums.push({ t: 4 * b + 1, type: "snare", vel: 0.65 }, { t: 4 * b + 3, type: "snare", vel: 0.65 });
+    drums.push({ t: 4 * b, type: 'kick', vel: 0.9 }, { t: 4 * b + 2, type: 'kick', vel: 0.75 });
+    drums.push(
+      { t: 4 * b + 1, type: 'snare', vel: 0.65 },
+      { t: 4 * b + 3, type: 'snare', vel: 0.65 },
+    );
   }
   // Bar 10 fill into the button.
   drums.push(
-    { t: 36, type: "kick", vel: 0.9 }, { t: 37, type: "snare", vel: 0.65 }, { t: 38, type: "kick", vel: 0.7 },
-    { t: 38.5, type: "tom", vel: 0.6, freq: 170 }, { t: 39, type: "tom", vel: 0.66, freq: 135 },
-    { t: 39.5, type: "snare", vel: 0.6 },
-    { t: 8, type: "crash", vel: 0.45 }, { t: 24, type: "crash", vel: 0.5 },
-    { t: 40, type: "kick", vel: 1 }, { t: 40, type: "snare", vel: 0.8 }, { t: 40, type: "crash", vel: 0.8 },
+    { t: 36, type: 'kick', vel: 0.9 },
+    { t: 37, type: 'snare', vel: 0.65 },
+    { t: 38, type: 'kick', vel: 0.7 },
+    { t: 38.5, type: 'tom', vel: 0.6, freq: 170 },
+    { t: 39, type: 'tom', vel: 0.66, freq: 135 },
+    { t: 39.5, type: 'snare', vel: 0.6 },
+    { t: 8, type: 'crash', vel: 0.45 },
+    { t: 24, type: 'crash', vel: 0.5 },
+    { t: 40, type: 'kick', vel: 1 },
+    { t: 40, type: 'snare', vel: 0.8 },
+    { t: 40, type: 'crash', vel: 0.8 },
   );
 
   return {
-    name: "theme", bpm: 132, beatsPerBar: 4, bars: 11, loop: false, seed: 101,
+    name: 'theme',
+    bpm: 132,
+    beatsPerBar: 4,
+    bars: 11,
+    loop: false,
+    seed: 101,
     tracks: [
       { inst: LEAD, notes: lead },
       { inst: PAD, notes: pads },
@@ -513,30 +585,63 @@ function themeCue(): CueSpec {
 
 function meadowCue(): CueSpec {
   const lead: NoteEv[] = [
-    N(2, "E5", 0.45, 0.55), N(2.5, "D5", 0.45, 0.5), N(3, "C5", 0.45, 0.5), N(4, "D5", 1.4, 0.55),
+    N(2, 'E5', 0.45, 0.55),
+    N(2.5, 'D5', 0.45, 0.5),
+    N(3, 'C5', 0.45, 0.5),
+    N(4, 'D5', 1.4, 0.55),
     // Hidden motif fragment, soft.
-    N(8, "G4", 0.45, 0.5), N(8.5, "G4", 0.45, 0.48), N(9, "A4", 0.45, 0.5), N(9.5, "B4", 0.45, 0.5),
-    N(10, "D5", 1.8, 0.55), N(13, "C5", 0.9, 0.5),
-    N(16, "A4", 0.9, 0.52), N(17, "C5", 0.9, 0.52), N(18, "B4", 0.45, 0.5), N(18.5, "A4", 0.45, 0.48),
-    N(19, "G4", 0.9, 0.5), N(20, "A4", 1.8, 0.52),
-    N(24, "E5", 0.45, 0.52), N(24.5, "G5", 0.45, 0.5), N(25, "E5", 0.9, 0.5), N(26, "D5", 1.4, 0.52),
-    N(28, "B4", 0.9, 0.5), N(29, "A4", 0.45, 0.48), N(29.5, "B4", 0.45, 0.48), N(30, "D5", 1.4, 0.52),
-    N(33, "E5", 0.45, 0.5), N(33.5, "D5", 0.45, 0.48), N(34, "C5", 0.9, 0.5), N(35, "A4", 0.9, 0.48),
-    N(36, "C5", 1.8, 0.52),
-    N(40, "A4", 0.9, 0.5), N(41, "B4", 0.9, 0.5), N(42, "C5", 1.4, 0.52),
-    N(44, "B4", 0.9, 0.5), N(45, "G4", 0.9, 0.48), N(46, "E4", 1.4, 0.48),
-    N(48, "A4", 0.9, 0.5), N(49, "C5", 0.9, 0.5), N(50, "D5", 1.8, 0.54),
+    N(8, 'G4', 0.45, 0.5),
+    N(8.5, 'G4', 0.45, 0.48),
+    N(9, 'A4', 0.45, 0.5),
+    N(9.5, 'B4', 0.45, 0.5),
+    N(10, 'D5', 1.8, 0.55),
+    N(13, 'C5', 0.9, 0.5),
+    N(16, 'A4', 0.9, 0.52),
+    N(17, 'C5', 0.9, 0.52),
+    N(18, 'B4', 0.45, 0.5),
+    N(18.5, 'A4', 0.45, 0.48),
+    N(19, 'G4', 0.9, 0.5),
+    N(20, 'A4', 1.8, 0.52),
+    N(24, 'E5', 0.45, 0.52),
+    N(24.5, 'G5', 0.45, 0.5),
+    N(25, 'E5', 0.9, 0.5),
+    N(26, 'D5', 1.4, 0.52),
+    N(28, 'B4', 0.9, 0.5),
+    N(29, 'A4', 0.45, 0.48),
+    N(29.5, 'B4', 0.45, 0.48),
+    N(30, 'D5', 1.4, 0.52),
+    N(33, 'E5', 0.45, 0.5),
+    N(33.5, 'D5', 0.45, 0.48),
+    N(34, 'C5', 0.9, 0.5),
+    N(35, 'A4', 0.9, 0.48),
+    N(36, 'C5', 1.8, 0.52),
+    N(40, 'A4', 0.9, 0.5),
+    N(41, 'B4', 0.9, 0.5),
+    N(42, 'C5', 1.4, 0.52),
+    N(44, 'B4', 0.9, 0.5),
+    N(45, 'G4', 0.9, 0.48),
+    N(46, 'E4', 1.4, 0.48),
+    N(48, 'A4', 0.9, 0.5),
+    N(49, 'C5', 0.9, 0.5),
+    N(50, 'D5', 1.8, 0.54),
     // Second motif fragment leaning into the loop point.
-    N(52, "G4", 0.45, 0.48), N(52.5, "A4", 0.45, 0.48), N(53, "B4", 0.9, 0.5), N(54, "D5", 1.4, 0.54),
+    N(52, 'G4', 0.45, 0.48),
+    N(52.5, 'A4', 0.45, 0.48),
+    N(53, 'B4', 0.9, 0.5),
+    N(54, 'D5', 1.4, 0.54),
   ];
 
   const padBars = [V.C, V.F, V.C, V.F, V.Am, V.F, V.C, V.G, V.C, V.F, V.Am, V.Em, V.F, V.G];
   const pads: NoteEv[] = padBars.flatMap((ch, b) => chordNm(4 * b, ch, 3.9, 0.42));
 
   const bassPairs: Record<string, [number, number]> = {
-    C: [36, 43], F: [41, 48], Am: [45, 40], Em: [40, 47], G: [43, 38],
+    C: [36, 43],
+    F: [41, 48],
+    Am: [45, 40],
+    Em: [40, 47],
+    G: [43, 38],
   };
-  const barNames = ["C", "F", "C", "F", "Am", "F", "C", "G", "C", "F", "Am", "Em", "F", "G"];
+  const barNames = ['C', 'F', 'C', 'F', 'Am', 'F', 'C', 'G', 'C', 'F', 'Am', 'Em', 'F', 'G'];
   const bass: NoteEv[] = barNames.flatMap((nm, b) => {
     const [root, fifth] = bassPairs[nm];
     return [Nm(4 * b, root, 1.8, 0.6), Nm(4 * b + 2, fifth, 1.8, 0.5)];
@@ -545,16 +650,27 @@ function meadowCue(): CueSpec {
   const drums: DrumEv[] = [];
   hats8(drums, 0, 56, 0.26, 0.16);
   for (let b = 0; b < 14; b++) {
-    drums.push({ t: 4 * b, type: "kickSoft", vel: 0.5 }, { t: 4 * b + 2, type: "kickSoft", vel: 0.32 });
+    drums.push(
+      { t: 4 * b, type: 'kickSoft', vel: 0.5 },
+      { t: 4 * b + 2, type: 'kickSoft', vel: 0.32 },
+    );
   }
 
   return {
-    name: "meadow", bpm: 112, beatsPerBar: 4, bars: 14, loop: true, seed: 202,
+    name: 'meadow',
+    bpm: 112,
+    beatsPerBar: 4,
+    bars: 14,
+    loop: true,
+    seed: 202,
     tracks: [
       { inst: LEAD_SOFT, notes: lead },
       { inst: PAD, notes: pads },
       { inst: BASS, notes: bass },
-      { inst: SPARKLE, notes: [Nm(14, 88, 0.5, 0.3), Nm(31.5, 91, 0.5, 0.25), Nm(47, 84, 0.5, 0.25)] },
+      {
+        inst: SPARKLE,
+        notes: [Nm(14, 88, 0.5, 0.3), Nm(31.5, 91, 0.5, 0.25), Nm(47, 84, 0.5, 0.25)],
+      },
     ],
     drums,
   };
@@ -581,15 +697,21 @@ function tensionRiseCue(): CueSpec {
   let t = 0;
   let gap = 0.34;
   while (t < 4.5) {
-    drums.push({ t: t / spb, type: "hat", vel: 0.18 + (t / 4.5) * 0.4 });
+    drums.push({ t: t / spb, type: 'hat', vel: 0.18 + (t / 4.5) * 0.4 });
     t += gap;
     gap = Math.max(0.08, gap * 0.88);
   }
   // A single open-hat accent at the apex, right before the bottom drops out.
-  drums.push({ t: 9, type: "openhat", vel: 0.85 });
+  drums.push({ t: 9, type: 'openhat', vel: 0.85 });
 
   return {
-    name: "tension-rise", bpm: 120, beatsPerBar: 4, bars: 3, durSec: 6, loop: false, seed: 303,
+    name: 'tension-rise',
+    bpm: 120,
+    beatsPerBar: 4,
+    bars: 3,
+    durSec: 6,
+    loop: false,
+    seed: 303,
     tracks: [
       { inst: PAD_DARK, notes: pads },
       { inst: BASS, notes: [Nm(0, 33, 9, 0.25)] },
@@ -604,14 +726,25 @@ function tensionRiseCue(): CueSpec {
 
 function chaseLeadPhrase(o: number): NoteEv[] {
   return [
-    N(o, "G5", 0.4, 0.8), N(o + 0.75, "E5", 0.35, 0.7), N(o + 1.5, "G5", 0.4, 0.75),
-    N(o + 2.25, "A5", 0.4, 0.78), N(o + 3, "G5", 0.9, 0.8),
-    N(o + 4.5, "E5", 0.4, 0.72), N(o + 5.25, "D5", 0.4, 0.7), N(o + 6, "C5", 0.9, 0.75),
-    N(o + 7, "D5", 0.4, 0.7), N(o + 7.5, "E5", 0.4, 0.72),
-    N(o + 8, "A5", 0.4, 0.8), N(o + 8.75, "G5", 0.35, 0.72), N(o + 9.5, "A5", 0.4, 0.75),
-    N(o + 10.25, "C6", 0.4, 0.8), N(o + 11, "A5", 0.9, 0.8),
-    N(o + 12, "G5", 0.4, 0.75), N(o + 12.5, "A5", 0.4, 0.75), N(o + 13, "B5", 0.65, 0.78),
-    N(o + 14, "D6", 1.2, 0.82),
+    N(o, 'G5', 0.4, 0.8),
+    N(o + 0.75, 'E5', 0.35, 0.7),
+    N(o + 1.5, 'G5', 0.4, 0.75),
+    N(o + 2.25, 'A5', 0.4, 0.78),
+    N(o + 3, 'G5', 0.9, 0.8),
+    N(o + 4.5, 'E5', 0.4, 0.72),
+    N(o + 5.25, 'D5', 0.4, 0.7),
+    N(o + 6, 'C5', 0.9, 0.75),
+    N(o + 7, 'D5', 0.4, 0.7),
+    N(o + 7.5, 'E5', 0.4, 0.72),
+    N(o + 8, 'A5', 0.4, 0.8),
+    N(o + 8.75, 'G5', 0.35, 0.72),
+    N(o + 9.5, 'A5', 0.4, 0.75),
+    N(o + 10.25, 'C6', 0.4, 0.8),
+    N(o + 11, 'A5', 0.9, 0.8),
+    N(o + 12, 'G5', 0.4, 0.75),
+    N(o + 12.5, 'A5', 0.4, 0.75),
+    N(o + 13, 'B5', 0.65, 0.78),
+    N(o + 14, 'D6', 1.2, 0.82),
   ];
 }
 
@@ -623,8 +756,13 @@ function chaseCue(): CueSpec {
       // Last cycle: swap the final bar for a rising run back to the loop top.
       lead.push(...phrase.filter((ev) => ev.t < 16 * c + 12));
       lead.push(
-        N(76, "G4", 0.4, 0.7), N(76.5, "A4", 0.4, 0.72), N(77, "B4", 0.4, 0.74), N(77.5, "D5", 0.4, 0.76),
-        N(78, "E5", 0.4, 0.78), N(78.5, "G5", 0.4, 0.8), N(79, "A5", 0.85, 0.82),
+        N(76, 'G4', 0.4, 0.7),
+        N(76.5, 'A4', 0.4, 0.72),
+        N(77, 'B4', 0.4, 0.74),
+        N(77.5, 'D5', 0.4, 0.76),
+        N(78, 'E5', 0.4, 0.78),
+        N(78.5, 'G5', 0.4, 0.8),
+        N(79, 'A5', 0.85, 0.82),
       );
     } else {
       lead.push(...phrase);
@@ -640,28 +778,34 @@ function chaseCue(): CueSpec {
   for (let b = 0; b < 20; b++) {
     pads.push(...chordNm(4 * b, cycleChords[b % 4], 3.8, 0.38));
     const root = cycleRoots[b % 4];
-    for (let e = 0; e < 8; e++) bass.push(Nm(4 * b + e * 0.5, root + gallop[e], 0.38, gallopVel[e]));
+    for (let e = 0; e < 8; e++)
+      bass.push(Nm(4 * b + e * 0.5, root + gallop[e], 0.38, gallopVel[e]));
   }
 
   const drums: DrumEv[] = [];
   hats8(drums, 0, 80, 0.4, 0.24);
   const fillBars = new Set([3, 7, 11, 15]);
   for (let b = 0; b < 20; b++) {
-    drums.push({ t: 4 * b, type: "kick", vel: 0.9 }, { t: 4 * b + 2, type: "kick", vel: 0.8 });
-    drums.push({ t: 4 * b + 1, type: "snare", vel: 0.65 });
+    drums.push({ t: 4 * b, type: 'kick', vel: 0.9 }, { t: 4 * b + 2, type: 'kick', vel: 0.8 });
+    drums.push({ t: 4 * b + 1, type: 'snare', vel: 0.65 });
     if (fillBars.has(b)) {
       drums.push(
-        { t: 4 * b + 2.5, type: "tom", vel: 0.65, freq: 170 },
-        { t: 4 * b + 3, type: "tom", vel: 0.68, freq: 135 },
-        { t: 4 * b + 3.5, type: "tom", vel: 0.72, freq: 105 },
+        { t: 4 * b + 2.5, type: 'tom', vel: 0.65, freq: 170 },
+        { t: 4 * b + 3, type: 'tom', vel: 0.68, freq: 135 },
+        { t: 4 * b + 3.5, type: 'tom', vel: 0.72, freq: 105 },
       );
     } else {
-      drums.push({ t: 4 * b + 3, type: "snare", vel: 0.65 });
+      drums.push({ t: 4 * b + 3, type: 'snare', vel: 0.65 });
     }
   }
 
   return {
-    name: "chase", bpm: 150, beatsPerBar: 4, bars: 20, loop: true, seed: 404,
+    name: 'chase',
+    bpm: 150,
+    beatsPerBar: 4,
+    bars: 20,
+    loop: true,
+    seed: 404,
     tracks: [
       { inst: LEAD, notes: lead },
       { inst: PAD, notes: pads },
@@ -677,17 +821,36 @@ function chaseCue(): CueSpec {
 
 function lostCue(): CueSpec {
   const box: NoteEv[] = [
-    N(0, "A5", 1, 0.6), N(1.5, "B5", 0.5, 0.5), N(2, "C6", 2, 0.6),
-    N(4, "A5", 1, 0.55), N(5.5, "G5", 0.5, 0.5), N(6, "E5", 2, 0.55),
-    N(8, "G5", 1.5, 0.55), N(10, "E5", 1, 0.5), N(11, "D5", 1, 0.5),
-    N(12, "B5", 1.5, 0.55), N(14, "G5", 2, 0.5),
-    N(16, "A5", 1, 0.55), N(17.5, "C6", 0.5, 0.5), N(18, "B5", 2, 0.55),
-    N(20, "A5", 1.5, 0.5), N(22, "F5", 1, 0.48), N(23, "E5", 1, 0.48),
-    N(24, "G5", 1.5, 0.5), N(26, "B5", 1, 0.5), N(27, "E5", 1, 0.45),
+    N(0, 'A5', 1, 0.6),
+    N(1.5, 'B5', 0.5, 0.5),
+    N(2, 'C6', 2, 0.6),
+    N(4, 'A5', 1, 0.55),
+    N(5.5, 'G5', 0.5, 0.5),
+    N(6, 'E5', 2, 0.55),
+    N(8, 'G5', 1.5, 0.55),
+    N(10, 'E5', 1, 0.5),
+    N(11, 'D5', 1, 0.5),
+    N(12, 'B5', 1.5, 0.55),
+    N(14, 'G5', 2, 0.5),
+    N(16, 'A5', 1, 0.55),
+    N(17.5, 'C6', 0.5, 0.5),
+    N(18, 'B5', 2, 0.55),
+    N(20, 'A5', 1.5, 0.5),
+    N(22, 'F5', 1, 0.48),
+    N(23, 'E5', 1, 0.48),
+    N(24, 'G5', 1.5, 0.5),
+    N(26, 'B5', 1, 0.5),
+    N(27, 'E5', 1, 0.45),
   ];
 
   const padBars: number[][] = [
-    [57, 60, 64], [53, 57, 60], [55, 60, 64], [52, 55, 59], [57, 60, 64], [50, 53, 57], [52, 55, 59],
+    [57, 60, 64],
+    [53, 57, 60],
+    [55, 60, 64],
+    [52, 55, 59],
+    [57, 60, 64],
+    [50, 53, 57],
+    [52, 55, 59],
   ];
   const pads: NoteEv[] = padBars.flatMap((ch, b) => chordNm(4 * b, ch, 3.9, 0.35));
 
@@ -696,11 +859,19 @@ function lostCue(): CueSpec {
 
   const drums: DrumEv[] = [];
   for (let b = 0; b < 7; b++) {
-    drums.push({ t: 4 * b, type: "kickSoft", vel: 0.45 }, { t: 4 * b + 0.45, type: "kickSoft", vel: 0.28 });
+    drums.push(
+      { t: 4 * b, type: 'kickSoft', vel: 0.45 },
+      { t: 4 * b + 0.45, type: 'kickSoft', vel: 0.28 },
+    );
   }
 
   return {
-    name: "lost", bpm: 80, beatsPerBar: 4, bars: 7, loop: true, seed: 505,
+    name: 'lost',
+    bpm: 80,
+    beatsPerBar: 4,
+    bars: 7,
+    loop: true,
+    seed: 505,
     tracks: [
       { inst: MUSICBOX, notes: box },
       { inst: PAD, notes: pads },
@@ -716,15 +887,23 @@ function lostCue(): CueSpec {
 
 function hopeStingCue(): CueSpec {
   return {
-    name: "hope-sting", bpm: 120, beatsPerBar: 4, bars: 2, durSec: 4, loop: false, seed: 606,
+    name: 'hope-sting',
+    bpm: 120,
+    beatsPerBar: 4,
+    bars: 2,
+    durSec: 4,
+    loop: false,
+    seed: 606,
     tracks: [
       {
         inst: LEAD_SOFT,
         notes: [
           // The motif's first three notes, hesitant.
-          N(0, "G4", 0.7, 0.55), N(0.9, "G4", 0.7, 0.5), N(1.8, "A4", 0.9, 0.6),
+          N(0, 'G4', 0.7, 0.55),
+          N(0.9, 'G4', 0.7, 0.5),
+          N(1.8, 'A4', 0.9, 0.6),
           // The fourth note blooms.
-          N(2.8, "B4", 3.2, 0.8),
+          N(2.8, 'B4', 3.2, 0.8),
         ],
       },
       {
@@ -740,7 +919,7 @@ function hopeStingCue(): CueSpec {
         notes: [74, 79, 83, 86, 91].map((m, i) => Nm(3 + i * 0.2, m, 0.5, 0.5 - i * 0.04)),
       },
     ],
-    drums: [{ t: 2.8, type: "crash", vel: 0.18 }],
+    drums: [{ t: 2.8, type: 'crash', vel: 0.18 }],
   };
 }
 
@@ -750,14 +929,25 @@ function hopeStingCue(): CueSpec {
 
 function chaseFinalPhrase(o: number): NoteEv[] {
   return [
-    N(o, "A5", 0.4, 0.82), N(o + 0.75, "F#5", 0.35, 0.72), N(o + 1.5, "A5", 0.4, 0.76),
-    N(o + 2.25, "B5", 0.4, 0.8), N(o + 3, "A5", 0.9, 0.82),
-    N(o + 4.5, "F#5", 0.4, 0.72), N(o + 5.25, "E5", 0.4, 0.7), N(o + 6, "D5", 0.9, 0.76),
-    N(o + 7, "E5", 0.4, 0.7), N(o + 7.5, "F#5", 0.4, 0.74),
-    N(o + 8, "B5", 0.4, 0.8), N(o + 8.75, "A5", 0.35, 0.72), N(o + 9.5, "B5", 0.4, 0.76),
-    N(o + 10.25, "D6", 0.4, 0.82), N(o + 11, "B5", 0.9, 0.8),
-    N(o + 12, "A5", 0.4, 0.76), N(o + 12.5, "B5", 0.4, 0.76), N(o + 13, "C#6", 0.65, 0.8),
-    N(o + 14, "E6", 1.2, 0.84),
+    N(o, 'A5', 0.4, 0.82),
+    N(o + 0.75, 'F#5', 0.35, 0.72),
+    N(o + 1.5, 'A5', 0.4, 0.76),
+    N(o + 2.25, 'B5', 0.4, 0.8),
+    N(o + 3, 'A5', 0.9, 0.82),
+    N(o + 4.5, 'F#5', 0.4, 0.72),
+    N(o + 5.25, 'E5', 0.4, 0.7),
+    N(o + 6, 'D5', 0.9, 0.76),
+    N(o + 7, 'E5', 0.4, 0.7),
+    N(o + 7.5, 'F#5', 0.4, 0.74),
+    N(o + 8, 'B5', 0.4, 0.8),
+    N(o + 8.75, 'A5', 0.35, 0.72),
+    N(o + 9.5, 'B5', 0.4, 0.76),
+    N(o + 10.25, 'D6', 0.4, 0.82),
+    N(o + 11, 'B5', 0.9, 0.8),
+    N(o + 12, 'A5', 0.4, 0.76),
+    N(o + 12.5, 'B5', 0.4, 0.76),
+    N(o + 13, 'C#6', 0.65, 0.8),
+    N(o + 14, 'E6', 1.2, 0.84),
   ];
 }
 
@@ -768,7 +958,7 @@ function chaseFinalCue(): CueSpec {
   lead.push(...motif(32, 14, 0.88, 1.8), ...chaseFinalPhrase(32).filter((ev) => ev.t >= 36));
   // Cycle 4 ends with a run that hands back to the loop top.
   lead.push(...chaseFinalPhrase(48).filter((ev) => ev.t < 61));
-  lead.push(N(61, "C#6", 0.4, 0.78), N(61.5, "D6", 0.4, 0.8), N(62, "E6", 0.9, 0.84));
+  lead.push(N(61, 'C#6', 0.4, 0.78), N(61.5, 'D6', 0.4, 0.8), N(62, 'E6', 0.9, 0.84));
 
   const chordTones: number[][] = [
     [62, 66, 69, 74], // D
@@ -776,7 +966,12 @@ function chaseFinalCue(): CueSpec {
     [55, 59, 62, 67], // G
     [57, 61, 64, 69], // A
   ];
-  const padChords: number[][] = [[62, 66, 69], [59, 62, 66], [59, 62, 67], [61, 64, 69]];
+  const padChords: number[][] = [
+    [62, 66, 69],
+    [59, 62, 66],
+    [59, 62, 67],
+    [61, 64, 69],
+  ];
   const roots = [38, 47, 43, 45];
   const pads: NoteEv[] = [];
   const bass: NoteEv[] = [];
@@ -798,26 +993,31 @@ function chaseFinalCue(): CueSpec {
   hats8(drums, 0, 64, 0.42, 0.26);
   const fillBars = new Set([3, 7, 11, 15]);
   for (let b = 0; b < 16; b++) {
-    drums.push({ t: 4 * b, type: "kick", vel: 0.9 }, { t: 4 * b + 2, type: "kick", vel: 0.8 });
+    drums.push({ t: 4 * b, type: 'kick', vel: 0.9 }, { t: 4 * b + 2, type: 'kick', vel: 0.8 });
     // Driving snare on all four beats.
     drums.push(
-      { t: 4 * b, type: "snare", vel: 0.42 },
-      { t: 4 * b + 1, type: "snare", vel: 0.7 },
-      { t: 4 * b + 2, type: "snare", vel: 0.48 },
+      { t: 4 * b, type: 'snare', vel: 0.42 },
+      { t: 4 * b + 1, type: 'snare', vel: 0.7 },
+      { t: 4 * b + 2, type: 'snare', vel: 0.48 },
     );
     if (fillBars.has(b)) {
       drums.push(
-        { t: 4 * b + 2.5, type: "tom", vel: 0.7, freq: 170 },
-        { t: 4 * b + 3, type: "tom", vel: 0.72, freq: 135 },
-        { t: 4 * b + 3.5, type: "tom", vel: 0.75, freq: 105 },
+        { t: 4 * b + 2.5, type: 'tom', vel: 0.7, freq: 170 },
+        { t: 4 * b + 3, type: 'tom', vel: 0.72, freq: 135 },
+        { t: 4 * b + 3.5, type: 'tom', vel: 0.75, freq: 105 },
       );
     } else {
-      drums.push({ t: 4 * b + 3, type: "snare", vel: 0.7 });
+      drums.push({ t: 4 * b + 3, type: 'snare', vel: 0.7 });
     }
   }
 
   return {
-    name: "chase-final", bpm: 158, beatsPerBar: 4, bars: 16, loop: true, seed: 707,
+    name: 'chase-final',
+    bpm: 158,
+    beatsPerBar: 4,
+    bars: 16,
+    loop: true,
+    seed: 707,
     tracks: [
       { inst: { ...LEAD, gain: 0.26 }, notes: lead },
       { inst: ARP_COUNTER, notes: counter },
@@ -856,18 +1056,31 @@ function climaxCue(): CueSpec {
   ];
 
   const drums: DrumEv[] = [];
-  for (let b = 0; b < 8.1; b += 0.5) drums.push({ t: b, type: "hat", vel: 0.3 });
-  for (let b = 8; b < m - 0.01; b += 0.25) drums.push({ t: b, type: "hat", vel: 0.3 + ((b - 8) / 8.67) * 0.3 });
-  for (let b = 0; b <= 16; b += 2) drums.push({ t: b, type: "kick", vel: 0.55 + (b / 16) * 0.35 });
-  for (let b = 12; b < m - 0.01; b += 0.25) drums.push({ t: b, type: "snare", vel: 0.25 + ((b - 12) / 4.67) * 0.5 });
+  for (let b = 0; b < 8.1; b += 0.5) drums.push({ t: b, type: 'hat', vel: 0.3 });
+  for (let b = 8; b < m - 0.01; b += 0.25)
+    drums.push({ t: b, type: 'hat', vel: 0.3 + ((b - 8) / 8.67) * 0.3 });
+  for (let b = 0; b <= 16; b += 2) drums.push({ t: b, type: 'kick', vel: 0.55 + (b / 16) * 0.35 });
+  for (let b = 12; b < m - 0.01; b += 0.25)
+    drums.push({ t: b, type: 'snare', vel: 0.25 + ((b - 12) / 4.67) * 0.5 });
   drums.push(
-    { t: m, type: "kick", vel: 1 }, { t: m, type: "snare", vel: 0.9 }, { t: m, type: "crash", vel: 0.85 },
-    { t: m + 0.5, type: "snare", vel: 0.8 }, { t: m + 1, type: "kick", vel: 0.85 },
-    { t: m + 1.5, type: "snare", vel: 0.8 }, { t: m + 2, type: "kick", vel: 1 }, { t: m + 2, type: "crash", vel: 0.9 },
+    { t: m, type: 'kick', vel: 1 },
+    { t: m, type: 'snare', vel: 0.9 },
+    { t: m, type: 'crash', vel: 0.85 },
+    { t: m + 0.5, type: 'snare', vel: 0.8 },
+    { t: m + 1, type: 'kick', vel: 0.85 },
+    { t: m + 1.5, type: 'snare', vel: 0.8 },
+    { t: m + 2, type: 'kick', vel: 1 },
+    { t: m + 2, type: 'crash', vel: 0.9 },
   );
 
   return {
-    name: "climax", bpm: 100, beatsPerBar: 4, bars: 6.25, durSec: 15, loop: false, seed: 808,
+    name: 'climax',
+    bpm: 100,
+    beatsPerBar: 4,
+    bars: 6.25,
+    durSec: 15,
+    loop: false,
+    seed: 808,
     tracks: [
       { inst: BRASS, notes: [...rise, ...motif(m, 0, 0.95, 5.5)] },
       { inst: LEAD, notes: motif(m, 12, 0.6, 5.5) }, // octave double on the blast
@@ -884,22 +1097,37 @@ function climaxCue(): CueSpec {
 
 function victoryCue(): CueSpec {
   const lead: NoteEv[] = [
-    N(0, "C5", 0.4, 0.8), N(0.5, "E5", 0.4, 0.8), N(1, "G5", 0.4, 0.82), N(1.5, "C6", 0.9, 0.85),
-    N(3, "D5", 0.4, 0.72), N(3.5, "E5", 0.4, 0.75),
+    N(0, 'C5', 0.4, 0.8),
+    N(0.5, 'E5', 0.4, 0.8),
+    N(1, 'G5', 0.4, 0.82),
+    N(1.5, 'C6', 0.9, 0.85),
+    N(3, 'D5', 0.4, 0.72),
+    N(3.5, 'E5', 0.4, 0.75),
     ...motif(4, 12, 0.88, 3),
     // Diatonic thirds below the motif.
-    N(4, "E5", 0.45, 0.55), N(4.5, "E5", 0.45, 0.55), N(5, "F5", 0.45, 0.55),
-    N(5.5, "G5", 0.45, 0.55), N(6, "B5", 3, 0.58),
-    N(10, "C6", 0.45, 0.8), N(10.5, "B5", 0.45, 0.76), N(11, "A5", 0.45, 0.74), N(11.5, "B5", 0.45, 0.76),
-    N(12, "G5", 0.45, 0.74), N(12.5, "A5", 0.45, 0.76), N(13, "B5", 0.45, 0.78),
-    N(14, "C6", 4, 0.95),
+    N(4, 'E5', 0.45, 0.55),
+    N(4.5, 'E5', 0.45, 0.55),
+    N(5, 'F5', 0.45, 0.55),
+    N(5.5, 'G5', 0.45, 0.55),
+    N(6, 'B5', 3, 0.58),
+    N(10, 'C6', 0.45, 0.8),
+    N(10.5, 'B5', 0.45, 0.76),
+    N(11, 'A5', 0.45, 0.74),
+    N(11.5, 'B5', 0.45, 0.76),
+    N(12, 'G5', 0.45, 0.74),
+    N(12.5, 'A5', 0.45, 0.76),
+    N(13, 'B5', 0.45, 0.78),
+    N(14, 'C6', 4, 0.95),
   ];
 
   const bells: NoteEv[] = [...motif(4, 12, 0.5, 1), Nm(14, 84, 1, 0.6)];
 
   const pads: NoteEv[] = [
-    ...chordNm(0, V.C, 4, 0.5), ...chordNm(4, V.C, 4, 0.5),
-    ...chordNm(8, V.G, 2, 0.5), ...chordNm(10, V.F, 2, 0.5), ...chordNm(12, V.G, 2, 0.55),
+    ...chordNm(0, V.C, 4, 0.5),
+    ...chordNm(4, V.C, 4, 0.5),
+    ...chordNm(8, V.G, 2, 0.5),
+    ...chordNm(10, V.F, 2, 0.5),
+    ...chordNm(12, V.G, 2, 0.55),
     ...chordNm(14, [55, 60, 64, 67, 72], 5, 0.8),
   ];
 
@@ -907,30 +1135,46 @@ function victoryCue(): CueSpec {
     ...[36, 43, 40, 43].map((r, q) => Nm(q, r, 0.9, 0.8)),
     ...[36, 40, 43, 45].map((r, q) => Nm(4 + q, r, 0.9, 0.8)),
     ...[43, 47, 41, 45].map((r, q) => Nm(8 + q, r, 0.9, 0.8)),
-    Nm(12, 43, 0.9, 0.8), Nm(13, 47, 0.9, 0.85),
+    Nm(12, 43, 0.9, 0.8),
+    Nm(13, 47, 0.9, 0.85),
     Nm(14, 36, 4, 0.9),
   ];
 
   const drums: DrumEv[] = [];
   hats8(drums, 0, 13.5, 0.4, 0.25);
-  drums.push({ t: 0, type: "kick", vel: 1 }, { t: 0, type: "crash", vel: 0.7 });
+  drums.push({ t: 0, type: 'kick', vel: 1 }, { t: 0, type: 'crash', vel: 0.7 });
   for (let b = 0; b < 3; b++) {
-    if (b > 0) drums.push({ t: 4 * b, type: "kick", vel: 0.9 });
-    drums.push({ t: 4 * b + 2, type: "kick", vel: 0.75 });
-    drums.push({ t: 4 * b + 1, type: "snare", vel: 0.6 }, { t: 4 * b + 3, type: "snare", vel: 0.6 });
+    if (b > 0) drums.push({ t: 4 * b, type: 'kick', vel: 0.9 });
+    drums.push({ t: 4 * b + 2, type: 'kick', vel: 0.75 });
+    drums.push(
+      { t: 4 * b + 1, type: 'snare', vel: 0.6 },
+      { t: 4 * b + 3, type: 'snare', vel: 0.6 },
+    );
   }
-  drums.push({ t: 12, type: "kick", vel: 0.85 });
-  [0.4, 0.5, 0.6, 0.7].forEach((v, i) => drums.push({ t: 13 + 0.25 * i, type: "snare", vel: v }));
-  drums.push({ t: 14, type: "kick", vel: 1 }, { t: 14, type: "snare", vel: 0.85 }, { t: 14, type: "crash", vel: 0.85 });
+  drums.push({ t: 12, type: 'kick', vel: 0.85 });
+  [0.4, 0.5, 0.6, 0.7].forEach((v, i) => drums.push({ t: 13 + 0.25 * i, type: 'snare', vel: v }));
+  drums.push(
+    { t: 14, type: 'kick', vel: 1 },
+    { t: 14, type: 'snare', vel: 0.85 },
+    { t: 14, type: 'crash', vel: 0.85 },
+  );
 
   return {
-    name: "victory", bpm: 120, beatsPerBar: 4, bars: 5, loop: false, seed: 909,
+    name: 'victory',
+    bpm: 120,
+    beatsPerBar: 4,
+    bars: 5,
+    loop: false,
+    seed: 909,
     tracks: [
       { inst: LEAD, notes: lead },
       { inst: BELL, notes: bells },
       { inst: PAD, notes: pads },
       { inst: BASS, notes: bass },
-      { inst: SPARKLE, notes: [Nm(14.25, 88, 0.5, 0.5), Nm(14.5, 91, 0.5, 0.45), Nm(14.75, 96, 0.5, 0.4)] },
+      {
+        inst: SPARKLE,
+        notes: [Nm(14.25, 88, 0.5, 0.5), Nm(14.5, 91, 0.5, 0.45), Nm(14.75, 96, 0.5, 0.4)],
+      },
     ],
     drums,
   };
@@ -942,10 +1186,14 @@ function victoryCue(): CueSpec {
 
 function goldenCue(): CueSpec {
   const chordMap: Record<string, number[]> = {
-    F: [65, 69, 72], Dm: [62, 65, 69], Bb: [62, 65, 70], C: [60, 64, 67], Gm: [62, 67, 70],
+    F: [65, 69, 72],
+    Dm: [62, 65, 69],
+    Bb: [62, 65, 70],
+    C: [60, 64, 67],
+    Gm: [62, 67, 70],
   };
   const rootMap: Record<string, number> = { F: 41, Dm: 38, Bb: 46, C: 48, Gm: 43 };
-  const barNames = ["F", "Dm", "Bb", "C", "F", "Dm", "Gm", "C", "Bb", "F", "Gm", "C"];
+  const barNames = ['F', 'Dm', 'Bb', 'C', 'F', 'Dm', 'Gm', 'C', 'Bb', 'F', 'Gm', 'C'];
 
   const bass: NoteEv[] = [];
   const pah: NoteEv[] = [];
@@ -954,31 +1202,50 @@ function goldenCue(): CueSpec {
   barNames.forEach((nm, b) => {
     const o = 3 * b;
     bass.push(Nm(o, rootMap[nm], 1.2, 0.65));
-    pah.push(...chordNm(o + 1, chordMap[nm], 0.8, 0.32), ...chordNm(o + 2, chordMap[nm], 0.8, 0.32));
+    pah.push(
+      ...chordNm(o + 1, chordMap[nm], 0.8, 0.32),
+      ...chordNm(o + 2, chordMap[nm], 0.8, 0.32),
+    );
     pads.push(...chordNm(o, chordMap[nm], 2.8, 0.2));
     // A soft downbeat thump keeps the waltz pulse (and the crest) alive.
-    drums.push({ t: o, type: "kickSoft", vel: 0.4 });
-    drums.push({ t: o + 1, type: "hat", vel: 0.13 }, { t: o + 2, type: "hat", vel: 0.13 });
+    drums.push({ t: o, type: 'kickSoft', vel: 0.4 });
+    drums.push({ t: o + 1, type: 'hat', vel: 0.13 }, { t: o + 2, type: 'hat', vel: 0.13 });
   });
 
   const lead: NoteEv[] = [
-    N(0, "A4", 2, 0.55), N(2, "C5", 1, 0.5),
-    N(3, "D5", 2, 0.55), N(5, "E5", 1, 0.5),
-    N(6, "F5", 2, 0.55), N(8, "D5", 1, 0.5),
-    N(9, "E5", 2.5, 0.55),
+    N(0, 'A4', 2, 0.55),
+    N(2, 'C5', 1, 0.5),
+    N(3, 'D5', 2, 0.55),
+    N(5, 'E5', 1, 0.5),
+    N(6, 'F5', 2, 0.55),
+    N(8, 'D5', 1, 0.5),
+    N(9, 'E5', 2.5, 0.55),
     // Motif fragment slowed, transposed to F: C C D E then a held G.
-    N(12, "C5", 1, 0.55), N(13, "C5", 1, 0.52), N(14, "D5", 1, 0.54),
-    N(15, "E5", 2.5, 0.56),
-    N(18, "G5", 2, 0.58), N(20, "F5", 1, 0.52),
-    N(21, "E5", 2.5, 0.55),
-    N(24, "F5", 2, 0.55), N(26, "G5", 1, 0.52),
-    N(27, "A5", 2, 0.56), N(29, "F5", 1, 0.5),
-    N(30, "G5", 1, 0.52), N(31, "F5", 1, 0.5), N(32, "D5", 1, 0.5),
-    N(33, "E5", 2, 0.54), N(35, "C5", 1, 0.5),
+    N(12, 'C5', 1, 0.55),
+    N(13, 'C5', 1, 0.52),
+    N(14, 'D5', 1, 0.54),
+    N(15, 'E5', 2.5, 0.56),
+    N(18, 'G5', 2, 0.58),
+    N(20, 'F5', 1, 0.52),
+    N(21, 'E5', 2.5, 0.55),
+    N(24, 'F5', 2, 0.55),
+    N(26, 'G5', 1, 0.52),
+    N(27, 'A5', 2, 0.56),
+    N(29, 'F5', 1, 0.5),
+    N(30, 'G5', 1, 0.52),
+    N(31, 'F5', 1, 0.5),
+    N(32, 'D5', 1, 0.5),
+    N(33, 'E5', 2, 0.54),
+    N(35, 'C5', 1, 0.5),
   ];
 
   return {
-    name: "golden", bpm: 88, beatsPerBar: 3, bars: 12, loop: true, seed: 1010,
+    name: 'golden',
+    bpm: 88,
+    beatsPerBar: 3,
+    bars: 12,
+    loop: true,
+    seed: 1010,
     tracks: [
       { inst: LEAD_SOFT, notes: lead },
       { inst: WALTZ_PAH, notes: pah },
@@ -996,18 +1263,37 @@ function goldenCue(): CueSpec {
 
 function themeRepriseCue(): CueSpec {
   const lead: NoteEv[] = [
-    N(0, "C5", 0.45, 0.75), N(0.5, "E5", 0.45, 0.75), N(1, "G5", 0.9, 0.78),
-    N(2, "E5", 0.45, 0.72), N(2.5, "G5", 0.45, 0.74), N(3, "A5", 0.9, 0.78),
+    N(0, 'C5', 0.45, 0.75),
+    N(0.5, 'E5', 0.45, 0.75),
+    N(1, 'G5', 0.9, 0.78),
+    N(2, 'E5', 0.45, 0.72),
+    N(2.5, 'G5', 0.45, 0.74),
+    N(3, 'A5', 0.9, 0.78),
     ...motif(4, 0, 0.85, 3),
-    N(4, "E4", 0.45, 0.55), N(4.5, "E4", 0.45, 0.55), N(5, "F4", 0.45, 0.55),
-    N(5.5, "G4", 0.45, 0.55), N(6, "B4", 3, 0.58),
-    N(12, "E5", 1, 0.78), N(13, "D5", 0.45, 0.74), N(13.5, "C5", 0.45, 0.74),
-    N(14, "A4", 1, 0.74), N(15, "G4", 1, 0.72),
-    N(16, "A4", 0.45, 0.72), N(16.5, "C5", 0.45, 0.74), N(17, "D5", 1.5, 0.78),
-    N(20, "E5", 0.45, 0.75), N(20.5, "G5", 0.45, 0.76), N(21, "A5", 1, 0.8),
-    N(22, "G5", 0.45, 0.76), N(22.5, "E5", 0.45, 0.74), N(23, "D5", 1, 0.75),
-    N(24, "C5", 0.45, 0.74), N(24.5, "D5", 0.45, 0.74), N(25, "E5", 1.4, 0.78),
-    N(27.5, "D5", 0.4, 0.85), N(28, "E5", 2.8, 0.95),
+    N(4, 'E4', 0.45, 0.55),
+    N(4.5, 'E4', 0.45, 0.55),
+    N(5, 'F4', 0.45, 0.55),
+    N(5.5, 'G4', 0.45, 0.55),
+    N(6, 'B4', 3, 0.58),
+    N(12, 'E5', 1, 0.78),
+    N(13, 'D5', 0.45, 0.74),
+    N(13.5, 'C5', 0.45, 0.74),
+    N(14, 'A4', 1, 0.74),
+    N(15, 'G4', 1, 0.72),
+    N(16, 'A4', 0.45, 0.72),
+    N(16.5, 'C5', 0.45, 0.74),
+    N(17, 'D5', 1.5, 0.78),
+    N(20, 'E5', 0.45, 0.75),
+    N(20.5, 'G5', 0.45, 0.76),
+    N(21, 'A5', 1, 0.8),
+    N(22, 'G5', 0.45, 0.76),
+    N(22.5, 'E5', 0.45, 0.74),
+    N(23, 'D5', 1, 0.75),
+    N(24, 'C5', 0.45, 0.74),
+    N(24.5, 'D5', 0.45, 0.74),
+    N(25, 'E5', 1.4, 0.78),
+    N(27.5, 'D5', 0.4, 0.85),
+    N(28, 'E5', 2.8, 0.95),
   ];
 
   const padBars = [V.C, V.C, V.G, V.F, V.C, V.F, V.G];
@@ -1015,34 +1301,57 @@ function themeRepriseCue(): CueSpec {
   pads.push(...chordNm(28, V.C, 2.6, 0.55));
 
   const bassBars: number[][] = [
-    [36, 40, 43, 45], [36, 43, 40, 43], [43, 47, 50, 47], [41, 45, 48, 45], [36, 40, 43, 45], [41, 45, 48, 50],
+    [36, 40, 43, 45],
+    [36, 43, 40, 43],
+    [43, 47, 50, 47],
+    [41, 45, 48, 45],
+    [36, 40, 43, 45],
+    [41, 45, 48, 50],
   ];
-  const bass: NoteEv[] = bassBars.flatMap((walk, b) => walk.map((m, q) => Nm(4 * b + q, m, 0.9, 0.8)));
+  const bass: NoteEv[] = bassBars.flatMap((walk, b) =>
+    walk.map((m, q) => Nm(4 * b + q, m, 0.9, 0.8)),
+  );
   bass.push(Nm(24, 43, 0.9, 0.8), Nm(25, 45, 0.9, 0.8), Nm(26, 47, 0.9, 0.8));
   bass.push(Nm(27.5, 43, 0.4, 0.85), Nm(28, 36, 3, 0.95));
 
   const drums: DrumEv[] = [];
   hats8(drums, 0, 28, 0.42, 0.26);
   for (let b = 0; b < 6; b++) {
-    drums.push({ t: 4 * b, type: "kick", vel: 0.88 }, { t: 4 * b + 2, type: "kick", vel: 0.75 });
-    drums.push({ t: 4 * b + 1, type: "snare", vel: 0.62 }, { t: 4 * b + 3, type: "snare", vel: 0.62 });
+    drums.push({ t: 4 * b, type: 'kick', vel: 0.88 }, { t: 4 * b + 2, type: 'kick', vel: 0.75 });
+    drums.push(
+      { t: 4 * b + 1, type: 'snare', vel: 0.62 },
+      { t: 4 * b + 3, type: 'snare', vel: 0.62 },
+    );
   }
   drums.push(
-    { t: 24, type: "kick", vel: 0.88 }, { t: 25, type: "snare", vel: 0.62 },
-    { t: 26.5, type: "tom", vel: 0.6, freq: 170 }, { t: 27, type: "tom", vel: 0.66, freq: 135 },
-    { t: 27.5, type: "kick", vel: 0.7 },
-    { t: 4, type: "crash", vel: 0.45 },
-    { t: 28, type: "kick", vel: 1 }, { t: 28, type: "snare", vel: 0.8 }, { t: 28, type: "crash", vel: 0.8 },
+    { t: 24, type: 'kick', vel: 0.88 },
+    { t: 25, type: 'snare', vel: 0.62 },
+    { t: 26.5, type: 'tom', vel: 0.6, freq: 170 },
+    { t: 27, type: 'tom', vel: 0.66, freq: 135 },
+    { t: 27.5, type: 'kick', vel: 0.7 },
+    { t: 4, type: 'crash', vel: 0.45 },
+    { t: 28, type: 'kick', vel: 1 },
+    { t: 28, type: 'snare', vel: 0.8 },
+    { t: 28, type: 'crash', vel: 0.8 },
   );
 
   return {
-    name: "theme-reprise", bpm: 132, beatsPerBar: 4, bars: 8, durSec: 15, loop: false, seed: 1111,
+    name: 'theme-reprise',
+    bpm: 132,
+    beatsPerBar: 4,
+    bars: 8,
+    durSec: 15,
+    loop: false,
+    seed: 1111,
     tracks: [
       { inst: LEAD, notes: lead },
       { inst: PAD, notes: pads },
       { inst: BASS, notes: bass },
       { inst: STAB, notes: chordNm(28, [60, 64, 67, 72], 2.2, 0.9) },
-      { inst: SPARKLE, notes: [Nm(28.5, 88, 0.5, 0.4), Nm(28.75, 91, 0.5, 0.35), Nm(29, 96, 0.5, 0.3)] },
+      {
+        inst: SPARKLE,
+        notes: [Nm(28.5, 88, 0.5, 0.4), Nm(28.75, 91, 0.5, 0.35), Nm(29, 96, 0.5, 0.3)],
+      },
     ],
     drums,
   };
@@ -1054,20 +1363,29 @@ function themeRepriseCue(): CueSpec {
 
 function buttonCue(): CueSpec {
   return {
-    name: "button", bpm: 120, beatsPerBar: 4, bars: 1.25, durSec: 2.5, loop: false, seed: 1212,
+    name: 'button',
+    bpm: 120,
+    beatsPerBar: 4,
+    bars: 1.25,
+    durSec: 2.5,
+    loop: false,
+    seed: 1212,
     tracks: [
       { inst: BASS, notes: [Nm(0, 36, 1.2, 0.95)] },
       { inst: STAB, notes: chordNm(0, [60, 64, 67, 72], 1, 0.95) },
       {
         inst: SPARKLE,
         notes: [
-          Nm(0.5, 84, 0.5, 0.55), Nm(0.75, 88, 0.5, 0.5), Nm(1, 91, 0.5, 0.45), Nm(1.25, 96, 0.5, 0.42),
+          Nm(0.5, 84, 0.5, 0.55),
+          Nm(0.75, 88, 0.5, 0.5),
+          Nm(1, 91, 0.5, 0.45),
+          Nm(1.25, 96, 0.5, 0.42),
         ],
       },
     ],
     drums: [
-      { t: 0, type: "kick", vel: 1 },
-      { t: 0, type: "snare", vel: 0.6 },
+      { t: 0, type: 'kick', vel: 1 },
+      { t: 0, type: 'snare', vel: 0.6 },
     ],
   };
 }
@@ -1081,26 +1399,43 @@ function renderCue(spec: CueSpec): Float64Array {
   const gridSec = spec.bars * spec.beatsPerBar * spb;
   const durSec = spec.durSec ?? gridSec;
   if (spec.loop) {
-    if (!Number.isInteger(spec.bars)) throw new Error(`${spec.name}: loop cue must span integer bars`);
-    if (spec.durSec !== undefined) throw new Error(`${spec.name}: loop cue duration must come from the bar grid`);
+    if (!Number.isInteger(spec.bars))
+      throw new Error(`${spec.name}: loop cue must span integer bars`);
+    if (spec.durSec !== undefined)
+      throw new Error(`${spec.name}: loop cue duration must come from the bar grid`);
   }
   const n = Math.round(durSec * SR);
   const buf = new Float64Array(n);
   const rng = mulberry32(spec.seed);
 
   for (const tr of spec.tracks) {
-    for (const ev of tr.notes) renderNote(buf, spec.loop, ev.t * spb, ev.midi, ev.dur * spb, ev.vel, tr.inst);
+    for (const ev of tr.notes)
+      renderNote(buf, spec.loop, ev.t * spb, ev.midi, ev.dur * spb, ev.vel, tr.inst);
   }
   for (const d of spec.drums) {
     const t = d.t * spb;
     switch (d.type) {
-      case "kick": drumKick(buf, spec.loop, t, d.vel, rng, false); break;
-      case "kickSoft": drumKick(buf, spec.loop, t, d.vel, rng, true); break;
-      case "snare": drumSnare(buf, spec.loop, t, d.vel, rng); break;
-      case "hat": drumHat(buf, spec.loop, t, d.vel, rng, false); break;
-      case "openhat": drumHat(buf, spec.loop, t, d.vel, rng, true); break;
-      case "tom": drumTom(buf, spec.loop, t, d.vel, d.freq ?? 130, rng); break;
-      case "crash": drumCrash(buf, spec.loop, t, d.vel, rng); break;
+      case 'kick':
+        drumKick(buf, spec.loop, t, d.vel, rng, false);
+        break;
+      case 'kickSoft':
+        drumKick(buf, spec.loop, t, d.vel, rng, true);
+        break;
+      case 'snare':
+        drumSnare(buf, spec.loop, t, d.vel, rng);
+        break;
+      case 'hat':
+        drumHat(buf, spec.loop, t, d.vel, rng, false);
+        break;
+      case 'openhat':
+        drumHat(buf, spec.loop, t, d.vel, rng, true);
+        break;
+      case 'tom':
+        drumTom(buf, spec.loop, t, d.vel, d.freq ?? 130, rng);
+        break;
+      case 'crash':
+        drumCrash(buf, spec.loop, t, d.vel, rng);
+        break;
     }
   }
 
@@ -1132,10 +1467,10 @@ function renderCue(spec: CueSpec): Float64Array {
 function writeWav(path: string, samples: Float64Array): void {
   const n = samples.length;
   const b = Buffer.alloc(44 + n * 2);
-  b.write("RIFF", 0, "ascii");
+  b.write('RIFF', 0, 'ascii');
   b.writeUInt32LE(36 + n * 2, 4);
-  b.write("WAVE", 8, "ascii");
-  b.write("fmt ", 12, "ascii");
+  b.write('WAVE', 8, 'ascii');
+  b.write('fmt ', 12, 'ascii');
   b.writeUInt32LE(16, 16);
   b.writeUInt16LE(1, 20); // PCM
   b.writeUInt16LE(1, 22); // mono
@@ -1143,7 +1478,7 @@ function writeWav(path: string, samples: Float64Array): void {
   b.writeUInt32LE(SR * 2, 28);
   b.writeUInt16LE(2, 32);
   b.writeUInt16LE(16, 34);
-  b.write("data", 36, "ascii");
+  b.write('data', 36, 'ascii');
   b.writeUInt32LE(n * 2, 40);
   for (let i = 0; i < n; i++) {
     const v = Math.max(-32767, Math.min(32767, Math.round(samples[i] * 32767)));
@@ -1161,16 +1496,19 @@ interface WavStats {
 
 function verifyWav(path: string): WavStats {
   const b = readFileSync(path);
-  if (b.toString("ascii", 0, 4) !== "RIFF" || b.toString("ascii", 8, 12) !== "WAVE") {
+  if (b.toString('ascii', 0, 4) !== 'RIFF' || b.toString('ascii', 8, 12) !== 'WAVE') {
     throw new Error(`${path}: bad RIFF header`);
   }
-  if (b.toString("ascii", 12, 16) !== "fmt " || b.toString("ascii", 36, 40) !== "data") {
+  if (b.toString('ascii', 12, 16) !== 'fmt ' || b.toString('ascii', 36, 40) !== 'data') {
     throw new Error(`${path}: unexpected chunk layout`);
   }
-  if (b.readUInt16LE(20) !== 1 || b.readUInt16LE(22) !== 1) throw new Error(`${path}: not mono PCM`);
-  if (b.readUInt32LE(24) !== SR || b.readUInt16LE(34) !== 16) throw new Error(`${path}: wrong rate/depth`);
+  if (b.readUInt16LE(20) !== 1 || b.readUInt16LE(22) !== 1)
+    throw new Error(`${path}: not mono PCM`);
+  if (b.readUInt32LE(24) !== SR || b.readUInt16LE(34) !== 16)
+    throw new Error(`${path}: wrong rate/depth`);
   const dataLen = b.readUInt32LE(40);
-  if (b.readUInt32LE(4) !== 36 + dataLen || b.length !== 44 + dataLen) throw new Error(`${path}: bad sizes`);
+  if (b.readUInt32LE(4) !== 36 + dataLen || b.length !== 44 + dataLen)
+    throw new Error(`${path}: bad sizes`);
   const count = dataLen / 2;
   let peak = 0;
   let sum = 0;
@@ -1188,7 +1526,7 @@ function verifyWav(path: string): WavStats {
 // ---------------------------------------------------------------------------
 
 const here = dirname(fileURLToPath(import.meta.url));
-const outDir = join(here, "..", "audio", "music");
+const outDir = join(here, '..', 'audio', 'music');
 mkdirSync(outDir, { recursive: true });
 
 const cues: CueSpec[] = [
@@ -1206,7 +1544,7 @@ const cues: CueSpec[] = [
   buttonCue(),
 ];
 
-const dB = (x: number): string => (x > 0 ? (20 * Math.log10(x)).toFixed(1) : "-inf");
+const dB = (x: number): string => (x > 0 ? (20 * Math.log10(x)).toFixed(1) : '-inf');
 
 let totalSec = 0;
 let totalBytes = 0;
@@ -1221,7 +1559,7 @@ for (const spec of cues) {
   if (Math.round(st.seconds * SR) !== expected) throw new Error(`${spec.name}: duration mismatch`);
   totalSec += st.seconds;
   totalBytes += st.bytes;
-  const shape = spec.loop ? `LOOP ${spec.bars} bars` : "one-shot";
+  const shape = spec.loop ? `LOOP ${spec.bars} bars` : 'one-shot';
   rows.push(
     `${spec.name.padEnd(14)} ${spec.bpm.toString().padStart(3)}bpm  ${st.seconds.toFixed(3).padStart(7)}s  ` +
       `${shape.padEnd(13)}  peak ${dB(st.peak).padStart(5)} dBFS  rms ${dB(st.rms).padStart(6)} dBFS  ` +
@@ -1230,5 +1568,7 @@ for (const spec of cues) {
 }
 
 console.log(`GUNNER! underscore render -> ${outDir}`);
-for (const r of rows) console.log("  " + r);
-console.log(`total: ${totalSec.toFixed(1)} s of audio, ${(totalBytes / 1024 / 1024).toFixed(2)} MiB`);
+for (const r of rows) console.log('  ' + r);
+console.log(
+  `total: ${totalSec.toFixed(1)} s of audio, ${(totalBytes / 1024 / 1024).toFixed(2)} MiB`,
+);

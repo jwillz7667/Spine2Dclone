@@ -26,7 +26,10 @@ const root = join(here, '..');
 const deps: ToolDeps = { sessions: new SessionRegistry(), files: createNodeFileStore(root) };
 const byName = new Map(TOOLS.map((t) => [t.name, t]));
 
-async function call(name: string, input: Record<string, unknown>): Promise<Record<string, unknown>> {
+async function call(
+  name: string,
+  input: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
   const tool = byName.get(name);
   if (tool === undefined) throw new Error(`no such tool: ${name}`);
   try {
@@ -44,20 +47,26 @@ const EASE_IN_OUT: Bezier = { type: 'bezier', cx1: 0.65, cy1: 0, cx2: 0.35, cy2:
 type Curve = 'linear' | 'stepped' | Bezier;
 
 // ---- atlas ---------------------------------------------------------------------------------------
-const atlasRef = JSON.parse(readFileSync(join(root, 'atlas', 'beans', 'atlas-ref.json'), 'utf8')) as {
+const atlasRef = JSON.parse(
+  readFileSync(join(root, 'atlas', 'beans', 'atlas-ref.json'), 'utf8'),
+) as {
   pages: Array<{ regions: Array<{ name: string; w: number; h: number }> }>;
 };
 const regionSize = new Map<string, { w: number; h: number }>();
-for (const page of atlasRef.pages) for (const r of page.regions) regionSize.set(r.name, { w: r.w, h: r.h });
+for (const page of atlasRef.pages)
+  for (const r of page.regions) regionSize.set(r.name, { w: r.w, h: r.h });
 function sized(region: string, targetH: number): { width: number; height: number } {
   const s = regionSize.get(region);
-  if (s === undefined) throw new Error(`unknown region ${region}; have: ${[...regionSize.keys()].join(', ')}`);
+  if (s === undefined)
+    throw new Error(`unknown region ${region}; have: ${[...regionSize.keys()].join(', ')}`);
   return { width: (s.w / s.h) * targetH, height: targetH };
 }
 
 const { documentId } = (await call('document.new', { name: 'beans' })) as { documentId: string };
 // atlas-ref page files are relative to atlas/beans/; the FileStore root is demo/gunner, so prefix.
-const atlasForSet = JSON.parse(readFileSync(join(root, 'atlas', 'beans', 'atlas-ref.json'), 'utf8')) as {
+const atlasForSet = JSON.parse(
+  readFileSync(join(root, 'atlas', 'beans', 'atlas-ref.json'), 'utf8'),
+) as {
   pages: Array<{ file: string }>;
 };
 for (const page of atlasForSet.pages) {
@@ -71,7 +80,13 @@ await call('atlas.set', { documentId, atlas: atlasForSet });
 // giant ears ride the head piece itself, no ear bones), and the legs are TORSO children so the
 // hip and shoulder sockets can never separate from the tiny body. Joint contract per the corrected
 // Gunner architecture: counter-rotation keys keep the paws planted wherever the torso leans hard.
-const bone = async (name: string, parentId: string | null, x: number, y: number, length = 40): Promise<string> => {
+const bone = async (
+  name: string,
+  parentId: string | null,
+  x: number,
+  y: number,
+  length = 40,
+): Promise<string> => {
   const res = (await call('bone.create', {
     documentId,
     name,
@@ -149,12 +164,40 @@ async function regionSlot(spec: SlotSpec): Promise<string> {
 // front targetH 56/54; ref thigh top at world -46 -> back targetH 46; far leg 41.6 at piece-09's
 // native scale). Offsets keep each pivot on the piece's drawn joint and the paw bottom exactly at
 // ground: offsetY = |boneWorldY| - targetH/2.
-await regionSlot({ slot: 'leg-front-far', boneId: legFrontFar, region: 'leg-front-far', x: 1, y: 11, targetH: 54 });
-await regionSlot({ slot: 'leg-back-far', boneId: legBackFar, region: 'leg-back-far', x: -1, y: 17.2, targetH: 41.6 });
+await regionSlot({
+  slot: 'leg-front-far',
+  boneId: legFrontFar,
+  region: 'leg-front-far',
+  x: 1,
+  y: 11,
+  targetH: 54,
+});
+await regionSlot({
+  slot: 'leg-back-far',
+  boneId: legBackFar,
+  region: 'leg-back-far',
+  x: -1,
+  y: 17.2,
+  targetH: 41.6,
+});
 await regionSlot({ slot: 'tail', boneId: tail, region: 'tail', x: 6, y: -17, targetH: 40 });
 await regionSlot({ slot: 'torso', boneId: torso, region: 'torso', x: 2, y: 1, targetH: 56 });
-await regionSlot({ slot: 'leg-front-near', boneId: legFrontNear, region: 'leg-front-near', x: 1.2, y: 14.5, targetH: 56 });
-await regionSlot({ slot: 'leg-back-near', boneId: legBackNear, region: 'leg-back-near', x: 1.8, y: 18, targetH: 46 });
+await regionSlot({
+  slot: 'leg-front-near',
+  boneId: legFrontNear,
+  region: 'leg-front-near',
+  x: 1.2,
+  y: 14.5,
+  targetH: 56,
+});
+await regionSlot({
+  slot: 'leg-back-near',
+  boneId: legBackNear,
+  region: 'leg-back-near',
+  x: 1.8,
+  y: 18,
+  targetH: 46,
+});
 // The head pieces carry the giant ears and the mouth state baked in; every variant is
 // nose/cheek-registered by gen-beans-heads.mts against the original head's anchors (nose pinned
 // at head-local (-19,-17.5)), so the skull and ears do not move a pixel when the attachment
@@ -165,7 +208,13 @@ await regionSlot({ slot: 'head', boneId: head, region: 'head', x: -15, y: -42.9,
 await regionSlot({ slot: 'eyes', boneId: head, region: 'eyes-open', x: -8, y: -19, targetH: 28 });
 
 // extra attachment variants on the eye / mouth slots (player and animations swap them)
-async function addVariant(slot: string, region: string, targetH: number, x: number, y: number): Promise<void> {
+async function addVariant(
+  slot: string,
+  region: string,
+  targetH: number,
+  x: number,
+  y: number,
+): Promise<void> {
   await call('attach.region.add', {
     documentId,
     slotId: slotIds.get(slot),
@@ -186,14 +235,27 @@ await addVariant('head', 'head-bark', 137.3, -14.9, -34);
 await addVariant('head', 'head-worried', 119.4, -15, -42.9);
 
 // restore the default active attachments after variant adds
-await call('slot.activeAttachment', { documentId, slotId: slotIds.get('eyes'), attachment: 'eyes-open' });
-await call('slot.activeAttachment', { documentId, slotId: slotIds.get('head'), attachment: 'head' });
+await call('slot.activeAttachment', {
+  documentId,
+  slotId: slotIds.get('eyes'),
+  attachment: 'eyes-open',
+});
+await call('slot.activeAttachment', {
+  documentId,
+  slotId: slotIds.get('head'),
+  attachment: 'head',
+});
 
 // ---- animation helpers -----------------------------------------------------------------------------
 const boneIdByName: Record<string, string> = {
-  root: rootBone, torso, head, tail,
-  'leg-front-near': legFrontNear, 'leg-front-far': legFrontFar,
-  'leg-back-near': legBackNear, 'leg-back-far': legBackFar,
+  root: rootBone,
+  torso,
+  head,
+  tail,
+  'leg-front-near': legFrontNear,
+  'leg-front-far': legFrontFar,
+  'leg-back-near': legBackNear,
+  'leg-back-far': legBackFar,
 };
 
 type RotKey = readonly [time: number, angle: number, curve?: Curve];
@@ -204,7 +266,10 @@ interface AnimSpec {
   readonly rotate?: Record<string, readonly RotKey[]>;
   readonly translate?: Record<string, readonly VecKey[]>;
   readonly scale?: Record<string, readonly VecKey[]>;
-  readonly attachments?: Record<string, ReadonlyArray<readonly [time: number, name: string | null]>>;
+  readonly attachments?: Record<
+    string,
+    ReadonlyArray<readonly [time: number, name: string | null]>
+  >;
 }
 
 async function author(spec: AnimSpec): Promise<string> {
@@ -216,31 +281,50 @@ async function author(spec: AnimSpec): Promise<string> {
   for (const [boneName, keys] of Object.entries(spec.rotate ?? {})) {
     for (const [time, angle, curve] of keys) {
       await call('kf.set', {
-        documentId, animationId, channel: 'rotate', boneId: boneIdByName[boneName], time,
-        value: { angle }, ...(curve !== undefined ? { curve } : {}),
+        documentId,
+        animationId,
+        channel: 'rotate',
+        boneId: boneIdByName[boneName],
+        time,
+        value: { angle },
+        ...(curve !== undefined ? { curve } : {}),
       });
     }
   }
   for (const [boneName, keys] of Object.entries(spec.translate ?? {})) {
     for (const [time, x, y, curve] of keys) {
       await call('kf.set', {
-        documentId, animationId, channel: 'translate', boneId: boneIdByName[boneName], time,
-        value: { x, y }, ...(curve !== undefined ? { curve } : {}),
+        documentId,
+        animationId,
+        channel: 'translate',
+        boneId: boneIdByName[boneName],
+        time,
+        value: { x, y },
+        ...(curve !== undefined ? { curve } : {}),
       });
     }
   }
   for (const [boneName, keys] of Object.entries(spec.scale ?? {})) {
     for (const [time, x, y, curve] of keys) {
       await call('kf.set', {
-        documentId, animationId, channel: 'scale', boneId: boneIdByName[boneName], time,
-        value: { x, y }, ...(curve !== undefined ? { curve } : {}),
+        documentId,
+        animationId,
+        channel: 'scale',
+        boneId: boneIdByName[boneName],
+        time,
+        value: { x, y },
+        ...(curve !== undefined ? { curve } : {}),
       });
     }
   }
   for (const [slotName, keys] of Object.entries(spec.attachments ?? {})) {
     for (const [time, name] of keys) {
       await call('kf.attachment.set', {
-        documentId, animationId, slotId: slotIds.get(slotName), time, name,
+        documentId,
+        animationId,
+        slotId: slotIds.get(slotName),
+        time,
+        name,
       });
     }
   }
@@ -267,29 +351,60 @@ function jitter(t0: number, t1: number, step: number, amp: number, startSign = 1
 // idle: a permanent tiny nervous shiver. Head +-1.5 at 8 Hz feel (keys every 0.1s, the baked
 // ears tremble with it), body breathing y +-3. Translate keys are DELTAS from setup; paws planted.
 await author({
-  name: 'idle', duration: 1.6,
+  name: 'idle',
+  duration: 1.6,
   rotate: {
     head: jitter(0, 1.6, 0.1, 1.5, 1),
   },
   translate: {
-    torso: [[0, 0, 0, EASE_IN_OUT], [0.8, 0, -3, EASE_IN_OUT], [1.6, 0, 0]],
+    torso: [
+      [0, 0, 0, EASE_IN_OUT],
+      [0.8, 0, -3, EASE_IN_OUT],
+      [1.6, 0, 0],
+    ],
   },
 });
 
 // walk: quick scamper. Legs +-20, body bounce 5 px twice per stride, a small head nod flops the
 // baked ears. The torso never rotates here (bounce is pure translate), so no counter keys.
 await author({
-  name: 'walk', duration: 0.5,
+  name: 'walk',
+  duration: 0.5,
   rotate: {
-    'leg-front-near': [[0, 20, EASE_IN_OUT], [0.25, -20, EASE_IN_OUT], [0.5, 20]],
-    'leg-front-far': [[0, -20, EASE_IN_OUT], [0.25, 20, EASE_IN_OUT], [0.5, -20]],
-    'leg-back-near': [[0, -18, EASE_IN_OUT], [0.25, 18, EASE_IN_OUT], [0.5, -18]],
-    'leg-back-far': [[0, 18, EASE_IN_OUT], [0.25, -18, EASE_IN_OUT], [0.5, 18]],
-    head: [[0, 2, EASE_IN_OUT], [0.25, -2, EASE_IN_OUT], [0.5, 2]],
+    'leg-front-near': [
+      [0, 20, EASE_IN_OUT],
+      [0.25, -20, EASE_IN_OUT],
+      [0.5, 20],
+    ],
+    'leg-front-far': [
+      [0, -20, EASE_IN_OUT],
+      [0.25, 20, EASE_IN_OUT],
+      [0.5, -20],
+    ],
+    'leg-back-near': [
+      [0, -18, EASE_IN_OUT],
+      [0.25, 18, EASE_IN_OUT],
+      [0.5, -18],
+    ],
+    'leg-back-far': [
+      [0, 18, EASE_IN_OUT],
+      [0.25, -18, EASE_IN_OUT],
+      [0.5, 18],
+    ],
+    head: [
+      [0, 2, EASE_IN_OUT],
+      [0.25, -2, EASE_IN_OUT],
+      [0.5, 2],
+    ],
   },
   translate: {
-    torso: [[0, 0, 0, EASE_OUT], [0.125, 0, -5, EASE_IN], [0.25, 0, 0, EASE_OUT],
-            [0.375, 0, -5, EASE_IN], [0.5, 0, 0]],
+    torso: [
+      [0, 0, 0, EASE_OUT],
+      [0.125, 0, -5, EASE_IN],
+      [0.25, 0, 0, EASE_OUT],
+      [0.375, 0, -5, EASE_IN],
+      [0.5, 0, 0],
+    ],
   },
 });
 
@@ -298,28 +413,68 @@ await author({
 // that time) at the torso's key times with matching curves, keeping the swing arcs plumb under
 // the lean. The head bobs against the lean and the baked ears stream with it.
 await author({
-  name: 'run', duration: 0.4,
+  name: 'run',
+  duration: 0.4,
   rotate: {
-    'leg-front-near': [[0, 34, EASE_IN_OUT], [0.2, -16, EASE_IN_OUT], [0.4, 34]],
-    'leg-front-far': [[0, -15, EASE_IN_OUT], [0.2, 33, EASE_IN_OUT], [0.4, -15]],
-    'leg-back-near': [[0, -16, EASE_IN_OUT], [0.2, 34, EASE_IN_OUT], [0.4, -16]],
-    'leg-back-far': [[0, 29, EASE_IN_OUT], [0.2, -11, EASE_IN_OUT], [0.4, 29]],
-    torso: [[0, -8, EASE_IN_OUT], [0.2, -10, EASE_IN_OUT], [0.4, -8]],
-    head: [[0, 4, EASE_IN_OUT], [0.2, 7, EASE_IN_OUT], [0.4, 4]],
+    'leg-front-near': [
+      [0, 34, EASE_IN_OUT],
+      [0.2, -16, EASE_IN_OUT],
+      [0.4, 34],
+    ],
+    'leg-front-far': [
+      [0, -15, EASE_IN_OUT],
+      [0.2, 33, EASE_IN_OUT],
+      [0.4, -15],
+    ],
+    'leg-back-near': [
+      [0, -16, EASE_IN_OUT],
+      [0.2, 34, EASE_IN_OUT],
+      [0.4, -16],
+    ],
+    'leg-back-far': [
+      [0, 29, EASE_IN_OUT],
+      [0.2, -11, EASE_IN_OUT],
+      [0.4, 29],
+    ],
+    torso: [
+      [0, -8, EASE_IN_OUT],
+      [0.2, -10, EASE_IN_OUT],
+      [0.4, -8],
+    ],
+    head: [
+      [0, 4, EASE_IN_OUT],
+      [0.2, 7, EASE_IN_OUT],
+      [0.4, 4],
+    ],
   },
   translate: {
-    torso: [[0, 0, 2, EASE_OUT], [0.2, 0, -9, EASE_IN], [0.4, 0, 2]],
+    torso: [
+      [0, 0, 2, EASE_OUT],
+      [0.2, 0, -9, EASE_IN],
+      [0.4, 0, 2],
+    ],
   },
 });
 
 // talk: bouncy nervous head bobs +-3 (the baked ears bob along).
 await author({
-  name: 'talk', duration: 1.0,
+  name: 'talk',
+  duration: 1.0,
   rotate: {
-    head: [[0, 0, EASE_IN_OUT], [0.2, 3, EASE_IN_OUT], [0.45, -3, EASE_IN_OUT], [0.7, 2, EASE_IN_OUT], [1.0, 0]],
+    head: [
+      [0, 0, EASE_IN_OUT],
+      [0.2, 3, EASE_IN_OUT],
+      [0.45, -3, EASE_IN_OUT],
+      [0.7, 2, EASE_IN_OUT],
+      [1.0, 0],
+    ],
   },
   translate: {
-    torso: [[0, 0, 0, EASE_IN_OUT], [0.5, 0, -2, EASE_IN_OUT], [1.0, 0, 0]],
+    torso: [
+      [0, 0, 0, EASE_IN_OUT],
+      [0.5, 0, -2, EASE_IN_OUT],
+      [1.0, 0, 0],
+    ],
   },
 });
 
@@ -337,7 +492,8 @@ const shiverTorso: VecKey[] = [];
   }
 }
 await author({
-  name: 'freeze-shiver', duration: 0.8,
+  name: 'freeze-shiver',
+  duration: 0.8,
   rotate: {
     head: jitter(0, 0.8, 0.08, 3, -1),
     'leg-front-near': [[0, 10]],
@@ -361,34 +517,110 @@ await author({
 // hold the splay through the tremble (countering each 1 deg torso tick), settle to front 6/5,
 // back -6/-5, then zero.
 await author({
-  name: 'mega-bark', duration: 1.6,
+  name: 'mega-bark',
+  duration: 1.6,
   scale: {
-    torso: [[0, 1, 1, EASE_IN_OUT], [0.6, 1.16, 1.16, EASE_OUT], [0.66, 1.03, 1.03, EASE_OUT],
-            [0.78, 1.06, 1.06, 'linear'], [1.1, 1.05, 1.05, EASE_IN_OUT], [1.6, 1, 1]],
-    head: [[0, 1, 1, EASE_IN_OUT], [0.6, 1.08, 1.08, EASE_OUT], [0.66, 1.0, 1.0, 'linear'], [1.6, 1, 1]],
+    torso: [
+      [0, 1, 1, EASE_IN_OUT],
+      [0.6, 1.16, 1.16, EASE_OUT],
+      [0.66, 1.03, 1.03, EASE_OUT],
+      [0.78, 1.06, 1.06, 'linear'],
+      [1.1, 1.05, 1.05, EASE_IN_OUT],
+      [1.6, 1, 1],
+    ],
+    head: [
+      [0, 1, 1, EASE_IN_OUT],
+      [0.6, 1.08, 1.08, EASE_OUT],
+      [0.66, 1.0, 1.0, 'linear'],
+      [1.6, 1, 1],
+    ],
   },
   rotate: {
-    torso: [[0, 0, EASE_IN_OUT], [0.6, 10, EASE_OUT], [0.66, -3, EASE_OUT], [0.8, -4, 'linear'],
-            [0.9, -3, 'linear'], [1.0, -4, 'linear'], [1.1, -3, EASE_IN_OUT], [1.6, 0]],
-    head: [[0, 0, EASE_IN_OUT], [0.6, 14, EASE_OUT], [0.66, -15, EASE_OUT], [0.8, -13, 'linear'],
-           [0.9, -15, 'linear'], [1.0, -13, 'linear'], [1.1, -14, EASE_IN_OUT], [1.6, 0]],
-    'leg-front-near': [[0, 0, EASE_IN_OUT], [0.6, -13, EASE_OUT], [0.66, 11, EASE_OUT], [0.8, 12, 'linear'],
-                       [0.9, 11, 'linear'], [1.0, 12, 'linear'], [1.1, 9, EASE_IN_OUT], [1.6, 0]],
-    'leg-front-far': [[0, 0, EASE_IN_OUT], [0.6, -12, EASE_OUT], [0.66, 9, EASE_OUT], [0.8, 10, 'linear'],
-                      [0.9, 9, 'linear'], [1.0, 10, 'linear'], [1.1, 8, EASE_IN_OUT], [1.6, 0]],
-    'leg-back-near': [[0, 0, EASE_IN_OUT], [0.6, -10, EASE_OUT], [0.66, -5, EASE_OUT], [0.8, -4, 'linear'],
-                      [0.9, -5, 'linear'], [1.0, -4, 'linear'], [1.1, -3, EASE_IN_OUT], [1.6, 0]],
-    'leg-back-far': [[0, 0, EASE_IN_OUT], [0.6, -10, EASE_OUT], [0.66, -3, EASE_OUT], [0.8, -2, 'linear'],
-                     [0.9, -3, 'linear'], [1.0, -2, 'linear'], [1.1, -2, EASE_IN_OUT], [1.6, 0]],
+    torso: [
+      [0, 0, EASE_IN_OUT],
+      [0.6, 10, EASE_OUT],
+      [0.66, -3, EASE_OUT],
+      [0.8, -4, 'linear'],
+      [0.9, -3, 'linear'],
+      [1.0, -4, 'linear'],
+      [1.1, -3, EASE_IN_OUT],
+      [1.6, 0],
+    ],
+    head: [
+      [0, 0, EASE_IN_OUT],
+      [0.6, 14, EASE_OUT],
+      [0.66, -15, EASE_OUT],
+      [0.8, -13, 'linear'],
+      [0.9, -15, 'linear'],
+      [1.0, -13, 'linear'],
+      [1.1, -14, EASE_IN_OUT],
+      [1.6, 0],
+    ],
+    'leg-front-near': [
+      [0, 0, EASE_IN_OUT],
+      [0.6, -13, EASE_OUT],
+      [0.66, 11, EASE_OUT],
+      [0.8, 12, 'linear'],
+      [0.9, 11, 'linear'],
+      [1.0, 12, 'linear'],
+      [1.1, 9, EASE_IN_OUT],
+      [1.6, 0],
+    ],
+    'leg-front-far': [
+      [0, 0, EASE_IN_OUT],
+      [0.6, -12, EASE_OUT],
+      [0.66, 9, EASE_OUT],
+      [0.8, 10, 'linear'],
+      [0.9, 9, 'linear'],
+      [1.0, 10, 'linear'],
+      [1.1, 8, EASE_IN_OUT],
+      [1.6, 0],
+    ],
+    'leg-back-near': [
+      [0, 0, EASE_IN_OUT],
+      [0.6, -10, EASE_OUT],
+      [0.66, -5, EASE_OUT],
+      [0.8, -4, 'linear'],
+      [0.9, -5, 'linear'],
+      [1.0, -4, 'linear'],
+      [1.1, -3, EASE_IN_OUT],
+      [1.6, 0],
+    ],
+    'leg-back-far': [
+      [0, 0, EASE_IN_OUT],
+      [0.6, -10, EASE_OUT],
+      [0.66, -3, EASE_OUT],
+      [0.8, -2, 'linear'],
+      [0.9, -3, 'linear'],
+      [1.0, -2, 'linear'],
+      [1.1, -2, EASE_IN_OUT],
+      [1.6, 0],
+    ],
   },
   translate: {
-    torso: [[0, 0, 0, EASE_IN_OUT], [0.6, 4, -4, EASE_OUT], [0.66, 12, 2, EASE_OUT],
-            [0.8, 13, 2, 'linear'], [0.9, 12, 1, 'linear'], [1.0, 13, 2, 'linear'],
-            [1.1, 12, 2, EASE_IN_OUT], [1.6, 0, 0]],
+    torso: [
+      [0, 0, 0, EASE_IN_OUT],
+      [0.6, 4, -4, EASE_OUT],
+      [0.66, 12, 2, EASE_OUT],
+      [0.8, 13, 2, 'linear'],
+      [0.9, 12, 1, 'linear'],
+      [1.0, 13, 2, 'linear'],
+      [1.1, 12, 2, EASE_IN_OUT],
+      [1.6, 0, 0],
+    ],
   },
   attachments: {
-    head: [[0, 'head'], [0.15, 'head-talk'], [0.6, 'head-bark'], [1.3, 'head']],
-    eyes: [[0, 'eyes-open'], [0.55, 'eyes-closed'], [1.2, 'eyes-open']],
+    head: [
+      [0, 'head'],
+      [0.15, 'head-talk'],
+      [0.6, 'head-bark'],
+      [1.3, 'head'],
+    ],
+    eyes: [
+      [0, 'eyes-open'],
+      [0.55, 'eyes-closed'],
+      [1.2, 'eyes-open'],
+    ],
   },
 });
 
@@ -397,18 +629,44 @@ await author({
 // world gait minus 8, so the stride arcs stay plumb (world +-20/18) under the lifted chest and
 // the hips never tear open.
 await author({
-  name: 'proud-strut', duration: 0.7,
+  name: 'proud-strut',
+  duration: 0.7,
   rotate: {
-    'leg-front-near': [[0, 12, EASE_IN_OUT], [0.35, -28, EASE_IN_OUT], [0.7, 12]],
-    'leg-front-far': [[0, -28, EASE_IN_OUT], [0.35, 12, EASE_IN_OUT], [0.7, -28]],
-    'leg-back-near': [[0, -26, EASE_IN_OUT], [0.35, 10, EASE_IN_OUT], [0.7, -26]],
-    'leg-back-far': [[0, 10, EASE_IN_OUT], [0.35, -26, EASE_IN_OUT], [0.7, 10]],
+    'leg-front-near': [
+      [0, 12, EASE_IN_OUT],
+      [0.35, -28, EASE_IN_OUT],
+      [0.7, 12],
+    ],
+    'leg-front-far': [
+      [0, -28, EASE_IN_OUT],
+      [0.35, 12, EASE_IN_OUT],
+      [0.7, -28],
+    ],
+    'leg-back-near': [
+      [0, -26, EASE_IN_OUT],
+      [0.35, 10, EASE_IN_OUT],
+      [0.7, -26],
+    ],
+    'leg-back-far': [
+      [0, 10, EASE_IN_OUT],
+      [0.35, -26, EASE_IN_OUT],
+      [0.7, 10],
+    ],
     torso: [[0, 8]],
-    head: [[0, 6, EASE_IN_OUT], [0.35, 4, EASE_IN_OUT], [0.7, 6]],
+    head: [
+      [0, 6, EASE_IN_OUT],
+      [0.35, 4, EASE_IN_OUT],
+      [0.7, 6],
+    ],
   },
   translate: {
-    torso: [[0, 0, -2, EASE_OUT], [0.175, 0, -6, EASE_IN], [0.35, 0, -2, EASE_OUT],
-            [0.525, 0, -6, EASE_IN], [0.7, 0, -2]],
+    torso: [
+      [0, 0, -2, EASE_OUT],
+      [0.175, 0, -6, EASE_IN],
+      [0.35, 0, -2, EASE_OUT],
+      [0.525, 0, -6, EASE_IN],
+      [0.7, 0, -2],
+    ],
   },
 });
 
@@ -426,8 +684,15 @@ await face('eyes-open', 'eyes', 'eyes-open');
 await face('eyes-closed', 'eyes', 'eyes-closed');
 await face('eyes-worried', 'eyes', 'eyes-worried');
 await author({
-  name: 'blink', duration: 0.3,
-  attachments: { eyes: [[0, 'eyes-open'], [0.1, 'eyes-closed'], [0.22, 'eyes-open']] },
+  name: 'blink',
+  duration: 0.3,
+  attachments: {
+    eyes: [
+      [0, 'eyes-open'],
+      [0.1, 'eyes-closed'],
+      [0.22, 'eyes-open'],
+    ],
+  },
 });
 
 // ---- save + QA renders -------------------------------------------------------------------------------

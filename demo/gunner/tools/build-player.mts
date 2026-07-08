@@ -31,7 +31,14 @@ const bundle = buildSync({
     '@marionette/runtime-web': join(repo, 'packages', 'runtime-web', 'src', 'index.ts'),
     '@marionette/runtime-core': join(repo, 'packages', 'runtime-core', 'src', 'index.ts'),
     '@marionette/format/types': join(repo, 'packages', 'format', 'src', 'types.ts'),
-    '@marionette/format/effects-types': join(repo, 'packages', 'format', 'src', 'effects', 'types.ts'),
+    '@marionette/format/effects-types': join(
+      repo,
+      'packages',
+      'format',
+      'src',
+      'effects',
+      'types.ts',
+    ),
     '@marionette/format/slot-types': join(repo, 'packages', 'format', 'src', 'slot', 'types.ts'),
     '@marionette/format/slot': join(repo, 'packages', 'format', 'src', 'slot', 'index.ts'),
     '@marionette/format/effects': join(repo, 'packages', 'format', 'src', 'effects', 'index.ts'),
@@ -60,7 +67,9 @@ for (const name of RIG_NAMES) {
 }
 
 // props atlas
-const propsAtlas = JSON.parse(readFileSync(join(root, 'atlas', 'props', 'atlas-ref.json'), 'utf8')) as {
+const propsAtlas = JSON.parse(
+  readFileSync(join(root, 'atlas', 'props', 'atlas-ref.json'), 'utf8'),
+) as {
   pages: Array<{ file: string }>;
 };
 for (const page of propsAtlas.pages) {
@@ -80,7 +89,18 @@ for (const file of readdirSync(join(root, 'source', 'bg'))) {
   const src = join(root, 'source', 'bg', file);
   const dst = join(bgCache, `${id}.jpg`);
   if (!existsSync(dst) || statSync(dst).mtimeMs < statSync(src).mtimeMs) {
-    execFileSync(FFMPEG, ['-y', '-loglevel', 'error', '-i', src, '-vf', 'scale=1920:1080', '-q:v', '4', dst]);
+    execFileSync(FFMPEG, [
+      '-y',
+      '-loglevel',
+      'error',
+      '-i',
+      src,
+      '-vf',
+      'scale=1920:1080',
+      '-q:v',
+      '4',
+      dst,
+    ]);
   }
   backgrounds[id] = `data:image/jpeg;base64,${readFileSync(dst).toString('base64')}`;
 }
@@ -90,8 +110,16 @@ const audio: Record<string, string> = {};
 const durations: Record<string, number> = {};
 function probe(file: string): number {
   const out = execFileSync(FFPROBE, [
-    '-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', file,
-  ]).toString().trim();
+    '-v',
+    'error',
+    '-show_entries',
+    'format=duration',
+    '-of',
+    'csv=p=0',
+    file,
+  ])
+    .toString()
+    .trim();
   return Number(out);
 }
 function addAudioDir(dir: string, toMp3: boolean): void {
@@ -108,7 +136,18 @@ function addAudioDir(dir: string, toMp3: boolean): void {
     } else if (file.endsWith('.wav') && toMp3) {
       const dst = join(mp3Cache, `${id}.mp3`);
       if (!existsSync(dst) || statSync(dst).mtimeMs < statSync(src).mtimeMs) {
-        execFileSync(FFMPEG, ['-y', '-loglevel', 'error', '-i', src, '-codec:a', 'libmp3lame', '-b:a', '128k', dst]);
+        execFileSync(FFMPEG, [
+          '-y',
+          '-loglevel',
+          'error',
+          '-i',
+          src,
+          '-codec:a',
+          'libmp3lame',
+          '-b:a',
+          '128k',
+          dst,
+        ]);
       }
       audio[id] = `data:audio/mpeg;base64,${readFileSync(dst).toString('base64')}`;
       durations[id] = probe(dst);

@@ -20,15 +20,19 @@ const times = process.argv.slice(3).map(Number);
 if (times.length === 0) throw new Error('usage: qa-screenshot.mts <outDir> <t1> <t2> ...');
 mkdirSync(outDir, { recursive: true });
 
-const chrome = spawn(CHROME, [
-  '--headless=new',
-  '--disable-gpu',
-  `--remote-debugging-port=${PORT}`,
-  '--window-size=1920,1080',
-  '--hide-scrollbars',
-  '--user-data-dir=/tmp/gunner-qa-chrome',
-  'about:blank',
-], { stdio: 'ignore' });
+const chrome = spawn(
+  CHROME,
+  [
+    '--headless=new',
+    '--disable-gpu',
+    `--remote-debugging-port=${PORT}`,
+    '--window-size=1920,1080',
+    '--hide-scrollbars',
+    '--user-data-dir=/tmp/gunner-qa-chrome',
+    'about:blank',
+  ],
+  { stdio: 'ignore' },
+);
 process.on('exit', () => chrome.kill());
 
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
@@ -64,7 +68,10 @@ ws.onmessage = (ev) => {
     pending.delete(msg.id);
   }
 };
-function cdp(method: string, params: Record<string, unknown> = {}): Promise<Record<string, unknown>> {
+function cdp(
+  method: string,
+  params: Record<string, unknown> = {},
+): Promise<Record<string, unknown>> {
   const id = nextId;
   nextId += 1;
   ws.send(JSON.stringify({ id, method, params }));
@@ -81,7 +88,10 @@ async function evalJs(expr: string): Promise<unknown> {
 await cdp('Page.enable');
 await cdp('Runtime.enable');
 await cdp('Emulation.setDeviceMetricsOverride', {
-  width: 1920, height: 1080, deviceScaleFactor: 1, mobile: false,
+  width: 1920,
+  height: 1080,
+  deviceScaleFactor: 1,
+  mobile: false,
 });
 
 const playerUrl = `file://${join(root, 'player', 'index.html')}`;
@@ -105,7 +115,10 @@ for (const t of times) {
   }
   const shot = (await cdp('Page.captureScreenshot', { format: 'png' })) as { data?: string };
   if (shot.data === undefined) throw new Error(`no screenshot at t=${t}`);
-  writeFileSync(join(outDir, `t${String(t).padStart(3, '0')}.png`), Buffer.from(shot.data, 'base64'));
+  writeFileSync(
+    join(outDir, `t${String(t).padStart(3, '0')}.png`),
+    Buffer.from(shot.data, 'base64'),
+  );
   console.log(`captured t=${t}`);
 }
 

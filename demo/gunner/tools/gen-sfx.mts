@@ -331,9 +331,19 @@ interface ThumpOpts {
 function thumpHit(rng: Rng, o: ThumpOpts): Sig {
   const len = o.tau * 5 + 0.05;
   const out = sig(len);
-  mixAt(out, shaped(tone(len, expSweep(o.f0, o.f1, o.tau * 1.5), 'sine'), pingEnv(o.tau, 0.003)), 0, 1);
+  mixAt(
+    out,
+    shaped(tone(len, expSweep(o.f0, o.f1, o.tau * 1.5), 'sine'), pingEnv(o.tau, 0.003)),
+    0,
+    1,
+  );
   mixAt(out, clickBurst(rng, 0.003, o.clickFc ?? 1300, 1.4), 0, o.click ?? 0.4);
-  mixAt(out, shaped(onePoleLp(whiteFill(rng, o.tau * 3), o.noiseFc ?? 380), pingEnv(o.tau * 0.8, 0.002)), 0, o.noise ?? 0.35);
+  mixAt(
+    out,
+    shaped(onePoleLp(whiteFill(rng, o.tau * 3), o.noiseFc ?? 380), pingEnv(o.tau * 0.8, 0.002)),
+    0,
+    o.noise ?? 0.35,
+  );
   return out;
 }
 
@@ -342,7 +352,14 @@ function chirpNote(f0: number, f1: number, dur: number, tau: number, shape: Shap
 }
 
 // Lowpassed noise puff with a falling cutoff (wing flaps, dust, cushions).
-function noisePuff(rng: Rng, sec: number, fc0: number, fc1: number, peakT: number, tau: number): Sig {
+function noisePuff(
+  rng: Rng,
+  sec: number,
+  fc0: number,
+  fc1: number,
+  peakT: number,
+  tau: number,
+): Sig {
   const raw = onePoleLp(whiteFill(rng, sec), expSweep(fc0, fc1, sec * 0.8));
   return shaped(raw, humpEnv(peakT, tau, 1.4));
 }
@@ -369,7 +386,12 @@ const CUES: readonly Cue[] = [
       const swept = bandpass(whiteFill(rng, sec), expSweep(300, 3000, 0.55), 1.1);
       mixAt(out, shaped(swept, humpEnv(0.32, 0.16, 1.6)), 0, 1);
       // Doppler-ish pitch-up chirp riding the sweep.
-      mixAt(out, shaped(tone(0.6, expSweep(500, 1900, 0.5), 'sine'), humpEnv(0.3, 0.12, 2)), 0.05, 0.22);
+      mixAt(
+        out,
+        shaped(tone(0.6, expSweep(500, 1900, 0.5), 'sine'), humpEnv(0.3, 0.12, 2)),
+        0.05,
+        0.22,
+      );
       return airTail(out, 0.18);
     },
   },
@@ -380,9 +402,18 @@ const CUES: readonly Cue[] = [
       const out = sig(sec);
       const base = expSweep(1250, 720, 0.5);
       const f: Env = (t) => base(t) * (1 + 0.05 * Math.sin(TWO_PI * 26 * t));
-      const gate: Env = (t) => (t < 0.46 ? adsrEnv(0.015, 0.1, 0.8, 0.02, 0.6)(t) : Math.exp(-(t - 0.46) / 0.008));
+      const gate: Env = (t) =>
+        t < 0.46 ? adsrEnv(0.015, 0.1, 0.8, 0.02, 0.6)(t) : Math.exp(-(t - 0.46) / 0.008);
       mixAt(out, shaped(onePoleLp(tone(0.5, f, 'saw'), 3200), gate), 0, 0.9);
-      mixAt(out, shaped(bandpass(whiteFill(rng, 0.5), (t) => base(t) * 1.8, 1.5), gate), 0, 0.35);
+      mixAt(
+        out,
+        shaped(
+          bandpass(whiteFill(rng, 0.5), (t) => base(t) * 1.8, 1.5),
+          gate,
+        ),
+        0,
+        0.35,
+      );
       mixAt(out, thumpHit(rng, { f0: 150, f1: 70, tau: 0.05, click: 0.35 }), 0.5, 0.55);
       return out;
     },
@@ -422,8 +453,18 @@ const CUES: readonly Cue[] = [
       const base = expSweep(250, 90, 0.42);
       const f: Env = (t) => base(t) * (1 + 0.14 * Math.exp(-t / 0.28) * Math.sin(TWO_PI * 15 * t));
       mixAt(out, softClipBuf(shaped(tone(0.55, f, 'sine'), pingEnv(0.3, 0.004)), 1.6), 0, 1);
-      mixAt(out, thumpHit(rng, { f0: 130, f1: 65, tau: 0.06, noise: 0.6, noiseFc: 340 }), 0.58, 0.5);
-      mixAt(out, thumpHit(rng, { f0: 110, f1: 58, tau: 0.055, noise: 0.6, noiseFc: 300 }), 0.78, 0.35);
+      mixAt(
+        out,
+        thumpHit(rng, { f0: 130, f1: 65, tau: 0.06, noise: 0.6, noiseFc: 340 }),
+        0.58,
+        0.5,
+      );
+      mixAt(
+        out,
+        thumpHit(rng, { f0: 110, f1: 58, tau: 0.055, noise: 0.6, noiseFc: 300 }),
+        0.78,
+        0.35,
+      );
       return out;
     },
   },
@@ -479,7 +520,12 @@ const CUES: readonly Cue[] = [
       const out = sig(sec);
       mixAt(out, noisePuff(rng, 0.16, 900, 250, 0.03, 0.05), 0.04, 1);
       mixAt(out, noisePuff(rng, 0.16, 750, 220, 0.03, 0.05), 0.22, 0.9);
-      mixAt(out, thumpHit(rng, { f0: 150, f1: 75, tau: 0.05, click: 0.25, noise: 0.6, noiseFc: 480 }), 0.42, 0.7);
+      mixAt(
+        out,
+        thumpHit(rng, { f0: 150, f1: 75, tau: 0.05, click: 0.25, noise: 0.6, noiseFc: 480 }),
+        0.42,
+        0.7,
+      );
       return out;
     },
   },
@@ -510,7 +556,10 @@ const CUES: readonly Cue[] = [
         [260, 2000, 0.6, 0.15],
       ];
       for (const [f0, f1, sw, at] of layers) {
-        const layer = shaped(bandpass(whiteFill(rng, 0.7), expSweep(f0, f1, sw), 1.0), humpEnv(0.3, 0.2, 1.5));
+        const layer = shaped(
+          bandpass(whiteFill(rng, 0.7), expSweep(f0, f1, sw), 1.0),
+          humpEnv(0.3, 0.2, 1.5),
+        );
         mixAt(out, layer, at, 0.75);
       }
       mixAt(out, shaped(tone(0.8, expSweep(70, 45, 0.7), 'sine'), humpEnv(0.35, 0.25)), 0, 0.4);
@@ -523,10 +572,18 @@ const CUES: readonly Cue[] = [
     render: (rng, sec) => {
       const out = sig(sec);
       const bell = humpEnv(0.6, 0.4, 1.2);
-      const body = shaped(onePoleLp(pinkFill(rng, sec), (t) => 280 + 900 * bell(t)), (t) => 0.25 + 0.75 * bell(t));
+      const body = shaped(
+        onePoleLp(pinkFill(rng, sec), (t) => 280 + 900 * bell(t)),
+        (t) => 0.25 + 0.75 * bell(t),
+      );
       mixAt(out, body, 0, 1);
       const wf: Env = (t) => (800 + 700 * bell(t)) * (1 + 0.015 * Math.sin(TWO_PI * 5.5 * t));
-      mixAt(out, tone(sec, wf, 'sine', (t) => 0.12 * Math.pow(bell(t), 1.6)), 0, 1);
+      mixAt(
+        out,
+        tone(sec, wf, 'sine', (t) => 0.12 * Math.pow(bell(t), 1.6)),
+        0,
+        1,
+      );
       return out;
     },
   },
@@ -547,7 +604,12 @@ const CUES: readonly Cue[] = [
       mixAt(out, band, 0, 0.5);
       for (let k = 0; k < 7; k++) {
         const at = 0.3 + rng() * (4.0 - 0.6);
-        mixAt(out, chirpNote(600 + rng() * 300, 1300 + rng() * 300, 0.06, 0.035), at, 0.1 + rng() * 0.08);
+        mixAt(
+          out,
+          chirpNote(600 + rng() * 300, 1300 + rng() * 300, 0.06, 0.035),
+          at,
+          0.1 + rng() * 0.08,
+        );
       }
       return out;
     },
@@ -564,10 +626,18 @@ const CUES: readonly Cue[] = [
       mixAt(out, base, 0, 0.9);
       mixAt(out, onePoleLp(whiteFill(rng, sec), 3500), 0, 0.35);
       // Churn band wobbling at 0.75 Hz: three cycles per loop, seam-periodic.
-      mixAt(out, bandpass(pinkFill(rng, sec), (t) => 700 + 300 * Math.sin(TWO_PI * 0.75 * t), 1.0), 0, 0.5);
+      mixAt(
+        out,
+        bandpass(pinkFill(rng, sec), (t) => 700 + 300 * Math.sin(TWO_PI * 0.75 * t), 1.0),
+        0,
+        0.5,
+      );
       for (let k = 0; k < 8; k++) {
         const at = 0.25 + rng() * (4.0 - 0.55);
-        const splash = shaped(bandpass(whiteFill(rng, 0.12), 2500 + rng() * 800, 0.9), humpEnv(0.015, 0.04, 1.3));
+        const splash = shaped(
+          bandpass(whiteFill(rng, 0.12), 2500 + rng() * 800, 0.9),
+          humpEnv(0.015, 0.04, 1.3),
+        );
         mixAt(out, splash, at, 0.25 + rng() * 0.1);
       }
       return out;
@@ -582,8 +652,18 @@ const CUES: readonly Cue[] = [
       // Undulation at 0.5 Hz (two cycles per loop) keeps the seam periodic.
       const und: Env = (t) => 1 + 0.14 * Math.sin(TWO_PI * 0.5 * t);
       mixAt(out, shaped(pinkFill(rng, sec), und), 0, 0.9);
-      mixAt(out, shaped(onePoleLp(whiteFill(rng, sec), 3000), (t) => und(t + 0.7)), 0, 0.45);
-      mixAt(out, shaped(onePoleLp(pinkFill(rng, sec), 110), (t) => und(t + 1.3)), 0, 0.9);
+      mixAt(
+        out,
+        shaped(onePoleLp(whiteFill(rng, sec), 3000), (t) => und(t + 0.7)),
+        0,
+        0.45,
+      );
+      mixAt(
+        out,
+        shaped(onePoleLp(pinkFill(rng, sec), 110), (t) => und(t + 1.3)),
+        0,
+        0.9,
+      );
       return out;
     },
   },
@@ -596,8 +676,18 @@ const CUES: readonly Cue[] = [
       // One swell per 4 s loop (0.25 Hz, tweaked from 0.3 so it loops exactly).
       const swell: Env = (t) => 0.5 + 0.5 * Math.sin(TWO_PI * 0.25 * t - Math.PI / 2);
       const body = onePoleLp(pinkFill(rng, sec), (t) => 240 + 140 * swell(t));
-      mixAt(out, shaped(body, (t) => 0.35 + 0.65 * swell(t)), 0, 1);
-      mixAt(out, shaped(bandpass(pinkFill(rng, sec), 210, 5), (t) => 0.3 + 0.7 * swell(t)), 0, 0.5);
+      mixAt(
+        out,
+        shaped(body, (t) => 0.35 + 0.65 * swell(t)),
+        0,
+        1,
+      );
+      mixAt(
+        out,
+        shaped(bandpass(pinkFill(rng, sec), 210, 5), (t) => 0.3 + 0.7 * swell(t)),
+        0,
+        0.5,
+      );
       return out;
     },
   },
@@ -634,12 +724,22 @@ const CUES: readonly Cue[] = [
         const f0 = 1400 + rng() * 1000;
         const g = 0.3 + rng() * 0.3;
         mixAt(out, chirpNote(f0, f0 * 1.15, 0.12, 0.05, 'tri'), at, g);
-        mixAt(out, chirpNote(f0 * 1.08, f0 * 0.95, 0.12, 0.05, 'tri'), at + 0.16 + rng() * 0.04, g * 0.8);
+        mixAt(
+          out,
+          chirpNote(f0 * 1.08, f0 * 0.95, 0.12, 0.05, 'tri'),
+          at + 0.16 + rng() * 0.04,
+          g * 0.8,
+        );
       }
       // Cricket ticks every 0.5 s (ten per loop, seam-periodic), two per event.
       for (let t0 = 0.15; t0 < sec - 0.06; t0 += 0.5) {
         mixAt(out, shaped(bandpass(whiteFill(rng, 0.02), 4300, 6), pingEnv(0.008)), t0, 0.18);
-        mixAt(out, shaped(bandpass(whiteFill(rng, 0.02), 4300, 6), pingEnv(0.008)), t0 + 0.035, 0.15);
+        mixAt(
+          out,
+          shaped(bandpass(whiteFill(rng, 0.02), 4300, 6), pingEnv(0.008)),
+          t0 + 0.035,
+          0.15,
+        );
       }
       return out;
     },
@@ -651,8 +751,16 @@ const CUES: readonly Cue[] = [
     render: (rng, sec) => {
       const out = sig(sec);
       for (let t0 = 0.04; t0 < sec - 0.005; t0 += 0.125) {
-        mixAt(out, thumpHit(rng, { f0: 160, f1: 78, tau: 0.045, click: 0.18, noise: 0.5, noiseFc: 320 }), t0, 0.75 + rng() * 0.2);
-        const swish = shaped(bandpass(whiteFill(rng, 0.04), 1700 + rng() * 200, 1.1), humpEnv(0.008, 0.012, 1.2));
+        mixAt(
+          out,
+          thumpHit(rng, { f0: 160, f1: 78, tau: 0.045, click: 0.18, noise: 0.5, noiseFc: 320 }),
+          t0,
+          0.75 + rng() * 0.2,
+        );
+        const swish = shaped(
+          bandpass(whiteFill(rng, 0.04), 1700 + rng() * 200, 1.1),
+          humpEnv(0.008, 0.012, 1.2),
+        );
         mixAt(out, swish, t0 + 0.02, 0.22);
       }
       // Grass bed keeps the seam alive between footfalls.
@@ -666,8 +774,18 @@ const CUES: readonly Cue[] = [
     render: (rng, sec) => {
       const out = sig(sec);
       mixAt(out, clickBurst(rng, 0.003, 1600, 1.5), 0.02, 0.8);
-      mixAt(out, shaped(tone(0.16, expSweep(620, 210, 0.08), 'sine'), pingEnv(0.045, 0.001)), 0.02, 0.9);
-      mixAt(out, shaped(onePoleLp(whiteFill(rng, 0.22), 750), humpEnv(0.04, 0.09, 1.3)), 0.09, 0.25);
+      mixAt(
+        out,
+        shaped(tone(0.16, expSweep(620, 210, 0.08), 'sine'), pingEnv(0.045, 0.001)),
+        0.02,
+        0.9,
+      );
+      mixAt(
+        out,
+        shaped(onePoleLp(whiteFill(rng, 0.22), 750), humpEnv(0.04, 0.09, 1.3)),
+        0.09,
+        0.25,
+      );
       return out;
     },
   },
@@ -676,9 +794,35 @@ const CUES: readonly Cue[] = [
     dur: 0.5,
     render: (rng, sec) => {
       const out = sig(sec);
-      mixAt(out, thumpHit(rng, { f0: 130, f1: 55, tau: 0.09, click: 0.2, clickFc: 800, noise: 0.5, noiseFc: 420 }), 0.01, 1);
+      mixAt(
+        out,
+        thumpHit(rng, {
+          f0: 130,
+          f1: 55,
+          tau: 0.09,
+          click: 0.2,
+          clickFc: 800,
+          noise: 0.5,
+          noiseFc: 420,
+        }),
+        0.01,
+        1,
+      );
       mixAt(out, shaped(onePoleLp(whiteFill(rng, 0.25), 420), humpEnv(0.03, 0.1, 1.2)), 0.01, 0.5);
-      mixAt(out, thumpHit(rng, { f0: 105, f1: 48, tau: 0.07, click: 0.12, clickFc: 700, noise: 0.5, noiseFc: 380 }), 0.22, 0.45);
+      mixAt(
+        out,
+        thumpHit(rng, {
+          f0: 105,
+          f1: 48,
+          tau: 0.07,
+          click: 0.12,
+          clickFc: 700,
+          noise: 0.5,
+          noiseFc: 380,
+        }),
+        0.22,
+        0.45,
+      );
       return out;
     },
   },
@@ -691,8 +835,18 @@ const CUES: readonly Cue[] = [
       mixAt(out, shaped(tone(0.1, 320, 'sine'), pingEnv(0.03)), 0, 0.5);
       const wob: Env = (t) => 1 + 0.05 * Math.exp(-t / 0.2) * Math.sin(TWO_PI * 24 * t);
       const saws = sig(0.7);
-      mixAt(saws, tone(0.7, (t) => 178 * wob(t), 'saw'), 0, 0.5);
-      mixAt(saws, tone(0.7, (t) => 183 * wob(t), 'saw'), 0, 0.5);
+      mixAt(
+        saws,
+        tone(0.7, (t) => 178 * wob(t), 'saw'),
+        0,
+        0.5,
+      );
+      mixAt(
+        saws,
+        tone(0.7, (t) => 183 * wob(t), 'saw'),
+        0,
+        0.5,
+      );
       mixAt(out, softClipBuf(shaped(onePoleLp(saws, 1500), pingEnv(0.24, 0.003)), 1.4), 0.01, 1);
       mixAt(out, shaped(bandpass(whiteFill(rng, 0.4), 240, 3), pingEnv(0.15)), 0.01, 0.2);
       return out;
@@ -729,12 +883,25 @@ const CUES: readonly Cue[] = [
     render: (rng, sec) => {
       const out = sig(sec);
       mixAt(out, clickBurst(rng, 0.003, 2600, 0.9), 0, 1);
-      const splinter = shaped(bandpass(whiteFill(rng, 0.22), expSweep(2000, 800, 0.18), 1.4), pingEnv(0.06, 0.001));
+      const splinter = shaped(
+        bandpass(whiteFill(rng, 0.22), expSweep(2000, 800, 0.18), 1.4),
+        pingEnv(0.06, 0.001),
+      );
       mixAt(out, splinter, 0.005, 0.7);
       for (let k = 0; k < 5; k++) {
-        mixAt(out, clickBurst(rng, 0.003, 1500 + rng() * 1500, 1.2), 0.015 + rng() * 0.105, 0.3 + rng() * 0.2);
+        mixAt(
+          out,
+          clickBurst(rng, 0.003, 1500 + rng() * 1500, 1.2),
+          0.015 + rng() * 0.105,
+          0.3 + rng() * 0.2,
+        );
       }
-      mixAt(out, shaped(tone(0.3, expSweep(105, 62, 0.09), 'sine'), pingEnv(0.07, 0.002)), 0.04, 0.8);
+      mixAt(
+        out,
+        shaped(tone(0.3, expSweep(105, 62, 0.09), 'sine'), pingEnv(0.07, 0.002)),
+        0.04,
+        0.8,
+      );
       mixAt(out, shaped(onePoleLp(whiteFill(rng, 0.12), 350), pingEnv(0.035, 0.001)), 0.04, 0.35);
       return airTail(out, 0.16);
     },
@@ -745,7 +912,10 @@ const CUES: readonly Cue[] = [
     render: (rng, sec) => {
       const out = sig(sec);
       mixAt(out, shaped(tone(0.25, expSweep(320, 95, 0.1), 'sine'), pingEnv(0.08, 0.002)), 0, 0.6);
-      const burst = shaped(onePoleLp(whiteFill(rng, 1.0), expSweep(3800, 700, 0.9)), pingEnv(0.3, 0.006));
+      const burst = shaped(
+        onePoleLp(whiteFill(rng, 1.0), expSweep(3800, 700, 0.9)),
+        pingEnv(0.3, 0.006),
+      );
       mixAt(out, burst, 0, 1);
       for (let k = 0; k < 6; k++) {
         const at = 0.35 + rng() * 0.6;
@@ -760,9 +930,17 @@ const CUES: readonly Cue[] = [
     dur: 0.5,
     render: (rng, sec) => {
       const out = sig(sec);
-      const whip = shaped(bandpass(whiteFill(rng, 0.18), expSweep(700, 2900, 0.13), 1.2), humpEnv(0.06, 0.035, 2));
+      const whip = shaped(
+        bandpass(whiteFill(rng, 0.18), expSweep(700, 2900, 0.13), 1.2),
+        humpEnv(0.06, 0.035, 2),
+      );
       mixAt(out, whip, 0, 1);
-      mixAt(out, thumpHit(rng, { f0: 140, f1: 78, tau: 0.06, click: 0.3, noise: 0.5, noiseFc: 500 }), 0.17, 0.9);
+      mixAt(
+        out,
+        thumpHit(rng, { f0: 140, f1: 78, tau: 0.06, click: 0.3, noise: 0.5, noiseFc: 500 }),
+        0.17,
+        0.9,
+      );
       mixAt(out, shaped(onePoleLp(whiteFill(rng, 0.1), 900), humpEnv(0.015, 0.03, 1.2)), 0.17, 0.4);
       return out;
     },
@@ -772,11 +950,19 @@ const CUES: readonly Cue[] = [
     dur: 0.6,
     render: (rng, sec) => {
       const out = sig(sec);
-      const swish = shaped(bandpass(whiteFill(rng, 0.2), expSweep(500, 3600, 0.16), 1.1), humpEnv(0.1, 0.03, 2));
+      const swish = shaped(
+        bandpass(whiteFill(rng, 0.2), expSweep(500, 3600, 0.16), 1.1),
+        humpEnv(0.1, 0.03, 2),
+      );
       mixAt(out, swish, 0, 0.9);
       mixAt(out, clickBurst(rng, 0.0025, 3200, 0.8), 0.17, 1);
       mixAt(out, shaped(tone(0.06, 1100, 'sine'), pingEnv(0.012, 0.0008)), 0.17, 0.5);
-      mixAt(out, shaped(tone(0.12, expSweep(300, 180, 0.05), 'sine'), pingEnv(0.03, 0.001)), 0.17, 0.4);
+      mixAt(
+        out,
+        shaped(tone(0.12, expSweep(300, 180, 0.05), 'sine'), pingEnv(0.03, 0.001)),
+        0.17,
+        0.4,
+      );
       mixAt(out, shaped(onePoleHp(whiteFill(rng, 0.25), 2000), pingEnv(0.08, 0.001)), 0.175, 0.12);
       return airTail(out, 0.18);
     },
@@ -801,9 +987,17 @@ const CUES: readonly Cue[] = [
       for (let k = 0; k < 4; k++) {
         const at = 0.04 + k * 0.18 + rng() * 0.012;
         const fMul = 0.9 + rng() * 0.2;
-        const scrape = shaped(bandpass(whiteFill(rng, 0.1), expSweep(1450 * fMul, 720 * fMul, 0.08), 1.3), humpEnv(0.015, 0.03, 1.3));
+        const scrape = shaped(
+          bandpass(whiteFill(rng, 0.1), expSweep(1450 * fMul, 720 * fMul, 0.08), 1.3),
+          humpEnv(0.015, 0.03, 1.3),
+        );
         mixAt(out, scrape, at, 0.8);
-        mixAt(out, thumpHit(rng, { f0: 120, f1: 68, tau: 0.04, click: 0.15, noise: 0.5, noiseFc: 300 }), at, 0.5);
+        mixAt(
+          out,
+          thumpHit(rng, { f0: 120, f1: 68, tau: 0.04, click: 0.15, noise: 0.5, noiseFc: 300 }),
+          at,
+          0.5,
+        );
       }
       return out;
     },
@@ -813,15 +1007,26 @@ const CUES: readonly Cue[] = [
     dur: 1.5,
     render: (rng, sec) => {
       const out = sig(sec);
-      const strain = shaped(bandpass(pinkFill(rng, sec), expSweep(300, 720, 1.4), 3.5), humpEnv(0.9, 0.5, 0.8));
+      const strain = shaped(
+        bandpass(pinkFill(rng, sec), expSweep(300, 720, 1.4), 3.5),
+        humpEnv(0.9, 0.5, 0.8),
+      );
       mixAt(out, strain, 0, 1);
       const gate: Env = (t) => Math.pow(0.5 + 0.5 * Math.sin(TWO_PI * 9 * t), 2);
-      const creak = shaped(onePoleLp(tone(sec, expSweep(62, 92, 1.4), 'saw'), 400), (t) => gate(t) * humpEnv(0.9, 0.5, 0.8)(t));
+      const creak = shaped(
+        onePoleLp(tone(sec, expSweep(62, 92, 1.4), 'saw'), 400),
+        (t) => gate(t) * humpEnv(0.9, 0.5, 0.8)(t),
+      );
       mixAt(out, creak, 0, 0.35);
       // Fiber crackles cluster toward the end as tension rises.
       for (let k = 0; k < 14; k++) {
         const at = Math.min(0.1 + 1.32 * Math.pow(rng(), 0.6), 1.42);
-        mixAt(out, clickBurst(rng, 0.003, 1500 + rng() * 1800, 4), at, (0.25 + rng() * 0.3) * (0.5 + at / 1.5));
+        mixAt(
+          out,
+          clickBurst(rng, 0.003, 1500 + rng() * 1800, 4),
+          at,
+          (0.25 + rng() * 0.3) * (0.5 + at / 1.5),
+        );
       }
       return out;
     },
@@ -831,11 +1036,17 @@ const CUES: readonly Cue[] = [
     dur: 0.8,
     render: (rng, sec) => {
       const out = sig(sec);
-      const whoomp = softClipBuf(shaped(tone(0.5, expSweep(75, 34, 0.22), 'sine'), pingEnv(0.16, 0.008)), 1.3);
+      const whoomp = softClipBuf(
+        shaped(tone(0.5, expSweep(75, 34, 0.22), 'sine'), pingEnv(0.16, 0.008)),
+        1.3,
+      );
       mixAt(out, whoomp, 0, 1);
       mixAt(out, shaped(onePoleLp(whiteFill(rng, 0.25), 180), pingEnv(0.08, 0.003)), 0, 0.5);
       mixAt(out, clickBurst(rng, 0.004, 600, 1.1), 0, 0.3);
-      const whoosh = shaped(bandpass(whiteFill(rng, 0.45), expSweep(350, 2400, 0.32), 1.1), humpEnv(0.12, 0.09, 1.5));
+      const whoosh = shaped(
+        bandpass(whiteFill(rng, 0.45), expSweep(350, 2400, 0.32), 1.1),
+        humpEnv(0.12, 0.09, 1.5),
+      );
       mixAt(out, whoosh, 0.16, 0.7);
       return airTail(out, 0.18);
     },
@@ -848,7 +1059,8 @@ const CUES: readonly Cue[] = [
       // Stick-slip scrape: tremolo decelerating from 17 Hz to 6 Hz.
       const trem = tremBuf(0.55, (t) => 17 - 11 * (t / 0.55), 0.75);
       const scrape = mulBuf(bandpass(whiteFill(rng, 0.55), expSweep(1250, 480, 0.5), 1.5), trem);
-      const env: Env = (t) => (t < 0.5 ? adsrEnv(0.02, 0.15, 0.7, 0.02, 0.55)(t) : Math.exp(-(t - 0.5) / 0.02));
+      const env: Env = (t) =>
+        t < 0.5 ? adsrEnv(0.02, 0.15, 0.7, 0.02, 0.55)(t) : Math.exp(-(t - 0.5) / 0.02);
       mixAt(out, shaped(scrape, env), 0, 1);
       mixAt(out, thumpHit(rng, { f0: 120, f1: 70, tau: 0.05, noise: 0.5 }), 0.56, 0.9);
       mixAt(out, thumpHit(rng, { f0: 100, f1: 60, tau: 0.045, noise: 0.5 }), 0.68, 0.55);
@@ -861,7 +1073,12 @@ const CUES: readonly Cue[] = [
     render: (rng, sec) => {
       const out = sig(sec);
       mixAt(out, clickBurst(rng, 0.0015, 2200, 1), 0.005, 0.6);
-      mixAt(out, shaped(tone(0.1, expSweep(1350, 680, 0.045), 'sine'), pingEnv(0.03, 0.001)), 0.005, 1);
+      mixAt(
+        out,
+        shaped(tone(0.1, expSweep(1350, 680, 0.045), 'sine'), pingEnv(0.03, 0.001)),
+        0.005,
+        1,
+      );
       mixAt(out, shaped(tone(0.06, 2800, 'sine'), pingEnv(0.018, 0.001)), 0.01, 0.25);
       return out;
     },
@@ -873,10 +1090,16 @@ const CUES: readonly Cue[] = [
       const out = sig(sec);
       const base = expSweep(1800, 520, 0.3);
       const f: Env = (t) => base(t) * (1 + 0.02 * Math.sin(TWO_PI * 9 * t));
-      const slideEnv: Env = (t) => (t < 0.3 ? Math.min(t / 0.01, 1) * (0.85 - 0.2 * (t / 0.3)) : Math.exp(-(t - 0.3) / 0.006));
+      const slideEnv: Env = (t) =>
+        t < 0.3 ? Math.min(t / 0.01, 1) * (0.85 - 0.2 * (t / 0.3)) : Math.exp(-(t - 0.3) / 0.006);
       mixAt(out, tone(0.32, f, 'sine', slideEnv), 0, 1);
       mixAt(out, clickBurst(rng, 0.002, 1500, 1.2), 0.31, 0.7);
-      mixAt(out, shaped(tone(0.08, expSweep(520, 240, 0.05), 'sine'), pingEnv(0.03, 0.001)), 0.31, 0.9);
+      mixAt(
+        out,
+        shaped(tone(0.08, expSweep(520, 240, 0.05), 'sine'), pingEnv(0.03, 0.001)),
+        0.31,
+        0.9,
+      );
       return out;
     },
   },
@@ -887,7 +1110,9 @@ const CUES: readonly Cue[] = [
       const out = sig(sec);
       const f: Env = (t) => expSweep(500, 1500, 0.92)(t) * (1 + 0.02 * Math.sin(TWO_PI * 6.5 * t));
       const amp: Env = (t) =>
-        Math.min(t / 0.04, 1) * (0.6 + 0.4 * (t / sec)) * Math.min(1, Math.max(0, (sec - 0.02 - t) / 0.05));
+        Math.min(t / 0.04, 1) *
+        (0.6 + 0.4 * (t / sec)) *
+        Math.min(1, Math.max(0, (sec - 0.02 - t) / 0.05));
       mixAt(out, tone(sec, f, 'sine', amp), 0, 1);
       mixAt(out, shaped(bandpass(whiteFill(rng, sec), f, 4), amp), 0, 0.12);
       return out;
@@ -898,7 +1123,15 @@ const CUES: readonly Cue[] = [
     dur: 0.5,
     render: (rng, sec) => {
       const out = sig(sec);
-      mixAt(out, shaped(onePoleLp(whiteFill(rng, sec), expSweep(1300, 320, 0.35)), humpEnv(0.035, 0.14, 1.2)), 0, 1);
+      mixAt(
+        out,
+        shaped(
+          onePoleLp(whiteFill(rng, sec), expSweep(1300, 320, 0.35)),
+          humpEnv(0.035, 0.14, 1.2),
+        ),
+        0,
+        1,
+      );
       mixAt(out, shaped(tone(0.2, expSweep(100, 70, 0.08), 'sine'), pingEnv(0.05, 0.003)), 0, 0.25);
       return out;
     },
@@ -997,9 +1230,13 @@ function meanOf(buf: Sig): number {
 }
 
 function probeDuration(path: string): number {
-  const out = execFileSync(FFPROBE, ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', path], {
-    encoding: 'utf8',
-  });
+  const out = execFileSync(
+    FFPROBE,
+    ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', path],
+    {
+      encoding: 'utf8',
+    },
+  );
   const dur = parseFloat(out.trim());
   if (!Number.isFinite(dur)) throw new Error(`ffprobe returned no duration for ${path}`);
   return dur;
@@ -1029,7 +1266,8 @@ function main(): void {
   if (!existsSync(FFMPEG)) throw new Error(`ffmpeg not found at ${FFMPEG}`);
   if (!existsSync(FFPROBE)) throw new Error(`ffprobe not found at ${FFPROBE}`);
   for (const cue of CUES) {
-    if (PROTECTED_VOCALS.has(cue.id)) throw new Error(`cue id collides with a protected TTS vocal: ${cue.id}`);
+    if (PROTECTED_VOCALS.has(cue.id))
+      throw new Error(`cue id collides with a protected TTS vocal: ${cue.id}`);
   }
   const ids = new Set<string>();
   for (const cue of CUES) {
@@ -1056,7 +1294,9 @@ function main(): void {
       const totalSec = cue.dur + (cue.loopXf ?? 0);
       let buf = cue.render(rng, totalSec);
       if (buf.length !== N(totalSec)) {
-        throw new Error(`${cue.id}: render returned ${buf.length} samples, expected ${N(totalSec)}`);
+        throw new Error(
+          `${cue.id}: render returned ${buf.length} samples, expected ${N(totalSec)}`,
+        );
       }
       buf = dcBlock(buf);
       if (cue.loopXf !== undefined) {
@@ -1125,7 +1365,14 @@ function main(): void {
 
   const pad = (s: string, n: number): string => (s.length >= n ? s : s + ' '.repeat(n - s.length));
   console.log(
-    pad('id', 18) + pad('kind', 10) + pad('spec s', 8) + pad('mp3 s', 8) + pad('peak dB', 10) + pad('RMS dB', 9) + pad('seam dB', 9) + 'status',
+    pad('id', 18) +
+      pad('kind', 10) +
+      pad('spec s', 8) +
+      pad('mp3 s', 8) +
+      pad('peak dB', 10) +
+      pad('RMS dB', 9) +
+      pad('seam dB', 9) +
+      'status',
   );
   for (const r of rows) {
     console.log(

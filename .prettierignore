@@ -47,6 +47,18 @@ packages/conformance/src/slot/expected/
 packages/conformance/src/anim-state-fixtures/
 
 # Generated demo artifacts (heavy, machine-written)
+demo/diamond-fusion/atlas/
+demo/diamond-fusion/boards.json
+demo/diamond-fusion/player/index.html
+demo/gunner/atlas/
+demo/gunner/renders/
+demo/gunner/rigs/
+demo/gunner/source-layers/
+demo/gunner/source-manifest.json
+demo/gunner/player/index.html
+demo/leprechaun-gold/atlas/
+demo/leprechaun-gold/layout.json
+demo/leprechaun-gold/player/index.html
 demo/kraken/atlas/
 demo/kraken/renders/
 demo/kraken/source/

@@ -1,7 +1,7 @@
 {
-  "formatVersion": "0.2.0",
+  "formatVersion": "0.3.0",
   "name": "phase1-complete",
-  "hash": "72ca67260f20154aca5525228c4c838e55de4f5de50e40cef4ec60bf7bfc969b",
+  "hash": "846573b1dcaa9e1e42d8a5dd25f75c956b2fcd459be15e4eb87f5f2b386667a5",
   "bones": [
     {
       "name": "root",
@@ -72,6 +72,7 @@
   ],
   "ikConstraints": [],
   "transformConstraints": [],
+  "events": [],
   "animations": {
     "idle": {
       "duration": 1,
@@ -196,7 +197,9 @@
       },
       "ik": {},
       "transform": {},
-      "deform": {}
+      "deform": {},
+      "drawOrder": [],
+      "events": []
     }
   },
   "atlas": {

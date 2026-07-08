@@ -1,9 +1,10 @@
-// Generates the Phase-0 golden corpus (format-contract WP-F.10, phase-0-foundations.md WP-0.3):
-// one canonical valid `minimal.json` plus one `invalid/<CODE>.json` per Phase-0-reachable error
-// code, each invalid by exactly ONE fault. It also emits the WP-1.11 (phase-1-bone-puppet.md
-// section 5) positive completeness fixture `phase1-complete.json`. The corpus is committed; this
-// script is its provenance, so a reviewer can see precisely which single field each fixture breaks.
-// Run: pnpm gen:fixtures.
+// Generates the skeleton golden corpus (format-contract WP-F.10, phase-0-foundations.md WP-0.3):
+// one canonical valid `minimal.json` plus one `invalid/<CODE>.json` per reachable error code, each
+// invalid by exactly ONE fault. It also emits the WP-1.11 (phase-1-bone-puppet.md section 5) positive
+// completeness fixture `phase1-complete.json` and the stage F1 (ADR-0008) positive completeness
+// fixture `events-draworder.json`, which exercises event definitions, event and draw-order timelines,
+// and the metadata block. The corpus is committed; this script is its provenance, so a reviewer can
+// see precisely which single field each fixture breaks. Run: pnpm gen:fixtures.
 //
 // The valid fixtures carry a correct content hash (so they validate with zero warnings). The
 // invalid semantic/structural fixtures carry an empty hash, which yields only a HASH_ABSENT warning
@@ -24,7 +25,7 @@ const invalidDir = join(fixturesDir, 'invalid');
 // computed and embedded below.
 function minimalDraft(): SkeletonDocument {
   return {
-    formatVersion: '0.2.0',
+    formatVersion: '0.3.0',
     name: 'minimal',
     hash: '',
     bones: [
@@ -74,6 +75,7 @@ function minimalDraft(): SkeletonDocument {
     ],
     ikConstraints: [],
     transformConstraints: [],
+    events: [],
     animations: {
       idle: {
         duration: 1,
@@ -89,6 +91,8 @@ function minimalDraft(): SkeletonDocument {
         ik: {},
         transform: {},
         deform: {},
+        drawOrder: [],
+        events: [],
       },
     },
     atlas: {
@@ -134,7 +138,7 @@ function minimalValid(): SkeletonDocument {
 // so the fixture validates with zero errors and zero warnings.
 function phase1CompleteDraft(): SkeletonDocument {
   return {
-    formatVersion: '0.2.0',
+    formatVersion: '0.3.0',
     name: 'phase1-complete',
     hash: '',
     bones: [
@@ -197,6 +201,7 @@ function phase1CompleteDraft(): SkeletonDocument {
     ],
     ikConstraints: [],
     transformConstraints: [],
+    events: [],
     animations: {
       idle: {
         duration: 1,
@@ -238,6 +243,8 @@ function phase1CompleteDraft(): SkeletonDocument {
         ik: {},
         transform: {},
         deform: {},
+        drawOrder: [],
+        events: [],
       },
     },
     atlas: {
@@ -269,6 +276,126 @@ function phase1CompleteDraft(): SkeletonDocument {
 // Build the Phase-1 completeness document with its real content hash embedded.
 function phase1CompleteValid(): SkeletonDocument {
   const draft = phase1CompleteDraft();
+  return { ...draft, hash: computeContentHash(draft) };
+}
+
+// The stage F1 (ADR-0008) positive COMPLETENESS fixture: a two-slot rig whose idle animation exercises
+// every new 0.3.0 shape. Root events define an audio-backed event ('footstep') and a payload-carrying
+// event ('spawn', with int/float/string defaults). The idle animation's draw-order timeline restores
+// the setup order at time 0 (empty offsets) then swaps the two slots at 0.5 (offsets that resolve to a
+// valid permutation). The event timeline fires 'footstep', then two coincident events at time 0.5 (one
+// overriding the 'spawn' int payload), proving non-decreasing ordering and payload overrides. A
+// metadata block carries the authoring frame rate and asset directories. Authored with an empty hash;
+// the real hash is embedded in eventsDrawOrderValid below.
+function eventsDrawOrderDraft(): SkeletonDocument {
+  const region = (name: string) => ({
+    type: 'region' as const,
+    path: name,
+    x: 0,
+    y: 0,
+    rotation: 0,
+    scaleX: 1,
+    scaleY: 1,
+    width: 64,
+    height: 64,
+    color: { r: 1, g: 1, b: 1, a: 1 },
+  });
+  const slot = (name: string, attachment: string) => ({
+    name,
+    bone: 'root',
+    color: { r: 1, g: 1, b: 1, a: 1 },
+    attachment,
+    blendMode: 'normal' as const,
+  });
+  const atlasRegion = (name: string, x: number) => ({
+    name,
+    x,
+    y: 0,
+    w: 64,
+    h: 64,
+    rotated: false,
+    offsetX: 0,
+    offsetY: 0,
+    originalW: 64,
+    originalH: 64,
+  });
+  return {
+    formatVersion: '0.3.0',
+    name: 'events-draworder',
+    hash: '',
+    bones: [
+      {
+        name: 'root',
+        parent: null,
+        length: 100,
+        x: 0,
+        y: 0,
+        rotation: 0,
+        scaleX: 1,
+        scaleY: 1,
+        shearX: 0,
+        shearY: 0,
+        transformMode: 'normal',
+      },
+    ],
+    slots: [slot('back', 'back'), slot('front', 'front')],
+    skins: [
+      {
+        name: 'default',
+        attachments: {
+          back: { back: region('back') },
+          front: { front: region('front') },
+        },
+      },
+    ],
+    ikConstraints: [],
+    transformConstraints: [],
+    events: [
+      { name: 'footstep', audio: { path: 'sfx/step.wav', volume: 0.8, balance: 0 } },
+      { name: 'spawn', int: 3, float: 1.5, string: 'hero' },
+    ],
+    animations: {
+      idle: {
+        duration: 1,
+        bones: {},
+        slots: {},
+        ik: {},
+        transform: {},
+        deform: {},
+        drawOrder: [
+          { time: 0, offsets: [] },
+          {
+            time: 0.5,
+            offsets: [
+              { slot: 'back', offset: 1 },
+              { slot: 'front', offset: -1 },
+            ],
+          },
+        ],
+        events: [
+          { time: 0.25, name: 'footstep' },
+          { time: 0.5, name: 'spawn', int: 9 },
+          { time: 0.5, name: 'footstep' },
+        ],
+      },
+    },
+    atlas: {
+      pages: [
+        {
+          file: 'atlas.png',
+          width: 128,
+          height: 128,
+          regions: [atlasRegion('back', 0), atlasRegion('front', 64)],
+        },
+      ],
+    },
+    metadata: { fps: 30, imagesPath: 'images/', audioPath: 'audio/' },
+  };
+}
+
+// Build the stage F1 completeness document with its real content hash embedded.
+function eventsDrawOrderValid(): SkeletonDocument {
+  const draft = eventsDrawOrderDraft();
   return { ...draft, hash: computeContentHash(draft) };
 }
 
@@ -458,6 +585,40 @@ const invalidCases: readonly InvalidCase[] = [
     },
   },
   {
+    code: 'EVENT_NAME_DUPLICATE',
+    build: () => {
+      const doc = draft();
+      doc.events = [{ name: 'hit' }, { name: 'hit' }];
+      return doc;
+    },
+  },
+  {
+    code: 'ANIM_EVENT_UNKNOWN',
+    build: () => {
+      // The document defines no events, so the idle animation firing "ghost" is an unknown reference.
+      const doc = draft();
+      doc.animations.idle!.events = [{ time: 0, name: 'ghost' }];
+      return doc;
+    },
+  },
+  {
+    code: 'EVENT_AUDIO_RANGE',
+    build: () => {
+      const doc = draft();
+      doc.events = [{ name: 'hit', audio: { path: 'sfx/hit.wav', volume: 2, balance: 0 } }];
+      return doc;
+    },
+  },
+  {
+    code: 'DRAWORDER_INCOMPLETE',
+    build: () => {
+      // One slot with an offset that moves it outside [0, slotCount) is an inconsistent reordering.
+      const doc = draft();
+      doc.animations.idle!.drawOrder = [{ time: 0, offsets: [{ slot: 'body', offset: 3 }] }];
+      return doc;
+    },
+  },
+  {
     code: 'HASH_MISMATCH',
     build: () => {
       const doc = minimalValid();
@@ -493,6 +654,15 @@ function main(): void {
     );
   }
 
+  const eventsDrawOrder = eventsDrawOrderValid();
+  writeJson(join(fixturesDir, 'events-draworder.json'), eventsDrawOrder);
+  const eventsReport = validateDocument(eventsDrawOrder);
+  if (!eventsReport.ok || eventsReport.warnings.length > 0) {
+    throw new Error(
+      `events-draworder.json did not validate clean: ok=${eventsReport.ok}, errors=${eventsReport.errors.length}, warnings=${eventsReport.warnings.length}`,
+    );
+  }
+
   for (const testCase of invalidCases) {
     const document = testCase.build();
     writeJson(join(invalidDir, `${testCase.code}.json`), document);
@@ -506,7 +676,7 @@ function main(): void {
   }
 
   console.log(
-    `generated minimal.json + phase1-complete.json + ${invalidCases.length} invalid fixtures`,
+    `generated minimal.json + phase1-complete.json + events-draworder.json + ${invalidCases.length} invalid fixtures`,
   );
 }
 

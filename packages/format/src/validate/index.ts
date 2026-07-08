@@ -158,7 +158,7 @@ export function validateDocument(input: unknown, options?: ValidateOptions): Val
     return makeReport([...gate.errors], warnings, null);
   }
   // A below-current document is forward-migrated by the gate; everything downstream validates the
-  // upgraded document (its formatVersion, content, and recomputed hash are the 0.2.0 ones).
+  // upgraded document (its formatVersion, content, and recomputed hash are the current-version ones).
   const effective = gate.migrated ?? input;
 
   const structural = validateStructure(effective);

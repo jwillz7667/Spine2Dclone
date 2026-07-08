@@ -119,12 +119,15 @@ describe('Phase 1 positive completeness fixture (WP-1.11 TASK-1.11.3)', () => {
     const idle = doc.animations['idle'];
     if (idle === undefined) throw new Error('fixture invariant: idle animation');
 
-    // Phase 2 (ADR-0004) added the ik/transform/deform timelines as REQUIRED records; the Phase-1
-    // completeness fixture carries them empty, so the strict Animation shape is now six keys.
+    // Phase 2 (ADR-0004) added the ik/transform/deform timelines and stage F1 (ADR-0008) added the
+    // drawOrder/events timelines as REQUIRED collections; the Phase-1 completeness fixture carries them
+    // empty, so the strict Animation shape is now eight keys.
     expect(Object.keys(idle).sort()).toEqual([
       'bones',
       'deform',
+      'drawOrder',
       'duration',
+      'events',
       'ik',
       'slots',
       'transform',
@@ -204,8 +207,8 @@ describe('Phase 1 contract guardrails (WP-1.11)', () => {
     expect([...FORMAT_ERROR_CODES]).toEqual([...COMMITTED_FORMAT_ERROR_CODES]);
   });
 
-  it('tracks the format version at 0.2.0 / major 0 after the Phase 2 additive bump (ADR-0004)', () => {
-    expect(CURRENT_FORMAT_VERSION).toBe('0.2.0');
+  it('tracks the format version at 0.3.0 / major 0 after the stage F1 additive bump (ADR-0008)', () => {
+    expect(CURRENT_FORMAT_VERSION).toBe('0.3.0');
     expect(SUPPORTED_FORMAT_MAJOR).toBe(0);
   });
 

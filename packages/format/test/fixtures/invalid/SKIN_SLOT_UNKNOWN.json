@@ -1,5 +1,5 @@
 {
-  "formatVersion": "0.2.0",
+  "formatVersion": "0.3.0",
   "name": "minimal",
   "hash": "",
   "bones": [
@@ -60,6 +60,7 @@
   ],
   "ikConstraints": [],
   "transformConstraints": [],
+  "events": [],
   "animations": {
     "idle": {
       "duration": 1,
@@ -86,7 +87,9 @@
       "slots": {},
       "ik": {},
       "transform": {},
-      "deform": {}
+      "deform": {},
+      "drawOrder": [],
+      "events": []
     }
   },
   "atlas": {

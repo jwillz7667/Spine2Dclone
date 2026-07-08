@@ -3,6 +3,42 @@
 The `formatVersion` is the semver of THE FORMAT (Law 3), independent of the package/app version. Pre-1.0,
 breaking changes bump MINOR and ship a tested migration (format-contract.md section 10.3).
 
+## 0.3.0 (2026-07-08)
+
+Stage F1 presentation additions (ADR-0008). Additive and backward-compatible via a migration; no existing
+field is removed or repurposed.
+
+Added (schema):
+
+- `SkeletonDocument.events: EventDef[]` (required array, empty when a rig defines none). `EventDef` carries
+  a unique `name`, optional `int`/`float`/`string` payload defaults, and an optional `audio` hint
+  (`path`, `volume` in [0, 1], `balance` in [-1, 1]). `events` is an array (not a record) so name
+  uniqueness is a typed error.
+- `SkeletonDocument.metadata?: SkeletonMeta` (optional, strict): `fps` (positive), `imagesPath`,
+  `audioPath`, all optional.
+- `Animation.drawOrder: DrawOrderKeyframe[]` and `Animation.events: EventKeyframe[]` (required arrays,
+  empty when unused). A draw-order key is a compact list of `{ slot, offset }` entries against the setup
+  order (empty means setup order); an event key is `{ time, name, int?, float?, string? }` with no curve.
+
+Added (validation):
+
+- EVENT family made live: `EVENT_NAME_DUPLICATE` (unique event-def names) and `ANIM_EVENT_UNKNOWN` (an
+  event-timeline key references a defined event).
+- `DRAWORDER_INCOMPLETE` made live for the offset representation: a duplicated slot, an out-of-range
+  target index, or two slots colliding on one index in a single key. An unknown slot in a draw-order
+  offset is `ANIM_SLOT_UNKNOWN`.
+- New `EVENT_AUDIO_RANGE` code (SCHEMA family) for audio `volume`/`balance` out of range.
+- The event timeline uses non-decreasing time order (coincident events legal); value and draw-order
+  timelines stay strictly ascending (`ANIM_TIME_ORDER`).
+
+Migration:
+
+- Registered the `0.2.x -> 0.3.0` step: inject the empty root `events` collection and the per-animation
+  `drawOrder` and `events` timelines, stamp `formatVersion`, and recompute the content hash when the
+  source carried one. `runMigrations` now validates only the fully migrated result against the current
+  schema (not each intermediate), so a `0.1.x` document still loads through the two-step chain
+  (backward compatibility suite in `migrate.test.ts`).
+
 ## 0.2.0 (2026-06-27)
 
 Phase 2 rigging additions (ADR-0004). Additive and backward-compatible via a migration; no existing field

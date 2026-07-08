@@ -1,0 +1,193 @@
+{
+  "formatVersion": "0.3.0",
+  "name": "events-draworder",
+  "hash": "8c1ec7497eeb97d10918c8b4453ed00bcd50f16f4bfbb2e317734285f0c16e23",
+  "bones": [
+    {
+      "name": "root",
+      "parent": null,
+      "length": 100,
+      "x": 0,
+      "y": 0,
+      "rotation": 0,
+      "scaleX": 1,
+      "scaleY": 1,
+      "shearX": 0,
+      "shearY": 0,
+      "transformMode": "normal"
+    }
+  ],
+  "slots": [
+    {
+      "name": "back",
+      "bone": "root",
+      "color": {
+        "r": 1,
+        "g": 1,
+        "b": 1,
+        "a": 1
+      },
+      "attachment": "back",
+      "blendMode": "normal"
+    },
+    {
+      "name": "front",
+      "bone": "root",
+      "color": {
+        "r": 1,
+        "g": 1,
+        "b": 1,
+        "a": 1
+      },
+      "attachment": "front",
+      "blendMode": "normal"
+    }
+  ],
+  "skins": [
+    {
+      "name": "default",
+      "attachments": {
+        "back": {
+          "back": {
+            "type": "region",
+            "path": "back",
+            "x": 0,
+            "y": 0,
+            "rotation": 0,
+            "scaleX": 1,
+            "scaleY": 1,
+            "width": 64,
+            "height": 64,
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            }
+          }
+        },
+        "front": {
+          "front": {
+            "type": "region",
+            "path": "front",
+            "x": 0,
+            "y": 0,
+            "rotation": 0,
+            "scaleX": 1,
+            "scaleY": 1,
+            "width": 64,
+            "height": 64,
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            }
+          }
+        }
+      }
+    }
+  ],
+  "ikConstraints": [],
+  "transformConstraints": [],
+  "events": [
+    {
+      "name": "footstep",
+      "audio": {
+        "path": "sfx/step.wav",
+        "volume": 0.8,
+        "balance": 0
+      }
+    },
+    {
+      "name": "spawn",
+      "int": 3,
+      "float": 1.5,
+      "string": "hero"
+    }
+  ],
+  "animations": {
+    "idle": {
+      "duration": 1,
+      "bones": {},
+      "slots": {},
+      "ik": {},
+      "transform": {},
+      "deform": {},
+      "drawOrder": [
+        {
+          "time": 0,
+          "offsets": []
+        },
+        {
+          "time": 0.5,
+          "offsets": [
+            {
+              "slot": "back",
+              "offset": 1
+            },
+            {
+              "slot": "front",
+              "offset": -1
+            }
+          ]
+        }
+      ],
+      "events": [
+        {
+          "time": 0.25,
+          "name": "footstep"
+        },
+        {
+          "time": 0.5,
+          "name": "spawn",
+          "int": 9
+        },
+        {
+          "time": 0.5,
+          "name": "footstep"
+        }
+      ]
+    }
+  },
+  "atlas": {
+    "pages": [
+      {
+        "file": "atlas.png",
+        "width": 128,
+        "height": 128,
+        "regions": [
+          {
+            "name": "back",
+            "x": 0,
+            "y": 0,
+            "w": 64,
+            "h": 64,
+            "rotated": false,
+            "offsetX": 0,
+            "offsetY": 0,
+            "originalW": 64,
+            "originalH": 64
+          },
+          {
+            "name": "front",
+            "x": 64,
+            "y": 0,
+            "w": 64,
+            "h": 64,
+            "rotated": false,
+            "offsetX": 0,
+            "offsetY": 0,
+            "originalW": 64,
+            "originalH": 64
+          }
+        ]
+      }
+    ]
+  },
+  "metadata": {
+    "fps": 30,
+    "imagesPath": "images/",
+    "audioPath": "audio/"
+  }
+}

@@ -88,7 +88,12 @@
       "transform": {},
       "deform": {},
       "drawOrder": [],
-      "events": []
+      "events": [
+        {
+          "time": 0,
+          "name": "ghost"
+        }
+      ]
     }
   },
   "atlas": {
@@ -98,18 +103,6 @@
         "width": 128,
         "height": 128,
         "regions": [
-          {
-            "name": "body",
-            "x": 0,
-            "y": 0,
-            "w": 64,
-            "h": 64,
-            "rotated": false,
-            "offsetX": 0,
-            "offsetY": 0,
-            "originalW": 64,
-            "originalH": 64
-          },
           {
             "name": "body",
             "x": 0,

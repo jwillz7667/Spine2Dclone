@@ -44,7 +44,8 @@ describe('effects barrel surface', () => {
   it('introduces the effects and common versions at 1.0.0 without touching the skeletal version', () => {
     expect(EFFECTS_FORMAT_VERSION).toBe('1.0.0');
     expect(FORMAT_COMMON_VERSION).toBe('1.0.0');
-    // LAW 3 gate: the skeletal format version is UNCHANGED by Phase 3 (still 0.2.0).
-    expect(CURRENT_FORMAT_VERSION).toBe('0.2.0');
+    // The effects and slot version lines move INDEPENDENTLY of the skeletal formatVersion, which is at
+    // 0.3.0 after the stage F1 bump (ADR-0008); the effects line is unaffected.
+    expect(CURRENT_FORMAT_VERSION).toBe('0.3.0');
   });
 });

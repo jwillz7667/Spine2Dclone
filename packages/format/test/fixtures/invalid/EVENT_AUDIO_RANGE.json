@@ -59,7 +59,16 @@
   ],
   "ikConstraints": [],
   "transformConstraints": [],
-  "events": [],
+  "events": [
+    {
+      "name": "hit",
+      "audio": {
+        "path": "sfx/hit.wav",
+        "volume": 2,
+        "balance": 0
+      }
+    }
+  ],
   "animations": {
     "idle": {
       "duration": 1,
@@ -98,18 +107,6 @@
         "width": 128,
         "height": 128,
         "regions": [
-          {
-            "name": "body",
-            "x": 0,
-            "y": 0,
-            "w": 64,
-            "h": 64,
-            "rotated": false,
-            "offsetX": 0,
-            "offsetY": 0,
-            "originalW": 64,
-            "originalH": 64
-          },
           {
             "name": "body",
             "x": 0,

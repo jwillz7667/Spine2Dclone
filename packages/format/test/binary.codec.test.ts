@@ -36,6 +36,8 @@ function valueCoverageDoc(): SkeletonDocument {
     ik: {},
     transform: {},
     deform: {},
+    drawOrder: [],
+    events: [],
   };
   return parseDocument(clone, { verifyHash: false });
 }

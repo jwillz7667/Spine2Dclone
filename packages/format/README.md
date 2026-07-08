@@ -15,7 +15,7 @@ The package carries four independent semver lines (all in `src/version/constants
 
 | Constant | Value | Governs |
 |---|---|---|
-| `CURRENT_FORMAT_VERSION` | `0.2.0` | `SkeletonDocument` (`formatVersion` field) |
+| `CURRENT_FORMAT_VERSION` | `0.3.0` | `SkeletonDocument` (`formatVersion` field) |
 | `EFFECTS_FORMAT_VERSION` | `1.0.0` | `EffectsDocument` (`effectsFormatVersion` field) |
 | `SLOT_SCENE_FORMAT_VERSION` | `0.1.0` | `SlotSceneDocument` |
 | `FORMAT_COMMON_VERSION` | `1.0.0` | The frozen shared primitives (`src/common`) |
@@ -33,8 +33,9 @@ Three top-level document families, each with its own schema, validator, error-co
 hash:
 
 - **`SkeletonDocument`** (`src/schema/document.ts`, strict): `formatVersion`, `name`, `hash`,
-  `bones`, `slots`, `skins`, `ikConstraints`, `transformConstraints`, `animations`, `atlas`.
-  The core skeletal-animation format (Layers A of the product).
+  `bones`, `slots`, `skins`, `ikConstraints`, `transformConstraints`, `events`, `animations`, `atlas`,
+  and an optional `metadata` block. Each animation carries bone/slot/ik/transform/deform timelines plus
+  the `drawOrder` and `events` timelines. The core skeletal-animation format (Layer A of the product).
 - **`EffectsDocument`** (`src/effects/schema/document.ts`): `effectsFormatVersion`, `name`, `hash`,
   `atlas`, `effects`, `bundles`. The particle/VFX format (Layer B), exposed via the `./effects` and
   `./effects-types` subpaths.
@@ -51,10 +52,12 @@ with per-member content hashes.
   on malformed data). `parseDocument` is the throwing wrapper (`FormatValidationError`).
 - `computeContentHash` / `verifyContentHash`: SHA-256 over canonical JSON with the `hash` field
   excluded, lowercase hex. The same canonicalizer backs the effects and slot hash functions.
-- `migrateToCurrent` / `runMigrations` / `MIGRATIONS`: the migration framework. The registry
-  currently holds one step, `0.1.x -> 0.2.0` (adds the constraint arrays and the ik/transform/deform
-  animation timelines, then recomputes the hash). The gate keys on the migration key (the MINOR
-  digit while MAJOR is 0).
+- `migrateToCurrent` / `runMigrations` / `MIGRATIONS`: the migration framework. The registry holds two
+  steps: `0.1.x -> 0.2.0` (adds the constraint arrays and the ik/transform/deform animation timelines)
+  and `0.2.x -> 0.3.0` (adds the root `events` collection and the per-animation `drawOrder` and `events`
+  timelines), each recomputing the hash. The runner walks the contiguous chain and validates the final
+  result against the current schema; the gate keys on the migration key (the MINOR digit while MAJOR
+  is 0).
 - `encodeBinary` / `decodeBinary` / `crc32`: the MRNT binary container (below).
 - `encodeWeightedVertices` / `decodeWeightedVertices` / `isWeightedMesh` plus
   `MAX_BONE_INFLUENCES` and `WEIGHT_SUM_EPSILON`: the weighted-vertex codec (ADR-0002).
@@ -69,9 +72,10 @@ Sibling barrels: `./effects` (`validateEffectsDocument`, `parseEffectsDocument`,
 ## Typed errors
 
 `FormatError` is `{ code, path, message, detail? }` with `path` a JSON Pointer. Codes come from the
-single `FORMAT_ERROR_CODES` const array (54 codes today, for example `SCHEMA_SHAPE`,
+single `FORMAT_ERROR_CODES` const array (55 codes today, for example `SCHEMA_SHAPE`,
 `UNSUPPORTED_FORMAT_VERSION`, `MIGRATION_REQUIRED`, `BONE_NAME_DUPLICATE`, `MESH_WEIGHT_SUM`,
-`IK_CHAIN_DISCONTINUOUS`, `ANIM_TIME_ORDER`, `HASH_MISMATCH`); warnings are `HASH_ABSENT` and
+`IK_CHAIN_DISCONTINUOUS`, `ANIM_TIME_ORDER`, `DRAWORDER_INCOMPLETE`, `EVENT_NAME_DUPLICATE`,
+`ANIM_EVENT_UNKNOWN`, `EVENT_AUDIO_RANGE`, `HASH_MISMATCH`); warnings are `HASH_ABSENT` and
 `DUPLICATE_RECORD_KEY`. The effects family has its own 17-code set (`EFFECT_*`, `BUNDLE_*`,
 `PROJECT_*`) and the slot family its own 18-code set. Binary decoding fails with a typed
 `BinaryDecodeError` (`badMagic`, `unsupportedContainerVersion`, `unsupportedFormatMajor`,
@@ -104,7 +108,7 @@ opaque.
 
 ```sh
 pnpm --filter @marionette/format typecheck            # tsc --noEmit
-pnpm --filter @marionette/format test                 # vitest (26 test files)
+pnpm --filter @marionette/format test                 # vitest (27 test files)
 pnpm --filter @marionette/format build                # tsc emit to dist (monorepo consumers use src)
 pnpm --filter @marionette/format gen:fixtures         # regenerate the skeleton golden corpus
 pnpm --filter @marionette/format gen:effects-fixtures # regenerate the effects corpus

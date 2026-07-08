@@ -77,7 +77,9 @@
       "rig-one-bone-ik": 2065522014,
       "rig-two-bone-ik": 800534493,
       "rig-transform-constraint": 2474909684,
-      "rig-deform": 3629349657
+      "rig-deform": 3629349657,
+      "rig-transform-modes": 1033814268,
+      "rig-blendmodes": 3144476697
     }
   }
 }

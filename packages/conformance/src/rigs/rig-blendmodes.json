@@ -1,0 +1,209 @@
+{
+  "formatVersion": "0.2.0",
+  "name": "rig-blendmodes",
+  "hash": "",
+  "bones": [
+    {
+      "name": "root",
+      "parent": null,
+      "length": 32,
+      "x": 0,
+      "y": 0,
+      "rotation": 0,
+      "scaleX": 1,
+      "scaleY": 1,
+      "shearX": 0,
+      "shearY": 0,
+      "transformMode": "normal"
+    }
+  ],
+  "slots": [
+    {
+      "name": "slot_normal",
+      "bone": "root",
+      "color": { "r": 1, "g": 1, "b": 1, "a": 1 },
+      "attachment": "region_normal",
+      "blendMode": "normal"
+    },
+    {
+      "name": "slot_additive",
+      "bone": "root",
+      "color": { "r": 0.9, "g": 0.9, "b": 0.9, "a": 1 },
+      "attachment": "region_additive",
+      "blendMode": "additive"
+    },
+    {
+      "name": "slot_multiply",
+      "bone": "root",
+      "color": { "r": 0.5, "g": 0.5, "b": 0.5, "a": 1 },
+      "attachment": "region_multiply",
+      "blendMode": "multiply"
+    },
+    {
+      "name": "slot_screen",
+      "bone": "root",
+      "color": { "r": 1, "g": 1, "b": 1, "a": 1 },
+      "attachment": "region_screen",
+      "blendMode": "screen"
+    }
+  ],
+  "skins": [
+    {
+      "name": "default",
+      "attachments": {
+        "slot_normal": {
+          "region_normal": {
+            "type": "region",
+            "path": "region_normal",
+            "x": 0,
+            "y": 0,
+            "rotation": 0,
+            "scaleX": 1,
+            "scaleY": 1,
+            "width": 32,
+            "height": 32,
+            "color": { "r": 1, "g": 1, "b": 1, "a": 1 }
+          }
+        },
+        "slot_additive": {
+          "region_additive": {
+            "type": "region",
+            "path": "region_additive",
+            "x": 0,
+            "y": 0,
+            "rotation": 0,
+            "scaleX": 1,
+            "scaleY": 1,
+            "width": 32,
+            "height": 32,
+            "color": { "r": 1, "g": 1, "b": 1, "a": 1 }
+          }
+        },
+        "slot_multiply": {
+          "region_multiply": {
+            "type": "region",
+            "path": "region_multiply",
+            "x": 0,
+            "y": 0,
+            "rotation": 0,
+            "scaleX": 1,
+            "scaleY": 1,
+            "width": 32,
+            "height": 32,
+            "color": { "r": 1, "g": 1, "b": 1, "a": 1 }
+          }
+        },
+        "slot_screen": {
+          "region_screen": {
+            "type": "region",
+            "path": "region_screen",
+            "x": 0,
+            "y": 0,
+            "rotation": 0,
+            "scaleX": 1,
+            "scaleY": 1,
+            "width": 32,
+            "height": 32,
+            "color": { "r": 1, "g": 1, "b": 1, "a": 1 }
+          }
+        }
+      }
+    }
+  ],
+  "ikConstraints": [],
+  "transformConstraints": [],
+  "animations": {
+    "default": {
+      "duration": 1.0,
+      "bones": {},
+      "slots": {
+        "slot_normal": {
+          "color": [
+            { "time": 0.0, "value": { "color": { "r": 1, "g": 1, "b": 1, "a": 1 } }, "curve": "linear" },
+            { "time": 1.0, "value": { "color": { "r": 0.2, "g": 0.4, "b": 0.6, "a": 1 } }, "curve": "linear" }
+          ]
+        },
+        "slot_additive": {
+          "color": [
+            { "time": 0.0, "value": { "color": { "r": 0.9, "g": 0.9, "b": 0.9, "a": 1 } }, "curve": "linear" },
+            { "time": 1.0, "value": { "color": { "r": 1, "g": 1, "b": 1, "a": 0.5 } }, "curve": "linear" }
+          ]
+        },
+        "slot_multiply": {
+          "color": [
+            { "time": 0.0, "value": { "color": { "r": 0.5, "g": 0.5, "b": 0.5, "a": 1 } }, "curve": "linear" },
+            { "time": 1.0, "value": { "color": { "r": 1, "g": 0.8, "b": 0.2, "a": 1 } }, "curve": "linear" }
+          ]
+        },
+        "slot_screen": {
+          "color": [
+            { "time": 0.0, "value": { "color": { "r": 1, "g": 1, "b": 1, "a": 1 } }, "curve": "linear" },
+            { "time": 1.0, "value": { "color": { "r": 0.3, "g": 0.7, "b": 0.9, "a": 0.6 } }, "curve": "linear" }
+          ]
+        }
+      },
+      "ik": {},
+      "transform": {},
+      "deform": {}
+    }
+  },
+  "atlas": {
+    "pages": [
+      {
+        "file": "blendmodes.png",
+        "width": 128,
+        "height": 32,
+        "regions": [
+          {
+            "name": "region_normal",
+            "x": 0,
+            "y": 0,
+            "w": 32,
+            "h": 32,
+            "rotated": false,
+            "offsetX": 0,
+            "offsetY": 0,
+            "originalW": 32,
+            "originalH": 32
+          },
+          {
+            "name": "region_additive",
+            "x": 32,
+            "y": 0,
+            "w": 32,
+            "h": 32,
+            "rotated": false,
+            "offsetX": 0,
+            "offsetY": 0,
+            "originalW": 32,
+            "originalH": 32
+          },
+          {
+            "name": "region_multiply",
+            "x": 64,
+            "y": 0,
+            "w": 32,
+            "h": 32,
+            "rotated": false,
+            "offsetX": 0,
+            "offsetY": 0,
+            "originalW": 32,
+            "originalH": 32
+          },
+          {
+            "name": "region_screen",
+            "x": 96,
+            "y": 0,
+            "w": 32,
+            "h": 32,
+            "rotated": false,
+            "offsetX": 0,
+            "offsetY": 0,
+            "originalW": 32,
+            "originalH": 32
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "rigId": "rig-blendmodes",
+  "animation": "default",
+  "duration": 1.0,
+  "loop": false,
+  "poseTimes": [0.0, 0.25, 0.5, 1.0, 1.25],
+  "slots": ["slot_normal", "slot_additive", "slot_multiply", "slot_screen"]
+}

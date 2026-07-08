@@ -1,0 +1,111 @@
+{
+  "formatVersion": "0.2.0",
+  "name": "rig-transform-modes",
+  "hash": "",
+  "bones": [
+    {
+      "name": "parent",
+      "parent": null,
+      "length": 50,
+      "x": 0,
+      "y": 0,
+      "rotation": 0,
+      "scaleX": 1,
+      "scaleY": 1,
+      "shearX": 0,
+      "shearY": 0,
+      "transformMode": "normal"
+    },
+    {
+      "name": "child_normal",
+      "parent": "parent",
+      "length": 40,
+      "x": 60,
+      "y": 15,
+      "rotation": 20,
+      "scaleX": 1,
+      "scaleY": 1,
+      "shearX": 0,
+      "shearY": 0,
+      "transformMode": "normal"
+    },
+    {
+      "name": "child_only_translation",
+      "parent": "parent",
+      "length": 40,
+      "x": 60,
+      "y": 15,
+      "rotation": 20,
+      "scaleX": 1,
+      "scaleY": 1,
+      "shearX": 0,
+      "shearY": 0,
+      "transformMode": "onlyTranslation"
+    },
+    {
+      "name": "child_no_rotation_or_reflection",
+      "parent": "parent",
+      "length": 40,
+      "x": 60,
+      "y": 15,
+      "rotation": 20,
+      "scaleX": 1,
+      "scaleY": 1,
+      "shearX": 0,
+      "shearY": 0,
+      "transformMode": "noRotationOrReflection"
+    },
+    {
+      "name": "child_no_scale",
+      "parent": "parent",
+      "length": 40,
+      "x": 60,
+      "y": 15,
+      "rotation": 20,
+      "scaleX": 1,
+      "scaleY": 1,
+      "shearX": 0,
+      "shearY": 0,
+      "transformMode": "noScale"
+    },
+    {
+      "name": "child_no_scale_or_reflection",
+      "parent": "parent",
+      "length": 40,
+      "x": 60,
+      "y": 15,
+      "rotation": 20,
+      "scaleX": 1,
+      "scaleY": 1,
+      "shearX": 0,
+      "shearY": 0,
+      "transformMode": "noScaleOrReflection"
+    }
+  ],
+  "slots": [],
+  "skins": [{ "name": "default", "attachments": {} }],
+  "ikConstraints": [],
+  "transformConstraints": [],
+  "animations": {
+    "default": {
+      "duration": 1.0,
+      "bones": {
+        "parent": {
+          "rotate": [
+            { "time": 0.0, "value": { "angle": 0 }, "curve": "linear" },
+            { "time": 1.0, "value": { "angle": 45 }, "curve": "linear" }
+          ],
+          "scale": [
+            { "time": 0.0, "value": { "x": 1, "y": 0.8 }, "curve": "linear" },
+            { "time": 1.0, "value": { "x": 1.5, "y": -0.7 }, "curve": "linear" }
+          ]
+        }
+      },
+      "slots": {},
+      "ik": {},
+      "transform": {},
+      "deform": {}
+    }
+  },
+  "atlas": { "pages": [] }
+}

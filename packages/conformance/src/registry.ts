@@ -14,6 +14,11 @@
 // (FIX-2.IK1), a two-bone IK with both bend directions and unreachable frames (FIX-2.IK2), a transform
 // constraint plus an IK on a related bone to lock IK-then-transform order (FIX-2.TC), and a weighted mesh
 // with a deform timeline to lock skin-then-deform order (FIX-2.DF).
+// PP-B1 (pro-parity Stage 0) lands two more Phase-2 skeleton rigs that make solve branches the current
+// fixture schema already observes visible to conformance: `rig-transform-modes` (all five bone transform
+// modes under a rotated, non-uniformly-scaled, reflected animated parent, so every worldFromParentByMode
+// branch is exercised, A.2) and `rig-blendmodes` (the four slot blend modes plus slot color animation,
+// so solve-order step 6 is observable, A.2). Both are authored from first principles (Law 4).
 export const RIG_IDS = [
   'rig-2bone',
   'rig-rigid-mesh',
@@ -22,6 +27,8 @@ export const RIG_IDS = [
   'rig-two-bone-ik',
   'rig-transform-constraint',
   'rig-deform',
+  'rig-transform-modes',
+  'rig-blendmodes',
 ] as const;
 
 export type RigId = (typeof RIG_IDS)[number];
@@ -36,6 +43,8 @@ export const RIG_PHASE: Readonly<Record<RigId, number>> = {
   'rig-two-bone-ik': 2,
   'rig-transform-constraint': 2,
   'rig-deform': 2,
+  'rig-transform-modes': 2,
+  'rig-blendmodes': 2,
 };
 
 // The committed current phase (B.2 landed-rig gating). Bumped per phase milestone in this file, NOT

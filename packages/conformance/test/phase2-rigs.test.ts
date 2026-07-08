@@ -104,6 +104,40 @@ describe('Phase 2 conformance rig families', () => {
     expect(m05).not.toEqual(m0);
   });
 
+  // PP-B1 rig-blendmodes: every sample carries the four captured slots (one per blend mode) and no
+  // meshes; the captured colors are in the [0, 1] format range. This locks solve-order step 6 (per-slot
+  // blend mode and color) into the fixture the same way the mesh rigs lock step 5.
+  it('rig-blendmodes carries the four blend-mode slots on every sample and no meshes', () => {
+    const committed = loadFixture('rig-blendmodes');
+    for (const sample of committed.samples) {
+      expect(sample.meshes).toBeUndefined();
+      expect(sample.slots).toBeDefined();
+      expect(sample.slots!.map((s) => s.blendMode)).toEqual([
+        'normal',
+        'additive',
+        'multiply',
+        'screen',
+      ]);
+      for (const slot of sample.slots!) {
+        for (const channel of slot.color) {
+          expect(channel).toBeGreaterThanOrEqual(0);
+          expect(channel).toBeLessThanOrEqual(1);
+        }
+      }
+    }
+  });
+
+  // PP-B1 rig-transform-modes is a bone-only fixture (transformMode inheritance is observable in the
+  // per-bone world affine alone), so it carries neither a meshes nor a slots member.
+  it('rig-transform-modes is a bone-only fixture (no meshes, no slots)', () => {
+    const committed = loadFixture('rig-transform-modes');
+    for (const sample of committed.samples) {
+      expect(sample.meshes).toBeUndefined();
+      expect(sample.slots).toBeUndefined();
+      expect(Object.keys(sample.bones)).toHaveLength(6);
+    }
+  });
+
   // FIX-2.IK2: at the reachable, full-mix frame (t=0.5, mix ramped to 1, target at (120, -60), within
   // the chain reach of 200) the chain tip lands on the target. The tip is lower.world * (lower.length,
   // 0); lower.length is 100. This locks the two-bone IK solve onto the target at full mix.

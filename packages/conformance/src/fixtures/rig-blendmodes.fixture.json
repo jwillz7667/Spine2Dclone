@@ -1,0 +1,80 @@
+{
+  "rigId": "rig-blendmodes",
+  "rigHash": "sha256:a87572d2016454f538332ad36b93cd791658c04df4c6bce7e18a6cae34f57c06",
+  "specHash": "sha256:952b80b9b34fee86996fe232441a362db27e98978fa72def69ab17c4ed2a8d8b",
+  "coreVersion": "runtime-core@0.0.0",
+  "toolchain": "node-22.13.1-v8",
+  "generatedBy": "generate.ts",
+  "samples": [
+    {
+      "time": 0,
+      "animation": "default",
+      "loop": false,
+      "bones": {
+        "root": [1, 0, 0, 1, 0, 0]
+      },
+      "slots": [
+        { "slot": "slot_normal", "blendMode": "normal", "color": [1, 1, 1, 1] },
+        { "slot": "slot_additive", "blendMode": "additive", "color": [0.9, 0.9, 0.9, 1] },
+        { "slot": "slot_multiply", "blendMode": "multiply", "color": [0.5, 0.5, 0.5, 1] },
+        { "slot": "slot_screen", "blendMode": "screen", "color": [1, 1, 1, 1] }
+      ]
+    },
+    {
+      "time": 0.25,
+      "animation": "default",
+      "loop": false,
+      "bones": {
+        "root": [1, 0, 0, 1, 0, 0]
+      },
+      "slots": [
+        { "slot": "slot_normal", "blendMode": "normal", "color": [0.8, 0.85, 0.9, 1] },
+        { "slot": "slot_additive", "blendMode": "additive", "color": [0.925, 0.925, 0.925, 0.875] },
+        { "slot": "slot_multiply", "blendMode": "multiply", "color": [0.625, 0.575, 0.425, 1] },
+        { "slot": "slot_screen", "blendMode": "screen", "color": [0.825, 0.925, 0.975, 0.9] }
+      ]
+    },
+    {
+      "time": 0.5,
+      "animation": "default",
+      "loop": false,
+      "bones": {
+        "root": [1, 0, 0, 1, 0, 0]
+      },
+      "slots": [
+        { "slot": "slot_normal", "blendMode": "normal", "color": [0.6, 0.7, 0.8, 1] },
+        { "slot": "slot_additive", "blendMode": "additive", "color": [0.95, 0.95, 0.95, 0.75] },
+        { "slot": "slot_multiply", "blendMode": "multiply", "color": [0.75, 0.65, 0.35, 1] },
+        { "slot": "slot_screen", "blendMode": "screen", "color": [0.65, 0.85, 0.95, 0.8] }
+      ]
+    },
+    {
+      "time": 1,
+      "animation": "default",
+      "loop": false,
+      "bones": {
+        "root": [1, 0, 0, 1, 0, 0]
+      },
+      "slots": [
+        { "slot": "slot_normal", "blendMode": "normal", "color": [0.2, 0.4, 0.6, 1] },
+        { "slot": "slot_additive", "blendMode": "additive", "color": [1, 1, 1, 0.5] },
+        { "slot": "slot_multiply", "blendMode": "multiply", "color": [1, 0.8, 0.2, 1] },
+        { "slot": "slot_screen", "blendMode": "screen", "color": [0.3, 0.7, 0.9, 0.6] }
+      ]
+    },
+    {
+      "time": 1.25,
+      "animation": "default",
+      "loop": false,
+      "bones": {
+        "root": [1, 0, 0, 1, 0, 0]
+      },
+      "slots": [
+        { "slot": "slot_normal", "blendMode": "normal", "color": [0.2, 0.4, 0.6, 1] },
+        { "slot": "slot_additive", "blendMode": "additive", "color": [1, 1, 1, 0.5] },
+        { "slot": "slot_multiply", "blendMode": "multiply", "color": [1, 0.8, 0.2, 1] },
+        { "slot": "slot_screen", "blendMode": "screen", "color": [0.3, 0.7, 0.9, 0.6] }
+      ]
+    }
+  ]
+}

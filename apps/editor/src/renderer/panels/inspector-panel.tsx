@@ -19,6 +19,8 @@ import {
   UnbindMeshCommand,
   documentHost,
   type AttachmentEntity,
+  type BoneEntity,
+  type BoneId,
   type MeshAttachmentEntity,
   type RegionAttachmentEntity,
   type RegionTransform,
@@ -27,7 +29,14 @@ import {
 } from '../document';
 import { useSelectionStore } from '../editor-state/selection-store';
 import { useSlotSelectionStore } from '../editor-state/slot-selection-store';
+import { usePlaybackStore } from '../editor-state/playback-store';
 import { useDocumentRevision } from '../editor-state/use-document-revision';
+import { dispatchBoneTransform, type EditDispatchContext } from '../viewport/edit-dispatcher';
+import {
+  buildBoneEdit,
+  parseBoneField,
+  type BoneTransformField,
+} from './bone-inspector-logic';
 import { MeshError } from '../modules/mesh/mesh-error';
 import { autoGridFillMesh, generateMeshFromRegion } from '../modules/mesh/mesh-tool';
 import { regionToMeshInit } from '../modules/mesh/region-to-mesh';
@@ -68,6 +77,18 @@ export function InspectorPanel(_props: IDockviewPanelProps): ReactElement {
   const revision = useDocumentRevision();
   const model = documentHost.current().model;
   const selectedSlotId = useSlotSelectionStore((state) => state.selectedSlotId);
+  const selectedBoneIds = useSelectionStore((state) => state.selectedBoneIds);
+
+  // The PRIMARY selected bone (the pivot; the gizmo and numeric entry act on it). Resolved against the
+  // LIVE model so an undo/redo/delete that removes it collapses the section rather than showing a stale
+  // transform. Multiple bones may be selected; the numeric fields edit the primary and the header notes
+  // the count (batch numeric entry across a selection is intentionally out of scope, unlike the gizmo
+  // drag which does move all).
+  const primaryBoneId = selectedBoneIds.length > 0 ? selectedBoneIds[0]! : null;
+  const primaryBone = useMemo(
+    () => (primaryBoneId !== null ? model.getBone(primaryBoneId) : undefined),
+    [model, revision, primaryBoneId],
+  );
 
   const slots = useMemo(() => model.slots(), [model, revision]);
   const boneCount = useMemo(() => model.bones().length, [model, revision]);
@@ -100,6 +121,13 @@ export function InspectorPanel(_props: IDockviewPanelProps): ReactElement {
 
   return (
     <div style={rootStyle}>
+      {primaryBone !== undefined && (
+        <BoneTransformSection
+          bone={primaryBone}
+          selectionCount={selectedBoneIds.length}
+        />
+      )}
+
       <div style={sectionStyle}>
         <div style={toolbarStyle}>
           <button
@@ -907,6 +935,107 @@ function to255(channel: number): number {
   return Math.round(channel * 255);
 }
 
+// Snapshot the ephemeral edit context from the playback store (read at commit time, not per keystroke).
+function editorContext(): EditDispatchContext {
+  const state = usePlaybackStore.getState();
+  return {
+    mode: state.mode,
+    autoKey: state.autoKey,
+    activeAnimation: state.activeAnimation,
+    playhead: state.playhead,
+  };
+}
+
+// Commit one numeric bone-field edit. Reads the LIVE bone so a field always parses against the current
+// value (and so a run of edits composes), validates through parseBoneField, then routes the desired local
+// value through the SINGLE edit dispatcher (never constructing a bone command here, R1.4) inside ONE
+// interaction session so the edit is exactly one undo step. In setup mode the dispatcher writes the setup
+// pose; in animation mode with auto-key it keys the setup-relative delta at the playhead, matching the
+// gizmo. Returns true only when the SETUP pose changed: the numeric fields display the setup pose, so an
+// animation-mode keyed edit (setup unchanged) returns false, reverting the field to the setup value to
+// signal the edit was keyed rather than applied to setup.
+function commitBoneField(boneId: BoneId, field: BoneTransformField, raw: string): boolean {
+  const doc = documentHost.current();
+  const live = doc.model.getBone(boneId);
+  if (live === undefined) return false;
+  const value = parseBoneField(field, raw, live[field]);
+  if (value === null) return false;
+
+  const edit = buildBoneEdit(field, value, live);
+  const ctx = editorContext();
+  const label = ctx.mode === 'animation' ? boneFieldKeyLabel(field) : boneFieldSetupLabel(field);
+  doc.history.beginInteraction();
+  let outcomeKind: string;
+  try {
+    outcomeKind = dispatchBoneTransform(doc.history, doc.model, boneId, edit, ctx).kind;
+  } finally {
+    doc.history.endInteraction(label);
+  }
+  return outcomeKind === 'setup';
+}
+
+// The undo-step label for a setup-pose numeric edit, per channel.
+function boneFieldSetupLabel(field: BoneTransformField): string {
+  if (field === 'x' || field === 'y') return 'Move Bone';
+  if (field === 'rotation') return 'Rotate Bone';
+  if (field === 'scaleX' || field === 'scaleY') return 'Scale Bone';
+  return 'Shear Bone';
+}
+
+// The undo-step label for a keyed numeric edit (animation mode), per channel.
+function boneFieldKeyLabel(field: BoneTransformField): string {
+  if (field === 'x' || field === 'y') return 'Key Bone Position';
+  if (field === 'rotation') return 'Key Bone Rotation';
+  if (field === 'scaleX' || field === 'scaleY') return 'Key Bone Scale';
+  return 'Key Bone Shear';
+}
+
+interface BoneTransformSectionProps {
+  readonly bone: BoneEntity;
+  readonly selectionCount: number;
+}
+
+// The bone transform inspector (PP-D1): numeric entry for the primary selected bone's local x, y,
+// rotation, scaleX, scaleY, shearX, shearY. Every field commits through commitBoneField (the dispatcher,
+// LAW 2) so it honors setup-vs-animation mode exactly like the gizmo. The fields show the SETUP pose; a
+// header note flags a multi-bone selection (the gizmo drag moves all, numeric entry edits the primary).
+function BoneTransformSection(props: BoneTransformSectionProps): ReactElement {
+  const { bone, selectionCount } = props;
+
+  const field = (label: string, name: BoneTransformField, step: number): ReactElement => (
+    <label style={transformCellStyle}>
+      <span style={transformLabelStyle}>{label}</span>
+      <NumberField
+        value={bone[name]}
+        step={step}
+        width={62}
+        title={name}
+        onCommit={(raw) => commitBoneField(bone.id, name, raw)}
+      />
+    </label>
+  );
+
+  return (
+    <div style={boneSectionStyle}>
+      <div style={subHeaderStyle}>
+        <span>Bone: {bone.name}</span>
+        {selectionCount > 1 && (
+          <span style={countStyle}>{selectionCount} selected (editing primary)</span>
+        )}
+      </div>
+      <div style={transformGridStyle}>
+        {field('X', 'x', 1)}
+        {field('Y', 'y', 1)}
+        {field('Rot', 'rotation', 1)}
+        {field('SX', 'scaleX', 0.1)}
+        {field('SY', 'scaleY', 0.1)}
+        {field('ShX', 'shearX', 1)}
+        {field('ShY', 'shearY', 1)}
+      </div>
+    </div>
+  );
+}
+
 const rootStyle: CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
@@ -984,6 +1113,15 @@ const detailBodyStyle: CSSProperties = {
   flexDirection: 'column',
   gap: 8,
   padding: '8px',
+};
+
+const boneSectionStyle: CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 6,
+  padding: '8px',
+  flex: '0 0 auto',
+  borderBottom: '1px solid #333333',
 };
 
 const detailRowStyle: CSSProperties = {

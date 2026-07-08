@@ -1,6 +1,6 @@
 import { Container, Graphics, Sprite, Texture } from 'pixi.js';
 import { parseDocument, type ValidateOptions } from '@marionette/format';
-import type { RegionAttachment, SkeletonDocument, Skin } from '@marionette/format/types';
+import type { AtlasRegion, RegionAttachment, SkeletonDocument, Skin } from '@marionette/format/types';
 import {
   AnimationNotFoundError,
   applyAnimationState,
@@ -20,7 +20,12 @@ import {
 import { applyWorldToTarget, mapWorldToDisplay, type DisplayTransform } from './map-transform';
 import { drawBone } from './bone-graphics';
 import { blendModeToPixi } from './blend-mode';
-import { createAttachmentSprite, packTint, sizeForTexture } from './attachment-sprites';
+import {
+  createAttachmentSprite,
+  packTint,
+  sizeForTexture,
+  type RegionTrim,
+} from './attachment-sprites';
 import { createMeshDisplay, markMeshPositionsDirty, type MeshDisplay } from './mesh-display';
 import { computeRegionSized, placeRegion } from './region-placement';
 import type { RegionTextureResolver } from './region-textures';
@@ -369,6 +374,10 @@ export class SkeletonView {
       return [];
     }
 
+    // Region-name -> AtlasRegion, so a region attachment can read its trim (PP-C1) off the document atlas
+    // (the resolver hands back only a Texture, never the trim). Built once per scene, not per attachment.
+    const atlasRegions = buildAtlasRegionIndex(document);
+
     const drafts: Omit<AttachmentRecord, 'sprite'>[] = [];
     for (let slotIndex = 0; slotIndex < document.slots.length; slotIndex += 1) {
       const slot = document.slots[slotIndex]!;
@@ -391,13 +400,19 @@ export class SkeletonView {
         if (attachment.type === 'region') {
           // Resolve the region's texture now (constant per scene). Normalize the unit-quad sizing by the
           // ACTUAL texture dimensions, using Texture.WHITE's dimensions when there is no resolved texture,
-          // so the placeholder and a real texture land the quad in the same world place (handoff 8.9).
+          // so the placeholder and a real texture land the quad in the same world place (handoff 8.9). A
+          // trimmed region (PP-C1) additionally offsets the quad to where its untrimmed original sat; the
+          // trim comes from the document atlas (undefined for an untrimmed region, keeping that path
+          // byte-identical). For a rotated texture, texture.width/height report the LOGICAL (unrotated)
+          // size PixiJS's rotate=2 reconstructs, so the trim math is orientation-independent here.
           const texture = this.resolver?.(attachment.path) ?? null;
           const source = texture ?? Texture.WHITE;
+          const trim = regionTrimFor(atlasRegions.get(attachment.path));
           const sizedForSprite = sizeForTexture(
             computeRegionSized(attachment),
             source.width,
             source.height,
+            trim,
           );
           regionsByName.set(name, { region: attachment, texture, sizedForSprite });
         } else if (attachment.type === 'mesh') {
@@ -662,4 +677,24 @@ function resetSlotsToSetup(pose: Pose): void {
 
 function findDefaultSkin(document: SkeletonDocument): Skin | undefined {
   return document.skins.find((skin) => skin.name === 'default');
+}
+
+// Index the document atlas by region name so a region attachment can look up its trim by path. Region
+// names are unique across pages (format invariant ATLAS_REGION_DUPLICATE), so the flat map cannot collide.
+function buildAtlasRegionIndex(document: SkeletonDocument): Map<string, AtlasRegion> {
+  const index = new Map<string, AtlasRegion>();
+  for (const page of document.atlas.pages) {
+    for (const region of page.regions) index.set(region.name, region);
+  }
+  return index;
+}
+
+// The placement trim for an AtlasRegion, or undefined when the region is absent OR untrimmed (offset 0 and
+// packed == original). Returning undefined for the untrimmed case keeps the sprite-sizing path exactly the
+// pre-trim scale(1/texW, 1/texH), so untrimmed regions render byte-identically to before.
+function regionTrimFor(region: AtlasRegion | undefined): RegionTrim | undefined {
+  if (region === undefined) return undefined;
+  const { offsetX, offsetY, w, h, originalW, originalH } = region;
+  if (offsetX === 0 && offsetY === 0 && w === originalW && h === originalH) return undefined;
+  return { offsetX, offsetY, w, h, originalW, originalH };
 }

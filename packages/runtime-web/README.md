@@ -37,9 +37,14 @@ single shared `blendModeToPixi`.
 - **Compressed-texture variants**: `selectTextureVariant` (`src/atlas/variant-select.ts`) is the
   normative pure selector (WP-5.2); the live GPU capability read and transcode is the WP-5.2.8
   remainder.
-- **Rotated atlas regions are unsupported** (`RotatedRegionUnsupportedError`); the packer never
-  emits them (`allowRotation` is pinned false in `@marionette/atlas-pack`).
 - **Only the `default` skin renders**; skin switching is a pending authoring surface.
+
+Trim and rotation (closed): atlas trim offsets are applied to region-attachment placement
+(`sizeForTexture` + `skeleton-view.ts`, reading the trim off `document.atlas`), so a trimmed region
+renders where its untrimmed original would (PP-C1). Rotated regions slice with a swapped frame, logical
+`orig`, and PixiJS `rotate=2` (`sliceRegion`), so both the sprite and mesh paths sample them turned-back
+(PP-C2). Both mirror `@marionette/render-preview` exactly and are locked by placement-parity tests; the
+GL PIXEL parity itself is the usual non-headless remainder.
 
 ## Headless parity
 

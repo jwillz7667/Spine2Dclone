@@ -1,11 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { AtlasRef, AtlasRegion } from '@marionette/format/types';
-import {
-  buildRegionTextures,
-  makeRegionTextureResolver,
-  RotatedRegionUnsupportedError,
-  sliceRegion,
-} from '../src';
+import { buildRegionTextures, makeRegionTextureResolver, sliceRegion } from '../src';
 import { makeSolidTexture } from './texture-fixtures';
 
 // An atlas region rect within a page. Phase 1 regions are untrimmed and never rotated, so offset is 0
@@ -89,16 +84,23 @@ describe('region atlas textures', () => {
     expect(resolve('unknown')).toBeNull();
   });
 
-  it('fails loud on a rotated region rather than slicing it mis-oriented', () => {
-    const page = makeSolidTexture(64, 64);
-    const rotated = atlasRegion('rot', { x: 0, y: 0, w: 16, h: 16 }, true);
+  it('slices a rotated region with swapped frame, logical orig, and PixiJS rotate=2', () => {
+    const page = makeSolidTexture(128, 128);
+    // Logical content 20 (w) x 12 (h) stored turned 90 degrees CW into a (12 x 20) page rectangle at (10,4).
+    const rotated = atlasRegion('rot', { x: 10, y: 4, w: 20, h: 12 }, true);
 
-    expect(() => sliceRegion(page, rotated)).toThrow(RotatedRegionUnsupportedError);
-    expect(() =>
-      buildRegionTextures(
-        { pages: [{ file: 'p.png', width: 64, height: 64, regions: [rotated] }] },
-        new Map([['p.png', page]]),
-      ),
-    ).toThrow(RotatedRegionUnsupportedError);
+    const sub = sliceRegion(page, rotated);
+
+    // The frame is the STORED page rectangle: dims swapped to (h x w) = (12 x 20).
+    expect(sub.frame.x).toBe(10);
+    expect(sub.frame.y).toBe(4);
+    expect(sub.frame.width).toBe(12);
+    expect(sub.frame.height).toBe(20);
+    // Texture.width/height read back as the LOGICAL (unrotated) size (w x h), which the placement math uses.
+    expect(sub.width).toBe(20);
+    expect(sub.height).toBe(12);
+    // rotate=2 is PixiJS groupD8 "S" (90 degrees clockwise), matching the atlas-pack storage convention.
+    expect(sub.rotate).toBe(2);
+    expect(sub.source).toBe(page.source);
   });
 });

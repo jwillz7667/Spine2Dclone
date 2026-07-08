@@ -13,30 +13,39 @@ import type { AtlasRef, AtlasRegion } from '@marionette/format/types';
 // available. A plain function type so the host can back it any way it likes; SkeletonView only calls it.
 export type RegionTextureResolver = (regionPath: string) => Texture | null;
 
-// Thrown when an atlas region is packed rotated. Phase 1 never rotates regions (format invariant:
-// AtlasRegion.rotated is always false), and an axis-aligned slice of a rotated region would render it
-// turned 90 degrees, which is silently wrong. So we fail loud here instead; rotated-UV handling lands
-// with the packer that can produce it (Phase 5), at which point this guard is replaced, not bypassed.
-export class RotatedRegionUnsupportedError extends Error {
-  constructor(readonly regionName: string) {
-    super(
-      `atlas region "${regionName}" is packed rotated, which runtime-web does not yet support (Phase 1 regions are never rotated)`,
-    );
-    this.name = 'RotatedRegionUnsupportedError';
-  }
-}
+// PixiJS groupD8 value for a 90-degree-clockwise rotation (its `S` symmetry), exactly what the spritesheet
+// parser stamps on a rotated frame. atlas-pack stores a rotated sprite turned 90 degrees clockwise into an
+// (h x w) page rectangle, so rotate=2 turns it back to its logical orientation on draw. See
+// packages/atlas-pack/src/pack.ts blitRotated and render-preview's RegionSampler for the matching mapping.
+const ROTATE_90_CW = 2;
 
-// Slice one region's sub-Texture out of a loaded page Texture. The sub-texture SHARES the page's
-// GPU source (TextureSource) and only carries its own `frame` rect, so this allocates no pixels and
-// uploads nothing: it is a UV window onto the page (PixiJS v8 `new Texture({ source, frame })`, where
-// Texture.width/height read back as the frame's w/h). Lifecycle: the HOST owns the page base textures;
-// these frames are lightweight views over that shared source, so the view must NOT destroy them (doing
-// so would tear down the host's page). Trim (offsetX/offsetY/originalW/originalH) is not applied: Phase
-// 1 regions are untrimmed (offset 0, original == packed), and applying trim would shift the quad.
+// Slice one region's sub-Texture out of a loaded page Texture. The sub-texture SHARES the page's GPU
+// source (TextureSource) and only carries its own frame/orig/rotate, so this allocates no pixels and
+// uploads nothing: it is a UV window onto the page. Lifecycle: the HOST owns the page base textures; these
+// frames are lightweight views over that shared source, so the view must NOT destroy them (doing so would
+// tear down the host's page).
+//
+// Rotation (PP-C2): a region packed rotated is stored in an (h x w) page rectangle turned 90 degrees
+// clockwise. We hand PixiJS the stored frame (swapped dims), the logical `orig` (w x h), and rotate=2, so
+// both the sprite path and the mesh path sample it correctly and Texture.width/height read back as the
+// LOGICAL size (w x h) the placement math expects.
+//
+// Trim (PP-C1) is NOT baked into the texture: it is applied to the region-attachment PLACEMENT matrix
+// (skeleton-view.ts, attachment-sprites.ts sizeForTexture), keeping the texture a frame-only window so
+// mesh UVs (normalized over the packed region) stay correct. An untrimmed region needs no placement
+// adjustment; a trimmed one is offset there, never here.
 export function sliceRegion(pageTexture: Texture, region: AtlasRegion): Texture {
-  if (region.rotated) throw new RotatedRegionUnsupportedError(region.name);
+  const source = pageTexture.source;
+  if (region.rotated) {
+    return new Texture({
+      source,
+      frame: new Rectangle(region.x, region.y, region.h, region.w),
+      orig: new Rectangle(0, 0, region.w, region.h),
+      rotate: ROTATE_90_CW,
+    });
+  }
   return new Texture({
-    source: pageTexture.source,
+    source,
     frame: new Rectangle(region.x, region.y, region.w, region.h),
   });
 }

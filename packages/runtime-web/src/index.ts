@@ -23,7 +23,6 @@ export {
   buildRegionTextures,
   makeRegionTextureResolver,
   sliceRegion,
-  RotatedRegionUnsupportedError,
 } from './scene/region-textures';
 export type { RegionTextureResolver } from './scene/region-textures';
 // Phase 3 particle rendering (phase-3-vfx-particles.md WP-3.5): the single format-BlendMode -> PixiJS

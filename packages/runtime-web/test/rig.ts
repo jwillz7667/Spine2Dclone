@@ -1,5 +1,6 @@
 import type {
   Animation,
+  AtlasRegion,
   Bone,
   MeshAttachment,
   RegionAttachment,
@@ -93,11 +94,15 @@ export interface DocumentParts {
   readonly skin?: SkinMap;
   readonly animations?: Record<string, Animation>;
   readonly name?: string;
+  // Per-path overrides of the derived atlas region (trim offsets, packed w/h, rotated), so a test can pack
+  // a region trimmed or rotated without hand-writing the whole document. Unspecified paths stay untrimmed.
+  readonly atlasOverrides?: Record<string, Partial<AtlasRegion>>;
 }
 
 export function makeDocument(parts: DocumentParts): SkeletonDocument {
   const slots = parts.slots ?? [];
   const skin = parts.skin ?? {};
+  const atlasOverrides = parts.atlasOverrides ?? {};
 
   // Derive one atlas region per distinct region path so ATTACHMENT_REGION_MISSING never fires.
   const paths = new Set<string>();
@@ -115,6 +120,7 @@ export function makeDocument(parts: DocumentParts): SkeletonDocument {
     offsetY: 0,
     originalW: 64,
     originalH: 64,
+    ...atlasOverrides[name],
   }));
 
   // Normalize each animation to the 0.2.0 shape (ADR-0004): the required ik/transform/deform timelines

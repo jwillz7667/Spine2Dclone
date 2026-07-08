@@ -3,7 +3,8 @@ import { isRecord } from '../../internal/guards';
 
 // The migration registry (format-contract section 10.4, ADR-0004). Each step is pure and forward-only,
 // transforming a document at `fromKey` into one at `toKey` (= fromKey + 1). Pre-1.0 the key is the
-// MINOR digit. Phase 0 shipped an EMPTY registry; Phase 2 adds the first real step (0.1.x -> 0.2.0).
+// MINOR digit. Phase 0 shipped an EMPTY registry; Phase 2 added the first step (0.1.x -> 0.2.0) and
+// stage F1 (ADR-0008) adds the second (0.2.x -> 0.3.0).
 export interface MigrationStep {
   readonly fromKey: number;
   readonly toKey: number;
@@ -57,7 +58,50 @@ function migrate01xTo02(input: unknown): unknown {
   return next;
 }
 
+// Inject the stage F1 (ADR-0008) collections into each animation, preserving any existing content. A
+// 0.2.x animation has { duration, bones, slots, ik, transform, deform }; the empties make it a valid
+// 0.3.0 animation. Pure: returns a new record, never mutates the input.
+function migrate02xAnimations(animations: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [name, anim] of Object.entries(animations)) {
+    if (isRecord(anim)) {
+      out[name] = {
+        ...anim,
+        drawOrder: Array.isArray(anim['drawOrder']) ? anim['drawOrder'] : [],
+        events: Array.isArray(anim['events']) ? anim['events'] : [],
+      };
+    } else {
+      out[name] = anim;
+    }
+  }
+  return out;
+}
+
+// 0.2.x -> 0.3.0 (ADR-0008): add the root `events` collection and the drawOrder/events animation
+// timelines, stamp formatVersion 0.3.0, and recompute the content hash when the source carried one (a
+// draft with an empty hash stays a draft). The injected content changes the canonical bytes, so a
+// non-empty hash MUST be recomputed or the load path's hash layer would reject the migrated document.
+// The OPTIONAL `metadata` block is not injected: its absence is valid, so the migration leaves it out.
+function migrate02xTo03(input: unknown): unknown {
+  if (!isRecord(input)) return input;
+  const animations = isRecord(input['animations'])
+    ? migrate02xAnimations(input['animations'])
+    : input['animations'];
+  const next: Record<string, unknown> = {
+    ...input,
+    events: Array.isArray(input['events']) ? input['events'] : [],
+    animations,
+    formatVersion: '0.3.0',
+  };
+  const sourceHash = input['hash'];
+  if (typeof sourceHash === 'string' && sourceHash !== '') {
+    next['hash'] = canonicalContentHash(next);
+  }
+  return next;
+}
+
 // Production registry. Contiguous by construction: each step's toKey is the next step's fromKey.
 export const MIGRATIONS: readonly MigrationStep[] = [
   { fromKey: 1, toKey: 2, targetVersion: '0.2.0', migrate: migrate01xTo02 },
+  { fromKey: 2, toKey: 3, targetVersion: '0.3.0', migrate: migrate02xTo03 },
 ];

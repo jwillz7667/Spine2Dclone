@@ -6,12 +6,13 @@ import { migrateToCurrent, runMigrations } from '../src/version/migrate';
 import type { MigrationStep } from '../src/version/migrations';
 import { cloneMinimal } from './helpers';
 
-// WP-2.2 / ADR-0004 (format-contract section 10.4, 10.5): the migration framework and the 0.1.x ->
-// 0.2.0 step. A pre-0.2.0 document is forward-migrated on import (empties injected, version stamped,
-// hash recomputed) so every committed Phase 1 document still loads (backward compatibility).
+// WP-2.2 / ADR-0004 and stage F1 / ADR-0008 (format-contract section 10.4, 10.5): the migration
+// framework and the 0.1.x -> 0.2.0 -> 0.3.0 chain. A pre-current document is forward-migrated on
+// import (empties injected, version stamped, hash recomputed) so every committed older document still
+// loads (backward compatibility). A 0.1.0 document walks BOTH steps to reach 0.3.0.
 
 // A Phase-1 (0.1.0) document: no ikConstraints/transformConstraints, an animation without the
-// ik/transform/deform timelines. Returned as a plain object (it does NOT satisfy the 0.2.0 schema).
+// ik/transform/deform timelines. Returned as a plain object (it does NOT satisfy the current schema).
 function oldMinimal(hash: string): Record<string, unknown> {
   const base: Record<string, unknown> = {
     formatVersion: '0.1.0',
@@ -54,18 +55,23 @@ function oldMinimal(hash: string): Record<string, unknown> {
   return base;
 }
 
-describe('0.1.x -> 0.2.0 migration (ADR-0004)', () => {
-  it('injects the empty constraint arrays and animation timelines and stamps 0.2.0', () => {
+describe('0.1.x -> 0.3.0 migration chain (ADR-0004, ADR-0008)', () => {
+  it('injects every added collection through the chain and stamps 0.3.0', () => {
     const result = migrateToCurrent(oldMinimal(''));
     expect(result.kind).toBe('migrated');
     if (result.kind !== 'migrated') return;
     const doc = result.doc as SkeletonDocument;
-    expect(doc.formatVersion).toBe('0.2.0');
+    expect(doc.formatVersion).toBe('0.3.0');
+    // Phase 2 (0.2.0) additions.
     expect(doc.ikConstraints).toEqual([]);
     expect(doc.transformConstraints).toEqual([]);
     expect(doc.animations['idle']?.ik).toEqual({});
     expect(doc.animations['idle']?.transform).toEqual({});
     expect(doc.animations['idle']?.deform).toEqual({});
+    // Stage F1 (0.3.0) additions.
+    expect(doc.events).toEqual([]);
+    expect(doc.animations['idle']?.drawOrder).toEqual([]);
+    expect(doc.animations['idle']?.events).toEqual([]);
     // The pre-existing bone timeline survives unchanged.
     expect(doc.animations['idle']?.bones['root']?.rotate?.length).toBe(2);
   });
@@ -95,11 +101,12 @@ describe('0.1.x -> 0.2.0 migration (ADR-0004)', () => {
   it('validateDocument forward-migrates a 0.1.0 document end to end', () => {
     const report = validateDocument(oldMinimal(''));
     expect(report.ok).toBe(true);
-    expect(report.document?.formatVersion).toBe('0.2.0');
+    expect(report.document?.formatVersion).toBe('0.3.0');
     expect(report.document?.ikConstraints).toEqual([]);
+    expect(report.document?.events).toEqual([]);
   });
 
-  it('migrateToCurrent on a current 0.2.0 document is unchanged', () => {
+  it('migrateToCurrent on a current 0.3.0 document is unchanged', () => {
     const result = migrateToCurrent(cloneMinimal());
     expect(result.kind).toBe('unchanged');
   });
@@ -127,8 +134,8 @@ describe('0.1.x -> 0.2.0 migration (ADR-0004)', () => {
         migrate: (doc) => doc, // a hypothetical future step (identity for this framework test)
       },
     ];
-    // animationsless intermediate would fail structural validation, so use a doc that already carries
-    // the 0.2.0 animation timelines, proving the runner walks both steps and reports the final version.
+    // The runner validates only the FINAL document (ADR-0008 section 7), so it walks both steps and
+    // reports the final version as long as the migrated result is structurally valid at current.
     const doc = { ...cloneMinimal(), formatVersion: '0.1.0', hash: '' };
     const result = runMigrations(doc, chain, '0.3.0');
     expect(result.kind).toBe('migrated');

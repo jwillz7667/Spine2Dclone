@@ -63,6 +63,7 @@ import { reorderSlotSpec } from './reorder-slot.command';
 import { reparentBoneSpec } from './reparent-bone.command';
 import { rotateBoneSpec } from './rotate-bone.command';
 import { scaleBoneSpec } from './scale-bone.command';
+import { setBoneShearSpec } from './set-bone-shear.command';
 import { setActiveAttachmentSpec } from './set-active-attachment.command';
 import { setAnimationDurationSpec } from './set-animation-duration.command';
 import { setAtlasRefSpec } from './set-atlas-ref.command';
@@ -87,6 +88,7 @@ export const commandRegistry: readonly CommandSpec[] = [
   moveBoneSpec,
   rotateBoneSpec,
   scaleBoneSpec,
+  setBoneShearSpec,
   setBoneLengthSpec,
   setBoneTransformModeSpec,
   normalizeBoneRotationSpec,

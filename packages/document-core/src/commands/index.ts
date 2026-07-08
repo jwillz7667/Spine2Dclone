@@ -5,6 +5,7 @@ export type { BoneGeometry } from './create-bone.command';
 export { MoveBoneCommand, moveBoneSpec } from './move-bone.command';
 export { RotateBoneCommand, rotateBoneSpec } from './rotate-bone.command';
 export { ScaleBoneCommand, scaleBoneSpec } from './scale-bone.command';
+export { SetBoneShearCommand, setBoneShearSpec } from './set-bone-shear.command';
 export { SetBoneLengthCommand, setBoneLengthSpec } from './set-bone-length.command';
 export {
   NormalizeBoneRotationCommand,

@@ -222,6 +222,7 @@ export {
   MoveBoneCommand,
   RotateBoneCommand,
   ScaleBoneCommand,
+  SetBoneShearCommand,
   SetBoneLengthCommand,
   SetBoneTransformModeCommand,
   NormalizeBoneRotationCommand,

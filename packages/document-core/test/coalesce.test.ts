@@ -3,6 +3,7 @@ import {
   MoveBoneCommand,
   RotateBoneCommand,
   ScaleBoneCommand,
+  SetBoneShearCommand,
   SetBoneLengthCommand,
   loadDocument,
   type BoneId,
@@ -27,6 +28,10 @@ const COALESCING: ReadonlyArray<{ kind: string; make: (id: BoneId, i: number) =>
   {
     kind: 'bone.scale',
     make: (id, i) => new ScaleBoneCommand(id, { scaleX: 1 + i, scaleY: 1 + i * 0.5 }),
+  },
+  {
+    kind: 'bone.shear',
+    make: (id, i) => new SetBoneShearCommand(id, { shearX: i * 4, shearY: i * -3 }),
   },
   { kind: 'bone.length', make: (id, i) => new SetBoneLengthCommand(id, 30 + i * 7) },
 ];

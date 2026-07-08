@@ -63,6 +63,19 @@ export type { AnimationState, TrackEntry } from './skeleton/animation-state';
 // runtime-web mesh rendering build on.
 export { sampleMeshVertices, skinMeshInto, MeshAttachmentError } from './skeleton/mesh-sample';
 export type { MeshAttachmentErrorReason } from './skeleton/mesh-sample';
+// Runtime skin selection (PP-B3): an allocation-free lookup layer that resolves which attachment a slot
+// presents under the active skin (default-skin fallback), so a renderer switches skins live without
+// rebuilding the Pose. A pure lookup over document skins + pose.slotAttachment; no solve-numeric change.
+export {
+  buildSkinState,
+  getActiveSkin,
+  setActiveSkin,
+  resolveAttachment,
+  resolveSlotAttachment,
+  UnknownSkinError,
+  DEFAULT_SKIN_NAME,
+} from './skeleton/skin-state';
+export type { SkinState } from './skeleton/skin-state';
 // The bezier easing sampler is the single shared function (R1.2, LAW 4): the editor curve-editor
 // preview samples through these exact functions so what the animator sees equals what sampleSkeleton
 // plays. BEZIER_SEGMENTS pins the parameterization; buildBezierTable/evalBezierY are the eval.

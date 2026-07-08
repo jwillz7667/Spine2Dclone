@@ -1,5 +1,5 @@
 {
-  "formatVersion": "0.2.0",
+  "formatVersion": "0.3.0",
   "name": "rig-rigid-mesh",
   "hash": "",
   "bones": [
@@ -50,25 +50,27 @@
   "transformConstraints": [],
   "animations": {
     "default": {
-      "duration": 1.0,
+      "duration": 1,
       "bones": {
         "root": {
           "rotate": [
-            { "time": 0.0, "value": { "angle": 0 }, "curve": "linear" },
+            { "time": 0, "value": { "angle": 0 }, "curve": "linear" },
             { "time": 0.5, "value": { "angle": 45 }, "curve": "linear" },
-            { "time": 1.0, "value": { "angle": 90 }, "curve": "linear" }
+            { "time": 1, "value": { "angle": 90 }, "curve": "linear" }
           ],
           "translate": [
-            { "time": 0.0, "value": { "x": 0, "y": 0 }, "curve": "linear" },
+            { "time": 0, "value": { "x": 0, "y": 0 }, "curve": "linear" },
             { "time": 0.5, "value": { "x": 20, "y": 10 }, "curve": "linear" },
-            { "time": 1.0, "value": { "x": 0, "y": 0 }, "curve": "linear" }
+            { "time": 1, "value": { "x": 0, "y": 0 }, "curve": "linear" }
           ]
         }
       },
       "slots": {},
       "ik": {},
       "transform": {},
-      "deform": {}
+      "deform": {},
+      "drawOrder": [],
+      "events": []
     }
   },
   "atlas": {
@@ -93,5 +95,6 @@
         ]
       }
     ]
-  }
+  },
+  "events": []
 }

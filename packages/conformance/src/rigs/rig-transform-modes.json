@@ -1,5 +1,5 @@
 {
-  "formatVersion": "0.2.0",
+  "formatVersion": "0.3.0",
   "name": "rig-transform-modes",
   "hash": "",
   "bones": [
@@ -88,24 +88,27 @@
   "transformConstraints": [],
   "animations": {
     "default": {
-      "duration": 1.0,
+      "duration": 1,
       "bones": {
         "parent": {
           "rotate": [
-            { "time": 0.0, "value": { "angle": 0 }, "curve": "linear" },
-            { "time": 1.0, "value": { "angle": 45 }, "curve": "linear" }
+            { "time": 0, "value": { "angle": 0 }, "curve": "linear" },
+            { "time": 1, "value": { "angle": 45 }, "curve": "linear" }
           ],
           "scale": [
-            { "time": 0.0, "value": { "x": 1, "y": 0.8 }, "curve": "linear" },
-            { "time": 1.0, "value": { "x": 1.5, "y": -0.7 }, "curve": "linear" }
+            { "time": 0, "value": { "x": 1, "y": 0.8 }, "curve": "linear" },
+            { "time": 1, "value": { "x": 1.5, "y": -0.7 }, "curve": "linear" }
           ]
         }
       },
       "slots": {},
       "ik": {},
       "transform": {},
-      "deform": {}
+      "deform": {},
+      "drawOrder": [],
+      "events": []
     }
   },
-  "atlas": { "pages": [] }
+  "atlas": { "pages": [] },
+  "events": []
 }

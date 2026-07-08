@@ -1,5 +1,5 @@
 {
-  "formatVersion": "0.2.0",
+  "formatVersion": "0.3.0",
   "name": "rig-weighted-mesh",
   "hash": "",
   "bones": [
@@ -80,27 +80,29 @@
   "transformConstraints": [],
   "animations": {
     "default": {
-      "duration": 1.0,
+      "duration": 1,
       "bones": {
         "boneA": {
           "rotate": [
-            { "time": 0.0, "value": { "angle": 0 }, "curve": "linear" },
+            { "time": 0, "value": { "angle": 0 }, "curve": "linear" },
             { "time": 0.5, "value": { "angle": 30 }, "curve": "linear" },
-            { "time": 1.0, "value": { "angle": 0 }, "curve": "linear" }
+            { "time": 1, "value": { "angle": 0 }, "curve": "linear" }
           ]
         },
         "boneB": {
           "rotate": [
-            { "time": 0.0, "value": { "angle": 0 }, "curve": "linear" },
+            { "time": 0, "value": { "angle": 0 }, "curve": "linear" },
             { "time": 0.5, "value": { "angle": -45 }, "curve": "linear" },
-            { "time": 1.0, "value": { "angle": 0 }, "curve": "linear" }
+            { "time": 1, "value": { "angle": 0 }, "curve": "linear" }
           ]
         }
       },
       "slots": {},
       "ik": {},
       "transform": {},
-      "deform": {}
+      "deform": {},
+      "drawOrder": [],
+      "events": []
     }
   },
   "atlas": {
@@ -125,5 +127,6 @@
         ]
       }
     ]
-  }
+  },
+  "events": []
 }

@@ -1,6 +1,6 @@
 {
   "rigId": "rig-rigid-mesh",
-  "rigHash": "sha256:7601bc88918549fb8789cb0ce41fd316f84aef37871a0d27faecc53a76ad0bab",
+  "rigHash": "sha256:8dc11964cb26386c3612daa1529b9a5f932248838c92ed100eac1db158987bed",
   "specHash": "sha256:5cd1b2cbbe624a76eba901e6acf60d2a518ebf6837af902a0c84304a5e86fc29",
   "coreVersion": "runtime-core@0.0.0",
   "toolchain": "node-22.13.1-v8",

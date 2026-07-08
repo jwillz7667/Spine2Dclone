@@ -1,5 +1,5 @@
 {
-  "formatVersion": "0.2.0",
+  "formatVersion": "0.3.0",
   "name": "rig-blendmodes",
   "hash": "",
   "bones": [
@@ -114,37 +114,71 @@
   "transformConstraints": [],
   "animations": {
     "default": {
-      "duration": 1.0,
+      "duration": 1,
       "bones": {},
       "slots": {
         "slot_normal": {
           "color": [
-            { "time": 0.0, "value": { "color": { "r": 1, "g": 1, "b": 1, "a": 1 } }, "curve": "linear" },
-            { "time": 1.0, "value": { "color": { "r": 0.2, "g": 0.4, "b": 0.6, "a": 1 } }, "curve": "linear" }
+            {
+              "time": 0,
+              "value": { "color": { "r": 1, "g": 1, "b": 1, "a": 1 } },
+              "curve": "linear"
+            },
+            {
+              "time": 1,
+              "value": { "color": { "r": 0.2, "g": 0.4, "b": 0.6, "a": 1 } },
+              "curve": "linear"
+            }
           ]
         },
         "slot_additive": {
           "color": [
-            { "time": 0.0, "value": { "color": { "r": 0.9, "g": 0.9, "b": 0.9, "a": 1 } }, "curve": "linear" },
-            { "time": 1.0, "value": { "color": { "r": 1, "g": 1, "b": 1, "a": 0.5 } }, "curve": "linear" }
+            {
+              "time": 0,
+              "value": { "color": { "r": 0.9, "g": 0.9, "b": 0.9, "a": 1 } },
+              "curve": "linear"
+            },
+            {
+              "time": 1,
+              "value": { "color": { "r": 1, "g": 1, "b": 1, "a": 0.5 } },
+              "curve": "linear"
+            }
           ]
         },
         "slot_multiply": {
           "color": [
-            { "time": 0.0, "value": { "color": { "r": 0.5, "g": 0.5, "b": 0.5, "a": 1 } }, "curve": "linear" },
-            { "time": 1.0, "value": { "color": { "r": 1, "g": 0.8, "b": 0.2, "a": 1 } }, "curve": "linear" }
+            {
+              "time": 0,
+              "value": { "color": { "r": 0.5, "g": 0.5, "b": 0.5, "a": 1 } },
+              "curve": "linear"
+            },
+            {
+              "time": 1,
+              "value": { "color": { "r": 1, "g": 0.8, "b": 0.2, "a": 1 } },
+              "curve": "linear"
+            }
           ]
         },
         "slot_screen": {
           "color": [
-            { "time": 0.0, "value": { "color": { "r": 1, "g": 1, "b": 1, "a": 1 } }, "curve": "linear" },
-            { "time": 1.0, "value": { "color": { "r": 0.3, "g": 0.7, "b": 0.9, "a": 0.6 } }, "curve": "linear" }
+            {
+              "time": 0,
+              "value": { "color": { "r": 1, "g": 1, "b": 1, "a": 1 } },
+              "curve": "linear"
+            },
+            {
+              "time": 1,
+              "value": { "color": { "r": 0.3, "g": 0.7, "b": 0.9, "a": 0.6 } },
+              "curve": "linear"
+            }
           ]
         }
       },
       "ik": {},
       "transform": {},
-      "deform": {}
+      "deform": {},
+      "drawOrder": [],
+      "events": []
     }
   },
   "atlas": {
@@ -205,5 +239,6 @@
         ]
       }
     ]
-  }
+  },
+  "events": []
 }

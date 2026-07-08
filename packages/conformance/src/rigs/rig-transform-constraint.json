@@ -1,5 +1,5 @@
 {
-  "formatVersion": "0.2.0",
+  "formatVersion": "0.3.0",
   "name": "rig-transform-constraint",
   "hash": "",
   "bones": [
@@ -101,13 +101,13 @@
   ],
   "animations": {
     "default": {
-      "duration": 1.0,
+      "duration": 1,
       "bones": {
         "target": {
           "translate": [
-            { "time": 0.0, "value": { "x": 120, "y": 60 }, "curve": "linear" },
+            { "time": 0, "value": { "x": 120, "y": 60 }, "curve": "linear" },
             { "time": 0.5, "value": { "x": 120, "y": -60 }, "curve": "linear" },
-            { "time": 1.0, "value": { "x": 60, "y": 120 }, "curve": "linear" }
+            { "time": 1, "value": { "x": 60, "y": 120 }, "curve": "linear" }
           ]
         }
       },
@@ -115,12 +115,15 @@
       "ik": {},
       "transform": {
         "tc": [
-          { "time": 0.0, "value": { "mixRotate": 0 }, "curve": "linear" },
-          { "time": 1.0, "value": { "mixRotate": 1 }, "curve": "linear" }
+          { "time": 0, "value": { "mixRotate": 0 }, "curve": "linear" },
+          { "time": 1, "value": { "mixRotate": 1 }, "curve": "linear" }
         ]
       },
-      "deform": {}
+      "deform": {},
+      "drawOrder": [],
+      "events": []
     }
   },
-  "atlas": { "pages": [] }
+  "atlas": { "pages": [] },
+  "events": []
 }

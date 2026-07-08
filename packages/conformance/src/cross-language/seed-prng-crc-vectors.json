@@ -71,15 +71,15 @@
     "_algorithm": "CRC-32/ISO-HDLC (phase-5 section 6.1.5); twinBody is crc32 over each committed binary rig twin EXCLUDING its 4-byte trailer, which equals the trailer the C#/GDScript decoder must recompute and match",
     "check_123456789": 3421780262,
     "twinBody": {
-      "rig-2bone": 447191849,
-      "rig-rigid-mesh": 1496537246,
-      "rig-weighted-mesh": 1599977437,
-      "rig-one-bone-ik": 2065522014,
-      "rig-two-bone-ik": 800534493,
-      "rig-transform-constraint": 2474909684,
-      "rig-deform": 3629349657,
-      "rig-transform-modes": 1033814268,
-      "rig-blendmodes": 3144476697
+      "rig-2bone": 1426300213,
+      "rig-rigid-mesh": 2833083965,
+      "rig-weighted-mesh": 1627801279,
+      "rig-one-bone-ik": 1207569046,
+      "rig-two-bone-ik": 2279643771,
+      "rig-transform-constraint": 2530481955,
+      "rig-deform": 1081337365,
+      "rig-transform-modes": 1022016814,
+      "rig-blendmodes": 3672907519
     }
   }
 }

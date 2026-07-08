@@ -1,5 +1,5 @@
 {
-  "formatVersion": "0.2.0",
+  "formatVersion": "0.3.0",
   "name": "anim-state-rig",
   "hash": "",
   "bones": [
@@ -76,56 +76,62 @@
   "transformConstraints": [],
   "animations": {
     "spinA": {
-      "duration": 1.0,
+      "duration": 1,
       "bones": {
         "root": {
           "rotate": [
-            { "time": 0.0, "value": { "angle": 0 }, "curve": "linear" },
-            { "time": 1.0, "value": { "angle": 60 }, "curve": "linear" }
+            { "time": 0, "value": { "angle": 0 }, "curve": "linear" },
+            { "time": 1, "value": { "angle": 60 }, "curve": "linear" }
           ]
         }
       },
-      "slots": { "badge": { "attachment": [{ "time": 0.0, "name": "iconA" }] } },
+      "slots": { "badge": { "attachment": [{ "time": 0, "name": "iconA" }] } },
       "ik": {},
       "transform": {},
-      "deform": {}
+      "deform": {},
+      "drawOrder": [],
+      "events": []
     },
     "spinB": {
-      "duration": 1.0,
+      "duration": 1,
       "bones": {
         "root": {
           "rotate": [
-            { "time": 0.0, "value": { "angle": 0 }, "curve": "linear" },
-            { "time": 1.0, "value": { "angle": -60 }, "curve": "linear" }
+            { "time": 0, "value": { "angle": 0 }, "curve": "linear" },
+            { "time": 1, "value": { "angle": -60 }, "curve": "linear" }
           ]
         },
         "arm": {
           "rotate": [
-            { "time": 0.0, "value": { "angle": 0 }, "curve": "linear" },
-            { "time": 1.0, "value": { "angle": 90 }, "curve": "linear" }
+            { "time": 0, "value": { "angle": 0 }, "curve": "linear" },
+            { "time": 1, "value": { "angle": 90 }, "curve": "linear" }
           ]
         }
       },
-      "slots": { "badge": { "attachment": [{ "time": 0.0, "name": "iconB" }] } },
+      "slots": { "badge": { "attachment": [{ "time": 0, "name": "iconB" }] } },
       "ik": {},
       "transform": {},
-      "deform": {}
+      "deform": {},
+      "drawOrder": [],
+      "events": []
     },
     "wave": {
-      "duration": 1.0,
+      "duration": 1,
       "bones": {
         "arm": {
           "rotate": [
-            { "time": 0.0, "value": { "angle": 0 }, "curve": "linear" },
+            { "time": 0, "value": { "angle": 0 }, "curve": "linear" },
             { "time": 0.5, "value": { "angle": 40 }, "curve": "linear" },
-            { "time": 1.0, "value": { "angle": 0 }, "curve": "linear" }
+            { "time": 1, "value": { "angle": 0 }, "curve": "linear" }
           ]
         }
       },
       "slots": {},
       "ik": {},
       "transform": {},
-      "deform": {}
+      "deform": {},
+      "drawOrder": [],
+      "events": []
     }
   },
   "atlas": {
@@ -162,5 +168,6 @@
         ]
       }
     ]
-  }
+  },
+  "events": []
 }

@@ -1,5 +1,5 @@
 {
-  "formatVersion": "0.2.0",
+  "formatVersion": "0.3.0",
   "name": "rig-deform",
   "hash": "",
   "bones": [
@@ -80,20 +80,20 @@
   "transformConstraints": [],
   "animations": {
     "default": {
-      "duration": 1.0,
+      "duration": 1,
       "bones": {
         "boneA": {
           "rotate": [
-            { "time": 0.0, "value": { "angle": 0 }, "curve": "linear" },
+            { "time": 0, "value": { "angle": 0 }, "curve": "linear" },
             { "time": 0.5, "value": { "angle": 20 }, "curve": "linear" },
-            { "time": 1.0, "value": { "angle": 0 }, "curve": "linear" }
+            { "time": 1, "value": { "angle": 0 }, "curve": "linear" }
           ]
         },
         "boneB": {
           "rotate": [
-            { "time": 0.0, "value": { "angle": 0 }, "curve": "linear" },
+            { "time": 0, "value": { "angle": 0 }, "curve": "linear" },
             { "time": 0.5, "value": { "angle": -30 }, "curve": "linear" },
-            { "time": 1.0, "value": { "angle": 0 }, "curve": "linear" }
+            { "time": 1, "value": { "angle": 0 }, "curve": "linear" }
           ]
         }
       },
@@ -104,17 +104,19 @@
         "default": {
           "mesh_slot": {
             "panel": [
-              { "time": 0.0, "value": { "offsets": [0, 0, 0, 0, 0, 0, 0, 0] }, "curve": "linear" },
+              { "time": 0, "value": { "offsets": [0, 0, 0, 0, 0, 0, 0, 0] }, "curve": "linear" },
               {
                 "time": 0.5,
                 "value": { "offsets": [5, 0, 5, 0, 5, 0, 5, 0] },
                 "curve": { "type": "bezier", "cx1": 0.25, "cy1": 0.1, "cx2": 0.75, "cy2": 0.9 }
               },
-              { "time": 1.0, "value": { "offsets": [0, 0, 0, 0, 0, 0, 0, 0] }, "curve": "linear" }
+              { "time": 1, "value": { "offsets": [0, 0, 0, 0, 0, 0, 0, 0] }, "curve": "linear" }
             ]
           }
         }
-      }
+      },
+      "drawOrder": [],
+      "events": []
     }
   },
   "atlas": {
@@ -139,5 +141,6 @@
         ]
       }
     ]
-  }
+  },
+  "events": []
 }

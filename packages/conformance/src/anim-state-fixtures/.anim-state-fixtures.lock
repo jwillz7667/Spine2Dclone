@@ -1,11 +1,11 @@
 {
   "toolchain": "node-22.13.1-v8",
   "files": {
-    "anim-state-fixtures/anim-state-additive-layer.fixture.json": "e9e21399605eba48a6ab61238bf5d937487b2cee1fbbdcd1862064ffcac70665",
-    "anim-state-fixtures/anim-state-crossfade-fractions.fixture.json": "a95d4d61a30494d3b2cfb387761d42171bf4f439b00e2265f5238ee900098b1e",
-    "anim-state-fixtures/anim-state-discrete-flip.fixture.json": "1e90201f8b7ed20fd03bb1fdddb649125f4036425cc0709e764c3ba900db7845",
-    "anim-state-fixtures/anim-state-queue-loop-boundary.fixture.json": "2a1900f5008f36c65d7c830ab2749ba289be372f40c8b7c3a6adfba867961db3",
-    "anim-state-rigs/anim-state-rig.json": "7b39ed6c9ae917d855da28affed38f6bb7ba4efd954f884e8ed86dbe1cb1b903",
+    "anim-state-fixtures/anim-state-additive-layer.fixture.json": "08995b148f561e5aaebb5e310e86df84fd1c9f923fe560ed9d125e59cc41fbbe",
+    "anim-state-fixtures/anim-state-crossfade-fractions.fixture.json": "ce1f7ea77c3d209c3a3982ab908254946700e2a1fae20b2579ecfb7741093edc",
+    "anim-state-fixtures/anim-state-discrete-flip.fixture.json": "447f4754ddb137dfc418a31acbceb24eb3b8cdf55de0762a614c71b8a2bd3906",
+    "anim-state-fixtures/anim-state-queue-loop-boundary.fixture.json": "ac76d858a54e64f7ded23f4d815a0af0733e07eed4c9062cd4b2f14f72364ad5",
+    "anim-state-rigs/anim-state-rig.json": "d86ea2640054849f8beb2aee12400da4aad295169892869b10694ea098f63a01",
     "anim-state-scenarios/anim-state-additive-layer.scenario.json": "989e9f1397c8b25444e04932213cf8e44c9ae7e98abe09c9bc09cdef1f1fc163",
     "anim-state-scenarios/anim-state-crossfade-fractions.scenario.json": "5b643946fee4200c9f69211129af1720a69336e509215ebc76e597aec67a7b12",
     "anim-state-scenarios/anim-state-discrete-flip.scenario.json": "4b19dddedd6d12e997a794fd9b53033e4f77c64027e024d1a814f2e8ffc949f7",

@@ -1,5 +1,5 @@
 {
-  "formatVersion": "0.2.0",
+  "formatVersion": "0.3.0",
   "name": "rig-two-bone-ik",
   "hash": "",
   "bones": [
@@ -70,27 +70,30 @@
   "transformConstraints": [],
   "animations": {
     "default": {
-      "duration": 1.0,
+      "duration": 1,
       "bones": {
         "target": {
           "translate": [
-            { "time": 0.0, "value": { "x": 120, "y": 60 }, "curve": "linear" },
+            { "time": 0, "value": { "x": 120, "y": 60 }, "curve": "linear" },
             { "time": 0.5, "value": { "x": 120, "y": -60 }, "curve": "linear" },
-            { "time": 1.0, "value": { "x": 400, "y": 0 }, "curve": "linear" }
+            { "time": 1, "value": { "x": 400, "y": 0 }, "curve": "linear" }
           ]
         }
       },
       "slots": {},
       "ik": {
         "ik": [
-          { "time": 0.0, "value": { "mix": 0, "bendPositive": true }, "curve": "linear" },
+          { "time": 0, "value": { "mix": 0, "bendPositive": true }, "curve": "linear" },
           { "time": 0.5, "value": { "mix": 1, "bendPositive": false }, "curve": "stepped" },
-          { "time": 1.0, "value": { "mix": 1, "bendPositive": false }, "curve": "linear" }
+          { "time": 1, "value": { "mix": 1, "bendPositive": false }, "curve": "linear" }
         ]
       },
       "transform": {},
-      "deform": {}
+      "deform": {},
+      "drawOrder": [],
+      "events": []
     }
   },
-  "atlas": { "pages": [] }
+  "atlas": { "pages": [] },
+  "events": []
 }

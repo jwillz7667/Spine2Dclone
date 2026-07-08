@@ -1,6 +1,6 @@
 {
   "rigId": "rig-two-bone-ik",
-  "rigHash": "sha256:407d14a64b4d3134bfa62da130355c04b43070fa2b9680a0a834085189689a29",
+  "rigHash": "sha256:accfc4f581a9c3e49d8fcd5563f412366ae12885e343c5a3be7a9dd9c82458f7",
   "specHash": "sha256:327a349d60f2470461f02c9b8baa0be93ebb559ff2c138e1df27ec0af062c438",
   "coreVersion": "runtime-core@0.0.0",
   "toolchain": "node-22.13.1-v8",

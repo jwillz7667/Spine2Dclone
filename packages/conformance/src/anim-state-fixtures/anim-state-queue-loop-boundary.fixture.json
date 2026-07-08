@@ -2,7 +2,7 @@
   "scenarioId": "anim-state-queue-loop-boundary",
   "rigId": "anim-state-rig",
   "scenarioHash": "sha256:a00d79aa0995caafc7dbcf0048e735216a69166558e800a9d0509da5d33578a2",
-  "rigHash": "sha256:7b39ed6c9ae917d855da28affed38f6bb7ba4efd954f884e8ed86dbe1cb1b903",
+  "rigHash": "sha256:d86ea2640054849f8beb2aee12400da4aad295169892869b10694ea098f63a01",
   "coreVersion": "runtime-core@0.0.0",
   "toolchain": "node-22.13.1-v8",
   "generatedBy": "generate-anim-state.ts",

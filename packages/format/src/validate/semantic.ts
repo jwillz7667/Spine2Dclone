@@ -6,23 +6,27 @@ import { checkMeshes } from './mesh';
 import { jsonPointer } from './structural';
 
 // Semantic (graph) layer: referential integrity and the invariants Zod cannot express
-// (format-contract section 8.4), Phase-0 subset (phase-0-foundations.md WP-0.3): the BONE, SLOT,
-// SKIN, and ATLAS families plus the simple animation timeline-key resolution and time ordering for
-// the idle fixture. The mesh, constraint, and full animation/deform/event families land with their
-// validators in later phases (LAW 5). Each family is independent (collect-all) except the bone
+// (format-contract section 8.4): the BONE, SLOT, SKIN, ATLAS, MESH, CONSTRAINT, DEFORM, EVENT, and
+// ANIM families. Stage F1 (ADR-0008) adds the EVENT family (event-def name uniqueness) and extends
+// ANIM with the draw-order timeline (consistency of per-key offsets) and the event timeline (event
+// reference and non-decreasing order). Each family is independent (collect-all) except the bone
 // graph, which short-circuits per section 5.4 so a single broken document yields a single bone code.
 
-// Check a list of timeline frames for in-duration range and (for value timelines) strict-ascending
-// time order, returning the maximum frame time seen (for the duration check). Range applies to every
-// timeline (format-contract section 4.8); strict order applies to the interpolated VALUE timelines
-// the contract enumerates as strict (bone rotate/translate/scale/shear, slot color). The attachment
-// (swap) timeline is contract-silent on order, so it passes strictOrder=false and is range-checked
-// only, to avoid rejecting a document the contract permits.
+// The time-ordering rule for a timeline (format-contract section 4.8): interpolated VALUE timelines and
+// the draw-order timeline are STRICT (no two keys share a time, because interpolation or a discrete
+// swap between coincident keys is undefined); the event timeline is NON-DECREASING (two events may fire
+// at the same time, only a strictly decreasing pair is a fault); the attachment (swap) timeline is
+// contract-silent on order, so it is range-checked only (NONE).
+type TimeOrder = 'strict' | 'nondecreasing' | 'none';
+
+// Check a list of timeline frames for in-duration range and time order, returning the maximum frame
+// time seen (for the duration check). Range applies to every timeline; the order rule is per timeline
+// kind (see TimeOrder). An order fault is ANIM_TIME_ORDER at the offending keyframe.
 function checkFrameTimes(
   frames: ReadonlyArray<{ readonly time: number }>,
   basePath: ReadonlyArray<string | number>,
   duration: number,
-  strictOrder: boolean,
+  order: TimeOrder,
   errors: FormatError[],
 ): number {
   let maxTime = 0;
@@ -40,15 +44,20 @@ function checkFrameTimes(
         ),
       );
     }
-    if (strictOrder && previous !== null && time <= previous) {
-      errors.push(
-        formatError(
-          'ANIM_TIME_ORDER',
-          jsonPointer([...basePath, index, 'time']),
-          `keyframe times must strictly ascend, ${time} does not follow ${previous}`,
-          { time, previous },
-        ),
-      );
+    if (previous !== null) {
+      const outOfOrder =
+        (order === 'strict' && time <= previous) || (order === 'nondecreasing' && time < previous);
+      if (outOfOrder) {
+        const rule = order === 'strict' ? 'strictly ascend' : 'not decrease';
+        errors.push(
+          formatError(
+            'ANIM_TIME_ORDER',
+            jsonPointer([...basePath, index, 'time']),
+            `keyframe times must ${rule}, ${time} does not follow ${previous}`,
+            { time, previous },
+          ),
+        );
+      }
     }
     previous = time;
   }
@@ -308,7 +317,7 @@ function checkDeform(
         recordFrames(frames);
         maxTime = Math.max(
           maxTime,
-          checkFrameTimes(frames, attachmentPath, duration, true, errors),
+          checkFrameTimes(frames, attachmentPath, duration, 'strict', errors),
         );
         if (vertexCount !== null) {
           for (const [frameIndex, frame] of frames.entries()) {
@@ -330,14 +339,143 @@ function checkDeform(
   return maxTime;
 }
 
+// EVENT family: EventDef names are unique across the document (format-contract sections 4.2, 4.10).
+// `events` is an array (not a Record) precisely so this uniqueness fault surfaces as a typed error.
+function checkEvents(doc: SkeletonDocument): FormatError[] {
+  const errors: FormatError[] = [];
+  const seen = new Set<string>();
+  for (const [index, event] of doc.events.entries()) {
+    if (seen.has(event.name)) {
+      errors.push(
+        formatError(
+          'EVENT_NAME_DUPLICATE',
+          jsonPointer(['events', index, 'name']),
+          `event name "${event.name}" is not unique`,
+          { name: event.name },
+        ),
+      );
+    } else {
+      seen.add(event.name);
+    }
+  }
+  return errors;
+}
+
+// Draw-order timeline (ADR-0008 section 3): strict-ascending key times, and per-key offset
+// consistency. An unlisted slot cannot be checked here (it is the runtime's fill), but each LISTED
+// entry must (a) name an existing slot (ANIM_SLOT_UNKNOWN), (b) appear at most once in the key, (c)
+// resolve to a target index (setup index + offset) inside [0, slotCount), and (d) not collide with
+// another listed entry's target. Faults (b) to (d) are DRAWORDER_INCOMPLETE: the key does not describe
+// a consistent reordering. The full order derivation is a solve concern owned by runtime-core.
+function checkDrawOrder(
+  doc: SkeletonDocument,
+  animName: string,
+  drawOrder: SkeletonDocument['animations'][string]['drawOrder'],
+  duration: number,
+  slotIndexByName: ReadonlyMap<string, number>,
+  recordFrames: (frames: ReadonlyArray<{ readonly time: number }>) => void,
+  errors: FormatError[],
+): number {
+  recordFrames(drawOrder);
+  const basePath = ['animations', animName, 'drawOrder'];
+  const maxTime = checkFrameTimes(drawOrder, basePath, duration, 'strict', errors);
+  const slotCount = doc.slots.length;
+  for (const [keyIndex, key] of drawOrder.entries()) {
+    const seenSlots = new Set<string>();
+    const targetIndices = new Set<number>();
+    for (const [entryIndex, entry] of key.offsets.entries()) {
+      const entryPath = [...basePath, keyIndex, 'offsets', entryIndex];
+      const setupIndex = slotIndexByName.get(entry.slot);
+      if (setupIndex === undefined) {
+        errors.push(
+          formatError(
+            'ANIM_SLOT_UNKNOWN',
+            jsonPointer([...entryPath, 'slot']),
+            `animation "${animName}" draw-order key offsets slot "${entry.slot}", which does not exist`,
+            { slot: entry.slot, animation: animName },
+          ),
+        );
+        continue;
+      }
+      if (seenSlots.has(entry.slot)) {
+        errors.push(
+          formatError(
+            'DRAWORDER_INCOMPLETE',
+            jsonPointer([...entryPath, 'slot']),
+            `slot "${entry.slot}" appears more than once in one draw-order key`,
+            { slot: entry.slot },
+          ),
+        );
+        continue;
+      }
+      seenSlots.add(entry.slot);
+      const target = setupIndex + entry.offset;
+      if (target < 0 || target >= slotCount) {
+        errors.push(
+          formatError(
+            'DRAWORDER_INCOMPLETE',
+            jsonPointer([...entryPath, 'offset']),
+            `slot "${entry.slot}" offset ${entry.offset} moves it to index ${target}, outside [0, ${slotCount})`,
+            { slot: entry.slot, offset: entry.offset, target, slotCount },
+          ),
+        );
+        continue;
+      }
+      if (targetIndices.has(target)) {
+        errors.push(
+          formatError(
+            'DRAWORDER_INCOMPLETE',
+            jsonPointer([...entryPath, 'offset']),
+            `two slots resolve to the same draw-order index ${target} in one key`,
+            { slot: entry.slot, target },
+          ),
+        );
+        continue;
+      }
+      targetIndices.add(target);
+    }
+  }
+  return maxTime;
+}
+
+// Event timeline (ADR-0008 section 2): each key references a defined event (ANIM_EVENT_UNKNOWN), key
+// times are NON-DECREASING (coincident events legal), and times are in range. Returns the max time.
+function checkAnimationEvents(
+  animName: string,
+  events: SkeletonDocument['animations'][string]['events'],
+  duration: number,
+  eventNames: ReadonlySet<string>,
+  recordFrames: (frames: ReadonlyArray<{ readonly time: number }>) => void,
+  errors: FormatError[],
+): number {
+  recordFrames(events);
+  const basePath = ['animations', animName, 'events'];
+  for (const [keyIndex, key] of events.entries()) {
+    if (!eventNames.has(key.name)) {
+      errors.push(
+        formatError(
+          'ANIM_EVENT_UNKNOWN',
+          jsonPointer([...basePath, keyIndex, 'name']),
+          `animation "${animName}" fires event "${key.name}", which is not defined on the document`,
+          { event: key.name, animation: animName },
+        ),
+      );
+    }
+  }
+  return checkFrameTimes(events, basePath, duration, 'nondecreasing', errors);
+}
+
 // ANIM family: bone/slot/ik/transform/deform timeline keys resolve, frame times strictly ascend and
-// stay in range, and duration is at least the maximum keyframe time across all timelines.
+// stay in range, draw-order keys describe consistent reorderings, event keys reference defined events,
+// and duration is at least the maximum keyframe time across all timelines.
 function checkAnimations(doc: SkeletonDocument): FormatError[] {
   const errors: FormatError[] = [];
   const boneNames = new Set(doc.bones.map((bone) => bone.name));
   const slotNames = new Set(doc.slots.map((slot) => slot.name));
+  const slotIndexByName = new Map(doc.slots.map((slot, index) => [slot.name, index]));
   const ikNames = new Set(doc.ikConstraints.map((c) => c.name));
   const transformNames = new Set(doc.transformConstraints.map((c) => c.name));
+  const eventNames = new Set(doc.events.map((event) => event.name));
   for (const [animName, animation] of Object.entries(doc.animations)) {
     const duration = animation.duration;
     let maxTime = 0;
@@ -363,7 +501,7 @@ function checkAnimations(doc: SkeletonDocument): FormatError[] {
           recordFrames(frames);
           maxTime = Math.max(
             maxTime,
-            checkFrameTimes(frames, [...basePath, channel], duration, true, errors),
+            checkFrameTimes(frames, [...basePath, channel], duration, 'strict', errors),
           );
         }
       }
@@ -388,7 +526,7 @@ function checkAnimations(doc: SkeletonDocument): FormatError[] {
             timelines.attachment,
             [...basePath, 'attachment'],
             duration,
-            false,
+            'none',
             errors,
           ),
         );
@@ -397,7 +535,7 @@ function checkAnimations(doc: SkeletonDocument): FormatError[] {
         recordFrames(timelines.color);
         maxTime = Math.max(
           maxTime,
-          checkFrameTimes(timelines.color, [...basePath, 'color'], duration, true, errors),
+          checkFrameTimes(timelines.color, [...basePath, 'color'], duration, 'strict', errors),
         );
       }
     }
@@ -414,7 +552,7 @@ function checkAnimations(doc: SkeletonDocument): FormatError[] {
         );
       }
       recordFrames(frames);
-      maxTime = Math.max(maxTime, checkFrameTimes(frames, basePath, duration, true, errors));
+      maxTime = Math.max(maxTime, checkFrameTimes(frames, basePath, duration, 'strict', errors));
     }
     for (const [constraintName, frames] of Object.entries(animation.transform)) {
       const basePath = ['animations', animName, 'transform', constraintName];
@@ -429,11 +567,27 @@ function checkAnimations(doc: SkeletonDocument): FormatError[] {
         );
       }
       recordFrames(frames);
-      maxTime = Math.max(maxTime, checkFrameTimes(frames, basePath, duration, true, errors));
+      maxTime = Math.max(maxTime, checkFrameTimes(frames, basePath, duration, 'strict', errors));
     }
     maxTime = Math.max(
       maxTime,
       checkDeform(doc, animName, animation.deform, duration, recordFrames, errors),
+    );
+    maxTime = Math.max(
+      maxTime,
+      checkDrawOrder(
+        doc,
+        animName,
+        animation.drawOrder,
+        duration,
+        slotIndexByName,
+        recordFrames,
+        errors,
+      ),
+    );
+    maxTime = Math.max(
+      maxTime,
+      checkAnimationEvents(animName, animation.events, duration, eventNames, recordFrames, errors),
     );
 
     // ANIM_DURATION (format-contract section 4.8): duration must be >= the maximum keyframe time and
@@ -467,6 +621,7 @@ export function validateSemantic(doc: SkeletonDocument): FormatError[] {
     ...checkAtlas(doc),
     ...checkMeshes(doc),
     ...checkConstraints(doc),
+    ...checkEvents(doc),
     ...checkAnimations(doc),
   ];
 }

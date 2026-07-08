@@ -83,11 +83,49 @@ export const deformTimelinesSchema = z.record(
   z.record(z.string(), z.record(z.string(), z.array(keyframeSchema(deformFrameValueSchema)))),
 );
 
-// An animation (handoff section 6). Phase 2 makes the ik/transform/deform timelines REAL (ADR-0004):
-// they are REQUIRED records, empty when an animation keys none of them, so a pre-0.2.0 document is
-// migrated (empties injected) rather than silently widened. The drawOrder and event timelines remain
-// deferred to a later phase (handoff subset discipline, Law 5), so the root stays `.strict()` and
-// closes over exactly these five keys.
+// A draw-order offset entry (format-contract section 4.10, ADR-0008 section 3). Moves one named slot
+// from its setup draw-order index by a signed integer `offset`. The full per-frame order is DERIVED
+// from the setup order plus these offsets, a solve concern owned by runtime-core; the format validates
+// only that the listed offsets describe a consistent reordering (DRAWORDER_INCOMPLETE, semantic layer).
+const drawOrderOffsetSchema = z
+  .object({
+    slot: z.string(),
+    offset: z.number().int().finite(),
+  })
+  .strict();
+
+// A draw-order keyframe (ADR-0008 section 3): at `time`, apply a compact list of per-slot offsets to
+// the setup draw order. An empty `offsets` list means the setup order (identity), so a key can restore
+// it after an earlier reorder. There is no curve (a draw-order change is a discrete, stepped
+// reordering). Strict-ascending time (format-contract section 4.8) and offset consistency are checked
+// in the semantic layer.
+export const drawOrderKeyframeSchema = z
+  .object({
+    time: z.number().finite(),
+    offsets: z.array(drawOrderOffsetSchema),
+  })
+  .strict();
+
+// An event keyframe (ADR-0008 section 2): fires the named event at `time`, optionally overriding the
+// event's int/float/string payload defaults. No curve (events are discrete). The `name` must reference
+// a defined EventDef (ANIM_EVENT_UNKNOWN); event times are NON-DECREASING (coincident events are legal,
+// only a strictly decreasing pair is ANIM_TIME_ORDER). Both referential and ordering checks live in the
+// semantic layer (format-contract sections 4.8 and 4.10).
+export const eventKeyframeSchema = z
+  .object({
+    time: z.number().finite(),
+    name: z.string(),
+    int: z.number().int().finite().optional(),
+    float: z.number().finite().optional(),
+    string: z.string().optional(),
+  })
+  .strict();
+
+// An animation (handoff section 6). Phase 2 makes the ik/transform/deform timelines REAL (ADR-0004);
+// stage F1 (ADR-0008, formatVersion 0.3.0) adds the `drawOrder` and `events` timelines. All five of
+// ik/transform/deform/drawOrder/events are REQUIRED collections, empty when an animation keys none, so
+// a pre-0.3.0 document is migrated (empties injected) rather than silently widened. The root stays
+// `.strict()` and closes over exactly these eight keys.
 export const animationSchema = z
   .object({
     duration: z.number().finite().nonnegative(),
@@ -96,6 +134,8 @@ export const animationSchema = z
     ik: z.record(z.string(), z.array(keyframeSchema(ikFrameSchema))),
     transform: z.record(z.string(), z.array(keyframeSchema(transformFrameSchema))),
     deform: deformTimelinesSchema,
+    drawOrder: z.array(drawOrderKeyframeSchema),
+    events: z.array(eventKeyframeSchema),
   })
   .strict();
 
@@ -105,4 +145,7 @@ export type SlotTimelines = z.infer<typeof slotTimelinesSchema>;
 export type IkFrame = z.infer<typeof ikFrameSchema>;
 export type TransformFrame = z.infer<typeof transformFrameSchema>;
 export type DeformTimelines = z.infer<typeof deformTimelinesSchema>;
+export type DrawOrderOffset = z.infer<typeof drawOrderOffsetSchema>;
+export type DrawOrderKeyframe = z.infer<typeof drawOrderKeyframeSchema>;
+export type EventKeyframe = z.infer<typeof eventKeyframeSchema>;
 export type Animation = z.infer<typeof animationSchema>;

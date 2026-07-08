@@ -196,6 +196,7 @@ describe('Phase 1 contract guardrails (WP-1.11)', () => {
     'DEFORM_OFFSET_LENGTH',
     'EVENT_NAME_DUPLICATE',
     'ANIM_EVENT_UNKNOWN',
+    'EVENT_AUDIO_RANGE',
     'HASH_MISMATCH',
   ];
 

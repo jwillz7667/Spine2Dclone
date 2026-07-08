@@ -13,6 +13,14 @@ export {
   boundingBoxAttachmentSchema,
 } from './attachment';
 export { skinSchema } from './skin';
-export { animationSchema, boneTimelinesSchema, slotTimelinesSchema } from './animation';
+export {
+  animationSchema,
+  boneTimelinesSchema,
+  slotTimelinesSchema,
+  drawOrderKeyframeSchema,
+  eventKeyframeSchema,
+} from './animation';
+export { eventDefSchema, eventAudioSchema } from './event';
+export { skeletonMetaSchema } from './metadata';
 export { atlasRefSchema, atlasPageSchema, atlasRegionSchema } from './atlas';
 export { skeletonDocumentSchema } from './document';

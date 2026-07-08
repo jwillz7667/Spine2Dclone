@@ -3,6 +3,8 @@ import { animationSchema } from './animation';
 import { atlasRefSchema } from './atlas';
 import { boneSchema } from './bone';
 import { ikConstraintSchema, transformConstraintSchema } from './constraint';
+import { eventDefSchema } from './event';
+import { skeletonMetaSchema } from './metadata';
 import { skinSchema } from './skin';
 import { slotSchema } from './slot';
 
@@ -17,9 +19,11 @@ import { slotSchema } from './slot';
 // Phase 2 (ADR-0004, formatVersion 0.2.0) ADDS `ikConstraints` and `transformConstraints` (REQUIRED
 // arrays, empty when the rig has none) and the ik/transform/deform animation timelines (in
 // animationSchema). A pre-0.2.0 document lacking these is migrated (empties injected), never silently
-// widened. The `events`/`EventDef` root field and the drawOrder/event animation timelines from the
-// full handoff type remain deferred to a later phase (Law 5, handoff subset discipline); adding them
-// is a further MINOR bump with its own ADR and migration (format-contract section 10.3).
+// widened. Stage F1 (ADR-0008, formatVersion 0.3.0) ADDS the `events` root collection (EventDef[],
+// REQUIRED, empty when the rig defines none), the OPTIONAL `metadata` block, and the drawOrder/event
+// animation timelines (in animationSchema). A pre-0.3.0 document lacking these is migrated (empties
+// injected). Growing the format further is a MINOR bump with its own ADR and migration
+// (format-contract section 10.3).
 export const skeletonDocumentSchema = z
   .object({
     formatVersion: z.string(),
@@ -30,8 +34,10 @@ export const skeletonDocumentSchema = z
     skins: z.array(skinSchema),
     ikConstraints: z.array(ikConstraintSchema),
     transformConstraints: z.array(transformConstraintSchema),
+    events: z.array(eventDefSchema),
     animations: z.record(z.string(), animationSchema),
     atlas: atlasRefSchema,
+    metadata: skeletonMetaSchema.optional(),
   })
   .strict();
 

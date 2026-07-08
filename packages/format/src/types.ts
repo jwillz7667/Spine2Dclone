@@ -24,7 +24,12 @@ export type {
   IkFrame,
   TransformFrame,
   DeformTimelines,
+  DrawOrderOffset,
+  DrawOrderKeyframe,
+  EventKeyframe,
 } from './schema/animation';
+export type { EventDef, EventAudio } from './schema/event';
+export type { SkeletonMeta } from './schema/metadata';
 export type { AtlasRef, AtlasPage, AtlasRegion } from './schema/atlas';
 export type { SkeletonDocument } from './schema/document';
 

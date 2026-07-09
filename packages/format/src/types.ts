@@ -10,9 +10,11 @@ export type {
   Attachment,
   RegionAttachment,
   MeshAttachment,
+  LinkedMeshAttachment,
   ClippingAttachment,
   PointAttachment,
   BoundingBoxAttachment,
+  Sequence,
 } from './schema/attachment';
 export type { Skin } from './schema/skin';
 export type { IkConstraint, TransformConstraint } from './schema/constraint';
@@ -27,6 +29,8 @@ export type {
   DrawOrderOffset,
   DrawOrderKeyframe,
   EventKeyframe,
+  SequenceMode,
+  SequenceKeyframe,
 } from './schema/animation';
 export type { EventDef, EventAudio } from './schema/event';
 export type { SkeletonMeta } from './schema/metadata';

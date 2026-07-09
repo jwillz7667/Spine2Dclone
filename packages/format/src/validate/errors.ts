@@ -64,6 +64,20 @@ export const FORMAT_ERROR_CODES = [
   'ANIM_EVENT_UNKNOWN',
   'EVENT_AUDIO_RANGE',
   'HASH_MISMATCH',
+  // Stage F2 (ADR-0009, formatVersion 0.4.0): constraint depth, linked meshes, sequences, timeline
+  // granularity, and skin scoping. Families: IK_SOFTNESS_RANGE and SEQUENCE_SETUP_RANGE are SCHEMA
+  // (structural refinements); CONSTRAINT_ORDER_INVALID is CONSTRAINT; the LINKED_MESH_* codes are MESH;
+  // TIMELINE_COMPONENT_CONFLICT and ANIM_DARK_NO_SETUP are ANIM; SKIN_BONE/CONSTRAINT_UNKNOWN are SKIN.
+  'IK_SOFTNESS_RANGE',
+  'CONSTRAINT_ORDER_INVALID',
+  'LINKED_MESH_PARENT_MISSING',
+  'LINKED_MESH_PARENT_INVALID',
+  'LINKED_MESH_CYCLE',
+  'SEQUENCE_SETUP_RANGE',
+  'TIMELINE_COMPONENT_CONFLICT',
+  'ANIM_DARK_NO_SETUP',
+  'SKIN_BONE_UNKNOWN',
+  'SKIN_CONSTRAINT_UNKNOWN',
 ] as const;
 
 export type FormatErrorCode = (typeof FORMAT_ERROR_CODES)[number];

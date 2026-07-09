@@ -399,6 +399,10 @@ export interface SkinSnapshot {
   readonly id: string;
   readonly name: string;
   readonly attachments: readonly AttachmentSnapshot[];
+  // Stage F2 (ADR-0009 section 5, PP-D10) skin-scoping name lists, emitted only when present so an unscoped
+  // skin round-trips deep-equal; promoted into the snapshot so the round-trip harness compares them.
+  readonly bones?: readonly string[];
+  readonly constraints?: readonly string[];
 }
 
 // A single symbol-library entry projection, tagged with its SymbolId key. The set is name/value-keyed
@@ -764,7 +768,13 @@ export function skinToSnapshot(skin: SkinEntity): SkinSnapshot {
             ? 1
             : 0,
   );
-  return { id: skin.id, name: skin.name, attachments };
+  return {
+    id: skin.id,
+    name: skin.name,
+    attachments,
+    ...(skin.bones !== undefined ? { bones: [...skin.bones] } : {}),
+    ...(skin.constraints !== undefined ? { constraints: [...skin.constraints] } : {}),
+  };
 }
 
 // Project the slot-scene aggregate to its deterministic snapshot shape (phase-4 WP-4.5 / WP-4.6): the grid

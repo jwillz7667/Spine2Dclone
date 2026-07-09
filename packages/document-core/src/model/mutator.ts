@@ -134,6 +134,13 @@ export interface Mutator extends DocumentReadModel {
   insertSkin(entity: SkinEntity, index: number): void;
   removeSkin(id: SkinId): void;
   patchSkin(id: SkinId, patch: { readonly name?: string }): void;
+  // Set (or clear) a named skin's Stage F2 (ADR-0009 section 5) scoping list. `names === undefined` (or an
+  // empty list) removes the scoping dimension; otherwise it stores the name list verbatim.
+  setSkinScope(
+    skinId: SkinId,
+    scope: 'bones' | 'constraints',
+    names: readonly string[] | undefined,
+  ): void;
   setSkinAttachment(skinId: SkinId, slotId: SlotId, entity: AttachmentEntity): void;
   removeSkinAttachment(skinId: SkinId, slotId: SlotId, name: string): void;
   // Event-definition + metadata + per-animation event/draw-order write surface (Stage F1, PP-D9).
@@ -242,6 +249,7 @@ export function createMutator(model: DocumentModelInternal): Mutator {
     insertSkin: (entity, index) => model.insertSkin(entity, index),
     removeSkin: (id) => model.removeSkin(id),
     patchSkin: (id, patch) => model.patchSkin(id, patch),
+    setSkinScope: (skinId, scope, names) => model.setSkinScope(skinId, scope, names),
     setSkinAttachment: (skinId, slotId, entity) => model.setSkinAttachment(skinId, slotId, entity),
     removeSkinAttachment: (skinId, slotId, name) =>
       model.removeSkinAttachment(skinId, slotId, name),

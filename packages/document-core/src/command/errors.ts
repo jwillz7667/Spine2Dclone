@@ -272,7 +272,17 @@ export class ConstraintError extends Error {
 //   - defaultProtected: an attempt to create/rename/delete the implicit 'default' skin.
 //   - notFound: an edit targeted a skin id that does not exist.
 //   - slotMissing: SetSkinAttachment named a slot not in the document.
-export type SkinErrorReason = 'duplicateName' | 'defaultProtected' | 'notFound' | 'slotMissing';
+export type SkinErrorReason =
+  | 'duplicateName'
+  | 'defaultProtected'
+  | 'notFound'
+  | 'slotMissing'
+  // Stage F2 (ADR-0009 section 5) skin-scoping (PP-D10): add a name already in the list, remove a name not
+  // in it, or reference a bone/constraint that does not exist.
+  | 'scopeDuplicate'
+  | 'scopeMissing'
+  | 'scopeUnknownBone'
+  | 'scopeUnknownConstraint';
 
 export class SkinError extends Error {
   override readonly name = 'SkinError';

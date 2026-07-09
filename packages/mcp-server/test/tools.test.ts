@@ -1528,6 +1528,41 @@ describe('MCP skin tools (WP-2.8)', () => {
       'SKIN_NOT_FOUND',
     );
   });
+
+  it('adds and removes Stage F2 skin scoping and rejects bad scope edits', async () => {
+    const deps = makeDeps();
+    const { documentId } = await buildConstraintRig(deps);
+    const { skinId } = asRecord(await call(deps, 'skin.create', { documentId, name: 'costume' }));
+
+    await call(deps, 'skin.scope.add', { documentId, skinId, scope: 'bones', name: 'upper' });
+    const scoped = asRecord(asRecord(await call(deps, 'skin.get', { documentId, skinId })).skin);
+    expect(scoped.bones).toEqual(['upper']);
+
+    // Duplicate add and unknown bone/constraint are typed SKIN errors.
+    await expectToolError(
+      call(deps, 'skin.scope.add', { documentId, skinId, scope: 'bones', name: 'upper' }),
+      'SKIN',
+    );
+    await expectToolError(
+      call(deps, 'skin.scope.add', { documentId, skinId, scope: 'bones', name: 'nope' }),
+      'SKIN',
+    );
+    await expectToolError(
+      call(deps, 'skin.scope.add', { documentId, skinId, scope: 'constraints', name: 'nope' }),
+      'SKIN',
+    );
+
+    // Removing the last scoped bone clears the dimension (the field goes absent).
+    await call(deps, 'skin.scope.remove', { documentId, skinId, scope: 'bones', name: 'upper' });
+    const cleared = asRecord(asRecord(await call(deps, 'skin.get', { documentId, skinId })).skin);
+    expect(cleared.bones).toBeUndefined();
+
+    // Removing a name that is not scoped is a typed SKIN error.
+    await expectToolError(
+      call(deps, 'skin.scope.remove', { documentId, skinId, scope: 'bones', name: 'upper' }),
+      'SKIN',
+    );
+  });
 });
 
 describe('MCP deform tools (WP-2.9)', () => {
@@ -2307,6 +2342,8 @@ describe('MCP tool catalog', () => {
     'skin.create',
     'skin.rename',
     'skin.delete',
+    'skin.scope.add',
+    'skin.scope.remove',
     'skin.setAttachment',
     'skin.removeAttachment',
     'skin.list',

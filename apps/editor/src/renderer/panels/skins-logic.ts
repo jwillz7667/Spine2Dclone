@@ -66,3 +66,14 @@ export function skinRegionEntity(
     ...regionAttachmentDefaults(region),
   };
 }
+
+// The names still available to add to a Stage F2 (ADR-0009 section 5) skin-scoping list: every candidate
+// name (bone or constraint) not already scoped, preserving the candidate order. The AddSkinScope command
+// rejects a true duplicate at the boundary; this drives the panel's add-dropdown so it never offers one.
+export function availableScopeNames(
+  candidates: readonly string[],
+  scoped: readonly string[],
+): string[] {
+  const taken = new Set(scoped);
+  return candidates.filter((name) => !taken.has(name));
+}

@@ -2,19 +2,23 @@ import type { IDockviewPanelProps } from 'dockview';
 import { useEffect, useMemo, type CSSProperties, type ReactElement } from 'react';
 import type { AtlasRegion } from '@marionette/format/types';
 import {
+  AddSkinScopeCommand,
   CreateSkinCommand,
   DeleteSkinCommand,
   RemoveSkinAttachmentCommand,
+  RemoveSkinScopeCommand,
   RenameSkinCommand,
   SetSkinAttachmentCommand,
   documentHost,
   type SkinEntity,
   type SkinId,
+  type SkinScope,
   type SlotEntity,
 } from '../document';
 import { useDocumentRevision } from '../editor-state/use-document-revision';
 import { DEFAULT_SKIN_NAME, useSkinPreviewStore } from '../editor-state/skin-preview-store';
 import {
+  availableScopeNames,
   duplicateSkinName,
   isKnownSkin,
   previewAfterDelete,
@@ -173,6 +177,16 @@ function removeSkinAttachment(skinId: SkinId, slot: SlotEntity, name: string): v
   documentHost.current().history.execute(new RemoveSkinAttachmentCommand(skinId, slot.id, name));
 }
 
+// Stage F2 (ADR-0009 section 5, PP-D10) skin-scoping dispatch: add/remove a bone or constraint NAME to a
+// named skin's active-only list. The commands reject an unresolved/duplicate/missing name at the boundary.
+function addSkinScope(skinId: SkinId, scope: SkinScope, name: string): void {
+  documentHost.current().history.execute(new AddSkinScopeCommand(skinId, scope, name));
+}
+
+function removeSkinScope(skinId: SkinId, scope: SkinScope, name: string): void {
+  documentHost.current().history.execute(new RemoveSkinScopeCommand(skinId, scope, name));
+}
+
 interface SkinRowProps {
   readonly name: string;
   readonly isSelected: boolean;
@@ -310,6 +324,89 @@ function SkinAssignments(props: SkinAssignmentsProps): ReactElement {
           </div>
         );
       })}
+      <SkinScoping skin={skin} />
+    </div>
+  );
+}
+
+// The Stage F2 (ADR-0009 section 5, PP-D10) skin-scoping editor for one named skin: the bones and
+// constraints that are active ONLY while this skin is active. Reads the live model for the candidate names;
+// every edit routes through the AddSkinScope / RemoveSkinScope commands (LAW 2).
+function SkinScoping(props: { readonly skin: SkinEntity }): ReactElement {
+  const { skin } = props;
+  const model = documentHost.current().model;
+  const boneNames = model.bones().map((bone) => bone.name);
+  const constraintNames = [
+    ...model.ikConstraints().map((c) => c.name),
+    ...model.transformConstraints().map((c) => c.name),
+  ];
+  return (
+    <div style={scopeSectionStyle}>
+      <div style={scopeHeaderStyle}>Active only in this skin (Stage F2)</div>
+      <SkinScopeRow
+        label="Bones"
+        scope="bones"
+        skinId={skin.id}
+        scoped={skin.bones ?? []}
+        candidates={boneNames}
+      />
+      <SkinScopeRow
+        label="Constraints"
+        scope="constraints"
+        skinId={skin.id}
+        scoped={skin.constraints ?? []}
+        candidates={constraintNames}
+      />
+    </div>
+  );
+}
+
+function SkinScopeRow(props: {
+  readonly label: string;
+  readonly scope: SkinScope;
+  readonly skinId: SkinId;
+  readonly scoped: readonly string[];
+  readonly candidates: readonly string[];
+}): ReactElement {
+  const { label, scope, skinId, scoped, candidates } = props;
+  const available = availableScopeNames(candidates, scoped);
+  return (
+    <div style={assignRowStyle}>
+      <span style={slotNameStyle}>{label}</span>
+      {scoped.length === 0 ? (
+        <span style={inheritStyle}>(none)</span>
+      ) : (
+        scoped.map((name) => (
+          <span key={name} style={scopeChipStyle}>
+            {name}
+            <button
+              type="button"
+              style={scopeChipRemoveStyle}
+              title={`Remove ${name} from this skin scope`}
+              onClick={() => removeSkinScope(skinId, scope, name)}
+            >
+              x
+            </button>
+          </span>
+        ))
+      )}
+      {available.length > 0 && (
+        <select
+          style={selectStyle}
+          value=""
+          title={`Add a ${scope === 'bones' ? 'bone' : 'constraint'} to this skin scope`}
+          onChange={(event) => {
+            if (event.target.value !== '') addSkinScope(skinId, scope, event.target.value);
+          }}
+        >
+          <option value="">Add...</option>
+          {available.map((name) => (
+            <option key={name} value={name}>
+              {name}
+            </option>
+          ))}
+        </select>
+      )}
     </div>
   );
 }
@@ -322,6 +419,41 @@ const rootStyle: CSSProperties = {
   background: '#1b1b1b',
   color: '#dddddd',
   fontSize: 12,
+};
+
+const scopeSectionStyle: CSSProperties = {
+  marginTop: 10,
+  paddingTop: 8,
+  borderTop: '1px solid #333333',
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 4,
+};
+
+const scopeHeaderStyle: CSSProperties = {
+  color: '#999999',
+  fontSize: 11,
+  textTransform: 'uppercase',
+  letterSpacing: 0.4,
+};
+
+const scopeChipStyle: CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 4,
+  padding: '1px 4px',
+  borderRadius: 3,
+  background: '#2a2a2a',
+  border: '1px solid #3a3a3a',
+};
+
+const scopeChipRemoveStyle: CSSProperties = {
+  border: 'none',
+  background: 'transparent',
+  color: '#aaaaaa',
+  cursor: 'pointer',
+  padding: 0,
+  lineHeight: 1,
 };
 
 const toolbarStyle: CSSProperties = {

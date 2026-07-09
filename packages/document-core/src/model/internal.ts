@@ -1695,6 +1695,31 @@ export class DocumentModelInternal implements DocumentReadModel {
     this.revisionValue += 1;
   }
 
+  // Set (or clear) a named skin's Stage F2 (ADR-0009 section 5) scoping list. An undefined or empty list
+  // removes the field (the skin is unscoped in that dimension), keeping the model canonical (no empty-array
+  // scoping). A missing skin is a no-op (commands assert existence before writing).
+  setSkinScope(
+    skinId: SkinId,
+    scope: 'bones' | 'constraints',
+    names: readonly string[] | undefined,
+  ): void {
+    const current = this.skinsMap.get(skinId);
+    if (!current) return;
+    const value = names && names.length > 0 ? Object.freeze(names.slice()) : undefined;
+    if (this.batching) {
+      if (value === undefined) delete current[scope];
+      else current[scope] = value;
+    } else {
+      const next = new Map(this.skinsMap);
+      const updated: MutableSkin = { ...current };
+      if (value === undefined) delete updated[scope];
+      else updated[scope] = value;
+      next.set(skinId, updated);
+      this.skinsMap = next;
+    }
+    this.revisionValue += 1;
+  }
+
   // Place an attachment in a NAMED skin under (slotId, entity.name), the mirror of the default-skin
   // addAttachment path but scoped to one skin's own attachment map. A missing skin is a no-op (commands
   // assert existence before writing).

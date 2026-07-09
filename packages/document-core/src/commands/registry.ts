@@ -11,7 +11,9 @@ import { deleteSkinSpec } from './delete-skin.command';
 import { deleteTransformConstraintSpec } from './delete-transform-constraint.command';
 import { deleteTransformKeyframeSpec } from './delete-transform-keyframe.command';
 import { moveDeformKeyframeSpec } from './move-deform-keyframe.command';
+import { addSkinScopeSpec } from './add-skin-scope.command';
 import { removeSkinAttachmentSpec } from './remove-skin-attachment.command';
+import { removeSkinScopeSpec } from './remove-skin-scope.command';
 import { renameSkinSpec } from './rename-skin.command';
 import { setDeformKeyframeSpec } from './set-deform-keyframe.command';
 import { setGridConfigSpec } from './set-grid-config.command';
@@ -195,6 +197,8 @@ export const commandRegistry: readonly CommandSpec[] = [
   createSkinSpec,
   renameSkinSpec,
   deleteSkinSpec,
+  addSkinScopeSpec,
+  removeSkinScopeSpec,
   setSkinAttachmentSpec,
   removeSkinAttachmentSpec,
   // WP-2.9 deform timelines

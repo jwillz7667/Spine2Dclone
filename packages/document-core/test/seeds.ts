@@ -250,7 +250,15 @@ function riggedDoc(): SkeletonDocument {
     slots: [slot('mesh_slot', 'root', { attachment: 'panel' })],
     skins: [
       { name: 'default', attachments: { mesh_slot: { panel: weightedQuad('skin_panel', 1, 2) } } },
-      { name: 'variant', attachments: { mesh_slot: { alt: region('skin_variant') } } },
+      {
+        name: 'variant',
+        // Stage F2 (ADR-0009 section 5) skin scoping: this named skin activates the 'follower' bone and the
+        // 'follow' transform constraint only while it is the active skin. Gives the PP-D10 skin-scope
+        // add/remove commands a pre-scoped target on a real seed.
+        bones: ['follower'],
+        constraints: ['follow'],
+        attachments: { mesh_slot: { alt: region('skin_variant') } },
+      },
     ],
     ikConstraints,
     transformConstraints,

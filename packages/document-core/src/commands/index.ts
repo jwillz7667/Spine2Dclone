@@ -179,6 +179,9 @@ export {
 // WP-2.8 named skins
 export { CreateSkinCommand, createSkinSpec } from './create-skin.command';
 export { RenameSkinCommand, renameSkinSpec } from './rename-skin.command';
+export { AddSkinScopeCommand, addSkinScopeSpec } from './add-skin-scope.command';
+export { RemoveSkinScopeCommand, removeSkinScopeSpec } from './remove-skin-scope.command';
+export type { SkinScope } from './skin-scope-support';
 export { DeleteSkinCommand, deleteSkinSpec } from './delete-skin.command';
 export { SetSkinAttachmentCommand, setSkinAttachmentSpec } from './set-skin-attachment.command';
 export {

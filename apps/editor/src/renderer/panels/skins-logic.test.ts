@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { AtlasRegion } from '@marionette/format/types';
 import {
+  availableScopeNames,
   duplicateSkinName,
   isKnownSkin,
   previewAfterDelete,
@@ -59,5 +60,12 @@ describe('skins panel logic (PP-D4)', () => {
     expect(entity.path).toBe('arm_red'); // points at the chosen region
     expect(entity.width).toBe(32);
     expect(entity.height).toBe(48);
+  });
+
+  it('offers only unscoped names for a skin scope, preserving candidate order (Stage F2)', () => {
+    expect(availableScopeNames(['root', 'upper', 'lower'], ['upper'])).toEqual(['root', 'lower']);
+    expect(availableScopeNames(['a', 'b'], ['a', 'b'])).toEqual([]);
+    expect(availableScopeNames([], ['x'])).toEqual([]);
+    expect(availableScopeNames(['x', 'y'], [])).toEqual(['x', 'y']);
   });
 });

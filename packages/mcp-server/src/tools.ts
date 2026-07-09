@@ -12,6 +12,7 @@ import {
   CreateAnimationCommand,
   CreateBoneCommand,
   CreateIkConstraintCommand,
+  AddSkinScopeCommand,
   CreateSkinCommand,
   CreateSlotCommand,
   CreateTransformConstraintCommand,
@@ -60,6 +61,7 @@ import {
   RemoveSkinAttachmentCommand,
   RenameAnimationCommand,
   RenameBoneCommand,
+  RemoveSkinScopeCommand,
   RenameSkinCommand,
   RenameSlotCommand,
   ReorderSlotCommand,
@@ -727,7 +729,14 @@ function skinView(skin: SkinEntity): Record<string, unknown> {
       attachments.push({ slotId: slotIdKey, name: att.name, kind: att.kind });
     }
   }
-  return { id: skin.id, name: skin.name, attachments };
+  return {
+    id: skin.id,
+    name: skin.name,
+    attachments,
+    // Stage F2 (ADR-0009 section 5, PP-D10) skin-scoping name lists (present only when the skin is scoped).
+    ...(skin.bones !== undefined ? { bones: [...skin.bones] } : {}),
+    ...(skin.constraints !== undefined ? { constraints: [...skin.constraints] } : {}),
+  };
 }
 
 // Project a document-level event definition for `event.list` / `event.get` (its payload defaults and the
@@ -864,6 +873,9 @@ const colorComponent = z.number().finite().min(0).max(1);
 const rgbaSchema = z
   .object({ r: colorComponent, g: colorComponent, b: colorComponent, a: colorComponent })
   .strict();
+
+// The two Stage F2 (ADR-0009 section 5) skin-scoping dimensions (skin.scope.add / skin.scope.remove).
+const skinScopeSchema = z.enum(['bones', 'constraints']);
 
 const documentId = z.string().min(1);
 const boneId = z.string().min(1);
@@ -4870,6 +4882,46 @@ export const TOOLS: readonly ToolDefinition[] = [
       const session = deps.sessions.get(input.documentId);
       requireSkin(session, input.skinId);
       executeSkinEdit(session, new DeleteSkinCommand(asSkinId(input.skinId)));
+      return { revision: session.document.model.revision };
+    },
+  ),
+  defineTool(
+    {
+      name: 'skin.scope.add',
+      title: 'Add skin scope',
+      description:
+        'Add a bone or constraint NAME to a NAMED skin Stage F2 scoping list (the bones/constraints active ' +
+        'only while this skin is active). Rejected as SKIN (reason: notFound, scopeDuplicate, ' +
+        'scopeUnknownBone, or scopeUnknownConstraint).',
+      input: z
+        .object({ documentId, skinId, scope: skinScopeSchema, name: z.string().min(1) })
+        .strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireSkin(session, input.skinId);
+      executeSkinEdit(session, new AddSkinScopeCommand(asSkinId(input.skinId), input.scope, input.name));
+      return { revision: session.document.model.revision };
+    },
+  ),
+  defineTool(
+    {
+      name: 'skin.scope.remove',
+      title: 'Remove skin scope',
+      description:
+        'Remove a bone or constraint NAME from a NAMED skin scoping list (clearing the dimension when the ' +
+        'last entry goes). Rejected as SKIN (reason: notFound or scopeMissing).',
+      input: z
+        .object({ documentId, skinId, scope: skinScopeSchema, name: z.string().min(1) })
+        .strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireSkin(session, input.skinId);
+      executeSkinEdit(
+        session,
+        new RemoveSkinScopeCommand(asSkinId(input.skinId), input.scope, input.name),
+      );
       return { revision: session.document.model.revision };
     },
   ),

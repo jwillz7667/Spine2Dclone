@@ -1211,6 +1211,57 @@ describe('MCP transform constraint tools (WP-2.7)', () => {
   });
 });
 
+describe('MCP constraint order tool (PP-D10)', () => {
+  it('reorders IK+transform constraints, clears back to default, and rejects a bad permutation', async () => {
+    const deps = makeDeps();
+    const { documentId, rootId, upperId, lowerId } = await buildConstraintRig(deps);
+    const { ikConstraintId } = asRecord(
+      await call(deps, 'ik.createConstraint', {
+        documentId,
+        name: 'leg_ik',
+        boneIds: [upperId, lowerId],
+        targetId: rootId,
+      }),
+    );
+    const { transformConstraintId } = asRecord(
+      await call(deps, 'transform.createConstraint', {
+        documentId,
+        name: 'follow',
+        boneIds: [upperId],
+        targetId: rootId,
+      }),
+    );
+
+    // Reverse the default (IK then transform) order: transform first (0), IK second (1).
+    await call(deps, 'constraints.reorder', {
+      documentId,
+      order: [transformConstraintId, ikConstraintId],
+    });
+    const ikAfter = asRecord(
+      asRecord(await call(deps, 'ik.get', { documentId, ikConstraintId })).ikConstraint,
+    );
+    const tcAfter = asRecord(
+      asRecord(await call(deps, 'transform.get', { documentId, transformConstraintId }))
+        .transformConstraint,
+    );
+    expect(ikAfter.order).toBe(1);
+    expect(tcAfter.order).toBe(0);
+
+    // Clear restores the default: the projection omits order entirely.
+    await call(deps, 'constraints.reorder', { documentId, order: null });
+    const ikCleared = asRecord(
+      asRecord(await call(deps, 'ik.get', { documentId, ikConstraintId })).ikConstraint,
+    );
+    expect('order' in ikCleared).toBe(false);
+
+    // A wrong-length permutation is a typed CONSTRAINT error (reason orderInvalid).
+    await expectToolError(
+      call(deps, 'constraints.reorder', { documentId, order: [ikConstraintId] }),
+      'CONSTRAINT',
+    );
+  });
+});
+
 describe('MCP skin tools (WP-2.8)', () => {
   it('creates, renames, populates, and deletes a named skin', async () => {
     const deps = makeDeps();
@@ -2034,6 +2085,7 @@ describe('MCP tool catalog', () => {
     'transform.moveKeyframe',
     'transform.list',
     'transform.get',
+    'constraints.reorder',
     'skin.create',
     'skin.rename',
     'skin.delete',

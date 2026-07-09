@@ -77,6 +77,7 @@ import {
   SetSkinAttachmentCommand,
   SetSlotBlendModeCommand,
   SetSlotColorCommand,
+  ReorderConstraintsCommand,
   SetTransformConstraintParamsCommand,
   SetTransformConstraintVariantsCommand,
   SetTransformKeyframeCommand,
@@ -4560,6 +4561,26 @@ export const TOOLS: readonly ToolDefinition[] = [
         ),
       ),
     }),
+  ),
+  defineTool(
+    {
+      name: 'constraints.reorder',
+      title: 'Reorder constraints',
+      description:
+        'Set the explicit cross-array constraint solve order (ADR-0009): `order` is the combined IK-then-' +
+        'transform constraint ids in the desired solve order, a dense unique cover of the current set (a ' +
+        'wrong length, duplicate, or unknown id is CONSTRAINT with reason orderInvalid). Pass `order: null` ' +
+        'to CLEAR the explicit order and restore the default (all IK in array order, then all transform).',
+      input: z
+        .object({ documentId, order: z.array(z.string().min(1)).nullable() })
+        .strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      return {
+        revision: executeConstraintEdit(session, new ReorderConstraintsCommand(input.order)),
+      };
+    },
   ),
 
   // ----- skins (WP-2.8, same command + History as the GUI, LAW 2) -----

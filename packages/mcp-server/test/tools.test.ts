@@ -780,6 +780,69 @@ async function buildUnweightedMeshDoc(deps: ToolDeps): Promise<{
   };
 }
 
+describe('MCP linked-mesh tools (PP-D10)', () => {
+  async function attachmentKind(
+    deps: ToolDeps,
+    documentId: string,
+    slotId: string,
+    name: string,
+  ): Promise<string | undefined> {
+    const got = asRecord(await call(deps, 'slot.get', { documentId, slotId }));
+    const list = got.attachments as Array<{ name: string; kind: string }>;
+    return list.find((a) => a.name === name)?.kind;
+  }
+
+  it('creates a linked mesh, unlinks it, and surfaces typed errors', async () => {
+    const deps = makeDeps();
+    const { documentId, slotId } = await buildUnweightedMeshDoc(deps);
+
+    await call(deps, 'attach.linkedmesh.create', {
+      documentId,
+      slotId,
+      name: 'panel_ref',
+      path: 'tex',
+      parent: 'panel',
+      timelines: true,
+      width: 32,
+      height: 32,
+    });
+    expect(await attachmentKind(deps, documentId, slotId, 'panel_ref')).toBe('linkedmesh');
+
+    // A duplicate name is a typed LINKED_MESH error.
+    await expectToolError(
+      call(deps, 'attach.linkedmesh.create', {
+        documentId,
+        slotId,
+        name: 'panel',
+        path: 'tex',
+        parent: 'panel',
+      }),
+      'LINKED_MESH',
+    );
+    // A missing parent is a typed LINKED_MESH error.
+    await expectToolError(
+      call(deps, 'attach.linkedmesh.create', {
+        documentId,
+        slotId,
+        name: 'ghost_ref',
+        path: 'tex',
+        parent: 'ghost',
+      }),
+      'LINKED_MESH',
+    );
+
+    // Unlink bakes it to a plain mesh.
+    await call(deps, 'attach.linkedmesh.unlink', { documentId, slotId, name: 'panel_ref' });
+    expect(await attachmentKind(deps, documentId, slotId, 'panel_ref')).toBe('mesh');
+
+    // Unlinking a non-linked-mesh is a typed LINKED_MESH error.
+    await expectToolError(
+      call(deps, 'attach.linkedmesh.unlink', { documentId, slotId, name: 'panel' }),
+      'LINKED_MESH',
+    );
+  });
+});
+
 describe('MCP mesh weight tools (WP-2.3 / WP-2.4)', () => {
   async function panelMesh(
     deps: ToolDeps,

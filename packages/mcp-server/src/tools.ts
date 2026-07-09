@@ -38,6 +38,9 @@ import {
   ExportValidationError,
   GenerateMeshFromRegionCommand,
   KeyframeCollisionError,
+  LinkedMeshError,
+  CreateLinkedMeshCommand,
+  UnlinkMeshCommand,
   MeshBindingError,
   MeshTopologyLockedError,
   MoveBoneCommand,
@@ -329,6 +332,21 @@ function executeBindingEdit(session: Session, cmd: Command): number {
   } catch (error) {
     if (error instanceof MeshBindingError) {
       throw new McpToolError('MESH_BINDING', error.message, { reason: error.reason });
+    }
+    throw error;
+  }
+  return session.document.model.revision;
+}
+
+// Execute a linked-mesh authoring edit (PP-D10), converting the linked-mesh guard into a typed LINKED_MESH
+// tool error carrying the reason (parentMissing / parentInvalid / cycle / duplicateName / notFound). The
+// guard throws before any mutation, so a rejected edit changes nothing and pushes no history entry.
+function executeLinkedMeshEdit(session: Session, cmd: Command): number {
+  try {
+    session.document.history.execute(cmd);
+  } catch (error) {
+    if (error instanceof LinkedMeshError) {
+      throw new McpToolError('LINKED_MESH', error.message, { reason: error.reason });
     }
     throw error;
   }
@@ -3472,6 +3490,70 @@ export const TOOLS: readonly ToolDefinition[] = [
         }),
       );
       return { revision: session.document.model.revision };
+    },
+  ),
+  defineTool(
+    {
+      name: 'attach.linkedmesh.create',
+      title: 'Create linked mesh',
+      description:
+        'Add a linked mesh (Stage F2) to a slot default skin: it reuses the geometry of a PARENT mesh on the ' +
+        'SAME slot (in `skin`, default the default skin) while carrying its own atlas `path`, size, and ' +
+        'color. `timelines` shares the parent deform timelines. The parent chain is resolved and ' +
+        'cycle-checked (LINKED_MESH with reason parentMissing / parentInvalid / cycle / duplicateName).',
+      input: z
+        .object({
+          documentId,
+          slotId,
+          name: z.string().min(1),
+          path: z.string().min(1),
+          parent: z.string().min(1),
+          skin: z.string().min(1).optional(),
+          timelines: z.boolean().default(false),
+          width: z.number().finite().default(0),
+          height: z.number().finite().default(0),
+          color: rgbaSchema.default({ r: 1, g: 1, b: 1, a: 1 }),
+        })
+        .strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireSlot(session, input.slotId);
+      return {
+        revision: executeLinkedMeshEdit(
+          session,
+          new CreateLinkedMeshCommand(asSlotId(input.slotId), {
+            name: input.name,
+            path: input.path,
+            parent: input.parent,
+            ...(input.skin !== undefined ? { skin: input.skin } : {}),
+            timelines: input.timelines,
+            width: input.width,
+            height: input.height,
+            color: input.color,
+          }),
+        ),
+      };
+    },
+  ),
+  defineTool(
+    {
+      name: 'attach.linkedmesh.unlink',
+      title: 'Unlink mesh',
+      description:
+        'Bake a linked mesh to a plain mesh: it takes the resolved root geometry and keeps its own atlas ' +
+        'path, size, and color. A target that is not a linked mesh is LINKED_MESH with reason notFound.',
+      input: z.object({ documentId, slotId, name: z.string().min(1) }).strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireSlot(session, input.slotId);
+      return {
+        revision: executeLinkedMeshEdit(
+          session,
+          new UnlinkMeshCommand(asSlotId(input.slotId), input.name),
+        ),
+      };
     },
   ),
   defineTool(

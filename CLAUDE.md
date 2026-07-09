@@ -98,7 +98,7 @@ packages/
   atlas-pack/                    # deterministic atlas pipeline (ADR-0007), shared by editor main + mcp-server
   math-bridge/                   # SpinResult types + adapter to the existing engine (+ mock)
   conformance/                   # reference rigs + expected-output fixtures + harness (4 tracks + cross-language vectors)
-runtimes/{unity,godot}/          # PLANNED (Phase 5, not created yet); will mirror runtime-core, validated by conformance
+runtimes/{unity,godot}/          # LANDED (PP-E1/E2): C# + GDScript mirrors of runtime-core, full-corpus fixture-conformant, gated by conformance-native CI
 docs/plan/                       # plan of record: phase-*.md + cross-cutting/*.md
 ```
 

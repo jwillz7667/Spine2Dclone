@@ -176,12 +176,17 @@ namespace Marionette.Runtime.Core.Document
                     new LinkedMeshAttachment(
                         ReqString(attachment, "parent"),
                         skin,
-                        ReqBool(attachment, "timelines")));
+                        ReqBool(attachment, "timelines")),
+                    null);
             }
+
+            // A region or mesh attachment may carry an optional sequence block (ADR-0011 section 2); read it
+            // for both so the sequence solve can find it on either attachment kind.
+            SequenceBlock? sequence = ReadSequenceBlock(attachment);
 
             if (type != "mesh")
             {
-                return new Attachment(type, null, null);
+                return new Attachment(type, null, null, sequence);
             }
 
             double[] uvs = ReadNumberArray(ReqMember(attachment, "uvs", JsonKind.Array));
@@ -193,7 +198,21 @@ namespace Marionette.Runtime.Core.Document
                 bones = ReadIntArray(bonesValue);
             }
 
-            return new Attachment(type, new MeshAttachment(uvs, vertices, bones), null);
+            return new Attachment(type, new MeshAttachment(uvs, vertices, bones), null, sequence);
+        }
+
+        private static SequenceBlock? ReadSequenceBlock(JsonValue attachment)
+        {
+            JsonValue? sequenceValue = attachment.Member("sequence");
+            if (sequenceValue == null || sequenceValue.Kind != JsonKind.Object)
+            {
+                return null;
+            }
+
+            // The solve needs only count + setupIndex; start/digits are render-only naming inputs.
+            return new SequenceBlock(
+                (int)ReqNumber(sequenceValue, "count"),
+                (int)ReqNumber(sequenceValue, "setupIndex"));
         }
 
         private static IkConstraint ReadIkConstraint(JsonValue ik)
@@ -408,7 +427,54 @@ namespace Marionette.Runtime.Core.Document
         {
             return new SlotTimelines(
                 ReadColorChannel(timelines.Member("color")),
-                ReadAttachmentChannel(timelines.Member("attachment")));
+                ReadAttachmentChannel(timelines.Member("attachment")),
+                ReadSequenceChannel(timelines.Member("sequence")));
+        }
+
+        private static List<SequenceKeyframe>? ReadSequenceChannel(JsonValue? channel)
+        {
+            if (channel == null || channel.Kind != JsonKind.Array)
+            {
+                return null;
+            }
+
+            // A sequence keyframe carries its fields directly (no nested "value" object): time, mode, index,
+            // delay (ADR-0009 section 3). The mode is a closed enum, so an unknown string fails loudly.
+            var keys = new List<SequenceKeyframe>();
+            foreach (JsonValue frame in channel.AsArray())
+            {
+                keys.Add(
+                    new SequenceKeyframe(
+                        ReqNumber(frame, "time"),
+                        ParseSequenceMode(ReqString(frame, "mode")),
+                        (int)ReqNumber(frame, "index"),
+                        ReqNumber(frame, "delay")));
+            }
+
+            return keys;
+        }
+
+        private static SequenceMode ParseSequenceMode(string mode)
+        {
+            switch (mode)
+            {
+                case "hold":
+                    return SequenceMode.Hold;
+                case "once":
+                    return SequenceMode.Once;
+                case "loop":
+                    return SequenceMode.Loop;
+                case "pingpong":
+                    return SequenceMode.Pingpong;
+                case "onceReverse":
+                    return SequenceMode.OnceReverse;
+                case "loopReverse":
+                    return SequenceMode.LoopReverse;
+                case "pingpongReverse":
+                    return SequenceMode.PingpongReverse;
+                default:
+                    throw new RigReadException($"unknown sequence mode '{mode}'");
+            }
         }
 
         private static List<ScalarKeyframe>? ReadScalarChannel(JsonValue? channel, string valueKey)

@@ -160,7 +160,9 @@ static func _read_attachment(attachment: Dictionary) -> Document.Attachment:
 		a.timelines = _req_bool(attachment, "timelines")
 		return a
 	if a.type != "mesh":
+		# A region attachment may carry an optional sequence block (ADR-0009 section 3, ADR-0011 section 2).
 		a.mesh = null
+		a.sequence = _read_sequence_block(attachment)
 		return a
 	var mesh := Document.MeshAttachment.new()
 	mesh.uvs = _read_number_array(_req_array(attachment, "uvs"))
@@ -171,7 +173,24 @@ static func _read_attachment(attachment: Dictionary) -> Document.Attachment:
 	else:
 		mesh.bones = null
 	a.mesh = mesh
+	# A mesh attachment may also carry a sequence block (same additive optional field as region).
+	a.sequence = _read_sequence_block(attachment)
 	return a
+
+
+# The optional sequence block on a region or mesh attachment (ADR-0009 section 3). Returns a Dictionary
+# { count, start, digits, setupIndex } or null when the attachment names no sequence. The solve consumes
+# count + setupIndex; start/digits are render-only (atlas naming) and kept for completeness.
+static func _read_sequence_block(attachment: Dictionary):
+	var sequence = attachment.get("sequence")
+	if sequence == null or typeof(sequence) != TYPE_DICTIONARY:
+		return null
+	return {
+		"count": int(_req_number(sequence, "count")),
+		"start": int(_req_number(sequence, "start")),
+		"digits": int(_req_number(sequence, "digits")),
+		"setupIndex": int(_req_number(sequence, "setupIndex")),
+	}
 
 
 static func _read_ik_constraint(ik: Dictionary) -> Document.IkConstraint:
@@ -337,7 +356,24 @@ static func _read_slot_timelines(timelines: Dictionary) -> Document.SlotTimeline
 	var t := Document.SlotTimelines.new()
 	t.color = _read_color_channel(timelines.get("color"))
 	t.attachment = _read_attachment_channel(timelines.get("attachment"))
+	t.sequence = _read_sequence_channel(timelines.get("sequence"))
 	return t
+
+
+# The optional per-slot sequence timeline (ADR-0009 section 3): keyframes { time, mode, index, delay }.
+# Discrete (no curve). Null when the slot names no sequence timeline.
+static func _read_sequence_channel(channel):
+	if channel == null or typeof(channel) != TYPE_ARRAY:
+		return null
+	var keys := []
+	for frame in channel:
+		var kf := Document.SequenceKeyframe.new()
+		kf.time = _req_number(frame, "time")
+		kf.mode = _req_string(frame, "mode")
+		kf.index = int(_req_number(frame, "index"))
+		kf.delay = _req_number(frame, "delay")
+		keys.append(kf)
+	return keys
 
 
 static func _read_scalar_channel(channel, value_key: String):

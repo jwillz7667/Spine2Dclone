@@ -97,6 +97,7 @@ namespace Marionette.Runtime.Core.Tests
                 CompareMeshes(result, document, spec, sample, pose, vertexScratch);
                 CompareSlots(result, rigId, sample, pose, slotIndexByName, blendModeByName);
                 CompareDrawOrder(result, rigId, sample, pose);
+                CompareSequences(result, rigId, document, spec, sample, pose);
             }
 
             CompareEvents(result, rigId, document, spec, fixture);
@@ -151,6 +152,54 @@ namespace Marionette.Runtime.Core.Tests
                             $"[{rigId}] slot '{expectedSlot.Slot}' color lane {k} at t={sample.Time} drifts: "
                             + $"expected {expectedValue:R}, actual {actualValue:R}, delta {delta:R}");
                     }
+                }
+            }
+        }
+
+        // Compare one sample's resolved sequence frames (ADR-0011 section 2): for each per-slot { slot, frame }
+        // the fixture records, resolve the discrete integer frame from the solved pose and compare EXACT (slot
+        // name + integer frame, index by index). Present only on rigs whose sample-spec sets captureSequences
+        // (the fixture then carries the sequences lane); absent samples short-circuit. Cross-checks the fixture
+        // lane length against the spec's captureSequences so a dropped slot fails loudly rather than silently.
+        private static void CompareSequences(
+            ConformanceResult result,
+            string rigId,
+            SkeletonDocument document,
+            SampleSpec spec,
+            FixtureSample sample,
+            Pose pose)
+        {
+            if (sample.Sequences.Count == 0)
+            {
+                return;
+            }
+
+            if (spec.CaptureSequences.Count != sample.Sequences.Count)
+            {
+                result.Failures.Add(
+                    $"[{rigId}] sequence lane length mismatch at t={sample.Time}: spec captureSequences has "
+                    + $"{spec.CaptureSequences.Count}, fixture has {sample.Sequences.Count}");
+                return;
+            }
+
+            for (int i = 0; i < sample.Sequences.Count; i += 1)
+            {
+                SequenceFrame expected = sample.Sequences[i];
+                if (expected.Slot != spec.CaptureSequences[i])
+                {
+                    result.Failures.Add(
+                        $"[{rigId}] sequence slot mismatch at t={sample.Time}, index {i}: spec "
+                        + $"'{spec.CaptureSequences[i]}', fixture '{expected.Slot}'");
+                    continue;
+                }
+
+                int actual = Sequence.SampleSlotSequenceFrame(document, spec.Animation, sample.Time, pose, expected.Slot);
+                result.LaneComparisons += 1;
+                if (actual != expected.Frame)
+                {
+                    result.Failures.Add(
+                        $"[{rigId}] sequence frame mismatch for slot '{expected.Slot}' at t={sample.Time}: "
+                        + $"expected {expected.Frame}, actual {actual}");
                 }
             }
         }
@@ -400,6 +449,11 @@ namespace Marionette.Runtime.Core.Tests
         public double Duration { get; }
         public IReadOnlyList<double> PoseTimes { get; }
         public bool CaptureDrawOrder { get; }
+
+        // The slot names whose sequence frame the fixture captures per sample (ADR-0011 section 2). Empty
+        // when the sample-spec omits captureSequences, in which case the sequences lane is absent and the
+        // harness compares nothing new, mirroring the drawOrder opt-in.
+        public IReadOnlyList<string> CaptureSequences { get; }
         public EventStep? EventStep { get; }
 
         private SampleSpec(
@@ -409,6 +463,7 @@ namespace Marionette.Runtime.Core.Tests
             double duration,
             IReadOnlyList<double> poseTimes,
             bool captureDrawOrder,
+            IReadOnlyList<string> captureSequences,
             EventStep? eventStep)
         {
             RigId = rigId;
@@ -417,6 +472,7 @@ namespace Marionette.Runtime.Core.Tests
             Duration = duration;
             PoseTimes = poseTimes;
             CaptureDrawOrder = captureDrawOrder;
+            CaptureSequences = captureSequences;
             EventStep = eventStep;
         }
 
@@ -433,6 +489,16 @@ namespace Marionette.Runtime.Core.Tests
             bool captureDrawOrder = captureValue != null
                 && captureValue.Kind == JsonKind.Bool
                 && captureValue.AsBool();
+
+            var captureSequences = new List<string>();
+            JsonValue? captureSequencesValue = root.Member("captureSequences");
+            if (captureSequencesValue != null && captureSequencesValue.Kind == JsonKind.Array)
+            {
+                foreach (JsonValue slot in captureSequencesValue.AsArray())
+                {
+                    captureSequences.Add(slot.AsString());
+                }
+            }
 
             EventStep? eventStep = null;
             JsonValue? eventStepValue = root.Member("eventStep");
@@ -451,6 +517,7 @@ namespace Marionette.Runtime.Core.Tests
                 root.Member("duration")!.AsNumber(),
                 poseTimes,
                 captureDrawOrder,
+                captureSequences,
                 eventStep);
         }
     }
@@ -490,6 +557,21 @@ namespace Marionette.Runtime.Core.Tests
         }
     }
 
+    // One slot's resolved sequence frame at a sample time (ADR-0011 section 2): the slot name and the
+    // discrete integer frame the sequence solve resolves to, compared EXACT. Mirrors the { slot, frame }
+    // entries in the fixture's per-sample sequences lane.
+    public sealed class SequenceFrame
+    {
+        public string Slot { get; }
+        public int Frame { get; }
+
+        public SequenceFrame(string slot, int frame)
+        {
+            Slot = slot;
+            Frame = frame;
+        }
+    }
+
     public sealed class FixtureSample
     {
         public double Time { get; }
@@ -507,13 +589,18 @@ namespace Marionette.Runtime.Core.Tests
         // sample-spec captures it. Null otherwise.
         public IReadOnlyList<int>? DrawOrder { get; }
 
+        // Per-slot resolved sequence frames (ADR-0011 section 2), present only when the sample-spec sets
+        // captureSequences. Empty list when absent, so samples without a sequences lane add no comparisons.
+        public IReadOnlyList<SequenceFrame> Sequences { get; }
+
         public FixtureSample(
             double time,
             string animation,
             IReadOnlyList<KeyValuePair<string, double[]>> bones,
             IReadOnlyList<MeshVertices> meshes,
             IReadOnlyList<SlotState> slots,
-            IReadOnlyList<int>? drawOrder)
+            IReadOnlyList<int>? drawOrder,
+            IReadOnlyList<SequenceFrame> sequences)
         {
             Time = time;
             Animation = animation;
@@ -521,6 +608,7 @@ namespace Marionette.Runtime.Core.Tests
             Meshes = meshes;
             Slots = slots;
             DrawOrder = drawOrder;
+            Sequences = sequences;
         }
     }
 
@@ -585,7 +673,7 @@ namespace Marionette.Runtime.Core.Tests
 
         private static readonly HashSet<string> AllowedSample = new HashSet<string>
         {
-            "time", "animation", "loop", "bones", "meshes", "slots", "drawOrder",
+            "time", "animation", "loop", "bones", "meshes", "slots", "drawOrder", "sequences",
         };
 
         private static void RequireKnownMembers(JsonValue obj, HashSet<string> allowed, string context)
@@ -672,13 +760,26 @@ namespace Marionette.Runtime.Core.Tests
                     }
                 }
 
+                var sequences = new List<SequenceFrame>();
+                JsonValue? sequencesValue = sample.Member("sequences");
+                if (sequencesValue != null && sequencesValue.Kind == JsonKind.Array)
+                {
+                    foreach (JsonValue sequence in sequencesValue.AsArray())
+                    {
+                        sequences.Add(new SequenceFrame(
+                            sequence.Member("slot")!.AsString(),
+                            (int)sequence.Member("frame")!.AsNumber()));
+                    }
+                }
+
                 samples.Add(new FixtureSample(
                     sample.Member("time")!.AsNumber(),
                     sample.Member("animation")!.AsString(),
                     bones,
                     meshes,
                     slots,
-                    drawOrder));
+                    drawOrder,
+                    sequences));
             }
 
             var events = new List<FiredEventRecord>();

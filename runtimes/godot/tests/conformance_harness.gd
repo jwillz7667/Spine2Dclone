@@ -8,6 +8,7 @@ const RigReader = preload("res://core/rig_reader.gd")
 const BuildPose = preload("res://core/build_pose.gd")
 const Sample = preload("res://core/sample.gd")
 const MeshSample = preload("res://core/mesh_sample.gd")
+const Sequence = preload("res://core/sequence.gd")
 const EventFire = preload("res://core/event_fire.gd")
 const Affine = preload("res://core/affine.gd")
 const Pose = preload("res://core/pose.gd")
@@ -18,7 +19,7 @@ const RepoPaths = preload("res://tests/repo_paths.gd")
 # sample carrying any member outside these sets is rejected: a NEW capture lane (future corpus growth)
 # then fails LOUDLY here instead of being silently skipped, forcing the harness to grow a comparison.
 const ALLOWED_TOP_LEVEL := ["rigId", "rigHash", "specHash", "coreVersion", "toolchain", "generatedBy", "samples", "events"]
-const ALLOWED_SAMPLE := ["time", "animation", "loop", "bones", "meshes", "slots", "drawOrder"]
+const ALLOWED_SAMPLE := ["time", "animation", "loop", "bones", "meshes", "slots", "drawOrder", "sequences"]
 
 
 class Result:
@@ -55,6 +56,10 @@ static func run(rig_id: String) -> Result:
 	var pose_times: Array = spec["poseTimes"]
 	var samples: Array = fixture["samples"]
 	var animation_id: String = spec["animation"]
+	# The optional per-sample sequence-frame lane opt-in (ADR-0011 section 2): the slots whose resolved
+	# sequence frame the fixture captures. Empty (or absent) means the rig captures no sequences, so the
+	# sequence comparison is a no-op and every pre-existing rig behaves exactly as before.
+	var capture_sequences: Array = spec.get("captureSequences", [])
 
 	if pose_times.size() != samples.size():
 		result.failures.append(
@@ -108,6 +113,7 @@ static func run(rig_id: String) -> Result:
 		_compare_meshes(result, rig_id, document, animation_id, time, sample, pose, vertex_scratch)
 		_compare_slots(result, rig_id, time, sample, pose, slot_index_by_name, slot_blend_by_name)
 		_compare_draw_order(result, rig_id, time, sample, pose)
+		_compare_sequences(result, rig_id, document, animation_id, time, sample, pose, capture_sequences)
 
 	_compare_events(result, rig_id, document, animation_id, spec, fixture)
 
@@ -143,6 +149,39 @@ static func _compare_draw_order(result: Result, rig_id: String, time: float, sam
 			result.failures.append(
 				"[%s] draw order mismatch at t=%s, position %d: expected %d, actual %d"
 				% [rig_id, time, i, int(expected[i]), pose.draw_order[i]]
+			)
+
+
+# Compare one sample's resolved sequence frames (ADR-0009 section 3, ADR-0011 section 2): for each slot the
+# sample-spec opted in via captureSequences, resolve the discrete integer frame and compare it EXACT against
+# the fixture's `sequences` lane, index by index (slot name AND frame). Present only when the spec captures
+# sequences; a rig that captures none short-circuits with both sides empty, so pre-existing rigs are
+# untouched. The fixture entry order MUST match captureSequences, so a misordering fails loudly here.
+static func _compare_sequences(result: Result, rig_id: String, document, animation_id: String, time: float, sample: Dictionary, pose: Pose, capture_sequences: Array) -> void:
+	var expected: Array = sample["sequences"] if sample.has("sequences") else []
+	if capture_sequences.size() != expected.size():
+		result.failures.append(
+			"[%s] sequence lane length mismatch at t=%s: spec captures %d slot(s), fixture has %d entry(ies)"
+			% [rig_id, time, capture_sequences.size(), expected.size()]
+		)
+		return
+	for i in range(capture_sequences.size()):
+		var slot_name := String(capture_sequences[i])
+		var want: Dictionary = expected[i]
+		var want_slot := String(want["slot"])
+		if slot_name != want_slot:
+			result.failures.append(
+				"[%s] sequence lane slot mismatch at t=%s, position %d: spec '%s', fixture '%s'"
+				% [rig_id, time, i, slot_name, want_slot]
+			)
+			continue
+		var actual := Sequence.sample_slot_sequence_frame(document, animation_id, time, pose, slot_name)
+		var want_frame := int(want["frame"])
+		result.lane_comparisons += 1
+		if actual != want_frame:
+			result.failures.append(
+				"[%s] sequence frame mismatch for slot '%s' at t=%s: expected %d, actual %d"
+				% [rig_id, slot_name, time, want_frame, actual]
 			)
 
 

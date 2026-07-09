@@ -91,6 +91,11 @@ class Attachment:
 	var linked_parent = null  # String or null
 	var linked_skin = null  # String or null (skin override for the parent lookup)
 	var timelines: bool = false
+	# Sequence-attachment block (ADR-0009 section 3, ADR-0011 section 2), present only on a region or mesh
+	# attachment that names a frame sequence. A Dictionary { "count", "start", "digits", "setupIndex" } or
+	# null. The solve reads count + setupIndex to resolve a discrete frame; start/digits are render-only
+	# (atlas region naming) and carried for completeness.
+	var sequence = null
 
 
 # Named SkinDef (not Skin) because Skin is a native Godot class.
@@ -165,6 +170,15 @@ class AttachmentKeyframe:
 	var name = null  # attachment name (String) or null
 
 
+# A sequence timeline keyframe (ADR-0009 section 3): at `time`, play the attachment's frame sequence from
+# frame `index` in `mode` at `delay` seconds per frame. Discrete (no curve); key times are strict-ascending.
+class SequenceKeyframe:
+	var time: float
+	var mode: String
+	var index: int
+	var delay: float
+
+
 class IkKeyframe:
 	var time: float
 	var mix: float
@@ -207,6 +221,7 @@ class BoneTimelines:
 class SlotTimelines:
 	var color = null  # Array[ColorKeyframe] or null
 	var attachment = null  # Array[AttachmentKeyframe] or null
+	var sequence = null  # Array[SequenceKeyframe] or null
 
 
 class DeformEntry:

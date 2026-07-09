@@ -155,17 +155,40 @@ namespace Marionette.Runtime.Core.Document
         }
     }
 
+    // A frame-sequence playback block (ADR-0009 section 3, ADR-0011 section 2) carried by a region or mesh
+    // attachment: Count frames and the SetupIndex frame shown before any sequence timeline key. Start/digits
+    // are render-only naming inputs (they turn a resolved frame into an atlas region name), so the solve,
+    // which resolves only the integer frame, does not read them. Mirrors the sequence block in
+    // @marionette/format schema/attachment.ts. Absent when the attachment has no sequence block.
+    public readonly struct SequenceBlock
+    {
+        public readonly int Count;
+        public readonly int SetupIndex;
+
+        public SequenceBlock(int count, int setupIndex)
+        {
+            Count = count;
+            SetupIndex = setupIndex;
+        }
+    }
+
     public sealed class Attachment
     {
         public string Type { get; }
         public MeshAttachment? Mesh { get; }
         public LinkedMeshAttachment? Linked { get; }
 
-        public Attachment(string type, MeshAttachment? mesh, LinkedMeshAttachment? linked)
+        // The optional sequence block (ADR-0011 section 2), present on a region or mesh attachment that
+        // plays a bounded frame sequence. Null for a plain attachment; the sequence solve returns -1 for a
+        // slot whose active attachment carries none.
+        public SequenceBlock? Sequence { get; }
+
+        public Attachment(string type, MeshAttachment? mesh, LinkedMeshAttachment? linked, SequenceBlock? sequence)
         {
             Type = type;
             Mesh = mesh;
             Linked = linked;
+            Sequence = sequence;
         }
     }
 
@@ -354,6 +377,39 @@ namespace Marionette.Runtime.Core.Document
         }
     }
 
+    // Sequence playback modes (ADR-0009 section 3, ADR-0011 section 2): the seven ways a bounded frame index
+    // advances over time. Mirrors sequenceModeSchema in @marionette/format; a closed enum, so an unknown
+    // mode string is a rig-read error, not a silent default.
+    public enum SequenceMode
+    {
+        Hold,
+        Once,
+        Loop,
+        Pingpong,
+        OnceReverse,
+        LoopReverse,
+        PingpongReverse,
+    }
+
+    // A sequence timeline keyframe (ADR-0009 section 3, ADR-0011 section 2): at Time, play the attachment's
+    // frame sequence from frame Index in Mode at Delay seconds per frame. No curve (a discrete playback-state
+    // change); key times are strict-ascending. Mirrors SequenceKeyframe in @marionette/format.
+    public sealed class SequenceKeyframe
+    {
+        public double Time { get; }
+        public SequenceMode Mode { get; }
+        public int Index { get; }
+        public double Delay { get; }
+
+        public SequenceKeyframe(double time, SequenceMode mode, int index, double delay)
+        {
+            Time = time;
+            Mode = mode;
+            Index = index;
+            Delay = delay;
+        }
+    }
+
     public sealed class IkKeyframe
     {
         public double Time { get; }
@@ -461,10 +517,18 @@ namespace Marionette.Runtime.Core.Document
         public IReadOnlyList<ColorKeyframe>? Color { get; }
         public IReadOnlyList<AttachmentKeyframe>? Attachment { get; }
 
-        public SlotTimelines(IReadOnlyList<ColorKeyframe>? color, IReadOnlyList<AttachmentKeyframe>? attachment)
+        // The per-slot sequence timeline (ADR-0009 section 3, ADR-0011 section 2): drives which frame of the
+        // slot's active sequence attachment plays over time. Null when the slot has no sequence timeline.
+        public IReadOnlyList<SequenceKeyframe>? Sequence { get; }
+
+        public SlotTimelines(
+            IReadOnlyList<ColorKeyframe>? color,
+            IReadOnlyList<AttachmentKeyframe>? attachment,
+            IReadOnlyList<SequenceKeyframe>? sequence)
         {
             Color = color;
             Attachment = attachment;
+            Sequence = sequence;
         }
     }
 

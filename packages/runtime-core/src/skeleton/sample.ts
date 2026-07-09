@@ -18,10 +18,12 @@ import {
   buildBendTrack,
   buildColorTrack,
   buildDeformTrack,
+  buildDrawOrderTimeline,
   buildIkMixTrack,
   buildScalarTrack,
   buildTransformMixTrack,
   buildVec2Track,
+  findDrawOrderKeyIndex,
   findSegmentIndex,
   sampleAttachmentName,
   sampleStepBool,
@@ -103,6 +105,7 @@ export function beginBlend(pose: Pose): void {
   pose.boneTouched.fill(0);
   pose.slotAttachmentWinWeight.fill(-1);
   pose.ikBendWinWeight.fill(-1);
+  pose.drawOrderWinWeight[0] = -1;
 }
 
 // Compose each bone the track loop touched from its blended local components (blendLocal) into the
@@ -270,6 +273,9 @@ function copyTransformMix(
 export function resetSlotsToSetup(pose: Pose): void {
   const { slotColor, slotSetupColor, slotAttachment, slotSetupAttachment, slotCount } = pose;
   slotColor.set(slotSetupColor);
+  // Step 1 also resets the render order to the setup (identity) draw order, so a frame with no active
+  // draw-order key renders in setup slot order. Allocation-free: a typed-array copy (ADR-0008, PP-B4).
+  pose.drawOrder.set(pose.slotSetupDrawOrder);
   for (let i = 0; i < slotCount; i += 1) {
     slotAttachment[i] = slotSetupAttachment[i] ?? null;
   }
@@ -302,6 +308,29 @@ export function applyAnimationAt(
   applyBoneEntry(pose, prepared, t, alpha, additive);
   applySlotEntry(pose, prepared, t, alpha, additive, discreteWins);
   applyConstraintEntry(pose, prepared, t, alpha, additive, discreteWins);
+  applyDrawOrderEntry(pose, prepared, t, alpha, discreteWins);
+}
+
+// Apply this animation's active draw-order key as a discrete, whole-skeleton greater-weight-wins channel
+// (ADR-0008, PP-B4; the draw-order analogue of the attachment swap, ADR-0005 rule 5). An additive track
+// (discreteWins false) never touches draw order (rule 3). The active key is the latest at or before t
+// (stepped); below the first key none is active and the reset setup order holds. A key whose owning
+// track's weight wins (or ties, later-applied incoming wins) overwrites the whole render order with the
+// precomputed permutation. Allocation-free: one typed-array copy plus a scalar winner-weight write.
+function applyDrawOrderEntry(
+  pose: Pose,
+  prepared: PreparedAnimation,
+  t: number,
+  alpha: number,
+  discreteWins: boolean,
+): void {
+  const timeline = prepared.drawOrder;
+  if (timeline === null || !discreteWins) return;
+  if (alpha < pose.drawOrderWinWeight[0]!) return;
+  const i = findDrawOrderKeyIndex(timeline, t);
+  if (i < 0) return;
+  pose.drawOrder.set(timeline.orders[i]!);
+  pose.drawOrderWinWeight[0] = alpha;
 }
 
 // Blend one animation's keyed bone channels into blendLocal (ADR-0005 rules 2/3). rotate blends the
@@ -593,7 +622,18 @@ function prepareAnimation(pose: Pose, animation: Animation): PreparedAnimation {
     }
   }
 
-  return { boneChannels, slotChannels, ikChannels, transformChannels, deformChannels };
+  // The draw-order timeline is resolved to full per-key render-order permutations at build time (ADR-0008
+  // assigns the derivation to runtime-core). A hand-built draft may omit the required array; tolerate that
+  // with an empty default (the same lenience the ik/transform/deform reads use above). Event timelines are
+  // NOT prepared here: firing is a time-RANGE operation prepared separately (events.ts) with the document's
+  // EventDef defaults, which prepareAnimation (keyed by Animation identity only) does not carry.
+  const drawOrderKeys = animation.drawOrder ?? [];
+  const drawOrder =
+    drawOrderKeys.length > 0
+      ? buildDrawOrderTimeline(drawOrderKeys, slotIndexByName, pose.slotCount)
+      : null;
+
+  return { boneChannels, slotChannels, ikChannels, transformChannels, deformChannels, drawOrder };
 }
 
 function nameIndex(names: readonly string[]): Map<string, number> {

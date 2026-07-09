@@ -1,12 +1,18 @@
 import type {
   BoneTimelines,
+  DrawOrderKeyframe,
   IkFrame,
   Keyframe,
   RGBA,
   SlotTimelines,
   TransformFrame,
 } from '@marionette/format/types';
-import type { PreparedAttachmentTrack, PreparedStepBoolTrack, PreparedTrack } from './prepared';
+import type {
+  PreparedAttachmentTrack,
+  PreparedDrawOrderTimeline,
+  PreparedStepBoolTrack,
+  PreparedTrack,
+} from './prepared';
 
 // Timeline curve evaluation and the solve-side track representation (WP-1.4, section 8.3, LAW 4).
 // This is OUR first-principles bezier easing: no Spine source, no iterative root finding. The cubic
@@ -293,4 +299,70 @@ export function sampleAttachmentName(track: PreparedAttachmentTrack, t: number):
 export function sampleStepBool(track: PreparedStepBoolTrack, t: number): boolean {
   const i = findSegmentIndex(track.times, track.keyCount, t);
   return track.values[i] === 1;
+}
+
+// The index of the active draw-order key at time t: the LATEST key at or before t (stepped). Returns -1
+// when t is below the first key, meaning NO reorder is active yet and the setup order holds (ADR-0008:
+// "empty means setup order" extends to "before the first key means setup order"). This differs from the
+// value/attachment channels' below-first-key clamp on purpose: draw order treats setup order as the
+// identity a key departs from, so before any key the pose is setup, not the first key's reorder.
+export function findDrawOrderKeyIndex(timeline: PreparedDrawOrderTimeline, t: number): number {
+  const { keyCount, times } = timeline;
+  if (keyCount === 0 || t < times[0]!) return -1;
+  // Linear scan from the end for the last key with time <= t. Draw-order timelines are short (a handful
+  // of reorders per clip), so a scan is cheaper than a binary search and allocation-free.
+  for (let i = keyCount - 1; i >= 0; i -= 1) {
+    if (times[i]! <= t) return i;
+  }
+  return -1;
+}
+
+// Build a prepared draw-order timeline (ADR-0008 section 3, PP-B4): resolve each key's compact
+// {slot, offset} list into a FULL render-order permutation ONCE at build time, so step-2 application is
+// a single typed-array copy with zero per-frame allocation. Build-time only.
+export function buildDrawOrderTimeline(
+  keys: readonly DrawOrderKeyframe[],
+  slotIndexByName: ReadonlyMap<string, number>,
+  slotCount: number,
+): PreparedDrawOrderTimeline {
+  const keyCount = keys.length;
+  const times = new Float64Array(keyCount);
+  const orders: Int32Array[] = [];
+  for (let k = 0; k < keyCount; k += 1) {
+    const key = keys[k]!;
+    times[k] = key.time;
+    orders.push(resolveDrawOrder(key.offsets, slotIndexByName, slotCount));
+  }
+  return { keyCount, times, orders };
+}
+
+// Derive ONE key's full render-order permutation from its offset diff (ADR-0008 section 3). Each listed
+// slot is pinned to its target render position (setup index + offset); every unlisted slot keeps its
+// relative setup order, filling the remaining positions front-to-back. The result is order[pos] = slot.
+// The validator guarantees the listed targets are in range and collision-free for a validated document;
+// out-of-range or unknown-slot entries (only reachable from an unvalidated draft) are skipped defensively.
+function resolveDrawOrder(
+  offsets: DrawOrderKeyframe['offsets'],
+  slotIndexByName: ReadonlyMap<string, number>,
+  slotCount: number,
+): Int32Array {
+  const order = new Int32Array(slotCount).fill(-1);
+  const listed = new Uint8Array(slotCount);
+  for (let o = 0; o < offsets.length; o += 1) {
+    const entry = offsets[o]!;
+    const slotIndex = slotIndexByName.get(entry.slot) ?? -1;
+    if (slotIndex < 0) continue;
+    const target = slotIndex + entry.offset;
+    if (target < 0 || target >= slotCount) continue;
+    order[target] = slotIndex;
+    listed[slotIndex] = 1;
+  }
+  let nextUnlisted = 0;
+  for (let pos = 0; pos < slotCount; pos += 1) {
+    if (order[pos] !== -1) continue;
+    while (nextUnlisted < slotCount && listed[nextUnlisted] === 1) nextUnlisted += 1;
+    order[pos] = nextUnlisted;
+    nextUnlisted += 1;
+  }
+  return order;
 }

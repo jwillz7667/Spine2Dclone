@@ -80,6 +80,35 @@ export interface PreparedTransformChannel {
   readonly mixShearY: PreparedTrack | null;
 }
 
+// A prepared per-animation draw-order timeline (ADR-0008 section 3, PP-B4). Each key's compact
+// {slot, offset} list is DERIVED ONCE at build time into a FULL render-order permutation `orders[k]`,
+// where `orders[k][renderPosition] = slotIndex` (renderPosition 0 is furthest back). An empty offsets
+// list resolves to the identity (setup order). Precomputing the permutations keeps step-2 application a
+// single allocation-free typed-array copy. `times` is strictly ascending (the validated invariant); the
+// active key at time t is the latest key at or before t (stepped), or none when t is below the first key.
+export interface PreparedDrawOrderTimeline {
+  readonly keyCount: number;
+  readonly times: Float64Array;
+  readonly orders: readonly Int32Array[];
+}
+
+// A prepared per-animation event timeline (ADR-0008 section 2, PP-B4). Events are discrete, so there is
+// no curve. Each key's payload is RESOLVED ONCE at build time (the EventDef default overridden by the
+// key's own int/float/string) into parallel value + presence lanes, so firing a key allocates nothing
+// (it copies primitive lanes and string refs into the pooled queue). `times` is NON-DECREASING (the one
+// timeline whose ordering is non-strict, ADR-0008 section 2); coincident keys keep their timeline order.
+export interface PreparedEventTimeline {
+  readonly keyCount: number;
+  readonly times: Float64Array;
+  readonly names: readonly string[];
+  readonly intValues: Float64Array;
+  readonly hasInt: Uint8Array;
+  readonly floatValues: Float64Array;
+  readonly hasFloat: Uint8Array;
+  readonly stringValues: readonly (string | null)[];
+  readonly hasString: Uint8Array;
+}
+
 // One deform timeline: per-logical-vertex (dx, dy) offsets for a (skin, slot, attachment) triple,
 // flattened so `track.componentCount` == 2 * vertexCount lanes interpolate together. Looked up by the
 // three names in sampleMeshVertices and sampled into the pose's deform scratch.
@@ -98,4 +127,8 @@ export interface PreparedAnimation {
   readonly ikChannels: readonly PreparedIkChannel[];
   readonly transformChannels: readonly PreparedTransformChannel[];
   readonly deformChannels: readonly PreparedDeformChannel[];
+  // The draw-order reorder timeline (ADR-0008), or null when this animation never reorders. Applied in
+  // step 2 as a discrete greater-weight-wins channel; event firing is NOT part of PreparedAnimation
+  // (it is a time-RANGE operation, not an instantaneous pose sample) and lives in its own prepared type.
+  readonly drawOrder: PreparedDrawOrderTimeline | null;
 }

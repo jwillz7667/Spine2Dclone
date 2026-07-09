@@ -119,6 +119,18 @@ export interface Pose {
   // index -> the resolved active attachment name (or null), written in place by sampleSkeleton (never
   // reallocated per frame).
   readonly slotAttachment: (string | null)[];
+  // The resolved RENDER ORDER (ADR-0008 draw order, PP-B4): `drawOrder[renderPosition] = slotIndex`,
+  // renderPosition 0 furthest back. Reset to `slotSetupDrawOrder` each frame (step 1) and overwritten
+  // by the active draw-order key (step 2). A renderer reads it to draw slots front-to-back correctly.
+  readonly drawOrder: Int32Array;
+  // The setup render order (identity permutation [0, 1, ..., slotCount-1]): the step-1 reset source for
+  // `drawOrder`, so a frame with no draw-order key (or below the first key) renders in setup slot order.
+  readonly slotSetupDrawOrder: Int32Array;
+  // One f64: the greatest track weight that has written the draw order this frame (the discrete greater-
+  // weight-wins winner weight for the whole-skeleton draw-order channel, ADR-0008 + ADR-0005 rule 5),
+  // reset to -1 by beginBlend so any keying track beats "nothing" and a later-applied equal weight wins.
+  // A length-1 typed array (not a scalar) so the pose stays an all-readonly-field, mutate-in-place buffer.
+  readonly drawOrderWinWeight: Float64Array;
 
   // The document's IK constraints, resolved to bone indices, in document array order. Step 3 solves
   // these (then the transform constraints) in this exact order; the per-constraint `sampled` scratch
@@ -137,6 +149,14 @@ export interface Pose {
   // on every keyframe edit) is auto-evicted once unreferenced: the cache stays bounded across a long
   // editing session. Owned by the pose (the caller-passed solve state), not a module global.
   readonly preparedAnimations: WeakMap<Animation, PreparedAnimation>;
+}
+
+// The identity render-order permutation [0, 1, ..., slotCount-1] for a pose's setup draw order and the
+// initial resolved order. A plain Int32Array fill; called twice at build time, never per frame.
+function identityDrawOrder(slotCount: number): Int32Array {
+  const order = new Int32Array(slotCount);
+  for (let i = 0; i < slotCount; i += 1) order[i] = i;
+  return order;
 }
 
 // Allocate the buffers for a pose of the given bone and slot counts. Internal: callers use buildPose.
@@ -170,6 +190,9 @@ export function allocatePose(
     ikBendWinWeight: new Float64Array(ikConstraints.length),
     slotSetupAttachment: new Array<string | null>(slotCount).fill(null),
     slotAttachment: new Array<string | null>(slotCount).fill(null),
+    drawOrder: identityDrawOrder(slotCount),
+    slotSetupDrawOrder: identityDrawOrder(slotCount),
+    drawOrderWinWeight: new Float64Array(1),
     ikConstraints,
     transformConstraints,
     deformScratch: { offsets: new Float64Array(0) },

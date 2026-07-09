@@ -58,6 +58,21 @@ export {
   AnimationStateArgumentError,
 } from './skeleton/animation-state';
 export type { AnimationState, TrackEntry } from './skeleton/animation-state';
+// Event firing (ADR-0008, PP-B4): the pooled, drained-per-update event queue and the deterministic
+// fire-on-cross API with exact loop-boundary semantics. AnimationState drives fireEventsInStep per update
+// (draining into state.eventQueue); a single-animation transport or the conformance A.4 sweep uses
+// collectFiredEvents over a from/to/dt range. prepareEventTimeline resolves an animation's event payloads
+// (EventDef defaults overridden by the key) once. The resolved render order after a solve is read from
+// pose.drawOrder (an Int32Array render-position -> slot-index permutation, reset to setup order each frame).
+export {
+  makeEventQueue,
+  clearEventQueue,
+  fireEventsInStep,
+  collectFiredEvents,
+  prepareEventTimeline,
+} from './skeleton/event-fire';
+export type { FiredEvent, EventQueue } from './skeleton/event-fire';
+export type { PreparedEventTimeline, PreparedDrawOrderTimeline } from './skeleton/prepared';
 // Mesh-vertex sampling (solve-order step 5): skin + deform a mesh attachment into world space, reusing
 // a pose already solved by sampleSkeleton. The behavioral source of truth the conformance harness and
 // runtime-web mesh rendering build on.

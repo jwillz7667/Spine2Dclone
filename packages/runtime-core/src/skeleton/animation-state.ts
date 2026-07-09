@@ -1,6 +1,14 @@
 import type { Animation, SkeletonDocument } from '@marionette/format/types';
 import type { Pose } from './pose';
+import type { PreparedEventTimeline } from './prepared';
 import { computeWorldTransforms, resetToSetupPose } from './world-transform';
+import {
+  clearEventQueue,
+  fireEventsInStep,
+  makeEventQueue,
+  prepareEventTimeline,
+} from './event-fire';
+import type { EventQueue } from './event-fire';
 import {
   AnimationNotFoundError,
   applyAnimationAt,
@@ -64,6 +72,14 @@ export interface InternalEntry {
 export interface AnimationState {
   readonly document: SkeletonDocument;
   readonly tracks: (InternalEntry | null)[];
+  // The pooled event queue drained per update (ADR-0008, PP-B4): updateAnimationState clears it, then
+  // fills it with every event fired by every advancing entry this update, in (track index, outgoing-
+  // before-incoming, timeline) order. Read `eventQueue.events[0 .. eventQueue.count)` after each update.
+  readonly eventQueue: EventQueue;
+  // Prepared event timelines cached by Animation identity (payloads resolved against document.events).
+  // A WeakMap, so an edited animation is auto-evicted; a null value memoizes "this animation has no
+  // events" so the common case skips re-preparation. Engine-internal (not a public control surface).
+  readonly preparedEvents: WeakMap<Animation, PreparedEventTimeline | null>;
 }
 
 // Thrown for a negative / non-integer track index or a negative dt/delay/mixDuration, at the API boundary
@@ -76,7 +92,12 @@ export class AnimationStateArgumentError extends Error {
 }
 
 export function makeAnimationState(document: SkeletonDocument): AnimationState {
-  return { document, tracks: [] };
+  return {
+    document,
+    tracks: [],
+    eventQueue: makeEventQueue(),
+    preparedEvents: new WeakMap<Animation, PreparedEventTimeline | null>(),
+  };
 }
 
 function resolveAnimation(state: AnimationState, animationId: string): Animation {
@@ -209,10 +230,19 @@ export function updateAnimationState(state: AnimationState, dt: number): void {
   if (dt < 0) {
     throw new AnimationStateArgumentError(`dt must be >= 0, got ${dt}`);
   }
+  // Drain-per-update (ADR-0008): the queue holds only THIS update's fired events. Cleared without
+  // releasing capacity, so a steady per-update fire count allocates nothing (the allocation probe pins it).
+  clearEventQueue(state.eventQueue);
   const tracks = state.tracks;
   for (let i = 0; i < tracks.length; i += 1) {
     const entry = tracks[i];
     if (entry === null || entry === undefined) continue;
+
+    // Fire events BEFORE advancing, from each advancing entry's PRE-advance sample time over dt. Both an
+    // outgoing (crossfading-out) entry and the incoming entry fire (a playing animation fires its events
+    // regardless of blend weight: an event is a discrete logical/audio marker, not a weighted value, so
+    // "half faded" cannot fire "half an event"). Order: outgoing before incoming, matching apply order.
+    fireEntryEvents(state, entry, dt);
 
     advanceEntry(entry, dt);
 
@@ -224,6 +254,36 @@ export function updateAnimationState(state: AnimationState, dt: number): void {
       tracks[i] = queued;
     }
   }
+}
+
+// Fire the events of one track's advancing entries (ADR-0008): the outgoing (mixFrom) entry first, then
+// the incoming entry, each swept over dt from its PRE-advance wrapped trackTime with exact loop-boundary
+// semantics (fireEventsInStep). A crossfading-out track still fires because it is still playing; weight
+// does not gate a discrete marker.
+function fireEntryEvents(state: AnimationState, entry: InternalEntry, dt: number): void {
+  const mixFrom = entry.mixFrom;
+  if (mixFrom !== null) fireOneEntryEvents(state, mixFrom, dt);
+  fireOneEntryEvents(state, entry, dt);
+}
+
+function fireOneEntryEvents(state: AnimationState, entry: InternalEntry, dt: number): void {
+  const timeline = getPreparedEvents(state, entry.animation);
+  if (timeline === null) return;
+  fireEventsInStep(timeline, entry.trackTime, dt, entry.loop, entry.duration, state.eventQueue);
+}
+
+// Fetch (building and caching on first use) the prepared event timeline for an animation, payloads
+// resolved against the document's EventDefs. A null cache value memoizes "no events" so the common case
+// is a single WeakMap hit with no re-preparation.
+function getPreparedEvents(
+  state: AnimationState,
+  animation: Animation,
+): PreparedEventTimeline | null {
+  const cached = state.preparedEvents.get(animation);
+  if (cached !== undefined) return cached;
+  const prepared = prepareEventTimeline(animation, state.document.events ?? []);
+  state.preparedEvents.set(animation, prepared);
+  return prepared;
 }
 
 // Advance one entry's raw + wrapped time and, if it is crossfading, its outgoing side and mix time.

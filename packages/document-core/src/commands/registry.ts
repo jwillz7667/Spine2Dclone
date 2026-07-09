@@ -90,6 +90,7 @@ import { moveIkKeyframeSpec } from './move-ik-keyframe.command';
 import { moveTransformKeyframeSpec } from './move-transform-keyframe.command';
 import { setIkDepthParamsSpec } from './set-ik-depth-params.command';
 import { setTransformConstraintVariantsSpec } from './set-transform-constraint-variants.command';
+import { reorderConstraintsSpec } from './reorder-constraints.command';
 import { setMeshEdgesSpec } from './set-mesh-edges.command';
 import { setRegionAttachmentTransformSpec } from './set-region-attachment-transform.command';
 import { setSlotBlendModeSpec } from './set-slot-blend-mode.command';
@@ -171,6 +172,8 @@ export const commandRegistry: readonly CommandSpec[] = [
   setTransformKeyframeSpec,
   deleteTransformKeyframeSpec,
   moveTransformKeyframeSpec,
+  // PP-D10 (Stage F2) cross-array constraint solve order
+  reorderConstraintsSpec,
   // WP-2.8 named skins
   createSkinSpec,
   renameSkinSpec,

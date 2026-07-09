@@ -182,7 +182,11 @@ export type ConstraintErrorReason =
   | 'chainDiscontinuous'
   | 'cycle'
   | 'duplicateName'
-  | 'notFound';
+  | 'notFound'
+  // A ReorderConstraints permutation that is not a dense, unique cover of the current constraint set
+  // (a missing id, a duplicate, an unknown id, or a wrong length), mirroring the format's
+  // CONSTRAINT_ORDER_INVALID (ADR-0009 section 1.3).
+  | 'orderInvalid';
 
 export class ConstraintError extends Error {
   override readonly name = 'ConstraintError';

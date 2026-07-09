@@ -1438,6 +1438,27 @@ export class DocumentModelInternal implements DocumentReadModel {
     this.revisionValue += 1;
   }
 
+  // Set or CLEAR an IK constraint's OPTIONAL explicit solve order (ADR-0009 section 1.3). A number assigns
+  // the order; `undefined` DELETES the key (so a cleared constraint is byte-identical to one that never had
+  // an order, which the plain patch path cannot express: a `{ order: undefined }` patch would leave the key
+  // present). Used by ReorderConstraints; a missing id is a no-op (the command asserts existence first).
+  setIkConstraintOrder(id: IkConstraintId, order: number | undefined): void {
+    const current = this.ikConstraintsMap.get(id);
+    if (!current) return;
+    if (this.batching) {
+      if (order === undefined) delete current.order;
+      else current.order = order;
+    } else {
+      const updated: MutableIkConstraint = { ...current };
+      if (order === undefined) delete updated.order;
+      else updated.order = order;
+      const next = new Map(this.ikConstraintsMap);
+      next.set(id, updated);
+      this.ikConstraintsMap = next;
+    }
+    this.revisionValue += 1;
+  }
+
   insertTransformConstraint(entity: TransformConstraintEntity, index: number): void {
     const c = toMutableTransform(entity);
     if (this.batching) {
@@ -1479,6 +1500,26 @@ export class DocumentModelInternal implements DocumentReadModel {
     } else {
       const next = new Map(this.transformConstraintsMap);
       next.set(id, { ...current, ...patch });
+      this.transformConstraintsMap = next;
+    }
+    this.revisionValue += 1;
+  }
+
+  // Set or CLEAR a transform constraint's OPTIONAL explicit solve order (ADR-0009 section 1.3), the mirror of
+  // setIkConstraintOrder. `undefined` deletes the key so a cleared constraint is byte-identical to one that
+  // never had an order. Used by ReorderConstraints; a missing id is a no-op.
+  setTransformConstraintOrder(id: TransformConstraintId, order: number | undefined): void {
+    const current = this.transformConstraintsMap.get(id);
+    if (!current) return;
+    if (this.batching) {
+      if (order === undefined) delete current.order;
+      else current.order = order;
+    } else {
+      const updated: MutableTransformConstraint = { ...current };
+      if (order === undefined) delete updated.order;
+      else updated.order = order;
+      const next = new Map(this.transformConstraintsMap);
+      next.set(id, updated);
       this.transformConstraintsMap = next;
     }
     this.revisionValue += 1;

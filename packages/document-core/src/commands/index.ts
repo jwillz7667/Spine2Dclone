@@ -131,6 +131,10 @@ export {
   setTransformConstraintVariantsSpec,
 } from './set-transform-constraint-variants.command';
 export type { TransformVariantPatch } from './set-transform-constraint-variants.command';
+export {
+  ReorderConstraintsCommand,
+  reorderConstraintsSpec,
+} from './reorder-constraints.command';
 export type { TransformConstraintParams } from './create-transform-constraint.command';
 export {
   DeleteTransformConstraintCommand,

@@ -297,6 +297,7 @@ export {
   CreateTransformConstraintCommand,
   SetTransformConstraintParamsCommand,
   SetTransformConstraintVariantsCommand,
+  ReorderConstraintsCommand,
   DeleteTransformConstraintCommand,
   SetTransformKeyframeCommand,
   DeleteTransformKeyframeCommand,

@@ -113,12 +113,14 @@ export interface Mutator extends DocumentReadModel {
   insertIkConstraint(entity: IkConstraintEntity, index: number): void;
   removeIkConstraint(id: IkConstraintId): void;
   patchIkConstraint(id: IkConstraintId, patch: Partial<Omit<IkConstraintEntity, 'id'>>): void;
+  setIkConstraintOrder(id: IkConstraintId, order: number | undefined): void;
   insertTransformConstraint(entity: TransformConstraintEntity, index: number): void;
   removeTransformConstraint(id: TransformConstraintId): void;
   patchTransformConstraint(
     id: TransformConstraintId,
     patch: Partial<Omit<TransformConstraintEntity, 'id'>>,
   ): void;
+  setTransformConstraintOrder(id: TransformConstraintId, order: number | undefined): void;
   insertSkin(entity: SkinEntity, index: number): void;
   removeSkin(id: SkinId): void;
   patchSkin(id: SkinId, patch: { readonly name?: string }): void;
@@ -212,9 +214,11 @@ export function createMutator(model: DocumentModelInternal): Mutator {
     insertIkConstraint: (entity, index) => model.insertIkConstraint(entity, index),
     removeIkConstraint: (id) => model.removeIkConstraint(id),
     patchIkConstraint: (id, patch) => model.patchIkConstraint(id, patch),
+    setIkConstraintOrder: (id, order) => model.setIkConstraintOrder(id, order),
     insertTransformConstraint: (entity, index) => model.insertTransformConstraint(entity, index),
     removeTransformConstraint: (id) => model.removeTransformConstraint(id),
     patchTransformConstraint: (id, patch) => model.patchTransformConstraint(id, patch),
+    setTransformConstraintOrder: (id, order) => model.setTransformConstraintOrder(id, order),
     insertSkin: (entity, index) => model.insertSkin(entity, index),
     removeSkin: (id) => model.removeSkin(id),
     patchSkin: (id, patch) => model.patchSkin(id, patch),

@@ -2,7 +2,7 @@
   "scenarioId": "anim-state-additive-layer",
   "rigId": "anim-state-rig",
   "scenarioHash": "sha256:989e9f1397c8b25444e04932213cf8e44c9ae7e98abe09c9bc09cdef1f1fc163",
-  "rigHash": "sha256:d86ea2640054849f8beb2aee12400da4aad295169892869b10694ea098f63a01",
+  "rigHash": "sha256:80408dc8607bc0a065e6798b0b4626efe77a8ecea655bb79323a804a89f920dc",
   "coreVersion": "runtime-core@0.0.0",
   "toolchain": "node-22.13.1-v8",
   "generatedBy": "generate-anim-state.ts",

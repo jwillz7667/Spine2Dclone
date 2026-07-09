@@ -1,6 +1,6 @@
 {
   "rigId": "rig-events-loop",
-  "rigHash": "sha256:f6cefd2742ade5027f19fdc7eadc9968a65665af0d51a8ce81d95af2f7e7700f",
+  "rigHash": "sha256:7dfc022640d470c36bbc0c922f9ca50897b1e2f55ce2e41349051199ca055182",
   "specHash": "sha256:946d0084d7784cb6439645c1f3f1aa7acab77c6b4baa985a451e378556e22be5",
   "coreVersion": "runtime-core@0.0.0",
   "toolchain": "node-22.13.1-v8",

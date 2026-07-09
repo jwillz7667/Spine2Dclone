@@ -1,5 +1,5 @@
 {
-  "formatVersion": "0.3.0",
+  "formatVersion": "0.4.0",
   "name": "rig-transform-constraint",
   "hash": "",
   "bones": [
@@ -77,7 +77,11 @@
       "bones": ["upper", "lower"],
       "target": "target",
       "mix": 1,
-      "bendPositive": true
+      "bend": 1,
+      "softness": 0,
+      "stretch": false,
+      "compress": false,
+      "uniform": false
     }
   ],
   "transformConstraints": [
@@ -96,7 +100,9 @@
       "offsetY": 0,
       "offsetScaleX": 0,
       "offsetScaleY": 0,
-      "offsetShearY": 0
+      "offsetShearY": 0,
+      "local": false,
+      "relative": false
     }
   ],
   "animations": {

@@ -38,16 +38,17 @@ interface RigFeatures {
   readonly hasUnweightedMesh: boolean;
   readonly hasDeform: boolean;
   readonly curves: ReadonlySet<string>;
-  readonly bendPositiveValues: ReadonlySet<boolean>;
+  readonly bendValues: ReadonlySet<number>;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-// Recursively collect every `curve` tag (linear / stepped / bezier-as-object) and every `bendPositive`
-// value anywhere in the animation timelines, so curve and bend coverage is read from the actual keyframes.
-function walkTimelines(value: unknown, curves: Set<string>, bends: Set<boolean>): void {
+// Recursively collect every `curve` tag (linear / stepped / bezier-as-object) and every signed `bend`
+// value (ADR-0009: +1 or -1, superseding the pre-0.4.0 `bendPositive` boolean) anywhere in the animation
+// timelines, so curve and bend coverage is read from the actual keyframes.
+function walkTimelines(value: unknown, curves: Set<string>, bends: Set<number>): void {
   if (Array.isArray(value)) {
     for (const element of value) walkTimelines(element, curves, bends);
     return;
@@ -56,8 +57,8 @@ function walkTimelines(value: unknown, curves: Set<string>, bends: Set<boolean>)
   const curve = value['curve'];
   if (typeof curve === 'string') curves.add(curve);
   else if (isRecord(curve)) curves.add('bezier');
-  const bend = value['bendPositive'];
-  if (typeof bend === 'boolean') bends.add(bend);
+  const bend = value['bend'];
+  if (typeof bend === 'number') bends.add(bend);
   for (const child of Object.values(value)) walkTimelines(child, curves, bends);
 }
 
@@ -93,7 +94,7 @@ function rigFeatures(rigId: RigId): RigFeatures {
     }
   }
   const curves = new Set<string>();
-  const bends = new Set<boolean>();
+  const bends = new Set<number>();
   walkTimelines(doc.animations, curves, bends);
   return {
     hasIk: doc.ikConstraints.length > 0,
@@ -102,7 +103,7 @@ function rigFeatures(rigId: RigId): RigFeatures {
     hasUnweightedMesh,
     hasDeform,
     curves,
-    bendPositiveValues: bends,
+    bendValues: bends,
   };
 }
 
@@ -127,11 +128,11 @@ describe('A.2 reference-rig coverage (phase-5 TASK-5.5.8, the shared-core compen
     expect(curves.has('bezier')).toBe(true);
   });
 
-  it('two-bone IK exercises BOTH bend directions (bendPositive true and false)', () => {
-    const bends = new Set<boolean>();
-    for (const f of FEATURES.values()) for (const b of f.bendPositiveValues) bends.add(b);
-    expect(bends.has(true)).toBe(true);
-    expect(bends.has(false)).toBe(true);
+  it('two-bone IK exercises BOTH signed bend directions (+1 and -1)', () => {
+    const bends = new Set<number>();
+    for (const f of FEATURES.values()) for (const b of f.bendValues) bends.add(b);
+    expect(bends.has(1)).toBe(true);
+    expect(bends.has(-1)).toBe(true);
   });
 
   it('a one-bone or two-bone IK constraint is exercised', () => {

@@ -2,7 +2,7 @@
   "scenarioId": "anim-state-discrete-flip",
   "rigId": "anim-state-rig",
   "scenarioHash": "sha256:4b19dddedd6d12e997a794fd9b53033e4f77c64027e024d1a814f2e8ffc949f7",
-  "rigHash": "sha256:d86ea2640054849f8beb2aee12400da4aad295169892869b10694ea098f63a01",
+  "rigHash": "sha256:80408dc8607bc0a065e6798b0b4626efe77a8ecea655bb79323a804a89f920dc",
   "coreVersion": "runtime-core@0.0.0",
   "toolchain": "node-22.13.1-v8",
   "generatedBy": "generate-anim-state.ts",

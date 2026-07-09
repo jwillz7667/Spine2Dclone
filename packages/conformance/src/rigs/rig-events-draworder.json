@@ -1,5 +1,5 @@
 {
-  "formatVersion": "0.3.0",
+  "formatVersion": "0.4.0",
   "name": "rig-events-draworder",
   "hash": "",
   "bones": [
@@ -18,17 +18,32 @@
     }
   ],
   "slots": [
-    { "name": "s0", "bone": "root", "color": { "r": 1, "g": 1, "b": 1, "a": 1 }, "attachment": null, "blendMode": "normal" },
-    { "name": "s1", "bone": "root", "color": { "r": 1, "g": 1, "b": 1, "a": 1 }, "attachment": null, "blendMode": "normal" },
-    { "name": "s2", "bone": "root", "color": { "r": 1, "g": 1, "b": 1, "a": 1 }, "attachment": null, "blendMode": "normal" }
+    {
+      "name": "s0",
+      "bone": "root",
+      "color": { "r": 1, "g": 1, "b": 1, "a": 1 },
+      "attachment": null,
+      "blendMode": "normal"
+    },
+    {
+      "name": "s1",
+      "bone": "root",
+      "color": { "r": 1, "g": 1, "b": 1, "a": 1 },
+      "attachment": null,
+      "blendMode": "normal"
+    },
+    {
+      "name": "s2",
+      "bone": "root",
+      "color": { "r": 1, "g": 1, "b": 1, "a": 1 },
+      "attachment": null,
+      "blendMode": "normal"
+    }
   ],
   "skins": [{ "name": "default", "attachments": {} }],
   "ikConstraints": [],
   "transformConstraints": [],
-  "events": [
-    { "name": "coin", "int": 3, "float": 1.25, "string": "gold" },
-    { "name": "ping" }
-  ],
+  "events": [{ "name": "coin", "int": 3, "float": 1.25, "string": "gold" }, { "name": "ping" }],
   "animations": {
     "reorder": {
       "duration": 1,

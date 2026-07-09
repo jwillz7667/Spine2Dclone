@@ -1,5 +1,5 @@
 {
-  "formatVersion": "0.3.0",
+  "formatVersion": "0.4.0",
   "name": "rig-events-loop",
   "hash": "",
   "bones": [
@@ -37,7 +37,7 @@
       "events": [
         { "time": 0.3, "name": "beat" },
         { "time": 0.7, "name": "beat" },
-        { "time": 1.0, "name": "loop" }
+        { "time": 1, "name": "loop" }
       ]
     }
   },

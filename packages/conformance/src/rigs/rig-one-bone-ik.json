@@ -1,5 +1,5 @@
 {
-  "formatVersion": "0.3.0",
+  "formatVersion": "0.4.0",
   "name": "rig-one-bone-ik",
   "hash": "",
   "bones": [
@@ -46,7 +46,17 @@
   "slots": [],
   "skins": [{ "name": "default", "attachments": {} }],
   "ikConstraints": [
-    { "name": "ik", "bones": ["bone"], "target": "target", "mix": 1, "bendPositive": true }
+    {
+      "name": "ik",
+      "bones": ["bone"],
+      "target": "target",
+      "mix": 1,
+      "bend": 1,
+      "softness": 0,
+      "stretch": false,
+      "compress": false,
+      "uniform": false
+    }
   ],
   "transformConstraints": [],
   "animations": {
@@ -64,8 +74,8 @@
       "slots": {},
       "ik": {
         "ik": [
-          { "time": 0, "value": { "mix": 0, "bendPositive": true }, "curve": "linear" },
-          { "time": 1, "value": { "mix": 1, "bendPositive": true }, "curve": "linear" }
+          { "time": 0, "value": { "mix": 0, "bend": 1 }, "curve": "linear" },
+          { "time": 1, "value": { "mix": 1, "bend": 1 }, "curve": "linear" }
         ]
       },
       "transform": {},

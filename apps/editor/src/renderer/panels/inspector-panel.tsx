@@ -5,11 +5,14 @@ import {
   AddRegionAttachmentCommand,
   AutoWeightFromProximityCommand,
   BindMeshToBonesCommand,
+  CreateLinkedMeshCommand,
   CreateSlotCommand,
   DeleteSlotCommand,
+  LinkedMeshError,
   MeshBindingError,
   NormalizeMeshWeightsCommand,
   RemoveAttachmentCommand,
+  UnlinkMeshCommand,
   RenameSlotCommand,
   ReorderSlotCommand,
   SetActiveAttachmentCommand,
@@ -21,6 +24,7 @@ import {
   type AttachmentEntity,
   type BoneEntity,
   type BoneId,
+  type LinkedMeshAttachmentEntity,
   type MeshAttachmentEntity,
   type RegionAttachmentEntity,
   type RegionTransform,
@@ -242,6 +246,44 @@ function setActiveAttachment(id: SlotId, name: string | null): void {
 
 function removeAttachment(slotId: SlotId, name: string): void {
   documentHost.current().history.execute(new RemoveAttachmentCommand(slotId, name));
+}
+
+// Create a linked mesh (PP-D10) that reuses `mesh`'s geometry, defaulting its name to "<mesh> linked"
+// uniquified per slot and inheriting the parent's atlas path and size. A LinkedMeshError (a duplicate name)
+// is swallowed at the UI edge: the command already guards it and the panel re-renders unchanged.
+function createLinkedMeshFrom(slotId: SlotId, mesh: MeshAttachmentEntity): void {
+  const doc = documentHost.current();
+  const existing = doc.model.attachments(slotId).map((a) => a.name);
+  let name = `${mesh.name} linked`;
+  let suffix = 2;
+  while (existing.includes(name)) {
+    name = `${mesh.name} linked ${suffix}`;
+    suffix += 1;
+  }
+  try {
+    doc.history.execute(
+      new CreateLinkedMeshCommand(slotId, {
+        name,
+        path: mesh.path,
+        parent: mesh.name,
+        timelines: true,
+        width: mesh.width,
+        height: mesh.height,
+        color: { ...mesh.color },
+      }),
+    );
+  } catch (error) {
+    if (!(error instanceof LinkedMeshError)) throw error;
+  }
+}
+
+// Unlink (bake) a linked mesh to a plain mesh (PP-D10).
+function unlinkMesh(slotId: SlotId, name: string): void {
+  try {
+    documentHost.current().history.execute(new UnlinkMeshCommand(slotId, name));
+  } catch (error) {
+    if (!(error instanceof LinkedMeshError)) throw error;
+  }
 }
 
 // Commit a slot color edit inside a coalescing interaction session (mirrors the animation panel's
@@ -512,6 +554,11 @@ function AttachmentRow(props: AttachmentRowProps): ReactElement {
     return <MeshAttachmentRow slotId={slotId} name={attachment.name} mesh={attachment} />;
   }
 
+  // Linked meshes (PP-D10) reuse a parent mesh's geometry; the row carries the Unlink (bake) action.
+  if (attachment.kind === 'linkedmesh') {
+    return <LinkedMeshAttachmentRow slotId={slotId} linked={attachment} />;
+  }
+
   function commitField(field: TransformField, raw: string): boolean {
     const live = documentHost.current().model.getAttachment(slotId, attachment.name);
     if (live === undefined || live.kind !== 'region') return false;
@@ -618,6 +665,14 @@ function MeshAttachmentRow(props: MeshAttachmentRowProps): ReactElement {
         <button
           type="button"
           style={smallButtonStyle}
+          title="Create a linked mesh that reuses this mesh's geometry (one undo step)"
+          onClick={() => createLinkedMeshFrom(slotId, mesh)}
+        >
+          Link
+        </button>
+        <button
+          type="button"
+          style={smallButtonStyle}
           title="Remove attachment"
           onClick={() => removeAttachment(slotId, name)}
         >
@@ -705,6 +760,42 @@ function MeshAttachmentRow(props: MeshAttachmentRowProps): ReactElement {
             </span>
           </>
         )}
+      </div>
+    </div>
+  );
+}
+
+// A linked-mesh attachment row (PP-D10): shows its parent reference and the Unlink (bake to plain mesh)
+// action. Geometry editing is done on the PARENT mesh; a linked mesh has none of its own.
+function LinkedMeshAttachmentRow(props: {
+  readonly slotId: SlotId;
+  readonly linked: LinkedMeshAttachmentEntity;
+}): ReactElement {
+  const { slotId, linked } = props;
+  return (
+    <div style={attachmentBlockStyle}>
+      <div style={attachmentRowStyle}>
+        <span style={rowNameStyle}>{linked.name}</span>
+        <span style={rowBoneStyle}>
+          {linked.path} (linked -&gt; {linked.parent}
+          {linked.skin !== undefined ? ` @ ${linked.skin}` : ''})
+        </span>
+        <button
+          type="button"
+          style={smallButtonStyle}
+          title="Bake this linked mesh to a plain mesh with the resolved geometry (one undo step)"
+          onClick={() => unlinkMesh(slotId, linked.name)}
+        >
+          Unlink
+        </button>
+        <button
+          type="button"
+          style={smallButtonStyle}
+          title="Remove attachment"
+          onClick={() => removeAttachment(slotId, linked.name)}
+        >
+          Remove
+        </button>
       </div>
     </div>
   );

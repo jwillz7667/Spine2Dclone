@@ -1,7 +1,7 @@
 # @marionette/mcp-server
 
 The headless control surface: a Model Context Protocol (MCP) server exposing the complete authoring
-capability of Armature 2D as 157 tools over stdio. An AI agent (or any MCP client) can build,
+capability of Armature 2D as 160 tools over stdio. An AI agent (or any MCP client) can build,
 inspect, render, and save everything the GUI can, because every mutating tool drives the same
 `@marionette/document-core` commands through the same `History` (LAW 2, ADR-0001). The complete
 tool-by-tool reference is the user manual chapter `docs/manual/09-tool-reference.md`.
@@ -31,7 +31,7 @@ MCP host configuration:
 }
 ```
 
-## Tool catalog (157 tools)
+## Tool catalog (160 tools)
 
 Assembled in `src/tools.ts` (plus the spread-in effects and slot-composer tool sets); a catalog
 test asserts the names are unique and the count matches.
@@ -43,14 +43,14 @@ test asserts the names are unique and the count matches.
 | slot | 9 | create, delete, rename, blend, color, reorder, activeAttachment, list, get |
 | attach | 3 | region add, remove, region transform |
 | mesh | 14 | generate from region, vertex/edge/topology edits, auto grid fill, perimeter trace, bind to bones, binding edits, unbind, auto-weight, paint stroke, normalize weights |
-| ik | 8 | constraint create/mix/bendPositive/delete, keyframes, list, get |
-| transform | 7 | constraint create/params/delete, keyframes, list, get |
+| ik | 9 | constraint create/mix/bendPositive/delete, keyframes set/delete/move, list, get |
+| transform | 8 | constraint create/params/delete, keyframes set/delete/move, list, get |
 | skin | 7 | create, rename, delete, setAttachment, removeAttachment, list, get |
 | deform | 4 | set/delete/move keyframe, clear attachment deform |
 | anim | 7 | create, delete, rename, duration, duplicate, list, get |
 | event | 10 | define, rename, delete, setDefaults, setAudio, list, get, key set/move/delete |
 | draworder | 3 | key set/move/delete |
-| kf | 7 | set, move, delete, curve, paste, attachment set/delete |
+| kf | 8 | set, move, delete, curve, paste, attachment set/delete/move |
 | history | 5 | undo, redo, getState, beginInteraction, endInteraction |
 | query | 1 | document.getWorldTransforms |
 | atlas | 3 | pack, set, get |

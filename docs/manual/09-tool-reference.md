@@ -5,7 +5,7 @@ The GUI panels and the MCP tools drive the exact same command layer (`@marionett
 so everything in this reference is also a precise description of what the editor itself can do.
 Anything you can click, you can script; anything you can script, you can undo.
 
-This chapter is the complete reference: 157 tools across 22 namespaces. For a guided walkthrough
+This chapter is the complete reference: 160 tools across 22 namespaces. For a guided walkthrough
 that uses a small subset of these, read Chapter 1 (Getting Started) first.
 
 ## Conventions used by every tool
@@ -146,6 +146,7 @@ Skinning:
 | `ik.deleteConstraint` | Delete the constraint and cascade its timelines | `ikConstraintId` |
 | `ik.setKeyframe` | Key mix + bend in an animation | `animationId`, `ikConstraintId`, `time`, `mix`, `bendPositive`, optional `curve` |
 | `ik.deleteKeyframe` | Delete an IK keyframe | `animationId`, `ikConstraintId`, `keyframeId` |
+| `ik.moveKeyframe` | Move an IK keyframe to a new time (rejects a collision) | `animationId`, `ikConstraintId`, `keyframeId`, `time` |
 | `ik.list` | List IK constraints in solve order | |
 | `ik.get` | Get one constraint | `ikConstraintId` |
 
@@ -163,6 +164,7 @@ and six offsets (`offsetRotation`, `offsetX`, `offsetY`, `offsetScaleX`, `offset
 | `transform.deleteConstraint` | Delete and cascade timelines | `transformConstraintId` |
 | `transform.setKeyframe` | Key the mix factors in an animation | `animationId`, `transformConstraintId`, `time`, `mix` (any of the 6 factors), optional `curve` |
 | `transform.deleteKeyframe` | Delete a keyframe | `animationId`, `transformConstraintId`, `keyframeId` |
+| `transform.moveKeyframe` | Move a keyframe to a new time (rejects a collision) | `animationId`, `transformConstraintId`, `keyframeId`, `time` |
 | `transform.list` | List in solve order | |
 | `transform.get` | Get one constraint | `transformConstraintId` |
 
@@ -223,6 +225,7 @@ Curves are per-key outgoing interpolation: `"linear"`, `"stepped"`, or
 | `kf.paste` | Insert many keys as ONE undo step | `animationId`, `items[]` of `{ channel, boneId?/slotId?, time, value, curve }` |
 | `kf.attachment.set` | Key an attachment swap (or `null` to hide) at a time | `animationId`, `slotId`, `time`, `name` |
 | `kf.attachment.delete` | Delete the attachment key at a time | `animationId`, `slotId`, `time` |
+| `kf.attachment.move` | Move an attachment key (by id) to a new time (rejects a collision) | `animationId`, `slotId`, `keyframeId`, `time` |
 
 ## Events and draw order: `event.*` and `draworder.*`
 

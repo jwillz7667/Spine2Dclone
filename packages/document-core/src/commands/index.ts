@@ -39,6 +39,10 @@ export {
 export type { LinkedMeshInit } from './create-linked-mesh.command';
 export { UnlinkMeshCommand, unlinkMeshSpec } from './unlink-mesh.command';
 export {
+  SetAttachmentSequenceCommand,
+  setAttachmentSequenceSpec,
+} from './set-attachment-sequence.command';
+export {
   SetActiveAttachmentCommand,
   setActiveAttachmentSpec,
 } from './set-active-attachment.command';

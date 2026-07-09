@@ -195,6 +195,25 @@ export class LinkedMeshError extends Error {
   }
 }
 
+// A sequence authoring edit (PP-D10) rejected BEFORE any mutation. The `reason` mirrors the format's sequence
+// checks (ADR-0009 section 3):
+//   - shape: count < 1, or a non-integer/negative count/start/digits/setupIndex (the format's SCHEMA_SHAPE).
+//   - setupRange: setupIndex is outside [0, count) (the format's SEQUENCE_SETUP_RANGE).
+//   - notFound: the target attachment does not exist or is not a region/mesh (attachment sequences are
+//     scoped to region/mesh, ADR-0009), or a keyed sequence edit targeted a missing key.
+export type SequenceErrorReason = 'shape' | 'setupRange' | 'notFound';
+
+export class SequenceError extends Error {
+  override readonly name = 'SequenceError';
+  readonly code = 'SEQUENCE' as const;
+  constructor(
+    readonly reason: SequenceErrorReason,
+    readonly detail?: string,
+  ) {
+    super(`sequence error (${reason})` + (detail === undefined ? '' : `: ${detail}`));
+  }
+}
+
 // A constraint authoring edit (WP-2.6 / WP-2.7) rejected BEFORE any mutation, so it leaves no document
 // change and no history entry. The `reason` discriminant says which rule fired:
 //   - boneMissing: a referenced chain bone is not in the document.

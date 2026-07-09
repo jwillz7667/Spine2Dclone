@@ -3,6 +3,7 @@ import type {
   BlendMode,
   CurveType,
   RGBA,
+  Sequence,
   SkeletonMeta,
   TransformMode,
 } from '@marionette/format/types';
@@ -153,6 +154,7 @@ export type AttachmentSnapshot =
       readonly width: number;
       readonly height: number;
       readonly color: RGBA;
+      readonly sequence?: Sequence;
     }
   | {
       readonly slotId: string;
@@ -168,6 +170,7 @@ export type AttachmentSnapshot =
       readonly edges?: readonly number[];
       readonly vertices: readonly number[];
       readonly bones?: readonly number[];
+      readonly sequence?: Sequence;
     }
   | {
       readonly slotId: string;
@@ -479,6 +482,7 @@ export function attachmentToSnapshot(slotId: SlotId, att: AttachmentEntity): Att
       width: att.width,
       height: att.height,
       color: { ...att.color },
+      ...(att.sequence !== undefined ? { sequence: att.sequence } : {}),
     };
   }
   if (att.kind === 'mesh') {
@@ -496,6 +500,7 @@ export function attachmentToSnapshot(slotId: SlotId, att: AttachmentEntity): Att
       vertices: att.vertices.slice(),
       ...(att.edges !== undefined ? { edges: att.edges.slice() } : {}),
       ...(att.bones !== undefined ? { bones: att.bones.slice() } : {}),
+      ...(att.sequence !== undefined ? { sequence: att.sequence } : {}),
     };
   }
   if (att.kind === 'linkedmesh') {

@@ -93,6 +93,7 @@ import { setTransformConstraintVariantsSpec } from './set-transform-constraint-v
 import { reorderConstraintsSpec } from './reorder-constraints.command';
 import { createLinkedMeshSpec } from './create-linked-mesh.command';
 import { unlinkMeshSpec } from './unlink-mesh.command';
+import { setAttachmentSequenceSpec } from './set-attachment-sequence.command';
 import { setMeshEdgesSpec } from './set-mesh-edges.command';
 import { setRegionAttachmentTransformSpec } from './set-region-attachment-transform.command';
 import { setSlotBlendModeSpec } from './set-slot-blend-mode.command';
@@ -125,6 +126,8 @@ export const commandRegistry: readonly CommandSpec[] = [
   // PP-D10 (Stage F2) linked meshes
   createLinkedMeshSpec,
   unlinkMeshSpec,
+  // PP-D10 (Stage F2) attachment frame-sequence
+  setAttachmentSequenceSpec,
   removeAttachmentSpec,
   setActiveAttachmentSpec,
   setAtlasRefSpec,

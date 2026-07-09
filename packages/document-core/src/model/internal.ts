@@ -1,5 +1,5 @@
 import { decodeWeightedVertices, encodeWeightedVertices } from '@marionette/format';
-import type { AtlasRef, SkeletonMeta } from '@marionette/format/types';
+import type { AtlasRef, SkeletonMeta, Sequence } from '@marionette/format/types';
 import type {
   FeatureFlowGraph,
   GridConfig,
@@ -1120,6 +1120,30 @@ export class DocumentModelInternal implements DocumentReadModel {
     const current = inner0.get(name);
     if (!current || current.kind !== 'region') return;
     const updated: RegionAttachmentEntity = { ...current, ...patch };
+    if (this.batching) {
+      inner0.set(name, updated);
+    } else {
+      const next = new Map(this.attachmentsMap);
+      const inner = new Map(inner0);
+      inner.set(name, updated);
+      next.set(slotId, inner);
+      this.attachmentsMap = next;
+    }
+    this.revisionValue += 1;
+  }
+
+  // Set or CLEAR the Stage F2 frame-sequence block (ADR-0009 section 3) on a region or mesh attachment
+  // (PP-D10). `undefined` DELETES the key (so a cleared attachment is byte-identical to one that never had a
+  // sequence; a `{ sequence: undefined }` patch cannot express that under exactOptionalPropertyTypes). A
+  // wrong or missing target, or a non-region/non-mesh attachment, is a no-op (the command asserts kind first).
+  setAttachmentSequence(slotId: SlotId, name: string, sequence: Sequence | undefined): void {
+    const inner0 = this.attachmentsMap.get(slotId);
+    if (!inner0) return;
+    const current = inner0.get(name);
+    if (!current || (current.kind !== 'region' && current.kind !== 'mesh')) return;
+    const { sequence: _omit, ...rest } = current;
+    void _omit;
+    const updated: AttachmentEntity = sequence === undefined ? rest : { ...rest, sequence };
     if (this.batching) {
       inner0.set(name, updated);
     } else {

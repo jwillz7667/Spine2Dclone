@@ -2661,6 +2661,97 @@ describe('MCP attachment keyframe tools', () => {
   });
 });
 
+describe('MCP sequence timeline tools (PP-D10)', () => {
+  async function seqOf(
+    deps: ToolDeps,
+    documentId: string,
+    animationId: string,
+    slotId: string,
+  ): Promise<Array<{ id: string; time: number; mode: string; index: number }>> {
+    const animGet = asRecord(await call(deps, 'anim.get', { documentId, animationId }));
+    const slots = asRecord(animGet.animation).slots as Array<{
+      slotId: string;
+      sequence: Array<{ id: string; time: number; mode: string; index: number }>;
+    }>;
+    return slots.find((t) => t.slotId === slotId)?.sequence ?? [];
+  }
+
+  it('sets, updates, moves, and deletes a slot sequence keyframe', async () => {
+    const deps = makeDeps();
+    const { documentId } = asRecord(await call(deps, 'document.new', { name: 'seq' }));
+    const { boneId } = asRecord(
+      await call(deps, 'bone.create', { documentId, name: 'root', length: 100 }),
+    );
+    const { slotId } = asRecord(
+      await call(deps, 'slot.create', { documentId, boneId, name: 'body' }),
+    );
+    const { animationId } = asRecord(
+      await call(deps, 'anim.create', { documentId, name: 'idle', duration: 1 }),
+    );
+
+    await call(deps, 'anim.sequence.set', {
+      documentId,
+      animationId,
+      slotId,
+      time: 0,
+      mode: 'loop',
+      index: 0,
+      delay: 0.1,
+    });
+    await call(deps, 'anim.sequence.set', {
+      documentId,
+      animationId,
+      slotId,
+      time: 1,
+      mode: 'hold',
+      index: 2,
+      delay: 0,
+    });
+    let keys = await seqOf(deps, documentId, animationId, slotId);
+    expect(keys.length).toBe(2);
+    const firstId = keys[0]!.id;
+
+    // Update the first key in place (same time keeps its id).
+    await call(deps, 'anim.sequence.set', {
+      documentId,
+      animationId,
+      slotId,
+      time: 0,
+      mode: 'once',
+      index: 3,
+      delay: 0.2,
+    });
+    keys = await seqOf(deps, documentId, animationId, slotId);
+    expect(keys.length).toBe(2);
+    expect(keys.find((k) => k.id === firstId)!.mode).toBe('once');
+
+    // Move the first key to a free time.
+    await call(deps, 'anim.sequence.move', {
+      documentId,
+      animationId,
+      slotId,
+      keyframeId: firstId,
+      time: 0.4,
+    });
+    expect((await seqOf(deps, documentId, animationId, slotId)).find((k) => k.id === firstId)!.time).toBe(
+      0.4,
+    );
+    // Moving onto the occupied t=1 is a typed KEYFRAME_COLLISION.
+    await expectToolError(
+      call(deps, 'anim.sequence.move', { documentId, animationId, slotId, keyframeId: firstId, time: 1 }),
+      'KEYFRAME_COLLISION',
+    );
+
+    // Delete it.
+    await call(deps, 'anim.sequence.delete', { documentId, animationId, slotId, keyframeId: firstId });
+    expect((await seqOf(deps, documentId, animationId, slotId)).length).toBe(1);
+    await expectToolError(
+      call(deps, 'anim.sequence.delete', { documentId, animationId, slotId, keyframeId: firstId }),
+      'KEYFRAME_NOT_FOUND',
+    );
+  });
+});
+
 // render_frame effects overlay: the `effect` param composes a solved effect/bundle from the live effects
 // library ON TOP of the skeleton in one PNG (renderComposedFrame). The effect's OWN atlas pages are
 // resolved from disk exactly like the skeleton's. World-space anchors only in this pass.

@@ -43,6 +43,9 @@ import {
   CreateLinkedMeshCommand,
   UnlinkMeshCommand,
   SetAttachmentSequenceCommand,
+  SetSequenceKeyframeCommand,
+  MoveSequenceKeyframeCommand,
+  DeleteSequenceKeyframeCommand,
   MeshBindingError,
   MeshTopologyLockedError,
   MoveBoneCommand,
@@ -750,6 +753,13 @@ function animationView(animation: AnimationEntity): Record<string, unknown> {
         time: frame.time,
         name: frame.name,
       })),
+      sequence: set.sequence.map((k) => ({
+        id: k.id,
+        time: k.time,
+        mode: k.mode,
+        index: k.index,
+        delay: k.delay,
+      })),
     })),
     // IK and transform constraint timelines, keyed by constraint id. Each keyframe carries its id so the
     // keyed edit/delete/move tools (ik.deleteKeyframe, ik.moveKeyframe, transform.*) have a target to name.
@@ -802,6 +812,17 @@ const transformModeSchema = z.enum([
 ]);
 
 const blendModeSchema = z.enum(['normal', 'additive', 'multiply', 'screen']);
+
+// The Stage F2 sequence playback modes (ADR-0009 section 3), mirroring the format's SequenceMode enum.
+const sequenceModeSchema = z.enum([
+  'hold',
+  'once',
+  'loop',
+  'pingpong',
+  'onceReverse',
+  'loopReverse',
+  'pingpongReverse',
+]);
 
 const colorComponent = z.number().finite().min(0).max(1);
 const rgbaSchema = z
@@ -5725,6 +5746,120 @@ export const TOOLS: readonly ToolDefinition[] = [
           throw new McpToolError(
             'KEYFRAME_NOT_FOUND',
             `no attachment keyframe "${input.keyframeId}" on slot "${input.slotId}"`,
+          );
+        }
+        throw error;
+      }
+      return { revision: session.document.model.revision };
+    },
+  ),
+  defineTool(
+    {
+      name: 'anim.sequence.set',
+      title: 'Set sequence keyframe',
+      description:
+        'Insert or update a slot frame-sequence keyframe at a time (Stage F2): `mode` playback, starting ' +
+        '`index`, and `delay` seconds per frame. Updating an existing time keeps its id. The timeline stays ' +
+        'strict-ascending in time.',
+      input: z
+        .object({
+          documentId,
+          animationId,
+          slotId,
+          time: z.number().finite().nonnegative(),
+          mode: sequenceModeSchema,
+          index: z.number().int().finite().nonnegative(),
+          delay: z.number().finite().nonnegative(),
+        })
+        .strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireAnimation(session, input.animationId);
+      requireSlot(session, input.slotId);
+      session.document.history.execute(
+        new SetSequenceKeyframeCommand(
+          asAnimationId(input.animationId),
+          asSlotId(input.slotId),
+          input.time,
+          input.mode,
+          input.index,
+          input.delay,
+        ),
+      );
+      return { revision: session.document.model.revision };
+    },
+  ),
+  defineTool(
+    {
+      name: 'anim.sequence.move',
+      title: 'Move sequence keyframe',
+      description:
+        'Move a slot frame-sequence keyframe (by id) to a new time (strict-ascending). Landing on an ' +
+        'occupied time is a typed KEYFRAME_COLLISION; a missing key is a typed KEYFRAME_NOT_FOUND.',
+      input: z
+        .object({
+          documentId,
+          animationId,
+          slotId,
+          keyframeId,
+          time: z.number().finite().nonnegative(),
+        })
+        .strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireAnimation(session, input.animationId);
+      requireSlot(session, input.slotId);
+      try {
+        session.document.history.execute(
+          new MoveSequenceKeyframeCommand(
+            asAnimationId(input.animationId),
+            asSlotId(input.slotId),
+            asKeyframeId(input.keyframeId),
+            input.time,
+          ),
+        );
+      } catch (error) {
+        if (error instanceof KeyframeCollisionError) {
+          throw new McpToolError('KEYFRAME_COLLISION', error.message);
+        }
+        if (error instanceof CommandTargetMissingError) {
+          throw new McpToolError(
+            'KEYFRAME_NOT_FOUND',
+            `no sequence keyframe "${input.keyframeId}" on slot "${input.slotId}"`,
+          );
+        }
+        throw error;
+      }
+      return { revision: session.document.model.revision };
+    },
+  ),
+  defineTool(
+    {
+      name: 'anim.sequence.delete',
+      title: 'Delete sequence keyframe',
+      description:
+        'Delete a slot frame-sequence keyframe (by id). A missing key is a typed KEYFRAME_NOT_FOUND.',
+      input: z.object({ documentId, animationId, slotId, keyframeId }).strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireAnimation(session, input.animationId);
+      requireSlot(session, input.slotId);
+      try {
+        session.document.history.execute(
+          new DeleteSequenceKeyframeCommand(
+            asAnimationId(input.animationId),
+            asSlotId(input.slotId),
+            asKeyframeId(input.keyframeId),
+          ),
+        );
+      } catch (error) {
+        if (error instanceof CommandTargetMissingError) {
+          throw new McpToolError(
+            'KEYFRAME_NOT_FOUND',
+            `no sequence keyframe "${input.keyframeId}" on slot "${input.slotId}"`,
           );
         }
         throw error;

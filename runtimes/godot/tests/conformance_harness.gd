@@ -60,6 +60,10 @@ static func run(rig_id: String) -> Result:
 	# sequence frame the fixture captures. Empty (or absent) means the rig captures no sequences, so the
 	# sequence comparison is a no-op and every pre-existing rig behaves exactly as before.
 	var capture_sequences: Array = spec.get("captureSequences", [])
+	# The optional per-sample active-skin lane (ADR-0011 section 4), parallel to poseTimes: entry i is the
+	# active skin (a String or null) when sampling poseTimes[i]. Absent means null everywhere, so every
+	# pre-existing rig samples with no active skin exactly as before.
+	var active_skins: Array = spec.get("activeSkins", [])
 
 	if pose_times.size() != samples.size():
 		result.failures.append(
@@ -99,7 +103,8 @@ static func run(rig_id: String) -> Result:
 			)
 			continue
 
-		Sample.sample_skeleton(document, animation_id, time, pose)
+		var active_skin = active_skins[s] if s < active_skins.size() else null
+		Sample.sample_skeleton(document, animation_id, time, pose, active_skin)
 
 		var expected_bones: Dictionary = sample["bones"]
 		for bone_name in expected_bones:

@@ -208,12 +208,20 @@ namespace Marionette.Runtime.Core.Document
             get;
         }
 
+        // The names of the constraints this skin SCOPES (ADR-0009 section 5, ADR-0011 section 4). A constraint
+        // listed here solves only while this skin (or the always-active 'default' skin) is active; buildPose
+        // aggregates these across skins into each constraint's scopeSkins. Empty when the skin scopes none.
+        // Mirrors Skin.constraints in @marionette/format.
+        public IReadOnlyList<string> Constraints { get; }
+
         public Skin(
             string name,
-            IReadOnlyList<KeyValuePair<string, IReadOnlyList<KeyValuePair<string, Attachment>>>> attachments)
+            IReadOnlyList<KeyValuePair<string, IReadOnlyList<KeyValuePair<string, Attachment>>>> attachments,
+            IReadOnlyList<string> constraints)
         {
             Name = name;
             Attachments = attachments;
+            Constraints = constraints;
         }
     }
 

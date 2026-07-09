@@ -34,7 +34,15 @@ namespace Marionette.Runtime.Core.Skeleton
         private static double[] TargetWorldScratch =>
             _targetWorldScratch ??= new double[Affine.Mat2x3Stride];
 
-        public static void SampleSkeleton(SkeletonDocument document, string animationId, double t, Pose outPose)
+        public static void SampleSkeleton(
+            SkeletonDocument document,
+            string animationId,
+            double t,
+            Pose outPose,
+            // The active skin for skin-scoped constraints (ADR-0009 section 5, ADR-0011 section 4). null (the
+            // default) leaves only the always-active 'default' skin active, so a scoped constraint stays inactive
+            // and every non-scoped rig is unaffected. A constraint no skin scopes is always solved.
+            string? activeSkin = null)
         {
             Animation? animation = document.FindAnimation(animationId);
             if (animation == null)
@@ -54,8 +62,9 @@ namespace Marionette.Runtime.Core.Skeleton
             ApplyAnimationAt(outPose, prepared, t, 1, false, true);
             ComposeTouchedBones(outPose);
 
-            // Step 3: solve constraints: ALL IK first, then ALL transform, each in document array order.
-            SolveConstraints(outPose);
+            // Step 3: solve constraints: ALL IK first, then ALL transform, each in document array order. A
+            // skin-scoped constraint is skipped unless its skin is active.
+            SolveConstraints(outPose, activeSkin);
 
             // Step 4: world transforms (single forward pass, parents before children).
             WorldTransform.ComputeWorldTransforms(outPose);
@@ -156,7 +165,7 @@ namespace Marionette.Runtime.Core.Skeleton
         // document order, the exact ADR-0003 two-phase path. When the rig assigns an explicit order,
         // pose.SolveOrder is the precomputed dense schedule and step 3 walks it, dispatching each code to the
         // SAME per-constraint helper the default path uses (so an IK constraint is bit-identical either way).
-        public static void SolveConstraints(Pose pose)
+        public static void SolveConstraints(Pose pose, string? activeSkin = null)
         {
             IReadOnlyList<ResolvedIkConstraint> ikConstraints = pose.IkConstraints;
             IReadOnlyList<ResolvedTransformConstraint> transformConstraints = pose.TransformConstraints;
@@ -166,12 +175,12 @@ namespace Marionette.Runtime.Core.Skeleton
             {
                 for (int i = 0; i < ikConstraints.Count; i += 1)
                 {
-                    SolveOneIkConstraint(pose, ikConstraints[i]);
+                    SolveOneIkConstraint(pose, ikConstraints[i], activeSkin);
                 }
 
                 for (int i = 0; i < transformConstraints.Count; i += 1)
                 {
-                    SolveOneTransformConstraint(pose, transformConstraints[i]);
+                    SolveOneTransformConstraint(pose, transformConstraints[i], activeSkin);
                 }
 
                 return;
@@ -183,21 +192,50 @@ namespace Marionette.Runtime.Core.Skeleton
                 int code = solveOrder[p];
                 if (code < ikCount)
                 {
-                    SolveOneIkConstraint(pose, ikConstraints[code]);
+                    SolveOneIkConstraint(pose, ikConstraints[code], activeSkin);
                 }
                 else
                 {
-                    SolveOneTransformConstraint(pose, transformConstraints[code - ikCount]);
+                    SolveOneTransformConstraint(pose, transformConstraints[code - ikCount], activeSkin);
                 }
             }
+        }
+
+        // Whether a constraint participates in the solve under the active skin (ADR-0009 section 5, ADR-0011
+        // section 4). Unscoped (ScopeSkins null) constraints are always active; a scoped one is active when the
+        // 'default' skin scopes it (the default skin is always active) or when the frame's active skin is one of
+        // its scoping skins. Mirrors isConstraintScopeActive in sample.ts.
+        private static bool IsConstraintScopeActive(IReadOnlyList<string>? scopeSkins, string? activeSkin)
+        {
+            if (scopeSkins == null)
+            {
+                return true;
+            }
+
+            for (int i = 0; i < scopeSkins.Count; i += 1)
+            {
+                string skin = scopeSkins[i];
+                if (skin == "default" || skin == activeSkin)
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         // Solve one IK constraint against the pose (ADR-0003 section 4, depth per ADR-0010 section 2). Reads
         // the target world origin into the thread scratch and dispatches one/two-bone. A constraint with an
         // unresolved bone/target index (-1) or non-positive mix is a no-op. The per-constraint sampled scratch
         // (mix, bend, softness, stretch, compress) was written by step 2; Uniform is the static definition flag.
-        private static void SolveOneIkConstraint(Pose pose, ResolvedIkConstraint constraint)
+        // A skin-scoped constraint whose skin is inactive is skipped entirely.
+        private static void SolveOneIkConstraint(Pose pose, ResolvedIkConstraint constraint, string? activeSkin)
         {
+            if (!IsConstraintScopeActive(constraint.ScopeSkins, activeSkin))
+            {
+                return;
+            }
+
             int targetIndex = constraint.TargetIndex;
             if (targetIndex < 0)
             {
@@ -257,9 +295,18 @@ namespace Marionette.Runtime.Core.Skeleton
         }
 
         // Solve one transform constraint against the pose (ADR-0003 section 5). Applies to each constrained
-        // bone in stored order; an unresolved bone/target index is skipped.
-        private static void SolveOneTransformConstraint(Pose pose, ResolvedTransformConstraint constraint)
+        // bone in stored order; an unresolved bone/target index is skipped, as is a scoped constraint whose
+        // skin is inactive.
+        private static void SolveOneTransformConstraint(
+            Pose pose,
+            ResolvedTransformConstraint constraint,
+            string? activeSkin)
         {
+            if (!IsConstraintScopeActive(constraint.ScopeSkins, activeSkin))
+            {
+                return;
+            }
+
             int targetIndex = constraint.TargetIndex;
             if (targetIndex < 0)
             {

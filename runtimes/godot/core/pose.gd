@@ -75,6 +75,10 @@ class ResolvedIkConstraint:
 	var uniform: bool
 	# The explicit combined-set solve order (ADR-0009 section 1.3), or -1 when this constraint carries none.
 	var order: int
+	# The names of the skins that SCOPE this constraint (ADR-0009 section 5, ADR-0011 section 4), or null
+	# when no skin lists it (unscoped, always active). A scoped constraint solves only when one of these
+	# skins is active (the 'default' skin is always active). Captured once at build. PackedStringArray or null.
+	var scope_skins = null
 	var sampled_mix: float
 	var sampled_bend_positive: bool
 	var sampled_softness: float
@@ -91,7 +95,8 @@ class ResolvedIkConstraint:
 		stretch: bool,
 		compress: bool,
 		is_uniform: bool,
-		the_order: int
+		the_order: int,
+		the_scope_skins = null
 	) -> void:
 		name = n
 		bone_indices = indices
@@ -103,6 +108,7 @@ class ResolvedIkConstraint:
 		base_compress = compress
 		uniform = is_uniform
 		order = the_order
+		scope_skins = the_scope_skins
 		sampled_mix = mix
 		sampled_bend_positive = bend
 		sampled_softness = softness
@@ -123,6 +129,9 @@ class ResolvedTransformConstraint:
 	var local: bool
 	var relative: bool
 	var order: int
+	# The names of the skins that SCOPE this constraint (ADR-0009 section 5), or null when unscoped
+	# (always active). Captured once at build. PackedStringArray or null.
+	var scope_skins = null
 	var sampled_mix: TransformMix
 
 	func _init(
@@ -133,7 +142,8 @@ class ResolvedTransformConstraint:
 		off: TransformOffset,
 		is_local: bool,
 		is_relative: bool,
-		the_order: int
+		the_order: int,
+		the_scope_skins = null
 	) -> void:
 		name = n
 		bone_indices = indices
@@ -143,6 +153,7 @@ class ResolvedTransformConstraint:
 		local = is_local
 		relative = is_relative
 		order = the_order
+		scope_skins = the_scope_skins
 		sampled_mix = TransformMix.new(mix.rotate, mix.x, mix.y, mix.scale_x, mix.scale_y, mix.shear_y)
 
 

@@ -163,7 +163,16 @@ namespace Marionette.Runtime.Core.Document
                         perSlot));
             }
 
-            return new Skin(ReqString(skin, "name"), slots);
+            // Optional skin-scoped constraint names (ADR-0009 section 5, ADR-0011 section 4). Absent on a skin
+            // that scopes nothing; treated as empty, the same lenience buildPose applies to a missing array.
+            var constraints = new List<string>();
+            JsonValue? constraintsValue = skin.Member("constraints");
+            if (constraintsValue != null && constraintsValue.Kind == JsonKind.Array)
+            {
+                constraints = ReadStringArray(constraintsValue);
+            }
+
+            return new Skin(ReqString(skin, "name"), slots, constraints);
         }
 
         private static Attachment ReadAttachment(JsonValue attachment)

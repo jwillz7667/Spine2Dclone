@@ -29,13 +29,25 @@ static func build(document: Document.SkeletonDocument) -> Pose:
 	for i in range(bone_count):
 		index_by_name[bone_names[i]] = i
 
+	# Skin-scoping map (ADR-0009 section 5, ADR-0011 section 4): constraint name -> the skins that scope it.
+	# A constraint listed in a skin's `constraints` is active only while one of those skins is active; a
+	# constraint in no list is unscoped (always active). Built once here so the per-frame solve reads a
+	# captured `scope_skins`. Values are plain Array[String]; a constraint absent from the map resolves null.
+	var scope_by_constraint := {}
+	for skin in document.skins:
+		for name in skin.constraints:
+			if scope_by_constraint.has(name):
+				scope_by_constraint[name].append(skin.name)
+			else:
+				scope_by_constraint[name] = [skin.name]
+
 	var ik_constraints := []
 	for constraint in document.ik_constraints:
-		ik_constraints.append(_resolve_ik(constraint, index_by_name))
+		ik_constraints.append(_resolve_ik(constraint, index_by_name, scope_by_constraint.get(constraint.name, null)))
 
 	var transform_constraints := []
 	for constraint in document.transform_constraints:
-		transform_constraints.append(_resolve_transform(constraint, index_by_name))
+		transform_constraints.append(_resolve_transform(constraint, index_by_name, scope_by_constraint.get(constraint.name, null)))
 
 	var pose := Pose.new(bone_count, bone_names, slot_count, slot_names, ik_constraints, transform_constraints)
 
@@ -87,7 +99,7 @@ static func _resolve_bone_indices(names: PackedStringArray, index_by_name: Dicti
 	return indices
 
 
-static func _resolve_ik(constraint, index_by_name: Dictionary) -> Pose.ResolvedIkConstraint:
+static func _resolve_ik(constraint, index_by_name: Dictionary, scope_skins) -> Pose.ResolvedIkConstraint:
 	return Pose.ResolvedIkConstraint.new(
 		constraint.name,
 		_resolve_bone_indices(constraint.bones, index_by_name),
@@ -98,11 +110,12 @@ static func _resolve_ik(constraint, index_by_name: Dictionary) -> Pose.ResolvedI
 		constraint.stretch,
 		constraint.compress,
 		constraint.uniform,
-		constraint.order
+		constraint.order,
+		scope_skins
 	)
 
 
-static func _resolve_transform(constraint, index_by_name: Dictionary) -> Pose.ResolvedTransformConstraint:
+static func _resolve_transform(constraint, index_by_name: Dictionary, scope_skins) -> Pose.ResolvedTransformConstraint:
 	var base_mix := Pose.TransformMix.new(
 		constraint.mix_rotate,
 		constraint.mix_x,
@@ -127,5 +140,6 @@ static func _resolve_transform(constraint, index_by_name: Dictionary) -> Pose.Re
 		offset,
 		constraint.local,
 		constraint.relative,
-		constraint.order
+		constraint.order,
+		scope_skins
 	)

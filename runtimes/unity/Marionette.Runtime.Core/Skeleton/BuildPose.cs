@@ -35,16 +35,37 @@ namespace Marionette.Runtime.Core.Skeleton
                 indexByName[boneNames[i]] = i;
             }
 
+            // Skin-scoping map (ADR-0009 section 5, ADR-0011 section 4): constraint name -> the skins that scope
+            // it. A constraint listed in a skin's constraints is active only while one of those skins is active;
+            // a constraint in no list is unscoped (always active). Built once here so the per-frame solve reads a
+            // captured ScopeSkins. Mirrors buildPose's scopeByConstraint in build-pose.ts.
+            var scopeByConstraint = new Dictionary<string, List<string>>();
+            foreach (Skin skin in document.Skins)
+            {
+                foreach (string name in skin.Constraints)
+                {
+                    if (scopeByConstraint.TryGetValue(name, out List<string>? existing))
+                    {
+                        existing.Add(skin.Name);
+                    }
+                    else
+                    {
+                        scopeByConstraint[name] = new List<string> { skin.Name };
+                    }
+                }
+            }
+
             var ikConstraints = new List<ResolvedIkConstraint>();
             foreach (IkConstraint constraint in document.IkConstraints)
             {
-                ikConstraints.Add(ResolveIk(constraint, indexByName));
+                ikConstraints.Add(ResolveIk(constraint, indexByName, ScopeFor(scopeByConstraint, constraint.Name)));
             }
 
             var transformConstraints = new List<ResolvedTransformConstraint>();
             foreach (TransformConstraint constraint in document.TransformConstraints)
             {
-                transformConstraints.Add(ResolveTransform(constraint, indexByName));
+                transformConstraints.Add(
+                    ResolveTransform(constraint, indexByName, ScopeFor(scopeByConstraint, constraint.Name)));
             }
 
             var pose = new Pose(
@@ -100,6 +121,10 @@ namespace Marionette.Runtime.Core.Skeleton
         private static int LookupOrMinusOne(Dictionary<string, int> indexByName, string name) =>
             indexByName.TryGetValue(name, out int value) ? value : -1;
 
+        // The scoping skins for a constraint name, or null when no skin lists it (unscoped, always active).
+        private static IReadOnlyList<string>? ScopeFor(Dictionary<string, List<string>> scope, string name) =>
+            scope.TryGetValue(name, out List<string>? skins) ? skins : null;
+
         private static int[] ResolveBoneIndices(IReadOnlyList<string> names, Dictionary<string, int> indexByName)
         {
             var indices = new int[names.Count];
@@ -111,7 +136,10 @@ namespace Marionette.Runtime.Core.Skeleton
             return indices;
         }
 
-        private static ResolvedIkConstraint ResolveIk(IkConstraint constraint, Dictionary<string, int> indexByName)
+        private static ResolvedIkConstraint ResolveIk(
+            IkConstraint constraint,
+            Dictionary<string, int> indexByName,
+            IReadOnlyList<string>? scopeSkins)
         {
             return new ResolvedIkConstraint(
                 constraint.Name,
@@ -123,12 +151,14 @@ namespace Marionette.Runtime.Core.Skeleton
                 constraint.Stretch,
                 constraint.Compress,
                 constraint.Uniform,
-                constraint.Order);
+                constraint.Order,
+                scopeSkins);
         }
 
         private static ResolvedTransformConstraint ResolveTransform(
             TransformConstraint constraint,
-            Dictionary<string, int> indexByName)
+            Dictionary<string, int> indexByName,
+            IReadOnlyList<string>? scopeSkins)
         {
             var baseMix = new TransformMix(
                 constraint.MixRotate,
@@ -152,7 +182,8 @@ namespace Marionette.Runtime.Core.Skeleton
                 offset,
                 constraint.Local,
                 constraint.Relative,
-                constraint.Order);
+                constraint.Order,
+                scopeSkins);
         }
     }
 }

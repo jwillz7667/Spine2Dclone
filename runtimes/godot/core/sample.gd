@@ -18,7 +18,10 @@ const TransformConstraint = preload("res://core/transform_constraint.gd")
 static var _target_world_scratch: PackedFloat64Array = PackedFloat64Array()
 
 
-static func sample_skeleton(document: Document.SkeletonDocument, animation_id: String, t: float, out_pose: Pose) -> void:
+# active_skin (default null) is the active skin for skin-scoped constraints (ADR-0009 section 5, ADR-0011
+# section 4). null leaves only the always-active 'default' skin active, so a scoped constraint stays
+# inactive and every non-scoped rig is unaffected. A constraint no skin scopes is always solved.
+static func sample_skeleton(document: Document.SkeletonDocument, animation_id: String, t: float, out_pose: Pose, active_skin = null) -> void:
 	var animation = document.find_animation(animation_id)
 	if animation == null:
 		push_error("animation not found: %s" % animation_id)
@@ -36,8 +39,9 @@ static func sample_skeleton(document: Document.SkeletonDocument, animation_id: S
 	apply_animation_at(out_pose, prepared, t, 1.0, false, true)
 	compose_touched_bones(out_pose)
 
-	# Step 3: solve constraints: ALL IK first, then ALL transform, each in document array order.
-	solve_constraints(out_pose)
+	# Step 3: solve constraints: ALL IK first, then ALL transform, each in document array order. A skin-
+	# scoped constraint is skipped unless its skin is active.
+	solve_constraints(out_pose, active_skin)
 
 	# Step 4: world transforms (single forward pass, parents before children).
 	WorldTransform.compute_world_transforms(out_pose)
@@ -116,7 +120,7 @@ static func _blend_add_rotation(current: float, setup_value: float, sampled: flo
 # order, the exact ADR-0003 two-phase path. When the rig assigns an explicit order, pose.solve_order is the
 # precomputed dense schedule and step 3 walks it, dispatching each code to the SAME per-constraint helper
 # the default path uses (so an IK constraint is bit-identical either way; only the schedule moves).
-static func solve_constraints(pose: Pose) -> void:
+static func solve_constraints(pose: Pose, active_skin = null) -> void:
 	if _target_world_scratch.size() != Affine.MAT2X3_STRIDE:
 		_target_world_scratch.resize(Affine.MAT2X3_STRIDE)
 
@@ -126,24 +130,41 @@ static func solve_constraints(pose: Pose) -> void:
 
 	if solve_order == null:
 		for i in range(ik_constraints.size()):
-			_solve_one_ik_constraint(pose, ik_constraints[i])
+			_solve_one_ik_constraint(pose, ik_constraints[i], active_skin)
 		for i in range(transform_constraints.size()):
-			_solve_one_transform_constraint(pose, transform_constraints[i])
+			_solve_one_transform_constraint(pose, transform_constraints[i], active_skin)
 		return
 
 	var ik_count := ik_constraints.size()
 	for p in range(solve_order.size()):
 		var code: int = solve_order[p]
 		if code < ik_count:
-			_solve_one_ik_constraint(pose, ik_constraints[code])
+			_solve_one_ik_constraint(pose, ik_constraints[code], active_skin)
 		else:
-			_solve_one_transform_constraint(pose, transform_constraints[code - ik_count])
+			_solve_one_transform_constraint(pose, transform_constraints[code - ik_count], active_skin)
+
+
+# Whether a constraint participates in the solve under the active skin (ADR-0009 section 5, ADR-0011
+# section 4). Unscoped (scope_skins null) constraints are always active; a scoped one is active when the
+# 'default' skin scopes it (the default skin is always active) or when the frame's active skin is one of its
+# scoping skins. Otherwise the constraint is SKIPPED.
+static func _is_constraint_scope_active(scope_skins, active_skin) -> bool:
+	if scope_skins == null:
+		return true
+	for i in range(scope_skins.size()):
+		var skin = scope_skins[i]
+		if skin == "default" or skin == active_skin:
+			return true
+	return false
 
 
 # Solve one IK constraint against the pose (ADR-0003 section 4, depth per ADR-0010 section 2). A constraint
-# with an unresolved bone/target index (-1) or non-positive mix is a no-op. The per-constraint sampled
-# scratch (mix, bend, softness, stretch, compress) was written by step 2; uniform is the static flag.
-static func _solve_one_ik_constraint(pose: Pose, constraint) -> void:
+# with an unresolved bone/target index (-1) or non-positive mix is a no-op; a skin-scoped constraint whose
+# skin is inactive is skipped. The per-constraint sampled scratch (mix, bend, softness, stretch, compress)
+# was written by step 2; uniform is the static flag.
+static func _solve_one_ik_constraint(pose: Pose, constraint, active_skin = null) -> void:
+	if not _is_constraint_scope_active(constraint.scope_skins, active_skin):
+		return
 	var target_index: int = constraint.target_index
 	if target_index < 0:
 		return
@@ -183,8 +204,10 @@ static func _solve_one_ik_constraint(pose: Pose, constraint) -> void:
 
 
 # Solve one transform constraint against the pose (ADR-0003 section 5). Applies to each constrained bone in
-# stored order; an unresolved bone/target index is skipped.
-static func _solve_one_transform_constraint(pose: Pose, constraint) -> void:
+# stored order; an unresolved bone/target index is skipped, as is a scoped constraint whose skin is inactive.
+static func _solve_one_transform_constraint(pose: Pose, constraint, active_skin = null) -> void:
+	if not _is_constraint_scope_active(constraint.scope_skins, active_skin):
+		return
 	var target_index: int = constraint.target_index
 	if target_index < 0:
 		return

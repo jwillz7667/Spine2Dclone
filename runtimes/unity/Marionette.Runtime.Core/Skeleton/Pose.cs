@@ -27,6 +27,11 @@ namespace Marionette.Runtime.Core.Skeleton
         public bool Uniform { get; }
         public int Order { get; }
 
+        // The names of the skins that SCOPE this constraint (ADR-0009 section 5, ADR-0011 section 4), or null
+        // when no skin lists it (unscoped, always active). A scoped constraint solves only when one of these
+        // skins is active (the 'default' skin is always active). Captured once at build; mirrors pose.ts.
+        public IReadOnlyList<string>? ScopeSkins { get; }
+
         public double SampledMix;
         public bool SampledBendPositive;
         public double SampledSoftness;
@@ -43,7 +48,8 @@ namespace Marionette.Runtime.Core.Skeleton
             bool baseStretch,
             bool baseCompress,
             bool uniform,
-            int order)
+            int order,
+            IReadOnlyList<string>? scopeSkins)
         {
             Name = name;
             BoneIndices = boneIndices;
@@ -55,6 +61,7 @@ namespace Marionette.Runtime.Core.Skeleton
             BaseCompress = baseCompress;
             Uniform = uniform;
             Order = order;
+            ScopeSkins = scopeSkins;
             SampledMix = baseMix;
             SampledBendPositive = baseBendPositive;
             SampledSoftness = baseSoftness;
@@ -78,6 +85,10 @@ namespace Marionette.Runtime.Core.Skeleton
         public bool Relative { get; }
         public int Order { get; }
 
+        // The names of the skins that SCOPE this constraint (ADR-0009 section 5), or null when unscoped.
+        // Captured once at build; mirrors ResolvedTransformConstraint.scopeSkins in pose.ts.
+        public IReadOnlyList<string>? ScopeSkins { get; }
+
         public TransformMix SampledMix { get; }
 
         public ResolvedTransformConstraint(
@@ -88,7 +99,8 @@ namespace Marionette.Runtime.Core.Skeleton
             TransformOffset offset,
             bool local,
             bool relative,
-            int order)
+            int order,
+            IReadOnlyList<string>? scopeSkins)
         {
             Name = name;
             BoneIndices = boneIndices;
@@ -98,6 +110,7 @@ namespace Marionette.Runtime.Core.Skeleton
             Local = local;
             Relative = relative;
             Order = order;
+            ScopeSkins = scopeSkins;
             SampledMix = new TransformMix(
                 baseMix.Rotate,
                 baseMix.X,

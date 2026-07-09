@@ -106,6 +106,11 @@ class SkinDef:
 	var name: String
 	# slot name -> (attachment name -> Attachment). Both levels preserve insertion order.
 	var attachments: Dictionary = {}
+	# The names of the constraints this skin SCOPES (ADR-0009 section 5, ADR-0011 section 4). A constraint
+	# listed here is active only while this skin is active; a constraint in no skin's list is unscoped
+	# (always active). PackedStringArray, empty when the skin scopes no constraint. The `bones` list is a
+	# pure-data render concern with no transform-solve effect (ADR-0011 section 4), so it is not read here.
+	var constraints: PackedStringArray = PackedStringArray()
 
 
 class IkConstraint:

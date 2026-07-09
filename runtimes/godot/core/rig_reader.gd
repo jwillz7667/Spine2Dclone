@@ -148,6 +148,11 @@ static func _read_skin(skin: Dictionary) -> Document.SkinDef:
 		for attachment_name in slot_attachments:
 			per_slot[attachment_name] = _read_attachment(slot_attachments[attachment_name])
 		s.attachments[slot_name] = per_slot
+	# The optional skin-scoping list (ADR-0009 section 5, ADR-0011 section 4): the constraints this skin
+	# scopes. Absent (a skin that scopes nothing, e.g. the default skin) leaves the empty default.
+	var constraints_value = skin.get("constraints")
+	if constraints_value != null and typeof(constraints_value) == TYPE_ARRAY:
+		s.constraints = _read_string_array(constraints_value)
 	return s
 
 

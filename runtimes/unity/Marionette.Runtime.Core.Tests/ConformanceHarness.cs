@@ -80,7 +80,11 @@ namespace Marionette.Runtime.Core.Tests
                     continue;
                 }
 
-                Sample.SampleSkeleton(document, spec.Animation, sample.Time, pose);
+                // The active skin for this sample (ADR-0011 section 4): activeSkins is parallel to poseTimes,
+                // each entry a skin name or null. A spec without activeSkins samples with null everywhere, so
+                // pre-scoping rigs are unaffected.
+                string? activeSkin = s < spec.ActiveSkins.Count ? spec.ActiveSkins[s] : null;
+                Sample.SampleSkeleton(document, spec.Animation, sample.Time, pose, activeSkin);
 
                 foreach (KeyValuePair<string, double[]> expectedBone in sample.Bones)
                 {
@@ -482,6 +486,11 @@ namespace Marionette.Runtime.Core.Tests
         public IReadOnlyList<double> PoseTimes { get; }
         public bool CaptureDrawOrder { get; }
 
+        // The active skin per sample (ADR-0011 section 4), parallel to PoseTimes; each entry is a skin name or
+        // null (unscoped sampling). Empty when the sample-spec omits activeSkins, so the harness samples with
+        // null everywhere, mirroring the drawOrder / captureSequences opt-in.
+        public IReadOnlyList<string?> ActiveSkins { get; }
+
         // The slot names whose sequence frame the fixture captures per sample (ADR-0011 section 2). Empty
         // when the sample-spec omits captureSequences, in which case the sequences lane is absent and the
         // harness compares nothing new, mirroring the drawOrder opt-in.
@@ -496,6 +505,7 @@ namespace Marionette.Runtime.Core.Tests
             IReadOnlyList<double> poseTimes,
             bool captureDrawOrder,
             IReadOnlyList<string> captureSequences,
+            IReadOnlyList<string?> activeSkins,
             EventStep? eventStep)
         {
             RigId = rigId;
@@ -505,6 +515,7 @@ namespace Marionette.Runtime.Core.Tests
             PoseTimes = poseTimes;
             CaptureDrawOrder = captureDrawOrder;
             CaptureSequences = captureSequences;
+            ActiveSkins = activeSkins;
             EventStep = eventStep;
         }
 
@@ -532,6 +543,18 @@ namespace Marionette.Runtime.Core.Tests
                 }
             }
 
+            // The optional per-sample active skin knob (ADR-0011 section 4), parallel to poseTimes. Each entry
+            // is a skin name string or JSON null (sample with no active skin). Absent => empty list.
+            var activeSkins = new List<string?>();
+            JsonValue? activeSkinsValue = root.Member("activeSkins");
+            if (activeSkinsValue != null && activeSkinsValue.Kind == JsonKind.Array)
+            {
+                foreach (JsonValue skin in activeSkinsValue.AsArray())
+                {
+                    activeSkins.Add(skin.IsNull ? null : skin.AsString());
+                }
+            }
+
             EventStep? eventStep = null;
             JsonValue? eventStepValue = root.Member("eventStep");
             if (eventStepValue != null && eventStepValue.Kind == JsonKind.Object)
@@ -550,6 +573,7 @@ namespace Marionette.Runtime.Core.Tests
                 poseTimes,
                 captureDrawOrder,
                 captureSequences,
+                activeSkins,
                 eventStep);
         }
     }

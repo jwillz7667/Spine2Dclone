@@ -425,7 +425,8 @@ function ensureClipCapacity(
   const maxRings = triangleCount * prepared.maxRingsPerTri;
   // The largest per-pass subject size: 3 + (whole polygon edges) in the convex case, else 6 for a triangle.
   const maxSubject = prepared.convex ? 3 + prepared.vertexCount : 6;
-  if (buffers.positions.length < maxVertices * 2) buffers.positions = new Float64Array(maxVertices * 2);
+  if (buffers.positions.length < maxVertices * 2)
+    buffers.positions = new Float64Array(maxVertices * 2);
   if (buffers.bary.length < maxVertices * 3) buffers.bary = new Float64Array(maxVertices * 3);
   if (buffers.ringVertexCount.length < maxRings) buffers.ringVertexCount = new Int32Array(maxRings);
   if (buffers.ringSourceTri.length < maxRings) buffers.ringSourceTri = new Int32Array(maxRings);
@@ -478,7 +479,13 @@ export function clipTriangleList(
         // Re-seed the subject triangle into scratchA for each piece (the previous piece's ping-pong
         // overwrote it); each piece intersects the SAME source triangle against a different clip triangle.
         seedSubjectTriangle(triVerts, i0, i1, i2, buffers.scratchA);
-        const outLen = clipSubjectAgainstTriangle(buffers, 3, worldPolygon, prepared.earTriangles, piece);
+        const outLen = clipSubjectAgainstTriangle(
+          buffers,
+          3,
+          worldPolygon,
+          prepared.earTriangles,
+          piece,
+        );
         const written = emitRing(buffers, buffers.scratchB, outLen, t, ringCount, vertexCount);
         if (written > 0) {
           vertexCount += written;

@@ -110,7 +110,8 @@ function lookupCaptureAttachment(
 
 function slotIndexOf(document: SkeletonDocument, slotName: string): number {
   const index = document.slots.findIndex((slot) => slot.name === slotName);
-  if (index < 0) throw new Error(`sample-spec names slot "${slotName}", but the rig has no such slot`);
+  if (index < 0)
+    throw new Error(`sample-spec names slot "${slotName}", but the rig has no such slot`);
   return index;
 }
 
@@ -128,7 +129,12 @@ interface ClipCaptureTarget {
 
 function resolveClipTargets(document: SkeletonDocument, spec: SampleSpec): ClipCaptureTarget[] {
   return (spec.clips ?? []).map((target) => {
-    const attachment = lookupCaptureAttachment(document, target.skin, target.slot, target.attachment);
+    const attachment = lookupCaptureAttachment(
+      document,
+      target.skin,
+      target.slot,
+      target.attachment,
+    );
     if (attachment.type !== 'clipping') {
       throw new Error(
         `sample-spec captures clip "${target.skin}/${target.slot}/${target.attachment}", but it is a ${attachment.type}, not a clipping attachment`,
@@ -157,7 +163,12 @@ interface BoxCaptureTarget {
 
 function resolveBoxTargets(document: SkeletonDocument, spec: SampleSpec): BoxCaptureTarget[] {
   return (spec.boxes ?? []).map((target) => {
-    const attachment = lookupCaptureAttachment(document, target.skin, target.slot, target.attachment);
+    const attachment = lookupCaptureAttachment(
+      document,
+      target.skin,
+      target.slot,
+      target.attachment,
+    );
     if (attachment.type !== 'boundingbox') {
       throw new Error(
         `sample-spec captures box "${target.skin}/${target.slot}/${target.attachment}", but it is a ${attachment.type}, not a boundingbox attachment`,
@@ -184,7 +195,12 @@ interface PointCaptureTarget {
 
 function resolvePointTargets(document: SkeletonDocument, spec: SampleSpec): PointCaptureTarget[] {
   return (spec.points ?? []).map((target) => {
-    const attachment = lookupCaptureAttachment(document, target.skin, target.slot, target.attachment);
+    const attachment = lookupCaptureAttachment(
+      document,
+      target.skin,
+      target.slot,
+      target.attachment,
+    );
     if (attachment.type !== 'point') {
       throw new Error(
         `sample-spec captures point "${target.skin}/${target.slot}/${target.attachment}", but it is a ${attachment.type}, not a point attachment`,
@@ -322,22 +338,42 @@ export function buildFixtureSamples(document: SkeletonDocument, spec: SampleSpec
       // The resolved clip STATE per named clip attachment (ADR-0012 section 3): the world polygon (VERTEX
       // class) and the clipped slot set (draw-order membership, EXACT), reusing the pose just solved at `time`.
       sample.clips = clipTargets.map((target): ClipState => {
-        const vertexCount = resolveClipWorldPolygonForSlot(pose, target.clipSlotIndex, target.clip, target.polygonScratch);
-        const clippedCount = computeClippedSlotRange(pose, target.clipSlotIndex, target.endSlotIndex, clippedSlotScratch);
+        const vertexCount = resolveClipWorldPolygonForSlot(
+          pose,
+          target.clipSlotIndex,
+          target.clip,
+          target.polygonScratch,
+        );
+        const clippedCount = computeClippedSlotRange(
+          pose,
+          target.clipSlotIndex,
+          target.endSlotIndex,
+          clippedSlotScratch,
+        );
         const clippedSlots: string[] = [];
-        for (let i = 0; i < clippedCount; i += 1) clippedSlots.push(pose.slotNames[clippedSlotScratch[i]!]!);
+        for (let i = 0; i < clippedCount; i += 1)
+          clippedSlots.push(pose.slotNames[clippedSlotScratch[i]!]!);
         const worldPolygon: number[] = [];
-        for (let lane = 0; lane < vertexCount * 2; lane += 1) worldPolygon.push(target.polygonScratch[lane]!);
+        for (let lane = 0; lane < vertexCount * 2; lane += 1)
+          worldPolygon.push(target.polygonScratch[lane]!);
         return { slot: target.slot, attachment: target.attachment, worldPolygon, clippedSlots };
       });
     }
     if (boxTargets.length > 0) {
       // The resolved bounding-box world vertices (VERTEX) + per-probe even-odd hit results (EXACT).
       sample.boxes = boxTargets.map((target): BoundingBoxState => {
-        const vertexCount = boundingBoxWorldVerticesForSlot(pose, target.slotIndex, target.box, target.vertexScratch);
+        const vertexCount = boundingBoxWorldVerticesForSlot(
+          pose,
+          target.slotIndex,
+          target.box,
+          target.vertexScratch,
+        );
         const worldVertices: number[] = [];
-        for (let lane = 0; lane < vertexCount * 2; lane += 1) worldVertices.push(target.vertexScratch[lane]!);
-        const hits = hitProbes.map(([px, py]) => hitTestPolygon(target.vertexScratch, vertexCount, px, py));
+        for (let lane = 0; lane < vertexCount * 2; lane += 1)
+          worldVertices.push(target.vertexScratch[lane]!);
+        const hits = hitProbes.map(([px, py]) =>
+          hitTestPolygon(target.vertexScratch, vertexCount, px, py),
+        );
         return { slot: target.slot, attachment: target.attachment, worldVertices, hits };
       });
     }
@@ -346,9 +382,17 @@ export function buildFixtureSamples(document: SkeletonDocument, spec: SampleSpec
       sample.points = pointTargets.map((target): PointState => {
         const world = resolvePointWorldForSlot(pose, target.slotIndex, target.point);
         if (world === null) {
-          throw new Error(`point "${target.skin}/${target.slot}/${target.attachment}" has no resolvable slot bone`);
+          throw new Error(
+            `point "${target.skin}/${target.slot}/${target.attachment}" has no resolvable slot bone`,
+          );
         }
-        return { slot: target.slot, attachment: target.attachment, x: world.x, y: world.y, rotation: world.rotationDeg };
+        return {
+          slot: target.slot,
+          attachment: target.attachment,
+          x: world.x,
+          y: world.y,
+          rotation: world.rotationDeg,
+        };
       });
     }
     samples.push(sample);

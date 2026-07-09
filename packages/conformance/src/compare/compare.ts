@@ -346,17 +346,29 @@ function compareEvents(
     const where = `event ${i} ("${ee.name}" at t=${ee.time})`;
     if (ee.name !== aa.name) {
       failures.push(
-        structuralFailure(rigId, `${where} name mismatch: expected "${ee.name}", actual "${aa.name}"`, ee.time),
+        structuralFailure(
+          rigId,
+          `${where} name mismatch: expected "${ee.name}", actual "${aa.name}"`,
+          ee.time,
+        ),
       );
     }
     if (ee.time !== aa.time) {
       failures.push(
-        structuralFailure(rigId, `${where} time mismatch: expected ${ee.time}, actual ${aa.time}`, ee.time),
+        structuralFailure(
+          rigId,
+          `${where} time mismatch: expected ${ee.time}, actual ${aa.time}`,
+          ee.time,
+        ),
       );
     }
     if (ee.int !== aa.int) {
       failures.push(
-        structuralFailure(rigId, `${where} int mismatch: expected ${ee.int}, actual ${aa.int}`, ee.time),
+        structuralFailure(
+          rigId,
+          `${where} int mismatch: expected ${ee.int}, actual ${aa.int}`,
+          ee.time,
+        ),
       );
     }
     if (ee.string !== aa.string) {
@@ -425,7 +437,10 @@ function compareClips(
   for (let idx = 0; idx < e.length; idx += 1) {
     const ec = e[idx]!;
     const ac = a[idx]!;
-    if (ec.clippedSlots.length !== ac.clippedSlots.length || ec.clippedSlots.some((s, i) => s !== ac.clippedSlots[i])) {
+    if (
+      ec.clippedSlots.length !== ac.clippedSlots.length ||
+      ec.clippedSlots.some((s, i) => s !== ac.clippedSlots[i])
+    ) {
       failures.push(
         structuralFailure(
           rigId,
@@ -550,9 +565,45 @@ function comparePoints(
   for (let idx = 0; idx < e.length; idx += 1) {
     const ep = e[idx]!;
     const ap = a[idx]!;
-    pushNumeric(failures, withinTolerance(ap.x, ep.x, VERTEX), rigId, time, key(ep), 'pointPosition', 0, ep.x, ap.x, VERTEX, `point "${key(ep)}" world x at t=${time} drifts beyond tolerance`);
-    pushNumeric(failures, withinTolerance(ap.y, ep.y, VERTEX), rigId, time, key(ep), 'pointPosition', 1, ep.y, ap.y, VERTEX, `point "${key(ep)}" world y at t=${time} drifts beyond tolerance`);
-    pushNumeric(failures, withinTolerance(ap.rotation, ep.rotation, ANGLE), rigId, time, key(ep), 'pointRotation', null, ep.rotation, ap.rotation, ANGLE, `point "${key(ep)}" world rotation at t=${time} drifts beyond tolerance`);
+    pushNumeric(
+      failures,
+      withinTolerance(ap.x, ep.x, VERTEX),
+      rigId,
+      time,
+      key(ep),
+      'pointPosition',
+      0,
+      ep.x,
+      ap.x,
+      VERTEX,
+      `point "${key(ep)}" world x at t=${time} drifts beyond tolerance`,
+    );
+    pushNumeric(
+      failures,
+      withinTolerance(ap.y, ep.y, VERTEX),
+      rigId,
+      time,
+      key(ep),
+      'pointPosition',
+      1,
+      ep.y,
+      ap.y,
+      VERTEX,
+      `point "${key(ep)}" world y at t=${time} drifts beyond tolerance`,
+    );
+    pushNumeric(
+      failures,
+      withinTolerance(ap.rotation, ep.rotation, ANGLE),
+      rigId,
+      time,
+      key(ep),
+      'pointRotation',
+      null,
+      ep.rotation,
+      ap.rotation,
+      ANGLE,
+      `point "${key(ep)}" world rotation at t=${time} drifts beyond tolerance`,
+    );
   }
 }
 

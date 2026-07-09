@@ -132,7 +132,10 @@ function serializeBox(box: NonNullable<FixtureSample['boxes']>[number], indent: 
 }
 
 // One point-state entry on a single line (PP-B2): the slot/attachment and world x/y/rotation.
-function serializePoint(point: NonNullable<FixtureSample['points']>[number], indent: string): string {
+function serializePoint(
+  point: NonNullable<FixtureSample['points']>[number],
+  indent: string,
+): string {
   return `${indent}{ "slot": ${str(point.slot)}, "attachment": ${str(point.attachment)}, "x": ${num(point.x)}, "y": ${num(point.y)}, "rotation": ${num(point.rotation)} }`;
 }
 

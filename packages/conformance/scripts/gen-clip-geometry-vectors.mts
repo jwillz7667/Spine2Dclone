@@ -78,7 +78,13 @@ function toCase(input: CaseInput) {
   const prepared = prepareClipping(clip);
   const worldPolygon = new Float64Array(input.polygon);
   const buffers = makeClipBuffers();
-  const result = clipTriangleList(prepared, worldPolygon, new Float64Array(input.triVerts), input.triIndices, buffers);
+  const result = clipTriangleList(
+    prepared,
+    worldPolygon,
+    new Float64Array(input.triVerts),
+    input.triIndices,
+    buffers,
+  );
 
   const rings = [];
   let base = 0;

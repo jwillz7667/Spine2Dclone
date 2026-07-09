@@ -2,8 +2,10 @@ import type { IDockviewPanelProps } from 'dockview';
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactElement } from 'react';
 import { documentHost } from '../document';
 import { runSpriteImport } from '../actions/import-sprites';
+import { atlasTextureStore } from '../editor-state/atlas-texture-store';
 import { useDocumentRevision } from '../editor-state/use-document-revision';
 import { buildAtlasView } from './assets-atlas-view';
+import { buildThumbnails } from './asset-thumbnails';
 
 const ACCENT = '#5aa0ff';
 const NOTICE_DURATION_MS = 4000;
@@ -19,7 +21,30 @@ const NOTICE_DURATION_MS = 4000;
 export function AssetsPanel(_props: IDockviewPanelProps): ReactElement {
   const revision = useDocumentRevision();
   const model = documentHost.current().model;
-  const atlasView = useMemo(() => buildAtlasView(model.preserved().atlas), [model, revision]);
+  const atlas = useMemo(() => model.preserved().atlas, [model, revision]);
+  const atlasView = useMemo(() => buildAtlasView(atlas), [atlas]);
+
+  // Region thumbnails (PP-D5), decoded once per page from the atlas page bytes and cached as data URLs
+  // (ephemeral editor state, never the document). Rebuilt when the atlas changes (revision) or the page
+  // bytes change (import / restore / clear, via the atlas-texture store subscription). A generation token
+  // discards a stale async build if another starts or the panel unmounts first.
+  const [thumbnails, setThumbnails] = useState<Map<string, string>>(() => new Map());
+  const [textureTick, setTextureTick] = useState(0);
+  useEffect(() => atlasTextureStore.subscribe(() => setTextureTick((tick) => tick + 1)), []);
+  useEffect(() => {
+    let live = true;
+    const pages = atlasTextureStore.getPageBytes();
+    if (atlas.pages.length === 0 || pages.length === 0) {
+      setThumbnails(new Map());
+      return;
+    }
+    void buildThumbnails(atlas, pages).then((built) => {
+      if (live) setThumbnails(built);
+    });
+    return () => {
+      live = false;
+    };
+  }, [atlas, textureTick]);
 
   // Packing can take a moment, so the button shows a busy state and is disabled while the import promise
   // is pending. The work runs in the main process, so the renderer thread is never blocked.
@@ -94,6 +119,13 @@ export function AssetsPanel(_props: IDockviewPanelProps): ReactElement {
         ) : (
           atlasView.regions.map((region) => (
             <div key={region.name} style={rowStyle}>
+              <span style={thumbCellStyle}>
+                {thumbnails.has(region.name) ? (
+                  <img src={thumbnails.get(region.name)} alt="" style={thumbImageStyle} />
+                ) : (
+                  <span style={thumbPlaceholderStyle} />
+                )}
+              </span>
               <span style={nameStyle}>{region.name}</span>
               <span style={sizeStyle}>{region.label}</span>
             </div>
@@ -137,6 +169,33 @@ const rowStyle: CSSProperties = {
   gap: 6,
   padding: '4px 8px',
   borderBottom: '1px solid #262626',
+};
+
+const thumbCellStyle: CSSProperties = {
+  flex: '0 0 auto',
+  width: 44,
+  height: 44,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  background: '#141414',
+  border: '1px solid #2a2a2a',
+  borderRadius: 3,
+  overflow: 'hidden',
+};
+
+const thumbImageStyle: CSSProperties = {
+  maxWidth: 40,
+  maxHeight: 40,
+  imageRendering: 'auto',
+};
+
+const thumbPlaceholderStyle: CSSProperties = {
+  width: 40,
+  height: 40,
+  background:
+    'repeating-conic-gradient(#2a2a2a 0% 25%, #202020 0% 50%) 50% / 12px 12px',
+  opacity: 0.6,
 };
 
 const nameStyle: CSSProperties = {

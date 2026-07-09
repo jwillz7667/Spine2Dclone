@@ -62,6 +62,21 @@ const slotStateSchema = z
   })
   .strict();
 
+// One fired event's RESOLVED record (ADR-0008, PP-B4): the event name, the time (the key's authored time
+// at which it fired), and its resolved payload (EventDef default overridden by the key). `int` and
+// `string` are DISCRETE (compared EXACT); `float` rides the EVENT_FLOAT tolerance (an authored value, low
+// noise). A payload member is present only when the resolved event carries it. The fired-event LOG is
+// ordered; entries are compared index by index, so a wrong count, order, name, time, or payload is a bug.
+const firedEventSchema = z
+  .object({
+    name: z.string().min(1),
+    time: z.number().finite(),
+    int: z.number().int().finite().optional(),
+    float: z.number().finite().optional(),
+    string: z.string().optional(),
+  })
+  .strict();
+
 const fixtureSampleSchema = z
   .object({
     time: z.number().finite(),
@@ -75,6 +90,11 @@ const fixtureSampleSchema = z
     // Per-slot blend mode + resolved color, present only on rigs whose sample-spec names slots to
     // capture (rig-blendmodes). Omitted otherwise, so bone-only and mesh-only fixtures stay valid.
     slots: z.array(slotStateSchema).optional(),
+    // The resolved RENDER ORDER at this sample (ADR-0008, PP-B4): an INTEGER permutation where
+    // drawOrder[renderPosition] = slotIndex (setup slot order), captured only when the sample-spec sets
+    // captureDrawOrder (rig-events-draworder). Compared EXACT (a reorder is discrete, never float noise).
+    // Omitted otherwise, so pre-PP-B4 fixtures stay byte-identical.
+    drawOrder: z.array(z.number().int().finite()).optional(),
   })
   .strict();
 
@@ -87,6 +107,11 @@ export const fixtureSchema = z
     toolchain: z.string().min(1), // pinned generation toolchain id (A.7), e.g. node-22.13.1-v8
     generatedBy: z.string().min(1),
     samples: z.array(fixtureSampleSchema).min(1),
+    // The ordered fired-event LOG produced by sweeping the sample-spec's eventStep (ADR-0008, PP-B4).
+    // Present only on rigs whose sample-spec sets eventStep (rig-events-draworder, rig-events-loop);
+    // omitted otherwise, so pre-PP-B4 fixtures stay byte-identical. It is fixture-level (a range sweep),
+    // not per-sample (an instantaneous pose), which is the correct sampling axis for a fired event.
+    events: z.array(firedEventSchema).optional(),
   })
   .strict();
 
@@ -94,6 +119,7 @@ export type Affine = z.infer<typeof affineSchema>;
 export type MeshVertices = z.infer<typeof meshVerticesSchema>;
 export type FixtureBlendMode = z.infer<typeof fixtureBlendModeSchema>;
 export type SlotState = z.infer<typeof slotStateSchema>;
+export type FiredEventRecord = z.infer<typeof firedEventSchema>;
 export type FixtureSample = z.infer<typeof fixtureSampleSchema>;
 export type Fixture = z.infer<typeof fixtureSchema>;
 

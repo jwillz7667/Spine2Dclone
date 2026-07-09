@@ -79,7 +79,9 @@
       "rig-transform-constraint": 2530481955,
       "rig-deform": 1081337365,
       "rig-transform-modes": 1022016814,
-      "rig-blendmodes": 3672907519
+      "rig-blendmodes": 3672907519,
+      "rig-events-draworder": 4280848849,
+      "rig-events-loop": 4199374554
     }
   }
 }

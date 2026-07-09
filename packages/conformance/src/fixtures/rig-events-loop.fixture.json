@@ -1,0 +1,43 @@
+{
+  "rigId": "rig-events-loop",
+  "rigHash": "sha256:f6cefd2742ade5027f19fdc7eadc9968a65665af0d51a8ce81d95af2f7e7700f",
+  "specHash": "sha256:946d0084d7784cb6439645c1f3f1aa7acab77c6b4baa985a451e378556e22be5",
+  "coreVersion": "runtime-core@0.0.0",
+  "toolchain": "node-22.13.1-v8",
+  "generatedBy": "generate.ts",
+  "samples": [
+    {
+      "time": 0,
+      "animation": "cycle",
+      "loop": true,
+      "bones": {
+        "root": [1, 0, 0, 1, 0, 0]
+      }
+    },
+    {
+      "time": 0.5,
+      "animation": "cycle",
+      "loop": true,
+      "bones": {
+        "root": [1, 0, 0, 1, 0, 0]
+      }
+    },
+    {
+      "time": 1,
+      "animation": "cycle",
+      "loop": true,
+      "bones": {
+        "root": [1, 0, 0, 1, 0, 0]
+      }
+    }
+  ],
+  "events": [
+    { "name": "beat", "time": 0.3, "int": 1 },
+    { "name": "beat", "time": 0.7, "int": 1 },
+    { "name": "loop", "time": 1, "float": 3.14159, "string": "wrap" },
+    { "name": "beat", "time": 0.3, "int": 1 },
+    { "name": "beat", "time": 0.7, "int": 1 },
+    { "name": "loop", "time": 1, "float": 3.14159, "string": "wrap" },
+    { "name": "beat", "time": 0.3, "int": 1 }
+  ]
+}

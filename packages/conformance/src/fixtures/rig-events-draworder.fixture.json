@@ -1,0 +1,60 @@
+{
+  "rigId": "rig-events-draworder",
+  "rigHash": "sha256:a23d5c1725b484a2bde03dac33f5f0c513babd586284e5bf770ef18eaca03a91",
+  "specHash": "sha256:5dc064473988fa32c9327d133ab69ba4beef66c1cfc050ce9363839d06f76b4a",
+  "coreVersion": "runtime-core@0.0.0",
+  "toolchain": "node-22.13.1-v8",
+  "generatedBy": "generate.ts",
+  "samples": [
+    {
+      "time": 0,
+      "animation": "reorder",
+      "loop": false,
+      "bones": {
+        "root": [1, 0, 0, 1, 0, 0]
+      },
+      "drawOrder": [0, 1, 2]
+    },
+    {
+      "time": 0.25,
+      "animation": "reorder",
+      "loop": false,
+      "bones": {
+        "root": [1, 0, 0, 1, 0, 0]
+      },
+      "drawOrder": [1, 2, 0]
+    },
+    {
+      "time": 0.5,
+      "animation": "reorder",
+      "loop": false,
+      "bones": {
+        "root": [1, 0, 0, 1, 0, 0]
+      },
+      "drawOrder": [2, 0, 1]
+    },
+    {
+      "time": 0.75,
+      "animation": "reorder",
+      "loop": false,
+      "bones": {
+        "root": [1, 0, 0, 1, 0, 0]
+      },
+      "drawOrder": [0, 1, 2]
+    },
+    {
+      "time": 1,
+      "animation": "reorder",
+      "loop": false,
+      "bones": {
+        "root": [1, 0, 0, 1, 0, 0]
+      },
+      "drawOrder": [0, 1, 2]
+    }
+  ],
+  "events": [
+    { "name": "coin", "time": 0.25, "int": 5, "float": 1.25, "string": "gold" },
+    { "name": "ping", "time": 0.55 },
+    { "name": "coin", "time": 0.85, "int": 3, "float": 2.5, "string": "silver" }
+  ]
+}

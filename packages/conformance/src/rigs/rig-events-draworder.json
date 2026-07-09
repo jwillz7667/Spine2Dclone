@@ -1,0 +1,53 @@
+{
+  "formatVersion": "0.3.0",
+  "name": "rig-events-draworder",
+  "hash": "",
+  "bones": [
+    {
+      "name": "root",
+      "parent": null,
+      "length": 32,
+      "x": 0,
+      "y": 0,
+      "rotation": 0,
+      "scaleX": 1,
+      "scaleY": 1,
+      "shearX": 0,
+      "shearY": 0,
+      "transformMode": "normal"
+    }
+  ],
+  "slots": [
+    { "name": "s0", "bone": "root", "color": { "r": 1, "g": 1, "b": 1, "a": 1 }, "attachment": null, "blendMode": "normal" },
+    { "name": "s1", "bone": "root", "color": { "r": 1, "g": 1, "b": 1, "a": 1 }, "attachment": null, "blendMode": "normal" },
+    { "name": "s2", "bone": "root", "color": { "r": 1, "g": 1, "b": 1, "a": 1 }, "attachment": null, "blendMode": "normal" }
+  ],
+  "skins": [{ "name": "default", "attachments": {} }],
+  "ikConstraints": [],
+  "transformConstraints": [],
+  "events": [
+    { "name": "coin", "int": 3, "float": 1.25, "string": "gold" },
+    { "name": "ping" }
+  ],
+  "animations": {
+    "reorder": {
+      "duration": 1,
+      "bones": {},
+      "slots": {},
+      "ik": {},
+      "transform": {},
+      "deform": {},
+      "drawOrder": [
+        { "time": 0.25, "offsets": [{ "slot": "s0", "offset": 2 }] },
+        { "time": 0.5, "offsets": [{ "slot": "s2", "offset": -2 }] },
+        { "time": 0.75, "offsets": [] }
+      ],
+      "events": [
+        { "time": 0.25, "name": "coin", "int": 5 },
+        { "time": 0.55, "name": "ping" },
+        { "time": 0.85, "name": "coin", "float": 2.5, "string": "silver" }
+      ]
+    }
+  },
+  "atlas": { "pages": [] }
+}

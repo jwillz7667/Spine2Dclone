@@ -1,0 +1,8 @@
+{
+  "rigId": "rig-events-loop",
+  "animation": "cycle",
+  "duration": 1.0,
+  "loop": true,
+  "poseTimes": [0.0, 0.5, 1.0],
+  "eventStep": { "dt": 0.1, "from": 0.0, "to": 2.5 }
+}

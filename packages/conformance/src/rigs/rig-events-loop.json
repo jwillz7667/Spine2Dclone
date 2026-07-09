@@ -1,0 +1,45 @@
+{
+  "formatVersion": "0.3.0",
+  "name": "rig-events-loop",
+  "hash": "",
+  "bones": [
+    {
+      "name": "root",
+      "parent": null,
+      "length": 32,
+      "x": 0,
+      "y": 0,
+      "rotation": 0,
+      "scaleX": 1,
+      "scaleY": 1,
+      "shearX": 0,
+      "shearY": 0,
+      "transformMode": "normal"
+    }
+  ],
+  "slots": [],
+  "skins": [{ "name": "default", "attachments": {} }],
+  "ikConstraints": [],
+  "transformConstraints": [],
+  "events": [
+    { "name": "beat", "int": 1 },
+    { "name": "loop", "string": "wrap", "float": 3.14159 }
+  ],
+  "animations": {
+    "cycle": {
+      "duration": 1,
+      "bones": {},
+      "slots": {},
+      "ik": {},
+      "transform": {},
+      "deform": {},
+      "drawOrder": [],
+      "events": [
+        { "time": 0.3, "name": "beat" },
+        { "time": 0.7, "name": "beat" },
+        { "time": 1.0, "name": "loop" }
+      ]
+    }
+  },
+  "atlas": { "pages": [] }
+}

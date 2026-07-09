@@ -19,6 +19,11 @@
 // modes under a rotated, non-uniformly-scaled, reflected animated parent, so every worldFromParentByMode
 // branch is exercised, A.2) and `rig-blendmodes` (the four slot blend modes plus slot color animation,
 // so solve-order step 6 is observable, A.2). Both are authored from first principles (Law 4).
+// PP-B4 (pro-parity Stage F1, ADR-0008, format 0.3.0) lands two more skeleton rigs whose solve features
+// (draw-order application and event firing) exist as of PP-B4: `rig-events-draworder` (draw-order keys
+// that reorder slots mid-clip plus event keys with resolved payloads, captured as the integer draw-order
+// lane and the fired-event log) and `rig-events-loop` (events positioned to exercise loop-crossing fire,
+// including a key exactly at the loop point). Both are authored from first principles (Law 4).
 export const RIG_IDS = [
   'rig-2bone',
   'rig-rigid-mesh',
@@ -29,6 +34,8 @@ export const RIG_IDS = [
   'rig-deform',
   'rig-transform-modes',
   'rig-blendmodes',
+  'rig-events-draworder',
+  'rig-events-loop',
 ] as const;
 
 export type RigId = (typeof RIG_IDS)[number];
@@ -45,6 +52,11 @@ export const RIG_PHASE: Readonly<Record<RigId, number>> = {
   'rig-deform': 2,
   'rig-transform-modes': 2,
   'rig-blendmodes': 2,
+  // PP-B4 skeleton rigs: the draw-order and event-firing solve features land now (Stage F1), and these
+  // rigs are ordinary skeletons in the phase-2 catalog track, so they gate at the current phase like the
+  // PP-B1 additions above (the RIG_PHASE gate models "the rig's solve features exist", satisfied here).
+  'rig-events-draworder': 2,
+  'rig-events-loop': 2,
 };
 
 // The committed current phase (B.2 landed-rig gating). Bumped per phase milestone in this file, NOT

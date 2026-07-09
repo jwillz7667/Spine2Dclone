@@ -1,12 +1,23 @@
 import {
   buildPose,
+  collectFiredEvents,
+  makeEventQueue,
   MAT2X3_STRIDE,
+  prepareEventTimeline,
   sampleMeshVertices,
   sampleSkeleton,
   SLOT_COLOR_STRIDE,
 } from '@marionette/runtime-core';
+import type { FiredEvent } from '@marionette/runtime-core';
 import type { SkeletonDocument } from '@marionette/format/types';
-import type { Affine, Fixture, FixtureSample, MeshVertices, SlotState } from './schema/fixture';
+import type {
+  Affine,
+  FiredEventRecord,
+  Fixture,
+  FixtureSample,
+  MeshVertices,
+  SlotState,
+} from './schema/fixture';
 import type { SampleSpec } from './schema/sample-spec';
 
 // The pure fixture builder (conformance-and-ci.md A.6, WP-V.2). This is the behavioral source of truth
@@ -137,9 +148,48 @@ export function buildFixtureSamples(document: SkeletonDocument, spec: SampleSpec
       });
       sample.slots = slots;
     }
+    if (spec.captureDrawOrder === true) {
+      // The resolved render order sampleSkeleton just wrote into pose.drawOrder (setup order for a frame
+      // with no active draw-order key, the reordered permutation otherwise). Copied out as plain integers
+      // (renderPosition -> slotIndex) for an EXACT integer compare.
+      sample.drawOrder = Array.from(pose.drawOrder);
+    }
     samples.push(sample);
   }
   return samples;
+}
+
+// Sweep the sample-spec's eventStep into the ordered fired-event LOG (ADR-0008, PP-B4), resolving each
+// event's payload (EventDef default overridden by the key) through runtime-core. Returns undefined when
+// the spec sets no eventStep, so a rig without events gains no `events` member and stays byte-identical.
+// The animation named by the spec is validated to exist (Law 3): a bad spec fails loudly, never silently.
+function buildFiredEvents(
+  document: SkeletonDocument,
+  spec: SampleSpec,
+): FiredEventRecord[] | undefined {
+  const step = spec.eventStep;
+  if (step === undefined) return undefined;
+  const animation = document.animations[spec.animation];
+  if (animation === undefined) {
+    throw new Error(`sample-spec animation "${spec.animation}" is not defined by the rig`);
+  }
+  const timeline = prepareEventTimeline(animation, document.events ?? []);
+  const records: FiredEventRecord[] = [];
+  if (timeline === null) return records;
+  const queue = makeEventQueue();
+  collectFiredEvents(timeline, step.from, step.to, step.dt, spec.loop, spec.duration, queue);
+  for (let i = 0; i < queue.count; i += 1) records.push(firedEventToRecord(queue.events[i]!));
+  return records;
+}
+
+// Project one pooled FiredEvent into its committed record: name + fire time always, each payload member
+// only when the resolved event carries it (so a bare event serializes without empty payload keys).
+function firedEventToRecord(event: FiredEvent): FiredEventRecord {
+  const record: FiredEventRecord = { name: event.name, time: event.time };
+  if (event.hasInt) record.int = event.intValue;
+  if (event.hasFloat) record.float = event.floatValue;
+  if (event.hasString && event.stringValue !== null) record.string = event.stringValue;
+  return record;
 }
 
 // The largest 2 * vertexCount across every mesh attachment in the document, used to size the reused
@@ -161,7 +211,7 @@ export function buildFixture(
   spec: SampleSpec,
   provenance: FixtureProvenance,
 ): Fixture {
-  return {
+  const fixture: Fixture = {
     rigId: provenance.rigId,
     rigHash: provenance.rigHash,
     specHash: provenance.specHash,
@@ -170,4 +220,7 @@ export function buildFixture(
     generatedBy: provenance.generatedBy,
     samples: buildFixtureSamples(document, spec),
   };
+  const events = buildFiredEvents(document, spec);
+  if (events !== undefined) fixture.events = events;
+  return fixture;
 }

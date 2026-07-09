@@ -1,5 +1,12 @@
-import type { Affine, Fixture, MeshVertices, SlotState } from '../schema/fixture';
-import { COLOR, VERTEX, withinTolerance, WORLD_BASIS, WORLD_TRANSLATION } from './tolerance';
+import type { Affine, FiredEventRecord, Fixture, MeshVertices, SlotState } from '../schema/fixture';
+import {
+  COLOR,
+  EVENT_FLOAT,
+  VERTEX,
+  withinTolerance,
+  WORLD_BASIS,
+  WORLD_TRANSLATION,
+} from './tolerance';
 import type { Tolerance } from './tolerance';
 
 // The skeletal parity comparison engine (conformance-and-ci.md B.5, WP-V.0/V.3). It compares two
@@ -22,6 +29,7 @@ export type QuantityClass =
   | 'worldTranslation'
   | 'vertex'
   | 'slotColor'
+  | 'eventFloat'
   | 'structural';
 
 // Slot-color lane names [r, g, b, a] for human-readable failure messages.
@@ -214,6 +222,110 @@ function compareSlots(
   }
 }
 
+// Compare the resolved render order of one sample (PP-B4, rig-events-draworder). Draw order is a discrete
+// integer permutation, so it is compared with EXACT equality (no epsilon, A.5): a reorder mismatch is a
+// real step-2 bug, never float noise. Absent on both sides (a rig that captures no draw order) is a match.
+function compareDrawOrder(
+  expected: readonly number[] | undefined,
+  actual: readonly number[] | undefined,
+  rigId: string,
+  time: number,
+  failures: DriftFailure[],
+): void {
+  const e = expected ?? [];
+  const a = actual ?? [];
+  if (e.length !== a.length || e.some((v, i) => v !== a[i])) {
+    failures.push(
+      structuralFailure(
+        rigId,
+        `sample at t=${time} draw order mismatch: expected [${e.join(', ')}], actual [${a.join(', ')}]`,
+        time,
+      ),
+    );
+  }
+}
+
+// Compare the fired-event LOG of two fixtures (PP-B4, rig-events-draworder / rig-events-loop). The log is
+// ordered, so entries are matched INDEX BY INDEX: the count, and per entry the name, fire time, and the
+// discrete int/string payloads (presence and value) are compared EXACT; the float payload's presence is
+// exact and its value rides the EVENT_FLOAT tolerance (an authored value, low noise). A missing log on
+// both sides (a rig without events) is a match.
+function compareEvents(
+  expected: readonly FiredEventRecord[] | undefined,
+  actual: readonly FiredEventRecord[] | undefined,
+  rigId: string,
+  failures: DriftFailure[],
+): void {
+  const e = expected ?? [];
+  const a = actual ?? [];
+  if (e.length !== a.length) {
+    failures.push(
+      structuralFailure(
+        rigId,
+        `fired-event count mismatch: expected ${e.length}, actual ${a.length}`,
+        null,
+      ),
+    );
+    return;
+  }
+  for (let i = 0; i < e.length; i += 1) {
+    const ee = e[i]!;
+    const aa = a[i]!;
+    const where = `event ${i} ("${ee.name}" at t=${ee.time})`;
+    if (ee.name !== aa.name) {
+      failures.push(
+        structuralFailure(rigId, `${where} name mismatch: expected "${ee.name}", actual "${aa.name}"`, ee.time),
+      );
+    }
+    if (ee.time !== aa.time) {
+      failures.push(
+        structuralFailure(rigId, `${where} time mismatch: expected ${ee.time}, actual ${aa.time}`, ee.time),
+      );
+    }
+    if (ee.int !== aa.int) {
+      failures.push(
+        structuralFailure(rigId, `${where} int mismatch: expected ${ee.int}, actual ${aa.int}`, ee.time),
+      );
+    }
+    if (ee.string !== aa.string) {
+      failures.push(
+        structuralFailure(
+          rigId,
+          `${where} string mismatch: expected ${JSON.stringify(ee.string)}, actual ${JSON.stringify(aa.string)}`,
+          ee.time,
+        ),
+      );
+    }
+    if ((ee.float === undefined) !== (aa.float === undefined)) {
+      failures.push(
+        structuralFailure(
+          rigId,
+          `${where} float presence mismatch: expected ${ee.float}, actual ${aa.float}`,
+          ee.time,
+        ),
+      );
+    } else if (
+      ee.float !== undefined &&
+      aa.float !== undefined &&
+      !withinTolerance(aa.float, ee.float, EVENT_FLOAT)
+    ) {
+      failures.push({
+        rigId,
+        time: ee.time,
+        bone: ee.name,
+        quantity: 'eventFloat',
+        lane: null,
+        expected: ee.float,
+        actual: aa.float,
+        absDelta: Math.abs(aa.float - ee.float),
+        atol: EVENT_FLOAT.atol,
+        rtol: EVENT_FLOAT.rtol,
+        message: `${where} float payload drifts beyond tolerance`,
+      });
+    }
+  }
+}
+
 function structuralFailure(rigId: string, message: string, time: number | null): DriftFailure {
   return {
     rigId,
@@ -307,7 +419,11 @@ export function compareFixtures(expected: Fixture, actual: Fixture): DriftReport
 
     compareMeshes(e.meshes, a.meshes, rigId, e.time, failures);
     compareSlots(e.slots, a.slots, rigId, e.time, failures);
+    compareDrawOrder(e.drawOrder, a.drawOrder, rigId, e.time, failures);
   }
+
+  // The fired-event log is fixture-level (one range sweep), not per-sample, so it is compared once.
+  compareEvents(expected.events, actual.events, rigId, failures);
 
   return { ok: failures.length === 0, failures };
 }

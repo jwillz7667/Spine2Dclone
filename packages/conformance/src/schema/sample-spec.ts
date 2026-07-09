@@ -36,6 +36,10 @@ export const sampleSpecSchema = z
     // pre-PP-B1 fixture regenerates byte-identically. Each name must be an existing slot; the generator
     // captures them in this order so the fixture diff reads one slot per line.
     slots: z.array(z.string().min(1)).optional(),
+    // Capture the resolved render order (pose.drawOrder) at every poseTime (PP-B4, rig-events-draworder).
+    // Opt-in: a spec that omits it captures no draw order, so every pre-PP-B4 fixture regenerates
+    // byte-identically. The captured integer permutation is compared EXACT.
+    captureDrawOrder: z.boolean().optional(),
     eventStep: z
       .object({
         dt: z.number().finite().positive(),

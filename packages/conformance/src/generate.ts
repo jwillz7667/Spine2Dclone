@@ -5,7 +5,7 @@ import { buildFixture } from './build-fixture';
 import { validateRig } from './schema/rig';
 import { validateSampleSpec } from './schema/sample-spec';
 import { validateFixture } from './schema/fixture';
-import type { Fixture, FixtureSample, Affine } from './schema/fixture';
+import type { Affine, FiredEventRecord, Fixture, FixtureSample } from './schema/fixture';
 import { LANDED_RIG_IDS, type RigId } from './registry';
 import {
   fixturePath,
@@ -133,6 +133,11 @@ function serializeSample(sample: FixtureSample, indent: string): string {
     const slotLines = sample.slots.map((slot) => serializeSlot(slot, i3));
     members.push(`${i2}"slots": [\n${slotLines.join(',\n')}\n${i2}]`);
   }
+  // The resolved render order as a compact single-line integer array (PP-B4). Present only when captured;
+  // omitting it otherwise keeps every pre-PP-B4 fixture byte-identical.
+  if (sample.drawOrder !== undefined) {
+    members.push(`${i2}"drawOrder": [${sample.drawOrder.map(num).join(', ')}]`);
+  }
   return [
     `${indent}{`,
     `${i2}"time": ${num(sample.time)},`,
@@ -143,10 +148,20 @@ function serializeSample(sample: FixtureSample, indent: string): string {
   ].join('\n');
 }
 
+// One fired-event record on a single line (PP-B4): name, fire time, and each present payload member in a
+// fixed order, so a diff reads one event per line (matching the one-per-line convention of the other lanes).
+function serializeFiredEvent(event: FiredEventRecord, indent: string): string {
+  const parts = [`"name": ${str(event.name)}`, `"time": ${num(event.time)}`];
+  if (event.int !== undefined) parts.push(`"int": ${num(event.int)}`);
+  if (event.float !== undefined) parts.push(`"float": ${num(event.float)}`);
+  if (event.string !== undefined) parts.push(`"string": ${str(event.string)}`);
+  return `${indent}{ ${parts.join(', ')} }`;
+}
+
 function serializeFixture(fixture: Fixture): string {
   const i1 = '  ';
   const samples = fixture.samples.map((sample) => serializeSample(sample, `${i1}  `)).join(',\n');
-  return [
+  const lines = [
     '{',
     `${i1}"rigId": ${str(fixture.rigId)},`,
     `${i1}"rigHash": ${str(fixture.rigHash)},`,
@@ -157,9 +172,16 @@ function serializeFixture(fixture: Fixture): string {
     `${i1}"samples": [`,
     samples,
     `${i1}]`,
-    '}',
-    '',
-  ].join('\n');
+  ];
+  // The fired-event log is emitted as a trailing member only when present (rigs with an eventStep), so a
+  // fixture without events keeps its exact prior bytes (the closing `]` of samples gains no trailing comma).
+  if (fixture.events !== undefined) {
+    lines[lines.length - 1] = `${i1}],`;
+    const eventLines = fixture.events.map((event) => serializeFiredEvent(event, `${i1}  `));
+    lines.push(`${i1}"events": [`, eventLines.join(',\n'), `${i1}]`);
+  }
+  lines.push('}', '');
+  return lines.join('\n');
 }
 
 interface LockManifest {

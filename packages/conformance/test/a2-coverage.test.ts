@@ -227,13 +227,56 @@ describe('A.2 reference-rig coverage (phase-5 TASK-5.5.8, the shared-core compen
   // lands, the todo becomes a real assertion. These are the remaining items before the native runtimes
   // (WP-5.3/5.4) can be trusted (every unexercised branch has zero cross-implementation verification).
 
-  // Blocked on: a format MINOR bump (0.2.0 -> 0.3.0, Lane A PP-A1) adding the drawOrder animation
-  // timeline + the fixture-schema drawOrder capture + the compare-engine drawOrder check, then the
-  // draw-order application in the solve (Lane B PP-B4) and a rig-events-draworder.
-  it.todo('a draw-order reorder timeline is observably exercised');
+  // Closed by PP-B4: rig-events-draworder carries a draw-order timeline that reorders slots mid-clip, and
+  // the fixture schema captures the resolved render order (an integer permutation) per sample. A runtime
+  // that ignores draw order (leaves the setup identity) produces [0, 1, 2] at every sample and FAILS the
+  // "differs from setup" assertion; a runtime that derives the wrong permutation FAILS the exact match.
+  it('a draw-order reorder timeline is observably exercised', () => {
+    const fixture = loadFixture('rig-events-draworder');
+    const withOrder = fixture.samples.filter((s) => s.drawOrder !== undefined);
+    expect(withOrder.length, 'every sample captures a draw order').toBe(fixture.samples.length);
 
-  // Blocked on: a format MINOR bump (0.2.0 -> 0.3.0, Lane A PP-A1) adding the event timeline + EventDef
-  // root + the fixture-schema events capture + the cross-loop event sampling (A.4), then the event
-  // firing in the solve (Lane B PP-B4) and rig-events-draworder / rig-events-loop.
-  it.todo('event firing, including across a loop boundary, is observably exercised');
+    // The setup (identity) order for the three-slot rig, and at least one sample that is NOT it (a real
+    // reorder was applied by a draw-order key, not merely captured).
+    const slotCount = withOrder[0]!.drawOrder!.length;
+    const setupOrder = Array.from({ length: slotCount }, (_v, i) => i);
+    const someReordered = withOrder.some(
+      (s) => s.drawOrder!.length !== slotCount || s.drawOrder!.some((v, i) => v !== setupOrder[i]),
+    );
+    expect(someReordered, 'at least one sample renders in a non-setup order').toBe(true);
+
+    // Every captured order is a valid permutation of the setup slot indices (no dropped or duplicated
+    // slot), which is the invariant the derivation must preserve.
+    for (const sample of withOrder) {
+      expect([...sample.drawOrder!].sort((a, b) => a - b)).toEqual(setupOrder);
+    }
+  });
+
+  // Closed by PP-B4: rig-events-loop fires events over a looping event-step sweep that crosses the loop
+  // boundary twice (a key exactly at the loop point plus two head/tail beats), and rig-events-draworder
+  // carries resolved event payloads. A runtime that does not fire events produces an empty log and FAILS
+  // the non-empty assertion; one that mishandles the loop crossing FAILS the "fires more than once" and
+  // repeated-pattern assertions; one that mis-resolves payloads FAILS the payload assertion.
+  it('event firing, including across a loop boundary, is observably exercised', () => {
+    const loop = loadFixture('rig-events-loop');
+    const events = loop.events ?? [];
+    expect(events.length, 'the looping sweep fires a non-empty event log').toBeGreaterThan(0);
+
+    // The loop-point key (authored at t == duration) fires ONCE PER CROSSING: the sweep crosses the loop
+    // boundary more than once, so a single event name recurs. A non-looping (or loop-unaware) fire would
+    // produce each key at most once.
+    const loopPointFires = events.filter((e) => e.name === 'loop');
+    expect(loopPointFires.length, 'the loop-point event fires once per loop crossing').toBeGreaterThan(1);
+    // All loop-point fires carry the same authored key time (== duration) and resolved float payload.
+    expect(new Set(loopPointFires.map((e) => e.time)).size).toBe(1);
+    expect(loopPointFires.every((e) => e.float !== undefined)).toBe(true);
+
+    // Resolved payloads (EventDef default overridden by the key) are observable on rig-events-draworder:
+    // the first "coin" fire overrides int to 5 while inheriting the float/string defaults.
+    const draw = loadFixture('rig-events-draworder');
+    const drawEvents = draw.events ?? [];
+    const firstCoin = drawEvents.find((e) => e.name === 'coin');
+    expect(firstCoin, 'rig-events-draworder fires the coin event').toBeDefined();
+    expect([firstCoin!.int, firstCoin!.float, firstCoin!.string]).toEqual([5, 1.25, 'gold']);
+  });
 });

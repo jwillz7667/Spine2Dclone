@@ -68,6 +68,7 @@ import {
   SetCurveCommand,
   SetDeformKeyframeCommand,
   SetIkBendPositiveCommand,
+  SetIkDepthParamsCommand,
   SetIkKeyframeCommand,
   SetIkMixCommand,
   SetKeyframeCommand,
@@ -149,6 +150,7 @@ import {
   type DocumentReadModel,
   type IkConstraintEntity,
   type IkConstraintId,
+  type IkDepthPatch,
   type KeyframeEntity,
   type KeyframeId,
   type KeyframeTarget,
@@ -604,7 +606,9 @@ function keyframeView(kf: KeyframeEntity): Record<string, unknown> {
   return { id: kf.id, time: kf.time, value: kf.value, curve: kf.curve };
 }
 
-// Project an IK constraint for `ik.list` / `ik.get` (bones/target are internal BoneId references).
+// Project an IK constraint for `ik.list` / `ik.get` (bones/target are internal BoneId references). The Stage
+// F2 depth fields (ADR-0009) are projected so a client can read what ik.setDepth wrote; `order` is emitted
+// only when the constraint carries an explicit solve order.
 function ikConstraintView(c: IkConstraintEntity): Record<string, unknown> {
   return {
     id: c.id,
@@ -613,6 +617,11 @@ function ikConstraintView(c: IkConstraintEntity): Record<string, unknown> {
     target: c.target,
     mix: c.mix,
     bendPositive: c.bendPositive,
+    softness: c.softness,
+    stretch: c.stretch,
+    compress: c.compress,
+    uniform: c.uniform,
+    ...(c.order !== undefined ? { order: c.order } : {}),
   };
 }
 
@@ -4069,6 +4078,45 @@ export const TOOLS: readonly ToolDefinition[] = [
       requireIkConstraint(session, input.ikConstraintId);
       session.document.history.execute(
         new SetIkBendPositiveCommand(asIkConstraintId(input.ikConstraintId), input.bendPositive),
+      );
+      return { revision: session.document.model.revision };
+    },
+  ),
+  defineTool(
+    {
+      name: 'ik.setDepth',
+      title: 'Set IK depth',
+      description:
+        'Patch a Stage F2 IK depth field: `softness` (non-negative world-unit ease-in distance), and the ' +
+        '`stretch` / `compress` / `uniform` booleans. Only the named fields change; the rest keep their ' +
+        'current value. At least one field is required.',
+      input: z
+        .object({
+          documentId,
+          ikConstraintId,
+          softness: z.number().finite().nonnegative().optional(),
+          stretch: z.boolean().optional(),
+          compress: z.boolean().optional(),
+          uniform: z.boolean().optional(),
+        })
+        .strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireIkConstraint(session, input.ikConstraintId);
+      // Assemble the patch over only the fields the caller set (exactOptionalPropertyTypes: no explicit
+      // `undefined` may reach the command's Partial patch).
+      const patch: IkDepthPatch = {
+        ...(input.softness !== undefined ? { softness: input.softness } : {}),
+        ...(input.stretch !== undefined ? { stretch: input.stretch } : {}),
+        ...(input.compress !== undefined ? { compress: input.compress } : {}),
+        ...(input.uniform !== undefined ? { uniform: input.uniform } : {}),
+      };
+      if (Object.keys(patch).length === 0) {
+        throw new McpToolError('INVALID_INPUT', 'patch must name at least one depth field');
+      }
+      session.document.history.execute(
+        new SetIkDepthParamsCommand(asIkConstraintId(input.ikConstraintId), patch),
       );
       return { revision: session.document.model.revision };
     },

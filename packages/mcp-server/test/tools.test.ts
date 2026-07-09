@@ -972,11 +972,21 @@ describe('MCP IK constraint tools (WP-2.6)', () => {
 
     await call(deps, 'ik.setMix', { documentId, ikConstraintId, mix: 0.5 });
     await call(deps, 'ik.setBendPositive', { documentId, ikConstraintId, bendPositive: false });
+    // PP-D10 depth fields: patch softness + stretch, leave compress/uniform at their defaults.
+    await call(deps, 'ik.setDepth', { documentId, ikConstraintId, softness: 8, stretch: true });
     const got = asRecord(
       asRecord(await call(deps, 'ik.get', { documentId, ikConstraintId })).ikConstraint,
     );
     expect(got.mix).toBe(0.5);
     expect(got.bendPositive).toBe(false);
+    expect(got.softness).toBe(8);
+    expect(got.stretch).toBe(true);
+    expect(got.compress).toBe(false);
+    // An empty depth patch is rejected at the boundary.
+    await expectToolError(
+      call(deps, 'ik.setDepth', { documentId, ikConstraintId }),
+      'INVALID_INPUT',
+    );
 
     // Key the IK channel at two times, then delete one keyframe.
     await call(deps, 'ik.setKeyframe', {
@@ -1995,6 +2005,7 @@ describe('MCP tool catalog', () => {
     'ik.createConstraint',
     'ik.setMix',
     'ik.setBendPositive',
+    'ik.setDepth',
     'ik.deleteConstraint',
     'ik.setKeyframe',
     'ik.deleteKeyframe',

@@ -30,6 +30,9 @@ static var VERTEX: Tolerance = Tolerance.new(1e-4, 1e-5)
 # Slot color r, g, b, a (bounded 0..1): no relative term needed.
 static var COLOR: Tolerance = Tolerance.new(1e-5, 0.0)
 
+# Event float payloads (authored values, low noise): mirrors EVENT_FLOAT in tolerance.ts.
+static var EVENT_FLOAT: Tolerance = Tolerance.new(1e-5, 1e-6)
+
 
 # Affine lanes [a, b, c, d, tx, ty]: 0..3 are the basis class, 4..5 the translation class.
 static func for_lane(lane: int) -> Tolerance:

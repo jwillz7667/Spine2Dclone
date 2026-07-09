@@ -8,10 +8,17 @@ const RigReader = preload("res://core/rig_reader.gd")
 const BuildPose = preload("res://core/build_pose.gd")
 const Sample = preload("res://core/sample.gd")
 const MeshSample = preload("res://core/mesh_sample.gd")
+const EventFire = preload("res://core/event_fire.gd")
 const Affine = preload("res://core/affine.gd")
 const Pose = preload("res://core/pose.gd")
 const Tolerance = preload("res://tests/tolerance.gd")
 const RepoPaths = preload("res://tests/repo_paths.gd")
+
+# The exhaustive member allowlists (mirror the .strict() fixtureSchema in schema/fixture.ts). A fixture or
+# sample carrying any member outside these sets is rejected: a NEW capture lane (future corpus growth)
+# then fails LOUDLY here instead of being silently skipped, forcing the harness to grow a comparison.
+const ALLOWED_TOP_LEVEL := ["rigId", "rigHash", "specHash", "coreVersion", "toolchain", "generatedBy", "samples", "events"]
+const ALLOWED_SAMPLE := ["time", "animation", "loop", "bones", "meshes", "slots", "drawOrder"]
 
 
 class Result:
@@ -20,6 +27,7 @@ class Result:
 	var max_translation_error: float = 0.0
 	var max_vertex_error: float = 0.0
 	var max_color_error: float = 0.0
+	var max_event_float_error: float = 0.0
 	var lane_comparisons: int = 0
 
 	func ok() -> bool:
@@ -38,6 +46,12 @@ static func run(rig_id: String) -> Result:
 
 	var spec = JSON.parse_string(FileAccess.get_file_as_string(RepoPaths.sample_spec(rig_id)))
 	var fixture = JSON.parse_string(FileAccess.get_file_as_string(RepoPaths.fixture(rig_id)))
+	_require_known_members(result, rig_id, fixture, ALLOWED_TOP_LEVEL, "root")
+	for sample in fixture["samples"]:
+		_require_known_members(result, rig_id, sample, ALLOWED_SAMPLE, "sample")
+	if not result.ok():
+		return result
+
 	var pose_times: Array = spec["poseTimes"]
 	var samples: Array = fixture["samples"]
 	var animation_id: String = spec["animation"]
@@ -93,8 +107,101 @@ static func run(rig_id: String) -> Result:
 
 		_compare_meshes(result, rig_id, document, animation_id, time, sample, pose, vertex_scratch)
 		_compare_slots(result, rig_id, time, sample, pose, slot_index_by_name, slot_blend_by_name)
+		_compare_draw_order(result, rig_id, time, sample, pose)
+
+	_compare_events(result, rig_id, document, animation_id, spec, fixture)
 
 	return result
+
+
+# Reject any member of a parsed fixture object that is outside the allowlist (the .strict() analogue). A
+# new capture lane fails loudly here rather than being silently dropped.
+static func _require_known_members(result: Result, rig_id: String, obj: Dictionary, allowed: Array, context: String) -> void:
+	for key in obj:
+		if not allowed.has(key):
+			result.failures.append(
+				"[%s] fixture %s has unknown member '%s'; the harness has no comparison for it "
+				% [rig_id, context, key] + "(add one rather than skipping the lane)"
+			)
+
+
+# Compare one sample's resolved render order (ADR-0008, PP-B4): an integer permutation, EXACT. Present
+# only when the sample-spec captures it; absent samples short-circuit.
+static func _compare_draw_order(result: Result, rig_id: String, time: float, sample: Dictionary, pose: Pose) -> void:
+	if not sample.has("drawOrder"):
+		return
+	var expected: Array = sample["drawOrder"]
+	if expected.size() != pose.slot_count:
+		result.failures.append(
+			"[%s] draw order length mismatch at t=%s: expected %d, actual %d"
+			% [rig_id, time, expected.size(), pose.slot_count]
+		)
+		return
+	for i in range(expected.size()):
+		result.lane_comparisons += 1
+		if pose.draw_order[i] != int(expected[i]):
+			result.failures.append(
+				"[%s] draw order mismatch at t=%s, position %d: expected %d, actual %d"
+				% [rig_id, time, i, int(expected[i]), pose.draw_order[i]]
+			)
+
+
+# Sweep the sample-spec eventStep and compare the fired-event log to the committed fixture (ADR-0008,
+# PP-B4). name / int / string / time are EXACT; the float payload rides the EVENT_FLOAT tolerance. The log
+# is ordered, so entries are matched index by index. Present only when the spec sets eventStep.
+static func _compare_events(result: Result, rig_id: String, document, animation_id: String, spec: Dictionary, fixture: Dictionary) -> void:
+	if not spec.has("eventStep"):
+		return
+	var expected: Array = fixture["events"] if fixture.has("events") else []
+	var step: Dictionary = spec["eventStep"]
+
+	var animation = document.find_animation(animation_id)
+	if animation == null:
+		result.failures.append("[%s] event sweep animation '%s' not found" % [rig_id, animation_id])
+		return
+
+	var timeline = EventFire.prepare_event_timeline(animation, document.events)
+	var queue = EventFire.make_event_queue()
+	if timeline != null:
+		EventFire.collect_fired_events(
+			timeline, float(step["from"]), float(step["to"]), float(step["dt"]), bool(spec["loop"]), float(spec["duration"]), queue
+		)
+
+	if queue.count != expected.size():
+		result.failures.append(
+			"[%s] fired-event count mismatch: expected %d, actual %d" % [rig_id, expected.size(), queue.count]
+		)
+		return
+
+	for i in range(expected.size()):
+		var want: Dictionary = expected[i]
+		var got = queue.events[i]
+		var where := "[%s] event %d ('%s' at t=%s)" % [rig_id, i, str(want["name"]), str(want["time"])]
+		result.lane_comparisons += 1
+
+		if got.name != String(want["name"]):
+			result.failures.append("%s name mismatch: expected '%s', actual '%s'" % [where, want["name"], got.name])
+		if got.time != float(want["time"]):
+			result.failures.append("%s time mismatch: expected %s, actual %s" % [where, str(want["time"]), str(got.time)])
+
+		var want_has_int := want.has("int")
+		if got.has_int != want_has_int or (got.has_int and int(got.int_value) != int(want["int"])):
+			result.failures.append("%s int payload mismatch" % where)
+
+		var want_has_string := want.has("string")
+		if got.has_string != want_has_string or (got.has_string and got.string_value != String(want["string"])):
+			result.failures.append("%s string payload mismatch" % where)
+
+		var want_has_float := want.has("float")
+		if got.has_float != want_has_float:
+			result.failures.append("%s float presence mismatch" % where)
+		elif got.has_float:
+			var delta := absf(got.float_value - float(want["float"]))
+			result.max_event_float_error = max(result.max_event_float_error, delta)
+			if not Tolerance.EVENT_FLOAT.within(got.float_value, float(want["float"])):
+				result.failures.append(
+					"%s float payload drifts: expected %s, actual %s" % [where, str(want["float"]), str(got.float_value)]
+				)
 
 
 static func _compare_affine(result: Result, rig_id: String, time: float, bone_name: String, expected: Array, pose: Pose, bone_index: int) -> void:

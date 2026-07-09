@@ -1,5 +1,5 @@
 extends SceneTree
-# Headless conformance entry (PP-E2). Runs the shared GDScript solve over the nine committed skeleton rigs
+# Headless conformance entry (PP-E2). Runs the shared GDScript solve over every committed skeleton rig
 # and the cross language integer vector corpus, prints per rig and per family results, and exits nonzero
 # on any failure so CI gates on it. Run with:
 #
@@ -12,19 +12,7 @@ extends SceneTree
 const ConformanceHarness = preload("res://tests/conformance_harness.gd")
 const CrossLanguageVectors = preload("res://tests/cross_language_vectors.gd")
 const RigReaderBoundary = preload("res://tests/rig_reader_boundary.gd")
-
-# The nine committed skeleton rigs (packages/conformance/src/registry.ts RIG_IDS), in catalog order.
-const RIG_IDS := [
-	"rig-2bone",
-	"rig-rigid-mesh",
-	"rig-weighted-mesh",
-	"rig-one-bone-ik",
-	"rig-two-bone-ik",
-	"rig-transform-constraint",
-	"rig-deform",
-	"rig-transform-modes",
-	"rig-blendmodes",
-]
+const RepoPaths = preload("res://tests/repo_paths.gd")
 
 const MAX_FAILURES_SHOWN := 25
 
@@ -32,15 +20,23 @@ const MAX_FAILURES_SHOWN := 25
 func _init() -> void:
 	var all_ok := true
 
+	# The committed skeleton rigs, enumerated from the fixtures corpus (RepoPaths.all_rig_ids, the
+	# materialized projection of registry.ts LANDED_RIG_IDS) rather than a hardcoded list, so the full
+	# landed set runs and a newly landed rig is picked up automatically.
+	var rig_ids := RepoPaths.all_rig_ids()
+
 	print("== PP-E2 Godot runtime core conformance ==")
-	print("conformance src: %s" % preload("res://tests/repo_paths.gd").conformance_src())
+	print("conformance src: %s" % RepoPaths.conformance_src())
 	print("")
 	print("-- skeleton rigs (fixtures within A.5 tolerance) --")
-	for rig_id in RIG_IDS:
+	if rig_ids.is_empty():
+		all_ok = false
+		print("FAIL no committed fixtures found; the conformance corpus is empty")
+	for rig_id in rig_ids:
 		var result = ConformanceHarness.run(rig_id)
 		if result.ok():
 			print(
-				"PASS %-26s %5d lanes  maxBasis=%s maxTrans=%s maxVertex=%s maxColor=%s"
+				"PASS %-26s %5d lanes  maxBasis=%s maxTrans=%s maxVertex=%s maxColor=%s maxEventFloat=%s"
 				% [
 					rig_id,
 					result.lane_comparisons,
@@ -48,6 +44,7 @@ func _init() -> void:
 					String.num_scientific(result.max_translation_error),
 					String.num_scientific(result.max_vertex_error),
 					String.num_scientific(result.max_color_error),
+					String.num_scientific(result.max_event_float_error),
 				]
 			)
 		else:

@@ -245,6 +245,31 @@ function compareDrawOrder(
   }
 }
 
+// Compare the resolved sequence frames of one sample (PP-B5 slice 5, rig-sequences). The frame index is a
+// discrete integer, so it is compared EXACT (no epsilon): a wrong frame is a real step-2 resolution bug,
+// never float noise. Entries are matched index by index in spec order (slot name + frame both exact).
+function compareSequences(
+  expected: ReadonlyArray<{ readonly slot: string; readonly frame: number }> | undefined,
+  actual: ReadonlyArray<{ readonly slot: string; readonly frame: number }> | undefined,
+  rigId: string,
+  time: number,
+  failures: DriftFailure[],
+): void {
+  const e = expected ?? [];
+  const a = actual ?? [];
+  if (e.length !== a.length || e.some((v, i) => v.slot !== a[i]?.slot || v.frame !== a[i]?.frame)) {
+    const fmt = (list: ReadonlyArray<{ slot: string; frame: number }>): string =>
+      list.map((s) => `${s.slot}:${s.frame}`).join(', ');
+    failures.push(
+      structuralFailure(
+        rigId,
+        `sample at t=${time} sequence frame mismatch: expected [${fmt(e)}], actual [${fmt(a)}]`,
+        time,
+      ),
+    );
+  }
+}
+
 // Compare the fired-event LOG of two fixtures (PP-B4, rig-events-draworder / rig-events-loop). The log is
 // ordered, so entries are matched INDEX BY INDEX: the count, and per entry the name, fire time, and the
 // discrete int/string payloads (presence and value) are compared EXACT; the float payload's presence is
@@ -420,6 +445,7 @@ export function compareFixtures(expected: Fixture, actual: Fixture): DriftReport
     compareMeshes(e.meshes, a.meshes, rigId, e.time, failures);
     compareSlots(e.slots, a.slots, rigId, e.time, failures);
     compareDrawOrder(e.drawOrder, a.drawOrder, rigId, e.time, failures);
+    compareSequences(e.sequences, a.sequences, rigId, e.time, failures);
   }
 
   // The fired-event log is fixture-level (one range sweep), not per-sample, so it is compared once.

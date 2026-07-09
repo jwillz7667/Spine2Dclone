@@ -138,6 +138,14 @@ function serializeSample(sample: FixtureSample, indent: string): string {
   if (sample.drawOrder !== undefined) {
     members.push(`${i2}"drawOrder": [${sample.drawOrder.map(num).join(', ')}]`);
   }
+  // The resolved sequence frame per slot, one entry per line (matching the one-per-line convention). Present
+  // only when captured (rig-sequences); omitting it keeps every non-sequence fixture byte-identical.
+  if (sample.sequences !== undefined && sample.sequences.length > 0) {
+    const seqLines = sample.sequences.map(
+      (s) => `${i3}{ "slot": ${str(s.slot)}, "frame": ${num(s.frame)} }`,
+    );
+    members.push(`${i2}"sequences": [\n${seqLines.join(',\n')}\n${i2}]`);
+  }
   return [
     `${indent}{`,
     `${i2}"time": ${num(sample.time)},`,

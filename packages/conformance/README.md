@@ -12,7 +12,7 @@ All under `src/`:
 
 | Track | Rigs / inputs | Fixtures | Lock |
 |---|---|---|---|
-| **Skeleton** | `rigs/` (15 rigs, each committed as `.json` AND a binary `.bin` twin): rig-2bone, rig-rigid-mesh, rig-weighted-mesh, rig-one-bone-ik, rig-two-bone-ik, rig-transform-constraint, rig-deform, rig-transform-modes, rig-blendmodes, rig-events-draworder, rig-events-loop, rig-ik-depth, rig-constraint-order, rig-transform-variants, rig-linked-mesh | `fixtures/` (15, driven by `sample-spec/`) | `.fixtures.lock` |
+| **Skeleton** | `rigs/` (16 rigs, each committed as `.json` AND a binary `.bin` twin): rig-2bone, rig-rigid-mesh, rig-weighted-mesh, rig-one-bone-ik, rig-two-bone-ik, rig-transform-constraint, rig-deform, rig-transform-modes, rig-blendmodes, rig-events-draworder, rig-events-loop, rig-ik-depth, rig-constraint-order, rig-transform-variants, rig-linked-mesh, rig-sequences | `fixtures/` (16, driven by `sample-spec/`) | `.fixtures.lock` |
 | **Effects / particles** | `effects-rigs/` (4): coin-burst, ribbon-trail, circle-spawn, god-rays-sprite | `effects-fixtures/` (4) | `.effects-fixtures.lock` |
 | **AnimationState** (ADR-0005) | `anim-state-rigs/anim-state-rig.json` | `anim-state-fixtures/` (4): discrete-flip, additive-layer, queue-loop-boundary, crossfade-fractions | `.anim-state-fixtures.lock` |
 | **Slot** | `slot/scenes/` (4 scenes) x `slot/spins/` (6 spins) via `slot/sample-spec/` | `slot/expected/` (6 golden `PresentationTimeline`s) | `.slot.fixtures.lock` |
@@ -62,6 +62,13 @@ the bone world-affine lane.
 **rig-linked-mesh** (PP-B5 slice 4, ADR-0011 section 1) is a mesh plus two linked meshes that reuse its
 geometry: one with `timelines: true` (its vertices track the parent's deform exactly) and one with
 `timelines: false` (its own deform diverges). Observed on the existing mesh-vertex lane.
+
+**rig-sequences** (PP-B5 slice 5, ADR-0011 section 2) resolves sequence-attachment frames across all seven
+playback modes (hold, once, loop, pingpong, and the three reverses) plus the setup-frame fallback (a slot
+with a sequence attachment but no `sequence` timeline). It is observed on a new per-sample `sequences` lane
+(`{ slot, frame }` per captured slot, opted in with the sample-spec's `captureSequences`), compared EXACT
+because the frame index is discrete integer math. The lane is emitted only when the spec opts in, so every
+non-sequence fixture stays byte-identical.
 
 ## Structure
 

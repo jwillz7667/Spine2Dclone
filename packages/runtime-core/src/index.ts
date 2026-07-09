@@ -78,6 +78,7 @@ export type { PreparedEventTimeline, PreparedDrawOrderTimeline } from './skeleto
 // runtime-web mesh rendering build on.
 export { sampleMeshVertices, skinMeshInto, MeshAttachmentError } from './skeleton/mesh-sample';
 export type { MeshAttachmentErrorReason } from './skeleton/mesh-sample';
+export { resolveSequenceFrame, sampleSlotSequenceFrame } from './skeleton/sequence';
 // Runtime skin selection (PP-B3): an allocation-free lookup layer that resolves which attachment a slot
 // presents under the active skin (default-skin fallback), so a renderer switches skins live without
 // rebuilding the Pose. A pure lookup over document skins + pose.slotAttachment; no solve-numeric change.

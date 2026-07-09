@@ -40,6 +40,10 @@ export const sampleSpecSchema = z
     // Opt-in: a spec that omits it captures no draw order, so every pre-PP-B4 fixture regenerates
     // byte-identically. The captured integer permutation is compared EXACT.
     captureDrawOrder: z.boolean().optional(),
+    // The slot names whose resolved sequence FRAME INDEX is captured at every poseTime (PP-B5 slice 5,
+    // rig-sequences). Opt-in and order-preserving: a spec that omits it captures no sequences, so every
+    // pre-slice-5 fixture regenerates byte-identically. The captured integer frame is compared EXACT.
+    captureSequences: z.array(z.string().min(1)).optional(),
     eventStep: z
       .object({
         dt: z.number().finite().positive(),

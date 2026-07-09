@@ -77,6 +77,15 @@ const firedEventSchema = z
   })
   .strict();
 
+// One slot's resolved sequence FRAME INDEX at a sample (PP-B5 slice 5, ADR-0011 section 2): the slot name
+// and the integer frame the sequence attachment shows. A discrete playback state, compared EXACT.
+const sequenceStateSchema = z
+  .object({
+    slot: z.string().min(1),
+    frame: z.number().int().finite(),
+  })
+  .strict();
+
 const fixtureSampleSchema = z
   .object({
     time: z.number().finite(),
@@ -95,6 +104,11 @@ const fixtureSampleSchema = z
     // captureDrawOrder (rig-events-draworder). Compared EXACT (a reorder is discrete, never float noise).
     // Omitted otherwise, so pre-PP-B4 fixtures stay byte-identical.
     drawOrder: z.array(z.number().int().finite()).optional(),
+    // Per-slot resolved sequence FRAME INDEX (PP-B5 slice 5, ADR-0011 section 2), captured only when the
+    // sample-spec names slots in captureSequences (rig-sequences). Each entry is a slot name plus its
+    // integer frame, compared EXACT (a discrete playback state, no float noise). Omitted otherwise, so
+    // pre-slice-5 fixtures stay byte-identical.
+    sequences: z.array(sequenceStateSchema).optional(),
   })
   .strict();
 
@@ -120,6 +134,7 @@ export type MeshVertices = z.infer<typeof meshVerticesSchema>;
 export type FixtureBlendMode = z.infer<typeof fixtureBlendModeSchema>;
 export type SlotState = z.infer<typeof slotStateSchema>;
 export type FiredEventRecord = z.infer<typeof firedEventSchema>;
+export type SequenceState = z.infer<typeof sequenceStateSchema>;
 export type FixtureSample = z.infer<typeof fixtureSampleSchema>;
 export type Fixture = z.infer<typeof fixtureSchema>;
 

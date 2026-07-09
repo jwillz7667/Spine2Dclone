@@ -6,6 +6,7 @@ import {
   prepareEventTimeline,
   sampleMeshVertices,
   sampleSkeleton,
+  sampleSlotSequenceFrame,
   SLOT_COLOR_STRIDE,
 } from '@marionette/runtime-core';
 import type { FiredEvent } from '@marionette/runtime-core';
@@ -16,6 +17,7 @@ import type {
   Fixture,
   FixtureSample,
   MeshVertices,
+  SequenceState,
   SlotState,
 } from './schema/fixture';
 import type { SampleSpec } from './schema/sample-spec';
@@ -153,6 +155,16 @@ export function buildFixtureSamples(document: SkeletonDocument, spec: SampleSpec
       // with no active draw-order key, the reordered permutation otherwise). Copied out as plain integers
       // (renderPosition -> slotIndex) for an EXACT integer compare.
       sample.drawOrder = Array.from(pose.drawOrder);
+    }
+    if (spec.captureSequences !== undefined && spec.captureSequences.length > 0) {
+      // The resolved sequence frame index per named slot (ADR-0011 section 2), in spec order. A slot with
+      // no active sequence attachment resolves to -1; it is still recorded so the lane is author-explicit
+      // and the diff stable. Reuses the pose just solved at `time` (no re-solve).
+      const sequences: SequenceState[] = spec.captureSequences.map((slot) => ({
+        slot,
+        frame: sampleSlotSequenceFrame(document, spec.animation, time, pose, slot),
+      }));
+      sample.sequences = sequences;
     }
     samples.push(sample);
   }

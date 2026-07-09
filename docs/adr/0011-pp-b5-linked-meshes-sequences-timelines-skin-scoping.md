@@ -46,7 +46,37 @@ A plain `mesh` is unchanged: geometry source is itself, deform source is its own
 every existing mesh fixture is byte-identical. `DEFORM_NOT_MESH` continues to fire only for an attachment
 that is neither a mesh nor a linked mesh.
 
-### 2. Sequence attachments (ADR-0009 section 3) [PLANNED, PP-B5 slice 5]
+### 2. Sequence attachments (ADR-0009 section 3) [IMPLEMENTED, PP-B5 slice 5]
+
+A region or mesh attachment may carry a `sequence` block (`count` frames, `start`, `digits`, `setupIndex`);
+a per-slot `sequence` timeline of keyframes `{ time, mode, index, delay }` then drives which frame plays.
+The solve resolves a DISCRETE integer frame in `[0, count)` per sample, by pure integer arithmetic so all
+runtimes agree EXACTLY (the fixture compares it with no tolerance). Turning the frame into an atlas region
+name (`path` + zero-padded `start + frame` to `digits`) is a renderer concern, not a solve concern, so
+runtime-core resolves only the index.
+
+Resolution at time `t` for a slot:
+
+1. If the slot's resolved active attachment (the animatable attachment state, read from the solved pose)
+   has no `sequence` block, there is nothing to resolve (the fixture omits the slot; the query returns -1).
+2. Else, find the active `sequence` timeline key (the last key with `time <= t`; keys are strict-ascending).
+   Before the first key, or with no `sequence` timeline, the attachment shows its `setupIndex`.
+3. Else, with active key `{ time: kt, mode, index, delay }`, let `elapsed = t - kt` and `advanced =
+   (delay > 0 && elapsed > 0) ? floor(elapsed / delay) : 0` (a non-positive delay advances no frames). The
+   mode maps `index` and `advanced` to a frame:
+   - `hold`: `index` (clamped to `[0, count)`); `advanced` is ignored.
+   - `once`: `min(index + advanced, count - 1)` (plays forward, stops on the last frame).
+   - `loop`: `(index + advanced) mod count`.
+   - `pingpong`: a triangle wave over `[0, count-1]` with period `2*(count-1)`, sampled at `index +
+     advanced` (bounces between the ends).
+   - `onceReverse`: `max(index - advanced, 0)` (plays backward, stops on frame 0).
+   - `loopReverse`: `(index - advanced) mod count` with a non-negative residue.
+   - `pingpongReverse`: the same triangle wave sampled at `index - advanced` (bounces starting downward).
+   `count <= 1` resolves to frame 0 (a single-frame sequence has nowhere to advance).
+
+A rig with no sequence attachment and no `sequence` timeline resolves nothing, so no existing fixture gains
+a sequence lane and all stay byte-identical.
+
 
 ### 3. Timeline granularity: per-component, split color, dark color (ADR-0009 section 4) [PLANNED, slice 6]
 

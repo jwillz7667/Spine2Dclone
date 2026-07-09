@@ -1,0 +1,447 @@
+{
+  "formatVersion": "0.4.0",
+  "name": "rig-sequences",
+  "hash": "",
+  "bones": [
+    {
+      "name": "root",
+      "parent": null,
+      "length": 0,
+      "x": 0,
+      "y": 0,
+      "rotation": 0,
+      "scaleX": 1,
+      "scaleY": 1,
+      "shearX": 0,
+      "shearY": 0,
+      "transformMode": "normal"
+    },
+    {
+      "name": "b1",
+      "parent": "root",
+      "length": 20,
+      "x": 0,
+      "y": 0,
+      "rotation": 0,
+      "scaleX": 1,
+      "scaleY": 1,
+      "shearX": 0,
+      "shearY": 0,
+      "transformMode": "normal"
+    }
+  ],
+  "slots": [
+    {
+      "name": "slot0",
+      "bone": "b1",
+      "color": {
+        "r": 1,
+        "g": 1,
+        "b": 1,
+        "a": 1
+      },
+      "attachment": "frames",
+      "blendMode": "normal"
+    },
+    {
+      "name": "slot1",
+      "bone": "b1",
+      "color": {
+        "r": 1,
+        "g": 1,
+        "b": 1,
+        "a": 1
+      },
+      "attachment": "frames",
+      "blendMode": "normal"
+    },
+    {
+      "name": "slot2",
+      "bone": "b1",
+      "color": {
+        "r": 1,
+        "g": 1,
+        "b": 1,
+        "a": 1
+      },
+      "attachment": "frames",
+      "blendMode": "normal"
+    },
+    {
+      "name": "slot3",
+      "bone": "b1",
+      "color": {
+        "r": 1,
+        "g": 1,
+        "b": 1,
+        "a": 1
+      },
+      "attachment": "frames",
+      "blendMode": "normal"
+    },
+    {
+      "name": "slot4",
+      "bone": "b1",
+      "color": {
+        "r": 1,
+        "g": 1,
+        "b": 1,
+        "a": 1
+      },
+      "attachment": "frames",
+      "blendMode": "normal"
+    },
+    {
+      "name": "slot5",
+      "bone": "b1",
+      "color": {
+        "r": 1,
+        "g": 1,
+        "b": 1,
+        "a": 1
+      },
+      "attachment": "frames",
+      "blendMode": "normal"
+    },
+    {
+      "name": "slot6",
+      "bone": "b1",
+      "color": {
+        "r": 1,
+        "g": 1,
+        "b": 1,
+        "a": 1
+      },
+      "attachment": "frames",
+      "blendMode": "normal"
+    },
+    {
+      "name": "slot7",
+      "bone": "b1",
+      "color": {
+        "r": 1,
+        "g": 1,
+        "b": 1,
+        "a": 1
+      },
+      "attachment": "frames",
+      "blendMode": "normal"
+    }
+  ],
+  "skins": [
+    {
+      "name": "default",
+      "attachments": {
+        "slot0": {
+          "frames": {
+            "type": "region",
+            "path": "seq_tex",
+            "x": 0,
+            "y": 0,
+            "rotation": 0,
+            "scaleX": 1,
+            "scaleY": 1,
+            "width": 16,
+            "height": 16,
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "sequence": {
+              "count": 4,
+              "start": 0,
+              "digits": 2,
+              "setupIndex": 2
+            }
+          }
+        },
+        "slot1": {
+          "frames": {
+            "type": "region",
+            "path": "seq_tex",
+            "x": 0,
+            "y": 0,
+            "rotation": 0,
+            "scaleX": 1,
+            "scaleY": 1,
+            "width": 16,
+            "height": 16,
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "sequence": {
+              "count": 4,
+              "start": 0,
+              "digits": 2,
+              "setupIndex": 2
+            }
+          }
+        },
+        "slot2": {
+          "frames": {
+            "type": "region",
+            "path": "seq_tex",
+            "x": 0,
+            "y": 0,
+            "rotation": 0,
+            "scaleX": 1,
+            "scaleY": 1,
+            "width": 16,
+            "height": 16,
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "sequence": {
+              "count": 4,
+              "start": 0,
+              "digits": 2,
+              "setupIndex": 2
+            }
+          }
+        },
+        "slot3": {
+          "frames": {
+            "type": "region",
+            "path": "seq_tex",
+            "x": 0,
+            "y": 0,
+            "rotation": 0,
+            "scaleX": 1,
+            "scaleY": 1,
+            "width": 16,
+            "height": 16,
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "sequence": {
+              "count": 4,
+              "start": 0,
+              "digits": 2,
+              "setupIndex": 2
+            }
+          }
+        },
+        "slot4": {
+          "frames": {
+            "type": "region",
+            "path": "seq_tex",
+            "x": 0,
+            "y": 0,
+            "rotation": 0,
+            "scaleX": 1,
+            "scaleY": 1,
+            "width": 16,
+            "height": 16,
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "sequence": {
+              "count": 4,
+              "start": 0,
+              "digits": 2,
+              "setupIndex": 2
+            }
+          }
+        },
+        "slot5": {
+          "frames": {
+            "type": "region",
+            "path": "seq_tex",
+            "x": 0,
+            "y": 0,
+            "rotation": 0,
+            "scaleX": 1,
+            "scaleY": 1,
+            "width": 16,
+            "height": 16,
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "sequence": {
+              "count": 4,
+              "start": 0,
+              "digits": 2,
+              "setupIndex": 2
+            }
+          }
+        },
+        "slot6": {
+          "frames": {
+            "type": "region",
+            "path": "seq_tex",
+            "x": 0,
+            "y": 0,
+            "rotation": 0,
+            "scaleX": 1,
+            "scaleY": 1,
+            "width": 16,
+            "height": 16,
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "sequence": {
+              "count": 4,
+              "start": 0,
+              "digits": 2,
+              "setupIndex": 2
+            }
+          }
+        },
+        "slot7": {
+          "frames": {
+            "type": "region",
+            "path": "seq_tex",
+            "x": 0,
+            "y": 0,
+            "rotation": 0,
+            "scaleX": 1,
+            "scaleY": 1,
+            "width": 16,
+            "height": 16,
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "sequence": {
+              "count": 4,
+              "start": 0,
+              "digits": 2,
+              "setupIndex": 2
+            }
+          }
+        }
+      }
+    }
+  ],
+  "ikConstraints": [],
+  "transformConstraints": [],
+  "animations": {
+    "default": {
+      "duration": 1,
+      "bones": {},
+      "slots": {
+        "slot0": {
+          "sequence": [
+            {
+              "time": 0,
+              "mode": "hold",
+              "index": 0,
+              "delay": 0.1
+            }
+          ]
+        },
+        "slot1": {
+          "sequence": [
+            {
+              "time": 0,
+              "mode": "once",
+              "index": 0,
+              "delay": 0.1
+            }
+          ]
+        },
+        "slot2": {
+          "sequence": [
+            {
+              "time": 0,
+              "mode": "loop",
+              "index": 0,
+              "delay": 0.1
+            }
+          ]
+        },
+        "slot3": {
+          "sequence": [
+            {
+              "time": 0,
+              "mode": "pingpong",
+              "index": 0,
+              "delay": 0.1
+            }
+          ]
+        },
+        "slot4": {
+          "sequence": [
+            {
+              "time": 0,
+              "mode": "onceReverse",
+              "index": 3,
+              "delay": 0.1
+            }
+          ]
+        },
+        "slot5": {
+          "sequence": [
+            {
+              "time": 0,
+              "mode": "loopReverse",
+              "index": 3,
+              "delay": 0.1
+            }
+          ]
+        },
+        "slot6": {
+          "sequence": [
+            {
+              "time": 0,
+              "mode": "pingpongReverse",
+              "index": 3,
+              "delay": 0.1
+            }
+          ]
+        }
+      },
+      "ik": {},
+      "transform": {},
+      "deform": {},
+      "drawOrder": [],
+      "events": []
+    }
+  },
+  "atlas": {
+    "pages": [
+      {
+        "file": "atlas.png",
+        "width": 16,
+        "height": 16,
+        "regions": [
+          {
+            "name": "seq_tex",
+            "x": 0,
+            "y": 0,
+            "w": 16,
+            "h": 16,
+            "rotated": false,
+            "offsetX": 0,
+            "offsetY": 0,
+            "originalW": 16,
+            "originalH": 16
+          }
+        ]
+      }
+    ]
+  },
+  "events": []
+}

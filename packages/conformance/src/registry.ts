@@ -53,6 +53,10 @@ export const RIG_IDS = [
   // `timelines` values (a shared-deform link that tracks the parent, and an own-deform link that
   // diverges). Observed on the existing mesh-vertex lane. Authored first-principles.
   'rig-linked-mesh',
+  // PP-B5 slice 5 (ADR-0011 section 2): sequence-attachment frame resolution across all seven playback
+  // modes (hold/once/loop/pingpong plus the three reverses) and the setup-frame fallback, captured on a
+  // new EXACT-integer sequence-frame lane. Authored first-principles.
+  'rig-sequences',
 ] as const;
 
 export type RigId = (typeof RIG_IDS)[number];
@@ -81,6 +85,7 @@ export const RIG_PHASE: Readonly<Record<RigId, number>> = {
   'rig-constraint-order': 2,
   'rig-transform-variants': 2,
   'rig-linked-mesh': 2,
+  'rig-sequences': 2,
 };
 
 // The committed current phase (B.2 landed-rig gating). Bumped per phase milestone in this file, NOT

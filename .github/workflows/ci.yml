@@ -128,9 +128,16 @@ jobs:
           --from ${{ github.event.pull_request.base.sha }}
           --to ${{ github.event.pull_request.head.sha }}
 
-  # Single required status check. Its dependency set grows per phase (conformance-and-ci D.13);
+  # Required status check for this workflow. Its dependency set grows per phase (conformance-and-ci D.13);
   # Phase 0 = typecheck, lint, test, build, format-semver, package-guard. Phase 3 adds the
   # phase3-acceptance gate (the milestone DoD: particle conformance + the megaWin acceptance harness).
+  #
+  # The native runtimes (Unity C# core, Godot headless) gate through a SEPARATE required check,
+  # `conformance-native-pass` in conformance-native.yml, not through this job's `needs` (TASK-5.5.6). They
+  # live in their own path-filtered + nightly workflow because the engine jobs are heavier and only a
+  # runtimes / format / runtime-core / conformance change can move native conformance; folding them into
+  # ci-pass would run a dotnet restore and a pinned Godot download on every docs-only PR. The repo owner
+  # therefore marks TWO checks required in branch protection: `ci-pass` AND `conformance-native-pass`.
   ci-pass:
     runs-on: ubuntu-latest
     if: always()

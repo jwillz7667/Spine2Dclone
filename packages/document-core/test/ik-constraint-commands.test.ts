@@ -5,6 +5,7 @@ import { DeleteIkKeyframeCommand } from '../src/commands/delete-ik-keyframe.comm
 import { SetIkBendPositiveCommand } from '../src/commands/set-ik-bend-positive.command';
 import { SetIkKeyframeCommand } from '../src/commands/set-ik-keyframe.command';
 import { SetIkMixCommand } from '../src/commands/set-ik-mix.command';
+import { SetIkDepthParamsCommand } from '../src/commands/set-ik-depth-params.command';
 import { assertInvariants, ConstraintError, loadDocument, type Document } from '../src';
 import { makeTestEnv, seeds } from './seeds';
 
@@ -134,6 +135,76 @@ describe('SetIkMix', () => {
       doc.history.execute(new SetIkMixCommand(constraint.id, 0.33));
       expect(doc.model.getIkConstraint(constraint.id)!.mix).toBe(0.33);
     });
+  });
+});
+
+describe('SetIkDepthParams (PP-D10)', () => {
+  it('edits softness / stretch / compress / uniform and round-trips', () => {
+    const { env } = makeTestEnv();
+    const doc = loadDocument(seeds.rigged, env);
+    const constraint = doc.model.ikConstraints()[0]!;
+    // The rigged seed carries the migrated defaults (softness 0, all three booleans false).
+    expect(constraint.softness).toBe(0);
+    expect(constraint.stretch).toBe(false);
+
+    expectRoundTrip(doc, () => {
+      doc.history.execute(
+        new SetIkDepthParamsCommand(constraint.id, {
+          softness: 12,
+          stretch: true,
+          compress: true,
+          uniform: true,
+        }),
+      );
+      const after = doc.model.getIkConstraint(constraint.id)!;
+      expect(after.softness).toBe(12);
+      expect(after.stretch).toBe(true);
+      expect(after.compress).toBe(true);
+      expect(after.uniform).toBe(true);
+    });
+  });
+
+  it('coalesces a softness slider stroke into one undo step', () => {
+    const { env, advance } = makeTestEnv();
+    const doc = loadDocument(seeds.rigged, env);
+    const constraint = doc.model.ikConstraints()[0]!;
+    const preStroke = doc.model.snapshot();
+
+    doc.history.beginInteraction();
+    doc.history.execute(new SetIkDepthParamsCommand(constraint.id, { softness: 4 }));
+    advance(300); // beyond the 250ms window; a session coalesces regardless
+    doc.history.execute(new SetIkDepthParamsCommand(constraint.id, { softness: 8 }));
+    advance(300);
+    doc.history.execute(new SetIkDepthParamsCommand(constraint.id, { softness: 15 }));
+    doc.history.endInteraction('Set IK Depth');
+
+    expect(doc.model.getIkConstraint(constraint.id)!.softness).toBe(15);
+
+    // ONE undo restores the entire stroke to the pre-interaction state.
+    doc.history.undo();
+    expect(doc.model.snapshot()).toEqual(preStroke);
+    expect(doc.history.canUndo).toBe(false);
+    expect(() => assertInvariants(doc.model)).not.toThrow();
+  });
+
+  it('does not coalesce across two different IK constraints', () => {
+    const { env } = makeTestEnv();
+    const doc = loadDocument(seeds.rigged, env);
+    const first = doc.model.ikConstraints()[0]!;
+    // A second constraint over the same chain gives a distinct target for the cross-target guard.
+    const secondId = doc.ids.mint('ikConstraint');
+    doc.history.execute(
+      new CreateIkConstraintCommand(secondId, 'limb-ik-2', first.bones, first.target, 1, true),
+    );
+    // Two depth edits on DISTINCT constraints within the window must stay two undo steps (plus the create).
+    doc.history.execute(new SetIkDepthParamsCommand(first.id, { softness: 3 }));
+    doc.history.execute(new SetIkDepthParamsCommand(secondId, { softness: 3 }));
+    let undoSteps = 0;
+    while (doc.history.canUndo) {
+      doc.history.undo();
+      undoSteps += 1;
+    }
+    expect(undoSteps).toBe(3); // create + two distinct-target depth edits, none merged
   });
 });
 

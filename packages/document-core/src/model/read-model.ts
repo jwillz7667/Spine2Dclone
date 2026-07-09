@@ -319,6 +319,13 @@ export interface IkConstraintSnapshot {
   readonly target: string;
   readonly mix: number;
   readonly bendPositive: boolean;
+  // Stage F2 (ADR-0009 section 1) IK depth fields, promoted to editable by PP-D10 (SetIkDepthParams). Always
+  // present (required on the entity); `order` is the OPTIONAL cross-array solve order, emitted only when set.
+  readonly softness: number;
+  readonly stretch: boolean;
+  readonly compress: boolean;
+  readonly uniform: boolean;
+  readonly order?: number;
 }
 
 // A plain transform-constraint projection (all six mix and six offset channels).
@@ -629,6 +636,11 @@ export function ikConstraintToSnapshot(c: IkConstraintEntity): IkConstraintSnaps
     target: c.target,
     mix: c.mix,
     bendPositive: c.bendPositive,
+    softness: c.softness,
+    stretch: c.stretch,
+    compress: c.compress,
+    uniform: c.uniform,
+    ...(c.order !== undefined ? { order: c.order } : {}),
   };
 }
 

@@ -115,6 +115,8 @@ export { DeleteIkConstraintCommand, deleteIkConstraintSpec } from './delete-ik-c
 export { SetIkKeyframeCommand, setIkKeyframeSpec } from './set-ik-keyframe.command';
 export { DeleteIkKeyframeCommand, deleteIkKeyframeSpec } from './delete-ik-keyframe.command';
 export { MoveIkKeyframeCommand, moveIkKeyframeSpec } from './move-ik-keyframe.command';
+export { SetIkDepthParamsCommand, setIkDepthParamsSpec } from './set-ik-depth-params.command';
+export type { IkDepthPatch } from './set-ik-depth-params.command';
 // WP-2.7 transform constraint authoring
 export {
   CreateTransformConstraintCommand,

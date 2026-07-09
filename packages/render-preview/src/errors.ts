@@ -11,7 +11,10 @@ export type RenderPreviewErrorCode =
   | 'ZERO_CONTENT_FIT'
   | 'UNKNOWN_ANIMATION'
   | 'MALFORMED_ATLAS_PAGE'
-  | 'INVALID_EFFECT_TRIGGER';
+  | 'INVALID_EFFECT_TRIGGER'
+  | 'INVALID_FPS'
+  | 'INVALID_FRAME_RANGE'
+  | 'EMPTY_SEQUENCE';
 
 export class RenderPreviewError extends Error {
   readonly code: RenderPreviewErrorCode;
@@ -66,5 +69,34 @@ export class EffectTriggerError extends RenderPreviewError {
   constructor(message: string) {
     super('INVALID_EFFECT_TRIGGER', message);
     this.name = 'EffectTriggerError';
+  }
+}
+
+// A sequence fps outside the supported [1, 120] range (or not an integer). fps drives both the frame
+// sample times and the encoded frame delay, so an out-of-range value is rejected loudly at the boundary
+// rather than silently clamped (a clamp would produce a clip at a different speed than the caller asked).
+export class InvalidFpsError extends RenderPreviewError {
+  constructor(readonly fps: number) {
+    super('INVALID_FPS', `fps must be an integer in [1, 120], received ${fps}`);
+    this.name = 'InvalidFpsError';
+  }
+}
+
+// A malformed sequence frame range: a non-integer / negative frame bound, a range that cannot be inferred
+// (setup pose or AnimationState with no explicit `to`), or a frame count above the safety cap. A typed
+// error so the caller can report the exact reason rather than getting a blank or truncated clip.
+export class InvalidFrameRangeError extends RenderPreviewError {
+  constructor(message: string) {
+    super('INVALID_FRAME_RANGE', message);
+    this.name = 'InvalidFrameRangeError';
+  }
+}
+
+// The resolved frame range contains no frames (to <= from). Rendering an empty clip is almost always a
+// caller mistake, so it fails loudly instead of returning a zero-frame GIF/APNG that no viewer accepts.
+export class EmptySequenceError extends RenderPreviewError {
+  constructor() {
+    super('EMPTY_SEQUENCE', 'the resolved frame range is empty (no frames to render)');
+    this.name = 'EmptySequenceError';
   }
 }

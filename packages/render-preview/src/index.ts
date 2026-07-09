@@ -38,6 +38,31 @@ export type {
 // Re-exported for ergonomics: a bone-anchor input resolves through this runtime-core resolver type.
 export type { BoneAnchorResolver } from '@marionette/runtime-core';
 
+// Rendered-media export (PP-C10): a deterministic frame-sequence pipeline (an animation, setup pose, or
+// AnimationState track setup sampled at a chosen fps and range) and two pure-TypeScript animated-image
+// encoders (GIF89a, APNG) built on it. The sequence streams frames (one reused RGBA scratch buffer, PNG on
+// demand) so a long clip never holds every frame in memory. Video (WebM/MP4) is intentionally NOT here: it
+// belongs to a bundled editor-edge encoder in a later slice, never a runtime dependency.
+export { renderSequence } from './render-sequence';
+export type {
+  RenderSequenceOptions,
+  SingleAnimationSequenceOptions,
+  AnimationStateSequenceOptions,
+  SequenceBaseOptions,
+  SequenceBound,
+  SequenceEffect,
+  SequenceFrame,
+  RenderedSequence,
+} from './render-sequence';
+// Re-exported so the AnimationState clip source's factory signature is nameable from the barrel.
+export type { SkeletonDocument } from '@marionette/format/types';
+export type { AnimationState } from '@marionette/runtime-core';
+
+export { encodeGif } from './encode/gif';
+export type { GifEncodeOptions } from './encode/gif';
+export { encodeApng } from './encode/apng';
+export type { ApngEncodeOptions } from './encode/apng';
+
 export type { AtlasPixelSource, AtlasPagePixels, TextureSampler } from './atlas';
 
 export type { Viewport, FitMode, WorldRect, WorldToImage } from './viewport';
@@ -64,5 +89,8 @@ export {
   UnknownAnimationError,
   MalformedAtlasPageError,
   EffectTriggerError,
+  InvalidFpsError,
+  InvalidFrameRangeError,
+  EmptySequenceError,
 } from './errors';
 export type { RenderPreviewErrorCode } from './errors';

@@ -93,6 +93,9 @@ export interface DocumentParts {
   readonly bones: Bone[];
   readonly slots?: Slot[];
   readonly skin?: SkinMap;
+  // Additional named skins beyond 'default' (PP-C6 runtime skin switching). Each defines the same slots'
+  // attachments; a costume skin may override only some slots and inherit the rest from 'default'.
+  readonly extraSkins?: { name: string; attachments: SkinMap }[];
   readonly animations?: Record<string, Animation>;
   readonly name?: string;
   // Per-path overrides of the derived atlas region (trim offsets, packed w/h, rotated), so a test can pack
@@ -103,12 +106,18 @@ export interface DocumentParts {
 export function makeDocument(parts: DocumentParts): SkeletonDocument {
   const slots = parts.slots ?? [];
   const skin = parts.skin ?? {};
+  const extraSkins = parts.extraSkins ?? [];
   const atlasOverrides = parts.atlasOverrides ?? {};
 
   // Derive one atlas region per distinct region path so ATTACHMENT_REGION_MISSING never fires.
   const paths = new Set<string>();
   for (const bySlot of Object.values(skin)) {
     for (const attachment of Object.values(bySlot)) paths.add(attachment.path);
+  }
+  for (const extra of extraSkins) {
+    for (const bySlot of Object.values(extra.attachments)) {
+      for (const attachment of Object.values(bySlot)) paths.add(attachment.path);
+    }
   }
   const regions = [...paths].map((name) => ({
     name,
@@ -147,7 +156,10 @@ export function makeDocument(parts: DocumentParts): SkeletonDocument {
     hash: '',
     bones: parts.bones,
     slots,
-    skins: [{ name: 'default', attachments: skin }],
+    skins: [
+      { name: 'default', attachments: skin },
+      ...extraSkins.map((s) => ({ name: s.name, attachments: s.attachments })),
+    ],
     ikConstraints: [],
     transformConstraints: [],
     events: [],

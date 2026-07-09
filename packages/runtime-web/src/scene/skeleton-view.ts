@@ -1,21 +1,30 @@
 import { Container, Graphics, Sprite, Texture } from 'pixi.js';
 import { parseDocument, type ValidateOptions } from '@marionette/format';
-import type { AtlasRegion, RegionAttachment, SkeletonDocument, Skin } from '@marionette/format/types';
+import type {
+  Attachment,
+  AtlasRegion,
+  RegionAttachment,
+  SkeletonDocument,
+} from '@marionette/format/types';
 import {
   AnimationNotFoundError,
   applyAnimationState,
   buildPose,
+  buildSkinState,
   computeWorldTransforms,
+  DEFAULT_SKIN_NAME,
   getTrackEntry,
   MAT2X3_STRIDE,
   resetToSetupPose,
   sampleMeshVertices,
   sampleSkeleton,
+  setActiveSkin,
   skinMeshInto,
   SLOT_COLOR_STRIDE,
   type AnimationState,
   type Mat2x3,
   type Pose,
+  type SkinState,
 } from '@marionette/runtime-core';
 import { applyWorldToTarget, mapWorldToDisplay, type DisplayTransform } from './map-transform';
 import { drawBone } from './bone-graphics';
@@ -30,10 +39,6 @@ import { createMeshDisplay, markMeshPositionsDirty, type MeshDisplay } from './m
 import { computeRegionSized, placeRegion } from './region-placement';
 import type { RegionTextureResolver } from './region-textures';
 import { loopTime } from '../transport';
-
-// The one skin the view renders (skin switching is a later Phase 2 authoring surface; the solve and the
-// records resolve attachments through this name, matching the headless parity sampler).
-const DEFAULT_SKIN_NAME = 'default';
 
 // The headless description of a built scene. SkeletonView records this alongside the live PixiJS
 // objects so tests (and the editor) can read the mapped transforms without a WebGL context, while the
@@ -97,21 +102,23 @@ interface RegionEntry {
   readonly sizedForSprite: Mat2x3;
 }
 
-// One slot's render binding. A slot gets a record when its SETUP attachment resolves to a region OR a
-// mesh in the default skin; `regionsByName` and `meshesByName` hold every region / mesh attachment
-// under the slot so an authored attachment swap can re-resolve the active geometry per frame with no
-// structural change (including a region-to-mesh swap: the sprite and the mesh displays coexist, one
-// visible at a time). The pooled sprite serves the region path; each mesh attachment owns its scene-built
-// Mesh display (mesh-display.ts). `activeMesh` tracks the currently shown mesh so swapping away hides it
-// in O(1) without iterating the map per frame. The mutable fields are the per-frame resolved state the
-// scene description reads; `kind` says which lane (attachments or meshes) the record renders into.
+// One slot's render binding. A slot gets a record when it has at least one region OR mesh attachment in
+// ANY skin (PP-C6 runtime skin switching); `regionEntries` and `meshEntries` hold every region / mesh
+// attachment under the slot ACROSS ALL SKINS, keyed by the attachment object identity, so an authored
+// attachment swap OR a live skin switch re-resolves the active geometry per frame with no structural
+// change (the sprite and the mesh displays coexist, one visible at a time). `meshList` is the same mesh
+// displays as an array for allocation-free draw-order iteration. The pooled sprite serves the region
+// path; each mesh attachment owns its scene-built Mesh display (mesh-display.ts). `activeMesh` tracks the
+// currently shown mesh so swapping away hides it in O(1). The mutable fields are the per-frame resolved
+// state the scene description reads; `kind` says which lane (attachments or meshes) the record renders.
 interface AttachmentRecord {
   readonly slot: string;
   readonly slotIndex: number;
   readonly boneIndex: number;
   readonly sprite: Sprite;
-  readonly regionsByName: ReadonlyMap<string, RegionEntry>;
-  readonly meshesByName: ReadonlyMap<string, MeshDisplay>;
+  readonly regionEntries: ReadonlyMap<Attachment, RegionEntry>;
+  readonly meshEntries: ReadonlyMap<Attachment, MeshDisplay>;
+  readonly meshList: readonly MeshDisplay[];
   activeMesh: MeshDisplay | null;
   kind: 'region' | 'mesh';
   visible: boolean;
@@ -131,6 +138,16 @@ interface CachedScene {
   readonly pose: Pose;
   readonly boneRecords: readonly BoneRecord[];
   readonly attachmentRecords: readonly AttachmentRecord[];
+  // The runtime skin selection (PP-C6): built from the document, active skin driven by setActiveSkin.
+  // Resolving a slot's presented attachment reads the pose's active-attachment name through this state.
+  readonly skinState: SkinState;
+  // Records indexed by slot index (null for a slot with no region / mesh attachment), so draw-order
+  // application can walk pose.drawOrder (renderPosition -> slotIndex) and reorder the layer children.
+  readonly recordsBySlot: readonly (AttachmentRecord | null)[];
+  // The last-applied render order (drawOrder[renderPosition] = slotIndex). Initialized to the setup
+  // (identity) order the children are built in, so a setup frame reorders nothing; a frame whose solved
+  // pose.drawOrder differs re-appends the attachment displays in the new order (PP-C6). Mutated in place.
+  readonly lastDrawOrder: Int32Array;
 }
 
 // PixiJS view of a skeleton, at its setup pose (WP-0.5) or sampled at an animation time (WP-1.10). It
@@ -162,6 +179,11 @@ export class SkeletonView {
   // Region textures are bound at scene build, so changing the resolver invalidates the cached scene.
   private resolver: RegionTextureResolver | null = null;
 
+  // The desired active skin (PP-C6). Applied to the cached scene's SkinState when a scene is built or when
+  // setActiveSkin is called with a scene present. Persists across document rebuilds so a re-sync keeps the
+  // costume; an unknown skin for a newly built document surfaces UnknownSkinError from runtime-core.
+  private activeSkinName: string = DEFAULT_SKIN_NAME;
+
   // Reused scratch for reading a bone's world matrix out of the pose buffer to feed placeRegion, so the
   // per-frame attachment loop allocates only the region product (runtime-core's multiply), nothing else.
   private readonly boneWorldScratch: [number, number, number, number, number, number] = [
@@ -184,6 +206,29 @@ export class SkeletonView {
   setTextureResolver(resolver: RegionTextureResolver | null): void {
     this.resolver = resolver;
     this.cached = null;
+  }
+
+  // Switch the active skin (PP-C6 runtime skin switching). Delegates to runtime-core's setActiveSkin over
+  // the cached scene's SkinState (fail-loud UnknownSkinError for a skin the document does not define), and
+  // remembers the name so a later document rebuild re-applies it. Recycles the pooled display objects: no
+  // rebuild, the next render re-resolves each slot's presented attachment under the new skin and shows the
+  // matching pooled sprite / mesh display. The view does NOT auto-repaint; the host re-syncs (or the next
+  // animated frame) to draw the switch, matching setTextureResolver. Attachment geometry an active skin
+  // does not define falls back to the default skin (runtime-core resolveSlotAttachment), so a costume skin
+  // can override some slots and inherit the rest.
+  setActiveSkin(skinName: string): void {
+    this.activeSkinName = skinName;
+    if (this.cached !== null) setActiveSkin(this.cached.skinState, skinName);
+  }
+
+  // The active skin name (the cached scene's, or the pending desired name before a scene is built).
+  getActiveSkin(): string {
+    return this.cached?.skinState.activeSkin ?? this.activeSkinName;
+  }
+
+  // The skin names the current document defines (empty before a scene is built).
+  getSkinNames(): readonly string[] {
+    return this.cached?.skinState.skinNames ?? [];
   }
 
   // Validate, solve, and render a document at its SETUP pose. The document is validated via
@@ -277,10 +322,14 @@ export class SkeletonView {
       bones.push({ name: record.name, length: record.length, transform });
     }
 
+    // Walk the solved render order (PP-C6) so the snapshot reflects the drawn z-order: a setup / no-key
+    // frame has the identity order, so this equals slot order (unchanged for existing callers).
     const attachments: AttachmentRender[] = [];
     const meshes: MeshRender[] = [];
-    for (const record of scene.attachmentRecords) {
-      if (!record.visible) continue;
+    const drawOrder = scene.pose.drawOrder;
+    for (let pos = 0; pos < drawOrder.length; pos += 1) {
+      const record = scene.recordsBySlot[drawOrder[pos]!];
+      if (record === undefined || record === null || !record.visible) continue;
       if (record.kind === 'mesh') {
         const active = record.activeMesh!;
         meshes.push({
@@ -339,7 +388,29 @@ export class SkeletonView {
     const pose = buildPose(document);
     const boneRecords = this.buildBoneRecords(document);
     const attachmentRecords = this.buildAttachmentRecords(document, pose);
-    const scene: CachedScene = { document, pose, boneRecords, attachmentRecords };
+
+    const recordsBySlot = new Array<AttachmentRecord | null>(pose.slotCount).fill(null);
+    for (const record of attachmentRecords) recordsBySlot[record.slotIndex] = record;
+
+    // The children are built in slot order (records skip slots with no region / mesh), which equals the
+    // identity render order over those slots. Seed lastDrawOrder to identity so a setup / no-key frame
+    // reorders nothing; only a solved pose.drawOrder that differs triggers a re-append (PP-C6).
+    const lastDrawOrder = new Int32Array(pose.slotCount);
+    for (let i = 0; i < pose.slotCount; i += 1) lastDrawOrder[i] = i;
+
+    const skinState = buildSkinState(document);
+    // Fail loud if the remembered skin is not defined by this document (runtime-core UnknownSkinError).
+    if (this.activeSkinName !== DEFAULT_SKIN_NAME) setActiveSkin(skinState, this.activeSkinName);
+
+    const scene: CachedScene = {
+      document,
+      pose,
+      boneRecords,
+      attachmentRecords,
+      skinState,
+      recordsBySlot,
+      lastDrawOrder,
+    };
     this.cached = scene;
     return scene;
   }
@@ -359,20 +430,15 @@ export class SkeletonView {
     return records;
   }
 
-  // Build one record (and pooled sprite) per slot whose SETUP attachment resolves to a region or a mesh
-  // in the default skin, in slot (draw) order. `regionsByName` and `meshesByName` capture every region /
-  // mesh attachment under the slot so a swap timeline can re-resolve the active geometry per frame
-  // without any structural change; null or an unresolved active name hides the slot (renderFromPose).
-  // The document is validated, so references resolve. After the sprite pool is sized, the layer children
-  // are re-appended in record order, each slot's sprite and mesh displays adjacent, so the layer's child
-  // order IS the draw order whichever kind a slot currently shows.
+  // Build one record (and pooled sprite) per slot that has at least one region OR mesh attachment in ANY
+  // skin, in slot order. `regionEntries` and `meshEntries` capture every region / mesh attachment under
+  // the slot ACROSS ALL SKINS, keyed by the attachment object identity, so an authored attachment swap
+  // OR a live skin switch (PP-C6) re-resolves the active geometry per frame without any structural
+  // change. The document is validated, so references resolve. After the sprite pool is sized, the layer
+  // children are appended in record (setup draw) order, each slot's sprite and mesh displays adjacent;
+  // per-frame draw-order changes re-append them through applyDrawOrder.
   private buildAttachmentRecords(document: SkeletonDocument, pose: Pose): AttachmentRecord[] {
     this.releaseMeshDisplays();
-    const defaultSkin = findDefaultSkin(document);
-    if (defaultSkin === undefined) {
-      this.resizeAttachments(0);
-      return [];
-    }
 
     // Region-name -> AtlasRegion, so a region attachment can read its trim (PP-C1) off the document atlas
     // (the resolver hands back only a Texture, never the trim). Built once per scene, not per attachment.
@@ -384,50 +450,55 @@ export class SkeletonView {
       const boneIndex = pose.slotBoneIndices[slotIndex]!;
       if (boneIndex < 0) continue;
 
-      const bySlot = defaultSkin.attachments[slot.name];
-      if (bySlot === undefined || slot.attachment === null) continue;
-      const setupAttachment = bySlot[slot.attachment];
-      if (
-        setupAttachment === undefined ||
-        (setupAttachment.type !== 'region' && setupAttachment.type !== 'mesh')
-      ) {
-        continue;
-      }
-
-      const regionsByName = new Map<string, RegionEntry>();
-      const meshesByName = new Map<string, MeshDisplay>();
-      for (const [name, attachment] of Object.entries(bySlot)) {
-        if (attachment.type === 'region') {
-          // Resolve the region's texture now (constant per scene). Normalize the unit-quad sizing by the
-          // ACTUAL texture dimensions, using Texture.WHITE's dimensions when there is no resolved texture,
-          // so the placeholder and a real texture land the quad in the same world place (handoff 8.9). A
-          // trimmed region (PP-C1) additionally offsets the quad to where its untrimmed original sat; the
-          // trim comes from the document atlas (undefined for an untrimmed region, keeping that path
-          // byte-identical). For a rotated texture, texture.width/height report the LOGICAL (unrotated)
-          // size PixiJS's rotate=2 reconstructs, so the trim math is orientation-independent here.
-          const texture = this.resolver?.(attachment.path) ?? null;
-          const source = texture ?? Texture.WHITE;
-          const trim = regionTrimFor(atlasRegions.get(attachment.path));
-          const sizedForSprite = sizeForTexture(
-            computeRegionSized(attachment),
-            source.width,
-            source.height,
-            trim,
-          );
-          regionsByName.set(name, { region: attachment, texture, sizedForSprite });
-        } else if (attachment.type === 'mesh') {
-          const entry = createMeshDisplay(attachment, this.resolver?.(attachment.path) ?? null);
-          meshesByName.set(name, entry);
-          this.meshDisplays.push(entry);
+      const regionEntries = new Map<Attachment, RegionEntry>();
+      const meshEntries = new Map<Attachment, MeshDisplay>();
+      const meshList: MeshDisplay[] = [];
+      // Gather every region / mesh attachment for this slot across ALL skins. The same attachment name in
+      // two skins is two distinct attachment objects, so keying by object identity never collides; the
+      // per-frame resolve (via the SkinState) picks the one the active skin presents.
+      for (const skin of document.skins) {
+        const bySlot = skin.attachments[slot.name];
+        if (bySlot === undefined) continue;
+        for (const attachment of Object.values(bySlot)) {
+          if (attachment.type === 'region') {
+            if (regionEntries.has(attachment)) continue;
+            // Resolve the region's texture now (constant per scene). Normalize the unit-quad sizing by the
+            // ACTUAL texture dimensions, using Texture.WHITE's dimensions when there is no resolved
+            // texture, so the placeholder and a real texture land the quad in the same world place (handoff
+            // 8.9). A trimmed region (PP-C1) additionally offsets the quad to where its untrimmed original
+            // sat; the trim comes from the document atlas (undefined for an untrimmed region, keeping that
+            // path byte-identical). For a rotated texture, texture.width/height report the LOGICAL size
+            // PixiJS's rotate=2 reconstructs, so the trim math is orientation-independent here.
+            const texture = this.resolver?.(attachment.path) ?? null;
+            const source = texture ?? Texture.WHITE;
+            const trim = regionTrimFor(atlasRegions.get(attachment.path));
+            const sizedForSprite = sizeForTexture(
+              computeRegionSized(attachment),
+              source.width,
+              source.height,
+              trim,
+            );
+            regionEntries.set(attachment, { region: attachment, texture, sizedForSprite });
+          } else if (attachment.type === 'mesh') {
+            if (meshEntries.has(attachment)) continue;
+            const entry = createMeshDisplay(attachment, this.resolver?.(attachment.path) ?? null);
+            meshEntries.set(attachment, entry);
+            meshList.push(entry);
+            this.meshDisplays.push(entry);
+          }
         }
       }
+
+      // A slot with no region / mesh in any skin renders nothing (a clipping / point / bone-only slot).
+      if (regionEntries.size === 0 && meshEntries.size === 0) continue;
 
       drafts.push({
         slot: slot.name,
         slotIndex,
         boneIndex,
-        regionsByName,
-        meshesByName,
+        regionEntries,
+        meshEntries,
+        meshList,
         activeMesh: null,
         kind: 'region',
         visible: false,
@@ -443,16 +514,16 @@ export class SkeletonView {
     this.resizeAttachments(drafts.length);
     const records = drafts.map((draft, i) => ({ ...draft, sprite: this.attachmentSprites[i]! }));
 
-    // Re-append in draw order (addChild moves an existing child to the end, so this is a pure reorder),
-    // and stamp the slot's blend mode onto its displays. Blend mode is per-slot document state (not
-    // animatable in this format version), so build time is the one place it is assigned; the mapping is
-    // the same blendModeToPixi the particle renderer uses (phase-3 section 7.4: no second blend path).
-    // Sprites are pooled across documents, so the assignment must not be skipped on rebuild.
+    // Append in setup draw order (slot order), and stamp the slot's blend mode onto its displays. Blend
+    // mode is per-slot document state (not animatable in this format version), so build time is the one
+    // place it is assigned; the mapping is the same blendModeToPixi the particle renderer uses (phase-3
+    // section 7.4: no second blend path). Sprites are pooled across documents, so the assignment must not
+    // be skipped on rebuild. addChild moves an existing child to the end, so this is a pure reorder.
     for (const record of records) {
       const pixiBlend = blendModeToPixi(document.slots[record.slotIndex]!.blendMode);
       record.sprite.blendMode = pixiBlend;
       this.attachmentsLayer.addChild(record.sprite);
-      for (const entry of record.meshesByName.values()) {
+      for (const entry of record.meshList) {
         entry.display.blendMode = pixiBlend;
         this.attachmentsLayer.addChild(entry.display);
       }
@@ -487,18 +558,15 @@ export class SkeletonView {
     }
 
     const slotColor = scene.pose.slotColor;
-    const slotAttachment = scene.pose.slotAttachment;
     const scratch = this.boneWorldScratch;
     for (const record of scene.attachmentRecords) {
-      const activeName = slotAttachment[record.slotIndex];
-      const entry =
-        activeName === null || activeName === undefined
-          ? undefined
-          : record.regionsByName.get(activeName);
+      // Resolve the slot's presented attachment under the active skin (PP-C6): the solved pose carries the
+      // active-attachment NAME; the SkinState maps (active skin, then default fallback) to the geometry.
+      const resolved = resolveActive(scene, record.slotIndex);
+      const attachment = resolved?.attachment ?? null;
+      const entry = attachment === null ? undefined : record.regionEntries.get(attachment);
       const meshEntry =
-        entry !== undefined || activeName === null || activeName === undefined
-          ? undefined
-          : record.meshesByName.get(activeName);
+        entry !== undefined || attachment === null ? undefined : record.meshEntries.get(attachment);
 
       // Swapping away from a mesh (to a region, another mesh, or nothing) hides the old display in O(1).
       if (record.activeMesh !== null && record.activeMesh !== meshEntry) {
@@ -506,17 +574,18 @@ export class SkeletonView {
         record.activeMesh = null;
       }
 
-      if (meshEntry !== undefined && activeName !== null && activeName !== undefined) {
-        this.renderMesh(scene, record, meshEntry, activeName, animationId, t);
+      if (meshEntry !== undefined && resolved !== null) {
+        this.renderMesh(scene, record, meshEntry, resolved.name, resolved.skinName, animationId, t);
         continue;
       }
 
-      if (entry === undefined || activeName === null || activeName === undefined) {
+      if (entry === undefined || resolved === null) {
         record.visible = false;
         record.sprite.visible = false;
         continue;
       }
 
+      const activeName = resolved.name;
       const region = entry.region;
       const colorBase = record.slotIndex * SLOT_COLOR_STRIDE;
       const tint = packTint(
@@ -565,18 +634,53 @@ export class SkeletonView {
       record.alpha = alpha;
       record.spriteWorld = spriteWorld;
     }
+
+    // Reorder the attachment layer's children to the solved render order (PP-C6), if it changed this frame.
+    this.applyDrawOrder(scene);
+  }
+
+  // Re-append the attachment displays to match the solved render order (ADR-0008 draw order, PP-C6):
+  // pose.drawOrder[renderPosition] = slotIndex, renderPosition 0 furthest back. Only runs when the order
+  // differs from the last applied one (a setup / no-key frame keeps the built slot order, so this is a
+  // no-op then). addChild moves an existing child to the end, so walking render positions and re-appending
+  // each slot's sprite then its mesh displays yields exactly the drawOrder child order; the visible
+  // display of each slot lands in that slot's contiguous block. Allocation-free in the common (unchanged)
+  // case; a reorder only happens when a draw-order key changes the permutation.
+  private applyDrawOrder(scene: CachedScene): void {
+    const order = scene.pose.drawOrder;
+    const last = scene.lastDrawOrder;
+    let changed = false;
+    for (let i = 0; i < order.length; i += 1) {
+      if (order[i] !== last[i]) {
+        changed = true;
+        break;
+      }
+    }
+    if (!changed) return;
+
+    last.set(order);
+    const layer = this.attachmentsLayer;
+    for (let pos = 0; pos < order.length; pos += 1) {
+      const record = scene.recordsBySlot[order[pos]!];
+      if (record === undefined || record === null) continue;
+      layer.addChild(record.sprite);
+      for (const entry of record.meshList) layer.addChild(entry.display);
+    }
   }
 
   // Render one slot's active MESH attachment: solve its world-space vertices into the geometry's own
   // position buffer (in place, zero allocation), mark the buffer dirty, and apply the slot-times-mesh
   // color. Setup pose (animationId null) is the pure skin of the current bone worlds; an animated frame
   // adds the sampled deform on top via sampleMeshVertices, the exact call site the WP-2.11 parity test
-  // asserts against. The mesh display's local transform stays identity: the vertices ARE world space.
+  // asserts against. `skinName` is the skin that owns the resolved attachment (active or default fallback,
+  // PP-C6), so the deform timeline is read from the correct skin. The display's local transform stays
+  // identity: the vertices ARE world space.
   private renderMesh(
     scene: CachedScene,
     record: AttachmentRecord,
     entry: MeshDisplay,
     activeName: string,
+    skinName: string,
     animationId: string | null,
     t: number,
   ): void {
@@ -588,7 +692,7 @@ export class SkeletonView {
         animationId,
         t,
         scene.pose,
-        DEFAULT_SKIN_NAME,
+        skinName,
         record.slot,
         activeName,
         entry.positions,
@@ -675,8 +779,28 @@ function resetSlotsToSetup(pose: Pose): void {
   }
 }
 
-function findDefaultSkin(document: SkeletonDocument): Skin | undefined {
-  return document.skins.find((skin) => skin.name === 'default');
+// Resolve the geometry a slot presents this frame under the active skin (PP-C6), returning the attachment
+// object, the name the solve resolved (pose.slotAttachment), and the skin that OWNS the attachment (active
+// or default fallback), the last of which the mesh deform read needs. Mirrors runtime-core's
+// resolveAttachment fallback exactly (active skin first, then the default skin), reading only the
+// SkinState's public fields; returns null when the slot has no active attachment or the skins do not
+// define it. Allocation-free: Map.get plus a small record, no key construction.
+function resolveActive(
+  scene: CachedScene,
+  slotIndex: number,
+): { attachment: Attachment; name: string; skinName: string } | null {
+  const name = scene.pose.slotAttachment[slotIndex];
+  if (name === null || name === undefined) return null;
+  const slotName = scene.pose.slotNames[slotIndex];
+  if (slotName === undefined) return null;
+
+  const state = scene.skinState;
+  const fromActive = state.bySkin.get(state.activeSkin)?.get(slotName)?.get(name);
+  if (fromActive !== undefined) return { attachment: fromActive, name, skinName: state.activeSkin };
+  if (state.activeSkin === DEFAULT_SKIN_NAME) return null;
+  const fromDefault = state.defaultSkin.get(slotName)?.get(name);
+  if (fromDefault === undefined) return null;
+  return { attachment: fromDefault, name, skinName: DEFAULT_SKIN_NAME };
 }
 
 // Index the document atlas by region name so a region attachment can look up its trim by path. Region

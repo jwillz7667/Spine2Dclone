@@ -1003,7 +1003,9 @@ export class DocumentModelInternal implements DocumentReadModel {
       const nextInner = remapAttachmentMapWeighted(skin.attachments, translate);
       if (nextInner !== skin.attachments) {
         skinsChanged = true;
-        nextSkins.set(id, { id: skin.id, name: skin.name, attachments: nextInner });
+        // Preserve the Stage F2 (ADR-0009 section 5) skin-scoping name lists through the rebuild; a bone
+        // reorder that triggers the weighted-mesh remap must not silently drop a skin's bones/constraints.
+        nextSkins.set(id, { id: skin.id, name: skin.name, attachments: nextInner, ...skinScoping(skin) });
       } else {
         nextSkins.set(id, skin);
       }

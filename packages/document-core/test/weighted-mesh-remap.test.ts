@@ -1,5 +1,11 @@
 import { decodeWeightedVertices } from '@marionette/format';
-import type { Bone, MeshAttachment, SkeletonDocument } from '@marionette/format/types';
+import type {
+  Bone,
+  MeshAttachment,
+  SkeletonDocument,
+  Skin,
+  TransformConstraint,
+} from '@marionette/format/types';
 import {
   buildPose,
   computeWorldTransforms,
@@ -260,6 +266,87 @@ describe('weighted-mesh bone-index remap across bone-order changes', () => {
 
     doc.history.undo();
     expect(doc.model.snapshot()).toEqual(snapBefore);
+  });
+
+  // PP-D10 slice 7 regression: a NAMED skin carrying Stage F2 (ADR-0009 section 5) scoping lists AND a
+  // weighted mesh must keep its bones/constraints scoping when a bone reorder fires the mesh remap (the
+  // remap rebuilds the changed skin, and the rebuild previously dropped the scoping fields).
+  it('preserves a scoped skin bones/constraints lists across the weighted-mesh remap', () => {
+    const weighted: MeshAttachment = {
+      type: 'mesh',
+      path: 'skin_panel',
+      uvs: [0, 0, 1, 0, 1, 1, 0, 1],
+      triangles: [0, 1, 2, 0, 2, 3],
+      hullLength: 4,
+      width: 64,
+      height: 64,
+      color: WHITE,
+      // Each vertex is influenced by GLOBAL bone indices 0 (root) and 1 (b0), encoded as
+      // [count, (boneIndex, vx, vy, weight)*count]. A bone that inserts earlier shifts b0's index.
+      vertices: [
+        2, 0, 0, 0, 0.5, 1, 0, 0, 0.5, 2, 0, 64, 0, 0.5, 1, 64, 0, 0.5, 2, 0, 64, 64, 0.5, 1, 64,
+        64, 0.5, 2, 0, 0, 64, 0.5, 1, 0, 64, 0.5,
+      ],
+      bones: [0, 1],
+    };
+    const costume: Skin = {
+      name: 'costume',
+      bones: ['b1', 'b2'],
+      constraints: ['follow'],
+      attachments: { mesh_slot: { panel: weighted } },
+    };
+    const follow: TransformConstraint = {
+      name: 'follow',
+      bones: ['b3'],
+      target: 'b0',
+      mixRotate: 1,
+      mixX: 0,
+      mixY: 0,
+      mixScaleX: 0,
+      mixScaleY: 0,
+      mixShearY: 0,
+      offsetRotation: 0,
+      offsetX: 0,
+      offsetY: 0,
+      offsetScaleX: 0,
+      offsetScaleY: 0,
+      offsetShearY: 0,
+      local: false,
+      relative: false,
+    };
+    const base = makeDoc(['b0', 'b1', 'b2', 'b3']);
+    const scopedDoc: SkeletonDocument = {
+      ...base,
+      formatVersion: '0.4.0',
+      ikConstraints: [],
+      transformConstraints: [follow],
+      events: [],
+      // The slot carries no setup attachment (the mesh lives only in the named skin), and the default skin
+      // stays empty; the named 'costume' skin holds the weighted mesh plus its scoping lists.
+      slots: [{ name: 'mesh_slot', bone: 'root', color: WHITE, attachment: null, blendMode: 'normal' }],
+      skins: [{ name: 'default', attachments: {} }, costume],
+    };
+
+    const { env } = makeTestEnv();
+    const doc = loadDocument(scopedDoc, env);
+    const costumeBefore = doc.model.skins().find((s) => s.name === 'costume');
+    expect(costumeBefore?.bones).toEqual(['b1', 'b2']);
+    expect(costumeBefore?.constraints).toEqual(['follow']);
+
+    // Insert a child of root at index 1: b0 (a weighted influence) shifts up, firing the skin remap.
+    const newId = doc.ids.mint('bone');
+    doc.history.execute(
+      new CreateBoneCommand(newId, boneIdByName(doc, 'root'), boneGeom('inserted', 25)),
+    );
+
+    const costumeAfter = doc.model.skins().find((s) => s.name === 'costume');
+    expect(costumeAfter?.bones).toEqual(['b1', 'b2']); // scoping lists survived the rebuild
+    expect(costumeAfter?.constraints).toEqual(['follow']);
+    // And the export still carries them.
+    const exported = exportDocument(doc.model);
+    const exportedCostume = exported.skins.find((s) => s.name === 'costume');
+    expect(exportedCostume?.bones).toEqual(['b1', 'b2']);
+    expect(exportedCostume?.constraints).toEqual(['follow']);
   });
 
   it('preserves skinning across an export/load round-trip when creation order differs from export order', () => {

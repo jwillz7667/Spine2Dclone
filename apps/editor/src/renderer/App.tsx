@@ -3,6 +3,7 @@ import { useEffect, type ReactElement } from 'react';
 import {
   AnimationPanel,
   AssetsPanel,
+  ConstraintsPanel,
   CurveEditorPanel,
   DopesheetPanel,
   DrawOrderPanel,
@@ -31,6 +32,7 @@ const components = {
   events: EventsPanel,
   draworder: DrawOrderPanel,
   skins: SkinsPanel,
+  constraints: ConstraintsPanel,
 };
 
 // Default layout: hierarchy left, viewport center, inspector right, and an animation-authoring strip
@@ -82,6 +84,14 @@ function onReady(event: DockviewReadyEvent): void {
     id: 'skins',
     component: 'skins',
     title: 'Skins',
+    position: { referencePanel: inspector, direction: 'within' },
+  });
+  // The Constraints panel (PP-D10) tabs alongside the Inspector group on the right: it edits IK (and, in the
+  // following slices, transform) constraints over the same document + single undo stack as the skeleton.
+  event.api.addPanel({
+    id: 'constraints',
+    component: 'constraints',
+    title: 'Constraints',
     position: { referencePanel: inspector, direction: 'within' },
   });
   // The animation manager (WP-1.9) anchors the bottom strip: it manages the named animations the dopesheet

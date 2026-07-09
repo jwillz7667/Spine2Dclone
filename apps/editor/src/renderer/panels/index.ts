@@ -10,3 +10,4 @@ export { SlotPanel } from './slot-panel';
 export { EventsPanel } from './events-panel';
 export { DrawOrderPanel } from './draw-order-panel';
 export { SkinsPanel } from './skins-panel';
+export { ConstraintsPanel } from './constraints-panel';

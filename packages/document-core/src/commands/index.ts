@@ -43,6 +43,18 @@ export {
   setAttachmentSequenceSpec,
 } from './set-attachment-sequence.command';
 export {
+  SetSequenceKeyframeCommand,
+  setSequenceKeyframeSpec,
+} from './set-sequence-keyframe.command';
+export {
+  MoveSequenceKeyframeCommand,
+  moveSequenceKeyframeSpec,
+} from './move-sequence-keyframe.command';
+export {
+  DeleteSequenceKeyframeCommand,
+  deleteSequenceKeyframeSpec,
+} from './delete-sequence-keyframe.command';
+export {
   SetActiveAttachmentCommand,
   setActiveAttachmentSpec,
 } from './set-active-attachment.command';

@@ -5,6 +5,7 @@ import type {
   Attachment,
   CurveType,
   IkConstraint,
+  SequenceMode,
   Skin,
   SkeletonDocument,
   TransformConstraint,
@@ -27,6 +28,7 @@ import type {
   IkKeyframeEntity,
   KeyframeEntity,
   KeyframeValue,
+  SequenceKeyframeEntity,
   SkinEntity,
   SlotEntity,
   SlotTimelineSet,
@@ -42,6 +44,7 @@ import {
   makeIkKeyframe,
   makeKeyframe,
   makeLinkedMeshAttachment,
+  makeSequenceKeyframe,
   makeTransformKeyframe,
 } from '../model/doc-state';
 import { defaultSlotSceneState } from '../model/slot-scene';
@@ -510,16 +513,25 @@ function loadSlotTimelines(
   timelines: SkeletonDocument['animations'][string]['slots'][string],
   ids: IdFactory,
 ): SlotTimelineSet {
-  // The joint color and attachment channels become first-class; the Stage F2 (ADR-0009 sections 4.2, 4.3,
-  // 3) split rgb/alpha, keyable dark, and sequence tracks are carried verbatim (PP-D10).
+  // The joint color/attachment channels and the frame-sequence channel become first-class id-keyed entities;
+  // the Stage F2 (ADR-0009 sections 4.2, 4.3) split rgb/alpha and keyable dark tracks are carried verbatim
+  // (PP-D10).
   return {
     color: loadKeyframes(timelines.color, ids),
     attachment: loadAttachmentFrames(timelines.attachment, ids),
+    sequence: loadSequenceKeyframes(timelines.sequence, ids),
     ...(timelines.rgb !== undefined ? { rgb: carry(timelines.rgb) } : {}),
     ...(timelines.alpha !== undefined ? { alpha: carry(timelines.alpha) } : {}),
     ...(timelines.dark !== undefined ? { dark: carry(timelines.dark) } : {}),
-    ...(timelines.sequence !== undefined ? { sequence: carry(timelines.sequence) } : {}),
   };
+}
+
+function loadSequenceKeyframes(
+  keys: ReadonlyArray<{ time: number; mode: SequenceMode; index: number; delay: number }> | undefined,
+  ids: IdFactory,
+): SequenceKeyframeEntity[] {
+  if (keys === undefined) return [];
+  return keys.map((k) => makeSequenceKeyframe(ids.mint('keyframe'), k.time, k.mode, k.index, k.delay));
 }
 
 function loadIkFrames(

@@ -4,6 +4,7 @@ import type {
   CurveType,
   RGBA,
   Sequence,
+  SequenceMode,
   SkeletonMeta,
   TransformMode,
 } from '@marionette/format/types';
@@ -27,6 +28,7 @@ import type {
   KeyframeEntity,
   KeyframeValue,
   PreservedContent,
+  SequenceKeyframeEntity,
   SkinEntity,
   SlotEntity,
   TransformConstraintEntity,
@@ -207,6 +209,15 @@ export interface AttachmentFrameSnapshot {
   readonly name: string | null;
 }
 
+// A plain slot sequence-keyframe projection (PP-D10), value copies in time order.
+export interface SequenceKeyframeSnapshot {
+  readonly id: string;
+  readonly time: number;
+  readonly mode: SequenceMode;
+  readonly index: number;
+  readonly delay: number;
+}
+
 // A plain per-bone timeline projection, keyed by the internal BoneId string (a reference, stable across
 // a bone rename), with each channel in time order.
 export interface BoneTimelineSnapshot {
@@ -222,6 +233,7 @@ export interface SlotTimelineSnapshot {
   readonly slotId: string;
   readonly color: readonly KeyframeSnapshot[];
   readonly attachment: readonly AttachmentFrameSnapshot[];
+  readonly sequence: readonly SequenceKeyframeSnapshot[];
 }
 
 // Plain IK / transform / deform keyframe projections (WP-2.6/2.7/2.9), value copies in time order.
@@ -534,6 +546,10 @@ function attachmentFrameToSnapshot(frame: AttachmentFrameEntity): AttachmentFram
   return { id: frame.id, time: frame.time, name: frame.name };
 }
 
+function sequenceKeyframeToSnapshot(k: SequenceKeyframeEntity): SequenceKeyframeSnapshot {
+  return { id: k.id, time: k.time, mode: k.mode, index: k.index, delay: k.delay };
+}
+
 function ikKeyframeToSnapshot(kf: IkKeyframeEntity): IkKeyframeSnapshot {
   return {
     id: kf.id,
@@ -618,6 +634,7 @@ export function animationToSnapshot(animation: AnimationEntity): AnimationSnapsh
       slotId,
       color: set.color.map(keyframeToSnapshot),
       attachment: set.attachment.map(attachmentFrameToSnapshot),
+      sequence: set.sequence.map(sequenceKeyframeToSnapshot),
     });
   }
   slots.sort((a, b) => (a.slotId < b.slotId ? -1 : a.slotId > b.slotId ? 1 : 0));

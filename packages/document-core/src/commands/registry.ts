@@ -94,6 +94,9 @@ import { reorderConstraintsSpec } from './reorder-constraints.command';
 import { createLinkedMeshSpec } from './create-linked-mesh.command';
 import { unlinkMeshSpec } from './unlink-mesh.command';
 import { setAttachmentSequenceSpec } from './set-attachment-sequence.command';
+import { setSequenceKeyframeSpec } from './set-sequence-keyframe.command';
+import { moveSequenceKeyframeSpec } from './move-sequence-keyframe.command';
+import { deleteSequenceKeyframeSpec } from './delete-sequence-keyframe.command';
 import { setMeshEdgesSpec } from './set-mesh-edges.command';
 import { setRegionAttachmentTransformSpec } from './set-region-attachment-transform.command';
 import { setSlotBlendModeSpec } from './set-slot-blend-mode.command';
@@ -128,6 +131,10 @@ export const commandRegistry: readonly CommandSpec[] = [
   unlinkMeshSpec,
   // PP-D10 (Stage F2) attachment frame-sequence
   setAttachmentSequenceSpec,
+  // PP-D10 (Stage F2) slot sequence timeline
+  setSequenceKeyframeSpec,
+  moveSequenceKeyframeSpec,
+  deleteSequenceKeyframeSpec,
   removeAttachmentSpec,
   setActiveAttachmentSpec,
   setAtlasRefSpec,

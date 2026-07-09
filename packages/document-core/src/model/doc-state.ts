@@ -7,6 +7,7 @@ import type {
   CurveType,
   RegionAttachment,
   RGBA,
+  SequenceMode,
   SkeletonMeta,
   SlotTimelines,
   TransformMode,
@@ -20,7 +21,6 @@ type CarriedScalarTrack = NonNullable<BoneTimelines['translateX']>;
 type CarriedRgbTrack = NonNullable<SlotTimelines['rgb']>;
 type CarriedAlphaTrack = NonNullable<SlotTimelines['alpha']>;
 type CarriedDarkTrack = NonNullable<SlotTimelines['dark']>;
-type CarriedSequenceTrack = NonNullable<SlotTimelines['sequence']>;
 type CarriedSequence = NonNullable<RegionAttachment['sequence']>;
 import type {
   AnimationId,
@@ -270,18 +270,32 @@ export interface BoneTimelineSet {
   readonly shearY?: CarriedScalarTrack;
 }
 
+// A keyed slot frame-sequence entry (Stage F2, ADR-0009 section 3; promoted to editable by PP-D10). At
+// `time`, play the attachment's frame sequence from frame `index` in `mode` at `delay` seconds per frame. No
+// curve (a discrete playback-state change); key times are strict-ascending. Immutable and deep-frozen
+// (makeSequenceKeyframe), so it is shared by reference without aliasing.
+export interface SequenceKeyframeEntity {
+  readonly id: KeyframeId;
+  readonly time: number;
+  readonly mode: SequenceMode;
+  readonly index: number;
+  readonly delay: number;
+}
+
 // Per-slot timelines (Phase 1 subset): the color tint timeline (interpolated, curved) and the stepped
-// attachment-swap timeline. A slot with both empty owns no entry in an animation's `slots` map.
+// attachment-swap timeline. A slot with everything empty owns no entry in an animation's `slots` map.
 export interface SlotTimelineSet {
   readonly color: readonly KeyframeEntity[];
   readonly attachment: readonly AttachmentFrameEntity[];
-  // Stage F2 (ADR-0009 sections 4.2, 4.3, 3) split rgb/alpha color tracks, the keyable two-color `dark`
-  // tint, and the frame-`sequence` track, carried verbatim (no command authors them yet, PP-D10). The joint
-  // `color` and the split `rgb`/`alpha` never coexist on one slot (the format's TIMELINE_COMPONENT_CONFLICT).
+  // Stage F2 (ADR-0009 section 3) frame-`sequence` timeline, promoted to editable id-keyed entities (PP-D10),
+  // always present (empty when unused), like `color`/`attachment`.
+  readonly sequence: readonly SequenceKeyframeEntity[];
+  // Stage F2 (ADR-0009 sections 4.2, 4.3) split rgb/alpha color tracks and the keyable two-color `dark` tint,
+  // carried verbatim (no command authors them yet, PP-D10). The joint `color` and the split `rgb`/`alpha`
+  // never coexist on one slot (the format's TIMELINE_COMPONENT_CONFLICT).
   readonly rgb?: CarriedRgbTrack;
   readonly alpha?: CarriedAlphaTrack;
   readonly dark?: CarriedDarkTrack;
-  readonly sequence?: CarriedSequenceTrack;
 }
 
 // A keyed IK-constraint frame (WP-2.6, format IkFrame): an internal `id`, a `time`, a `mix` blend, a
@@ -610,6 +624,18 @@ export function makeAttachmentFrame(
   return Object.freeze({ id, time, name });
 }
 
+// Construct an immutable slot sequence keyframe (PP-D10, no curve). Centralized so load, the commands, and
+// the internal freeze build sequence keys identically.
+export function makeSequenceKeyframe(
+  id: KeyframeId,
+  time: number,
+  mode: SequenceMode,
+  index: number,
+  delay: number,
+): SequenceKeyframeEntity {
+  return Object.freeze({ id, time, mode, index, delay });
+}
+
 // Construct an immutable, deep-frozen IK keyframe (WP-2.6). Centralized so the model, commands, and load
 // build IK frames the same way; the curve is frozen when it is a bezier (a string curve is a value type).
 export function makeIkKeyframe(
@@ -783,16 +809,16 @@ export function isBoneTimelineSetEmpty(set: BoneTimelineSet): boolean {
   );
 }
 
-// True when a slot timeline set carries no color keyframes and no attachment frames (the prune condition).
-// A carried F2 rgb/alpha/dark/sequence track (ADR-0009) counts as content so it is never pruned.
+// True when a slot timeline set carries no color/attachment/sequence keyframes (the prune condition). A
+// carried F2 rgb/alpha/dark track (ADR-0009) counts as content so it is never pruned.
 export function isSlotTimelineSetEmpty(set: SlotTimelineSet): boolean {
   return (
     set.color.length === 0 &&
     set.attachment.length === 0 &&
+    set.sequence.length === 0 &&
     set.rgb === undefined &&
     set.alpha === undefined &&
-    set.dark === undefined &&
-    set.sequence === undefined
+    set.dark === undefined
   );
 }
 

@@ -30,6 +30,7 @@ import type {
   PreservedContent,
   RegionAttachmentEntity,
   SkinEntity,
+  SequenceKeyframeEntity,
   SlotEntity,
   SlotTimelineSet,
   TransformConstraintEntity,
@@ -254,7 +255,7 @@ type CarriedBoneTracks = Pick<
   BoneTimelineSet,
   'translateX' | 'translateY' | 'scaleX' | 'scaleY' | 'shearX' | 'shearY'
 >;
-type CarriedSlotTracks = Pick<SlotTimelineSet, 'rgb' | 'alpha' | 'dark' | 'sequence'>;
+type CarriedSlotTracks = Pick<SlotTimelineSet, 'rgb' | 'alpha' | 'dark'>;
 
 interface MutableBoneTimelineSet extends CarriedBoneTracks {
   rotate: KeyframeEntity[];
@@ -268,7 +269,9 @@ interface MutableBoneTimelineSet extends CarriedBoneTracks {
 interface MutableSlotTimelineSet extends CarriedSlotTracks {
   color: KeyframeEntity[];
   attachment: AttachmentFrameEntity[];
-  // The carried rgb/alpha/dark/sequence tracks (from CarriedSlotTracks) are immutable frozen refs.
+  // The sequence timeline (PP-D10) is a first-class editable channel like color/attachment. The carried
+  // rgb/alpha/dark tracks (from CarriedSlotTracks) are immutable frozen refs.
+  sequence: SequenceKeyframeEntity[];
 }
 
 // Spread only the PRESENT carried F2 tracks (exactOptionalPropertyTypes) so an absent track stays absent
@@ -290,7 +293,6 @@ function carriedSlotTracks(set: SlotTimelineSet): CarriedSlotTracks {
     ...(set.rgb !== undefined ? { rgb: set.rgb } : {}),
     ...(set.alpha !== undefined ? { alpha: set.alpha } : {}),
     ...(set.dark !== undefined ? { dark: set.dark } : {}),
-    ...(set.sequence !== undefined ? { sequence: set.sequence } : {}),
   };
 }
 
@@ -327,7 +329,17 @@ function toMutableBoneSet(set: BoneTimelineSet): MutableBoneTimelineSet {
 }
 
 function toMutableSlotSet(set: SlotTimelineSet): MutableSlotTimelineSet {
-  return { color: set.color.slice(), attachment: set.attachment.slice(), ...carriedSlotTracks(set) };
+  return {
+    color: set.color.slice(),
+    attachment: set.attachment.slice(),
+    sequence: set.sequence.slice(),
+    ...carriedSlotTracks(set),
+  };
+}
+
+// A fresh empty mutable slot timeline set (the create-on-write base for the slot channel writers).
+function newMutableSlotSet(): MutableSlotTimelineSet {
+  return { color: [], attachment: [], sequence: [] };
 }
 
 // Deep-copy a deform map (fresh nested maps and sliced keyframe arrays) so an in-place edit to one copy
@@ -414,6 +426,7 @@ function cloneMutableAnimation(a: MutableAnimation): MutableAnimation {
     slots.set(id, {
       color: set.color.slice(),
       attachment: set.attachment.slice(),
+      sequence: set.sequence.slice(),
       ...carriedSlotTracks(set),
     });
   }
@@ -458,6 +471,7 @@ function freezeAnimation(a: MutableAnimation): AnimationEntity {
       Object.freeze({
         color: Object.freeze(set.color.slice()),
         attachment: Object.freeze(set.attachment.slice()),
+        sequence: Object.freeze(set.sequence.slice()),
         ...carriedSlotTracks(set),
       }),
     );
@@ -1275,11 +1289,11 @@ export class DocumentModelInternal implements DocumentReadModel {
       if (keyframes.length === 0) {
         if (!set) return;
         set.color = [];
-        if (set.attachment.length === 0) animation.slots.delete(slotId);
+        if (isSlotTimelineSetEmpty(set)) animation.slots.delete(slotId);
         return;
       }
       if (!set) {
-        set = { color: [], attachment: [] };
+        set = newMutableSlotSet();
         animation.slots.set(slotId, set);
       }
       set.color = keyframes.slice();
@@ -1287,9 +1301,9 @@ export class DocumentModelInternal implements DocumentReadModel {
   }
 
   // Replace a slot's attachment-swap frames (the stepped animation.slots[slot].attachment timeline). Same
-  // create-on-write / prune-on-empty contract as setSlotColorChannel; an existing color timeline on the
-  // slot keeps the entry alive even when the attachment channel goes empty. The caller passes an
-  // already-time-sorted array of immutable frames.
+  // create-on-write / prune-on-empty contract as setSlotColorChannel; another non-empty channel on the slot
+  // keeps the entry alive even when the attachment channel goes empty. The caller passes an already-time-
+  // sorted array of immutable frames.
   setSlotAttachmentChannel(
     animId: AnimationId,
     slotId: SlotId,
@@ -1300,14 +1314,37 @@ export class DocumentModelInternal implements DocumentReadModel {
       if (frames.length === 0) {
         if (!set) return;
         set.attachment = [];
-        if (set.color.length === 0) animation.slots.delete(slotId);
+        if (isSlotTimelineSetEmpty(set)) animation.slots.delete(slotId);
         return;
       }
       if (!set) {
-        set = { color: [], attachment: [] };
+        set = newMutableSlotSet();
         animation.slots.set(slotId, set);
       }
       set.attachment = frames.slice();
+    });
+  }
+
+  // Replace a slot's frame-sequence keyframes (PP-D10). Same create-on-write / prune-on-empty contract as the
+  // other slot channels; the caller passes an already-time-sorted (strict-ascending) array of immutable keys.
+  setSlotSequenceChannel(
+    animId: AnimationId,
+    slotId: SlotId,
+    keys: readonly SequenceKeyframeEntity[],
+  ): void {
+    this.writeAnimation(animId, (animation) => {
+      let set = animation.slots.get(slotId);
+      if (keys.length === 0) {
+        if (!set) return;
+        set.sequence = [];
+        if (isSlotTimelineSetEmpty(set)) animation.slots.delete(slotId);
+        return;
+      }
+      if (!set) {
+        set = newMutableSlotSet();
+        animation.slots.set(slotId, set);
+      }
+      set.sequence = keys.slice();
     });
   }
 

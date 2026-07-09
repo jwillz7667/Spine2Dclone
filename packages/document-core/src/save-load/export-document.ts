@@ -162,17 +162,27 @@ function boneTimelinesToFormat(set: BoneTimelineSet): BoneTimelines {
 }
 
 function slotTimelinesToFormat(set: SlotTimelineSet): SlotTimelines {
-  // The joint color and attachment channels project from the id-keyed entries; the carried Stage F2
-  // (ADR-0009 sections 4.2, 4.3, 3) rgb/alpha/dark/sequence tracks are emitted verbatim.
+  // The joint color/attachment channels and the frame-sequence channel project from the id-keyed entries
+  // (emitted only when non-empty, dropping the internal id); the carried Stage F2 (ADR-0009 sections 4.2,
+  // 4.3) rgb/alpha/dark tracks are emitted verbatim.
   return {
     ...(set.attachment.length > 0
       ? { attachment: set.attachment.map((frame) => ({ time: frame.time, name: frame.name })) }
       : {}),
     ...(set.color.length > 0 ? { color: colorKeyframes(set.color) } : {}),
+    ...(set.sequence.length > 0
+      ? {
+          sequence: set.sequence.map((k) => ({
+            time: k.time,
+            mode: k.mode,
+            index: k.index,
+            delay: k.delay,
+          })),
+        }
+      : {}),
     ...(set.rgb !== undefined ? { rgb: set.rgb } : {}),
     ...(set.alpha !== undefined ? { alpha: set.alpha } : {}),
     ...(set.dark !== undefined ? { dark: set.dark } : {}),
-    ...(set.sequence !== undefined ? { sequence: set.sequence } : {}),
   };
 }
 

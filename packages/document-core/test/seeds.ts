@@ -206,6 +206,12 @@ function riggedDoc(): SkeletonDocument {
           { time: 0, name: 'panel' },
           { time: 1, name: null },
         ],
+        // A frame-sequence timeline (Stage F2) so the PP-D10 anim.sequence.* commands have keys to
+        // set/move/delete (two keys give move a free midpoint and delete a target).
+        sequence: [
+          { time: 0, mode: 'loop', index: 0, delay: 0.1 },
+          { time: 1, mode: 'hold', index: 2, delay: 0 },
+        ],
       },
     },
     ik: {

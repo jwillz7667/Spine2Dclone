@@ -113,12 +113,41 @@ talk mouths on track 1, additive breathing on track 2.
 
 ## 4.8 Events
 
-There is currently no animation event track (named triggers with payloads fired mid-animation).
-Hosts that need frame-accurate triggers (footsteps, sound cues) key a sentinel channel or drive
-cues from their own clock against known times. An event system is on the roadmap; when it
-lands it will arrive as a format version bump with migrations.
+Events are named triggers, fired at a keyed time on an animation's event timeline, that a host reads
+to drive a cue (a footstep sound, a screen shake, a coin-shower spawn) without hard-coding the time in
+host code. They arrived with format 0.3.0.
 
-## 4.9 Workflow advice
+An event is defined once on the document, in the Events panel: a unique `name`, optional payload
+defaults (an integer, a float, and a string the host reads), and an optional audio hint (a source
+`path`, a `volume` in [0, 1], and a stereo `balance` in [-1, 1]) the host may play directly. Editing a
+definition (its name, its payload defaults, its audio) is undoable, and a rename never breaks the keys
+that fire it (a key references the definition by identity, not by name). Deleting a definition removes
+every key that fired it, in one undo step.
+
+An animation fires an event by keying it on the events row of the dopesheet: pick a defined event, move
+the playhead to the firing time, and add a key. A single key may override any of the payload defaults
+for that one firing. Event times are non-decreasing (two events may fire at the same time, unlike the
+strictly ordered value channels), events are discrete (they carry no curve), and a key is draggable and
+deletable like any other. The meaning of a firing (which payload wins, whether it re-fires across a loop
+boundary) is playback behavior the runtimes own; the editor authors only the data.
+
+## 4.9 Draw-order animation
+
+The setup draw order (section 4.6, step 6) is the slot order in the hierarchy; a draw-order timeline
+overrides it over time, so a slot can pass in front of another for part of an animation (a hand crossing
+in front of the body, a card flipping to the top of the stack) and then return. It arrived with format
+0.3.0.
+
+Author a draw-order key by reordering the slots at the playhead: move the playhead to the change time,
+reorder the slots, and key the result. The whole reorder-and-key interaction is one undo step. A key
+stores a compact list of the slots that moved and how far (a signed offset from each slot's setup
+index), so an unchanged order is an empty key that restores the setup order after an earlier reorder,
+and only the slots that actually moved are recorded. The editor rejects an inconsistent reorder (two
+slots landing on the same position, or a slot pushed past the ends) before it is keyed. Draw-order
+changes are discrete (stepped, no curve); keys are draggable and deletable like keyframes. Deleting a
+slot drops it from every draw-order key automatically.
+
+## 4.10 Workflow advice
 
 - Block first: key only the storytelling poses with stepped curves, get the timing right,
   then convert to beziers and add breakdowns. Timing errors are cheap to fix before polish.

@@ -41,6 +41,7 @@ create or open, edit through commands, validate, save, close.
 | `document.validate` | Validate the current state against the format contract | `documentId` | `{ ok, errors }` |
 | `document.export` | Project the session to a portable `SkeletonDocument` | `documentId` | `{ document }` |
 | `document.getSnapshot` | Internal snapshot (bones, ordering) for inspection | `documentId` | `{ snapshot }` |
+| `document.setMetadata` | Set the authoring metadata block (`fps`, `imagesPath`, `audioPath`); all absent clears it | `documentId`, optional `fps`/`imagesPath`/`audioPath` | `{ revision }` |
 | `document.getWorldTransforms` | Solve the setup pose and return each bone's world matrix | `documentId` | `{ transforms: [{ name, world: [a,b,c,d,tx,ty] }] }` |
 
 Always check `document.validate` returns `{ ok: true }` before treating a document as done; the
@@ -222,6 +223,36 @@ Curves are per-key outgoing interpolation: `"linear"`, `"stepped"`, or
 | `kf.paste` | Insert many keys as ONE undo step | `animationId`, `items[]` of `{ channel, boneId?/slotId?, time, value, curve }` |
 | `kf.attachment.set` | Key an attachment swap (or `null` to hide) at a time | `animationId`, `slotId`, `time`, `name` |
 | `kf.attachment.delete` | Delete the attachment key at a time | `animationId`, `slotId`, `time` |
+
+## Events and draw order: `event.*` and `draworder.*`
+
+Events are named triggers (with optional int/float/string payload defaults and an audio hint) defined
+once on the document, then fired at keyed times on an animation's event timeline. A key references its
+definition by id, so a rename never breaks the keys that fire it; deleting a definition removes every key
+that fired it in one undo step. Event times are non-decreasing (coincident firings are legal) and carry no
+curve. A draw-order timeline reorders which slot draws in front of which over time; each key stores a
+compact list of signed slot offsets from the setup order (an empty list restores the setup order). Both
+are animation timelines, so their keys move and delete by `keyframeId` like value keys; draw-order times
+are strictly ascending (`KEYFRAME_COLLISION` on an occupied move) while event moves never collide.
+
+| Tool | Purpose | Key input |
+|---|---|---|
+| `event.define` | Define an event and return its id | `documentId`, `name`, optional `int`/`float`/`string`, optional `audio` (`{ path, volume, balance }`) |
+| `event.rename` | Rename an event (unique names, `EVENT_EDIT`) | `documentId`, `eventId`, `name` |
+| `event.delete` | Delete an event and cascade its keys | `documentId`, `eventId` |
+| `event.setDefaults` | Set the payload defaults (absent field clears it) | `documentId`, `eventId`, optional `int`/`float`/`string` |
+| `event.setAudio` | Set or clear the audio hint (range-checked, `EVENT_EDIT`) | `documentId`, `eventId`, optional `audio` |
+| `event.list` | List event definitions | `documentId` |
+| `event.get` | Get one event definition | `documentId`, `eventId` |
+| `event.key.set` | Insert or update a firing at a time (optional per-firing payload override) | `documentId`, `animationId`, `eventId`, `time`, optional `int`/`float`/`string` |
+| `event.key.move` | Move a firing (no collision) | `documentId`, `animationId`, `keyframeId`, `time` |
+| `event.key.delete` | Delete a firing | `documentId`, `animationId`, `keyframeId` |
+| `draworder.key.set` | Insert or update a reorder at a time (`offsets` of `{ slot, offset }`; `DRAW_ORDER` if inconsistent) | `documentId`, `animationId`, `time`, `offsets[]` |
+| `draworder.key.move` | Move a reorder (`KEYFRAME_COLLISION` if occupied) | `documentId`, `animationId`, `keyframeId`, `time` |
+| `draworder.key.delete` | Delete a reorder | `documentId`, `animationId`, `keyframeId` |
+
+`anim.get` includes the animation's `events` and `drawOrder` timelines; `document.setMetadata` (in the
+lifecycle section) sets the authoring `fps` and the source-asset directories that pair with events.
 
 ## Atlas: `atlas.*`
 

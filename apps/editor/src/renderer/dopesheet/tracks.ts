@@ -32,7 +32,21 @@ export interface ChannelRow {
   readonly keyframes: readonly ChannelKey[];
 }
 
-export type TrackRow = GroupRow | ChannelRow;
+// The two DISCRETE special timelines (Stage F1, PP-D9): the animation's event timeline and its draw-order
+// timeline. These are NOT bone/slot value channels (no KeyframeTarget, no curve), so they carry their own
+// row kind rather than being forced through the value-channel path; the panel routes their keys through the
+// event/draw-order move/delete commands (event-track-edit.ts). `track` says which timeline the row is.
+export type SpecialTrack = 'event' | 'drawOrder';
+
+export interface SpecialRow {
+  readonly kind: 'special';
+  readonly key: string;
+  readonly label: string;
+  readonly track: SpecialTrack;
+  readonly keyframes: readonly ChannelKey[];
+}
+
+export type TrackRow = GroupRow | ChannelRow | SpecialRow;
 
 export interface TrackNames {
   boneName(id: BoneId): string;
@@ -89,6 +103,31 @@ export function buildTracks(animation: AnimationEntity, names: TrackNames): Trac
   }
 
   return rows;
+}
+
+// The two special rows for the active animation (Stage F1, PP-D9): the event timeline and the draw-order
+// timeline. Unlike the value channels above (omitted when empty), these are ALWAYS emitted for an active
+// animation so their keys stay addable at the playhead even when the timeline is currently empty. Returned
+// as a sibling of buildTracks (not merged into it) so the value-channel derivation and its tests are
+// untouched; the panel concatenates the two lists. Keys map to {id, time} exactly like the value channels,
+// so the panel lays them out and hit-tests them with the same machinery.
+export function buildSpecialTracks(animation: AnimationEntity): SpecialRow[] {
+  return [
+    {
+      kind: 'special',
+      key: 'special:event',
+      label: 'Events',
+      track: 'event',
+      keyframes: animation.events.map((kf) => ({ id: kf.id, time: kf.time })),
+    },
+    {
+      kind: 'special',
+      key: 'special:drawOrder',
+      label: 'Draw Order',
+      track: 'drawOrder',
+      keyframes: animation.drawOrder.map((kf) => ({ id: kf.id, time: kf.time })),
+    },
+  ];
 }
 
 // The inclusive row index range visible in a viewport of `heightPx` pixels scrolled by `scrollY`, padded

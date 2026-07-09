@@ -35,7 +35,19 @@ import {
   type DopesheetView,
 } from '../dopesheet/timeline-math';
 import { loopEndpointsDiffer } from '../dopesheet/transport';
-import { buildTracks, visibleRowRange, type TrackNames, type TrackRow } from '../dopesheet/tracks';
+import {
+  buildSpecialTracks,
+  buildTracks,
+  visibleRowRange,
+  type TrackNames,
+  type TrackRow,
+} from '../dopesheet/tracks';
+import {
+  beginSpecialDrag,
+  deleteSpecialKeys,
+  updateSpecialDrag,
+  type SpecialDrag,
+} from '../dopesheet/event-track-edit';
 
 const LABEL_WIDTH = 184;
 const ROW_HEIGHT = 22;
@@ -75,7 +87,9 @@ export function DopesheetPanel(_props: IDockviewPanelProps): ReactElement {
   const rows = useMemo<TrackRow[]>(() => {
     if (activeAnimation === null) return [];
     const animation = model.getAnimation(activeAnimation);
-    return animation ? buildTracks(animation, trackNames) : [];
+    // The value channels first, then the two Stage F1 special rows (events, draw order), which are
+    // always emitted for an active animation so their keys stay visible and editable even when empty.
+    return animation ? [...buildTracks(animation, trackNames), ...buildSpecialTracks(animation)] : [];
   }, [activeAnimation, revision, model, trackNames]);
 
   const duration = useMemo(() => {
@@ -140,7 +154,9 @@ export function DopesheetPanel(_props: IDockviewPanelProps): ReactElement {
     const keys: LaidOutKey[] = [];
     for (let r = firstRow; r < lastRow; r += 1) {
       const row = rows[r];
-      if (row === undefined || row.kind !== 'channel') continue;
+      // Value channels and the special (event / draw-order) rows both carry {id, time} keys, so they
+      // lay out and hit-test identically; group header rows carry no keys.
+      if (row === undefined || (row.kind !== 'channel' && row.kind !== 'special')) continue;
       const y = RULER_HEIGHT + r * ROW_HEIGHT + ROW_HEIGHT / 2 - view.scrollY;
       for (const kf of row.keyframes) {
         if (kf.time < tStart || kf.time > tEnd) continue;
@@ -204,14 +220,15 @@ export function DopesheetPanel(_props: IDockviewPanelProps): ReactElement {
     const interaction = interactionRef.current;
     if (interaction.kind !== 'drag' || activeAnimation === null) return;
     const deltaSeconds = xToTime(view, currentX) - xToTime(view, startX);
-    updateKeyframeDrag(
-      documentHost.current().history,
-      interaction.drag,
-      deltaSeconds,
-      !disableSnap,
-      workingFps,
-      duration,
-    );
+    const history = documentHost.current().history;
+    // Both the value-channel keys and the special (event / draw-order) keys in the selection move inside
+    // the SAME open interaction session, so a mixed drag is still one undo step.
+    if (interaction.drag !== null) {
+      updateKeyframeDrag(history, interaction.drag, deltaSeconds, !disableSnap, workingFps, duration);
+    }
+    if (interaction.special !== null) {
+      updateSpecialDrag(history, interaction.special, deltaSeconds, !disableSnap, workingFps, duration);
+    }
   }
 
   function onPointerDown(event: ReactPointerEvent<HTMLDivElement>): void {
@@ -267,20 +284,22 @@ export function DopesheetPanel(_props: IDockviewPanelProps): ReactElement {
       ) {
         return;
       }
-      const drag =
-        activeAnimation !== null
-          ? beginKeyframeDrag(
-              documentHost.current().model,
-              activeAnimation,
-              usePlaybackStore.getState().keySelection,
-            )
-          : null;
-      if (drag === null) {
+      if (activeAnimation === null) {
+        interactionRef.current = { kind: 'none' };
+        return;
+      }
+      const dragModel = documentHost.current().model;
+      const selection = usePlaybackStore.getState().keySelection;
+      const drag = beginKeyframeDrag(dragModel, activeAnimation, selection);
+      const dragAnimation = dragModel.getAnimation(activeAnimation);
+      const special = dragAnimation ? beginSpecialDrag(dragAnimation, selection) : null;
+      // Nothing draggable in the selection (only group rows, or an empty selection): cancel cleanly.
+      if (drag === null && special === null) {
         interactionRef.current = { kind: 'none' };
         return;
       }
       documentHost.current().history.beginInteraction();
-      interactionRef.current = { kind: 'drag', startX: interaction.startX, drag };
+      interactionRef.current = { kind: 'drag', startX: interaction.startX, drag, special };
       applyDrag(interaction.startX, x, event.altKey);
       return;
     }
@@ -323,7 +342,24 @@ export function DopesheetPanel(_props: IDockviewPanelProps): ReactElement {
   }
 
   function onKeyDown(event: ReactKeyboardEvent<HTMLDivElement>): void {
-    if (!(event.metaKey || event.ctrlKey) || activeAnimation === null) return;
+    if (activeAnimation === null) return;
+
+    // Delete / Backspace removes the selected event and draw-order keys in one undo step (value-channel
+    // keys in the selection are left to their own delete path). Requires no modifier.
+    if (event.key === 'Delete' || event.key === 'Backspace') {
+      const animation = documentHost.current().model.getAnimation(activeAnimation);
+      if (animation === undefined) return;
+      const store = usePlaybackStore.getState();
+      const deleted = deleteSpecialKeys(documentHost.current().history, animation, store.keySelection);
+      if (deleted.length > 0) {
+        const deletedSet = new Set(deleted);
+        store.selectKeys(store.keySelection.filter((id) => !deletedSet.has(id)));
+        event.preventDefault();
+      }
+      return;
+    }
+
+    if (!(event.metaKey || event.ctrlKey)) return;
     const key = event.key.toLowerCase();
     const store = usePlaybackStore.getState();
     if (key === 'c') {
@@ -499,7 +535,12 @@ type Interaction =
   | { readonly kind: 'none' }
   | { readonly kind: 'scrub' }
   | { readonly kind: 'maybeDrag'; readonly startX: number; readonly startY: number }
-  | { readonly kind: 'drag'; readonly startX: number; readonly drag: KeyframeDrag }
+  | {
+      readonly kind: 'drag';
+      readonly startX: number;
+      readonly drag: KeyframeDrag | null;
+      readonly special: SpecialDrag | null;
+    }
   | {
       readonly kind: 'marquee';
       readonly startX: number;

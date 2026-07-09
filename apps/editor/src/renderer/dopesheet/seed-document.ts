@@ -1,6 +1,10 @@
 import {
   CreateAnimationCommand,
   CreateBoneCommand,
+  CreateSlotCommand,
+  DefineEventCommand,
+  SetDrawOrderKeyCommand,
+  SetEventKeyCommand,
   SetKeyframeCommand,
   createDocument,
   makeIdFactory,
@@ -8,9 +12,11 @@ import {
   type AnimationId,
   type BoneId,
   type Document,
+  type EventDefId,
   type KeyframeId,
   type KeyframeTarget,
   type KeyframeValue,
+  type SlotId,
 } from '../document';
 
 // Test-only support: builds live Documents through the real command spine so the dopesheet tests exercise
@@ -71,4 +77,79 @@ export function rotateKeyframes(
 ): readonly { id: KeyframeId; time: number }[] {
   const set = doc.model.getAnimation(animId)?.bones.get(boneId);
   return set ? set.rotate.map((kf) => ({ id: kf.id, time: kf.time })) : [];
+}
+
+// Add a slot riding `boneId`, for the draw-order/special-timeline tests (a draw-order key references slots).
+export function addSlot(doc: Document, name: string, boneId: BoneId): SlotId {
+  const id = doc.ids.mint('slot');
+  doc.history.execute(
+    new CreateSlotCommand(id, {
+      name,
+      bone: boneId,
+      color: { r: 1, g: 1, b: 1, a: 1 },
+      darkColor: null,
+      attachment: null,
+      blendMode: 'normal',
+    }),
+  );
+  return id;
+}
+
+// Define a document-level event with cleared payload defaults and no audio hint.
+export function defineEvent(doc: Document, name: string): EventDefId {
+  const id = doc.ids.mint('eventDef');
+  doc.history.execute(
+    new DefineEventCommand(id, name, {
+      int: undefined,
+      float: undefined,
+      string: undefined,
+      audio: undefined,
+    }),
+  );
+  return id;
+}
+
+// Fire `eventId` at each of `times`, then return the resulting event-key ids and times.
+export function setEventKeys(
+  doc: Document,
+  animId: AnimationId,
+  eventId: EventDefId,
+  times: readonly number[],
+): void {
+  for (const time of times) {
+    doc.history.execute(
+      new SetEventKeyCommand(animId, eventId, time, {
+        int: undefined,
+        float: undefined,
+        string: undefined,
+      }),
+    );
+  }
+}
+
+export function eventKeys(
+  doc: Document,
+  animId: AnimationId,
+): readonly { id: KeyframeId; time: number }[] {
+  const animation = doc.model.getAnimation(animId);
+  return animation ? animation.events.map((key) => ({ id: key.id, time: key.time })) : [];
+}
+
+// Insert a draw-order key at `time` moving `slotId` by `offset` positions from its setup index.
+export function setDrawOrderKey(
+  doc: Document,
+  animId: AnimationId,
+  time: number,
+  slotId: SlotId,
+  offset: number,
+): void {
+  doc.history.execute(new SetDrawOrderKeyCommand(animId, time, [{ slot: slotId, offset }]));
+}
+
+export function drawOrderKeys(
+  doc: Document,
+  animId: AnimationId,
+): readonly { id: KeyframeId; time: number }[] {
+  const animation = doc.model.getAnimation(animId);
+  return animation ? animation.drawOrder.map((key) => ({ id: key.id, time: key.time })) : [];
 }

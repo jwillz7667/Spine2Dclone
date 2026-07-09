@@ -58,14 +58,42 @@ store caching, and `pnpm install --frozen-lockfile`.
 
 `ci-pass`'s dependency set grows per phase per `conformance-and-ci.md`; never merge red CI.
 
-## Native conformance scaffold (`.github/workflows/conformance-native.yml`)
+## Native conformance (`.github/workflows/conformance-native.yml`)
 
-Prepared for Phase 5 (WP-5.5). Runs on PRs touching runtime/format/conformance paths, pushes to
-`main`, and a nightly cron. Live today: `cross-language-equivalence` (the seed/PRNG/CRC vectors and
-binary-twin suites, also part of the main `test` job). Gated off until the runtimes exist:
-`conformance-unity`, `conformance-godot`, `conformance-core-fast`, each auto-detected by directory
-probe. Its `conformance-native-pass` aggregate joins `ci-pass` when the first native runtime lands
-(TASK-5.5.6).
+ACTIVE (PP-E3, WP-5.5). Runs on PRs touching runtime/format/runtime-core/conformance paths, pushes
+to `main`, and a nightly cron. All jobs run for real now that both native runtimes are landed:
+
+| Job | Runs |
+|---|---|
+| `cross-language-equivalence` | `@marionette/conformance` seed/PRNG/CRC vectors + binary-twin CRCs (also part of the main `test` job) |
+| `detect-runtimes` | directory probe exposing `unity` / `godot` presence to the engine jobs |
+| `conformance-unity` | `dotnet test runtimes/unity --nologo`: the shared C# solve core (ADR-0001), no Unity editor, no GameCI |
+| `conformance-godot` | pinned official Godot 4.6.3-stable Linux build (SHA256-verified, cached by version), run headless via `runtimes/godot/tests/run.sh` with its PASS-sentinel guard |
+| **`conformance-native-pass`** | aggregate: fails if any native job failed or was cancelled; a genuinely skipped engine job (runtime absent) counts as success |
+
+The Unity job is `dotnet test`, not a Unity-editor batchmode run, because the solve is one
+engine-agnostic C# library (netstandard2.1, zero `UnityEngine`) that Unity and Godot render over
+(ADR-0001); a plain net8.0 xUnit project exercises the entire cross-language solve contract with no
+license and no editor. The Unity-editor smoke test (the MonoBehaviour view layer renders a frame)
+belongs to the later PP-E1 view-layer slice and is a separate non-blocking job.
+
+The Godot job runs the real `godot --headless` engine path (not a bare console): it downloads the
+pinned build, verifies its SHA256 (which cross-checks against Godot's official SHA512-SUMS.txt),
+caches it via `actions/cache` keyed on the version, then runs the harness through `run.sh`, which
+treats a MISSING `GODOT_CONFORMANCE_RESULT: PASS` sentinel as a failure (Godot exits 0 on a script
+parse error, so a broken harness would otherwise look green).
+
+### Required checks (TASK-5.5.6)
+
+This repo has TWO required status checks, configured per-repo in branch protection or a ruleset (they
+cannot be set from workflow YAML): `ci-pass` (ci.yml, every PR and push) AND `conformance-native-pass`
+(this workflow). They stay separate workflows on purpose: the engine jobs are heavier (a dotnet
+restore, a pinned Godot download) and only a runtimes/format/runtime-core/conformance change can move
+native conformance, so the native workflow is path-filtered plus nightly rather than run on every
+docs-only PR. Because it is path-filtered, a PR touching none of those paths does not start the
+workflow, so `conformance-native-pass` is not reported on it; resolve the resulting required-check
+wait per GitHub's documented skipped-but-required pattern (a companion no-op job of the same name on
+the inverse path filter) or a ruleset that treats a not-triggered workflow as satisfied.
 
 ## Local mirror
 

@@ -17,6 +17,16 @@ import { bone, makeRig } from './rig';
 const noMix: TransformMix = { rotate: 0, x: 0, y: 0, scaleX: 0, scaleY: 0, shearY: 0 };
 const noOffset: TransformOffset = { rotation: 0, x: 0, y: 0, scaleX: 0, scaleY: 0, shearY: 0 };
 
+// The default world absolute variant (ADR-0003), the behavior the base suite asserts. The variant suite
+// below drives the local/relative flags directly (ADR-0010 section 3).
+const solveTC = (
+  pose: Pose,
+  boneIndex: number,
+  targetIndex: number,
+  mix: TransformMix,
+  offset: TransformOffset,
+): void => solveTransformConstraint(pose, boneIndex, targetIndex, mix, offset, false, false);
+
 // A bone and an independent target, plus a constrained bone. Indices: 0 = bone, 1 = target.
 const makeConstraintPose = (): Pose => {
   const pose = buildPose(
@@ -34,7 +44,7 @@ describe('solveTransformConstraint', () => {
     const pose = makeConstraintPose();
     const targetRotation = decomposeWorld(resolveWorldMat(pose, 1)).rotation;
 
-    solveTransformConstraint(pose, 0, 1, { ...noMix, rotate: 1 }, noOffset);
+    solveTC(pose, 0, 1, { ...noMix, rotate: 1 }, noOffset);
 
     expect(decomposeWorld(resolveWorldMat(pose, 0)).rotation).toBeCloseTo(targetRotation, 9);
   });
@@ -44,7 +54,7 @@ describe('solveTransformConstraint', () => {
     const targetWorld = resolveWorldMat(pose, 1);
 
     const fullMix: TransformMix = { rotate: 1, x: 1, y: 1, scaleX: 1, scaleY: 1, shearY: 1 };
-    solveTransformConstraint(pose, 0, 1, fullMix, noOffset);
+    solveTC(pose, 0, 1, fullMix, noOffset);
 
     const boneWorld = resolveWorldMat(pose, 0);
     for (let i = 0; i < 6; i += 1) {
@@ -57,7 +67,7 @@ describe('solveTransformConstraint', () => {
     const boneX = decomposeWorld(resolveWorldMat(pose, 0)).x;
     const targetX = decomposeWorld(resolveWorldMat(pose, 1)).x;
 
-    solveTransformConstraint(pose, 0, 1, { ...noMix, x: 0.5 }, noOffset);
+    solveTC(pose, 0, 1, { ...noMix, x: 0.5 }, noOffset);
 
     expect(decomposeWorld(resolveWorldMat(pose, 0)).x).toBeCloseTo(
       boneX + 0.5 * (targetX - boneX),
@@ -70,7 +80,7 @@ describe('solveTransformConstraint', () => {
     const boneRotation = decomposeWorld(resolveWorldMat(pose, 0)).rotation;
 
     // mix 0 on every channel: the bone keeps its own world, then the rotation offset adds on top.
-    solveTransformConstraint(pose, 0, 1, noMix, { ...noOffset, rotation: 25 });
+    solveTC(pose, 0, 1, noMix, { ...noOffset, rotation: 25 });
 
     expect(decomposeWorld(resolveWorldMat(pose, 0)).rotation).toBeCloseTo(boneRotation + 25, 9);
   });
@@ -91,7 +101,7 @@ describe('solveTransformConstraint', () => {
 
     const mix: TransformMix = { rotate: 0.6, x: 0.4, y: 0.5, scaleX: 0.3, scaleY: 0.7, shearY: 0 };
     const offset: TransformOffset = { rotation: 12, x: 3, y: -2, scaleX: 0, scaleY: 0, shearY: 5 };
-    solveTransformConstraint(pose, boneIndex, targetIndex, mix, offset);
+    solveTC(pose, boneIndex, targetIndex, mix, offset);
 
     // Capture the on-demand resolved world right after the write, then run the authoritative forward
     // pass; pose.world for the bone must match (step 4 reproduces what resolveWorld saw).
@@ -101,5 +111,70 @@ describe('solveTransformConstraint', () => {
     for (let i = 0; i < 6; i += 1) {
       expect(pose.world[base + i]).toBeCloseTo(resolved[i], 9);
     }
+  });
+});
+
+// ADR-0010 section 3: the local and relative variants. Default (false/false) is the world absolute solve
+// the base suite covers; these drive the flags explicitly.
+describe('transform-constraint variants (ADR-0010 section 3)', () => {
+  // parent P (rot 25) with a child bone (local rot 10, world rot 35), and an independent root target
+  // (rot 40). World-space and local-space full-mix rotation give DIFFERENT results, which distinguishes
+  // the variants: world drives the bone WORLD rotation to 40; local drives the bone LOCAL rotation to 40
+  // (world 25 + 40 = 65).
+  const makeParentedPose = (): { pose: Pose; boneIndex: number; targetIndex: number } => {
+    const pose = buildPose(
+      makeRig([
+        bone('parent', null, { rotation: 25 }),
+        bone('bone', 'parent', { rotation: 10 }),
+        bone('target', null, { rotation: 40 }),
+      ]),
+    );
+    resetToSetupPose(pose);
+    return {
+      pose,
+      boneIndex: pose.boneNames.indexOf('bone'),
+      targetIndex: pose.boneNames.indexOf('target'),
+    };
+  };
+
+  it('world absolute (default) drives the bone WORLD rotation to the target world rotation', () => {
+    const { pose, boneIndex, targetIndex } = makeParentedPose();
+
+    solveTransformConstraint(pose, boneIndex, targetIndex, { ...noMix, rotate: 1 }, noOffset, false, false);
+
+    expect(decomposeWorld(resolveWorldMat(pose, boneIndex)).rotation).toBeCloseTo(40, 6);
+  });
+
+  it('local absolute drives the bone LOCAL rotation to the target local rotation', () => {
+    const { pose, boneIndex, targetIndex } = makeParentedPose();
+
+    solveTransformConstraint(pose, boneIndex, targetIndex, { ...noMix, rotate: 1 }, noOffset, true, false);
+
+    // Bone local rotation now equals the target LOCAL rotation (40), so its world rotation is 25 + 40.
+    expect(decomposeWorld(resolveWorldMat(pose, boneIndex)).rotation).toBeCloseTo(65, 6);
+  });
+
+  it('relative world adds the mix-scaled target (plus offset) to the bone current value', () => {
+    const pose = buildPose(
+      makeRig([bone('bone', null, { rotation: 10 }), bone('target', null, { rotation: 20 })]),
+    );
+    resetToSetupPose(pose);
+
+    // relative full-mix rotate: result = bone(10) + 1 * (target(20) + offset(0)) = 30.
+    solveTransformConstraint(pose, 0, 1, { ...noMix, rotate: 1 }, noOffset, false, true);
+
+    expect(decomposeWorld(resolveWorldMat(pose, 0)).rotation).toBeCloseTo(30, 6);
+  });
+
+  it('relative with mix 0 leaves the bone unchanged (no target contribution)', () => {
+    const pose = buildPose(
+      makeRig([bone('bone', null, { rotation: 10 }), bone('target', null, { rotation: 20 })]),
+    );
+    resetToSetupPose(pose);
+    const before = decomposeWorld(resolveWorldMat(pose, 0)).rotation;
+
+    solveTransformConstraint(pose, 0, 1, noMix, noOffset, false, true);
+
+    expect(decomposeWorld(resolveWorldMat(pose, 0)).rotation).toBeCloseTo(before, 9);
   });
 });

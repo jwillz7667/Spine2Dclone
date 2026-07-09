@@ -223,7 +223,15 @@ function solveOneTransformConstraint(pose: Pose, constraint: ResolvedTransformCo
   for (let b = 0; b < boneIndices.length; b += 1) {
     const boneIndex = boneIndices[b]!;
     if (boneIndex < 0) continue;
-    solveTransformConstraint(pose, boneIndex, targetIndex, constraint.sampledMix, constraint.offset);
+    solveTransformConstraint(
+      pose,
+      boneIndex,
+      targetIndex,
+      constraint.sampledMix,
+      constraint.offset,
+      constraint.local,
+      constraint.relative,
+    );
   }
 }
 

@@ -45,6 +45,10 @@ export const RIG_IDS = [
   // from first principles (Law 4).
   'rig-ik-depth',
   'rig-constraint-order',
+  // PP-B5 slice 2 (ADR-0010 section 3): the four transform-constraint variants (world/local space x
+  // absolute/relative composition), one constrained bone per variant under a rotated parent so the local
+  // and world results provably differ. Observes only the bone world-affine lane. Authored first-principles.
+  'rig-transform-variants',
 ] as const;
 
 export type RigId = (typeof RIG_IDS)[number];
@@ -71,6 +75,7 @@ export const RIG_PHASE: Readonly<Record<RigId, number>> = {
   // current phase (the RIG_PHASE gate models "the rig's solve features exist", satisfied here).
   'rig-ik-depth': 2,
   'rig-constraint-order': 2,
+  'rig-transform-variants': 2,
 };
 
 // The committed current phase (B.2 landed-rig gating). Bumped per phase milestone in this file, NOT

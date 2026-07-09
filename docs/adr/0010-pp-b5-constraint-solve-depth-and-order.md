@@ -169,19 +169,22 @@ A frame that keys none of them leaves the constraint definition's values (the re
 
 ### 3. Transform-constraint local and relative variants (ADR-0009 section 1.2)
 
-DESIGNED here for completeness of the constraints group; the SOLVE lands in a later PP-B5 slice and its
-conformance rig with it. The world/absolute default (`local == false && relative == false`) is unchanged
-from ADR-0003 and is the only branch exercised by the current fixtures. Recorded so the group's semantics
-live in one place:
+IMPLEMENTED in PP-B5 slice 2 (`rig-transform-variants`). The world/absolute default
+(`local == false && relative == false`) is unchanged from ADR-0003, so every pre-variant fixture is
+byte-identical. The two flags are orthogonal switches over the SPACE and the COMPOSITION:
 
-- `local == true`: the constraint reads and writes the bone's LOCAL components (the pre-world channels the
-  animation-blend layer produced) instead of decomposing and recomposing the WORLD matrix, so the
-  constraint composes in the bone's own frame.
-- `relative == true`: the per-channel blend is applied as an OFFSET added to the bone's current value
-  scaled by mix (`value += mix * (targetChannel + offsetChannel)`) rather than an absolute interpolation
-  toward the target (`value = lerp(boneChannel, targetChannel, mix) + offset`).
+- `local == true`: the constraint reads the bone's and target's LOCAL matrices (decomposed with the same
+  channel model as the world path) and writes the blended result straight back to the bone's local, so it
+  composes in the bone's own frame with no world round-trip. `local == false` reads the would-be world
+  matrices, blends in world, and writes `inverse(parentWorld) * blendedWorld` (ADR-0003).
+- `relative == true`: each channel result is `boneChannel + mix * (targetChannel + offsetChannel)`, so the
+  target (plus offset) is an offset applied RELATIVE to the bone's current value, scaled by the channel
+  mix. `relative == false` is the absolute blend `lerp(boneChannel, targetChannel, mix) + offset`.
 
-These four combinations and their exact arithmetic are pinned when that slice lands, under this ADR.
+All six channels (rotation, x, y, scaleX, scaleY, shearY) follow the same rule uniformly; the relative
+form adds to a channel in its own units (degrees, world units, or scale ratio), a deterministic
+first-principles choice locked by conformance across the three runtimes. mix 0 on a channel leaves the
+bone's own value in both forms (`lerp(bone, target, 0)` and `bone + 0 * (...)` both reduce to `bone`).
 
 ## Consequences
 
@@ -190,13 +193,15 @@ These four combinations and their exact arithmetic are pinned when that slice la
   softness/stretch/compress channels on the prepared IK channel and the per-constraint sampled scratch.
   Every addition is guarded on its enabling condition, so the default solve and its fixtures are unchanged.
 - The conformance corpus gains `rig-constraint-order` (an interleaving that provably differs from document
-  order) and `rig-ik-depth` (softness, stretch, compress, and uniform branches, one and two bone). Both
-  observe only the existing bone-world-affine lane, so no fixture schema change is needed. The pre-F2
-  fixtures regenerate byte-identical (the neutrality invariant).
+  order), `rig-ik-depth` (softness, stretch, compress, and uniform branches, one and two bone), and
+  `rig-transform-variants` (the four local/relative combinations, section 3). All observe only the existing
+  bone-world-affine lane, so no fixture schema change is needed. The pre-F2 fixtures regenerate
+  byte-identical (the neutrality invariant).
 - Unity and Godot mirror the same schedule and math, gated by the same fixtures (the one-stage-lag rule).
-- Deferred within PP-B5 (tracked, not built here): the transform local/relative solve (section 3), and the
-  non-constraint F2 behaviors (linked meshes, sequences, per-component and split-color and dark timelines,
-  skin scoping) that ADR-0009 also carried at defaults.
+- Deferred within PP-B5 (tracked, separate slices): the non-constraint F2 behaviors (linked meshes,
+  sequences, per-component and split-color and dark timelines, skin scoping) that ADR-0009 also carried at
+  defaults. Each lands as its own vertical slice under a governing ADR (ADR-0011 for the non-constraint
+  semantics).
 
 ## Alternatives considered
 

@@ -12,6 +12,7 @@
     "fixtures/rig-rigid-mesh.fixture.json": "f62d37a759a28c850484f2c4c969444232f18840714c1171f0d0c16d741b44fc",
     "fixtures/rig-transform-constraint.fixture.json": "3337781a156084952eb42c00d29409d0a3ca7489386d6438874bb0eb6e37f7e8",
     "fixtures/rig-transform-modes.fixture.json": "74efcfe7e437cbde56c2062e6d3b9b5521e3a66da613e2bdb368821e6bc806cb",
+    "fixtures/rig-transform-variants.fixture.json": "309798c5d14682e0d6427a18a7d39101a13ea93cd2550f6d2c62472d7253f6a5",
     "fixtures/rig-two-bone-ik.fixture.json": "b65d969cf28a6118a7fc30581d58400eef9222fdbee1119cf424206c4c21b612",
     "fixtures/rig-weighted-mesh.fixture.json": "ee1f7d1e5689256f5ab39374574ec27f658bfbcbf614b1af764db253b16294df",
     "rigs/rig-2bone.bin": "11c797dce3e6f8e42119c0b2780eb5172b287522d3a754504d8b629eb4e8d9af",
@@ -36,6 +37,8 @@
     "rigs/rig-transform-constraint.json": "2601f8f49c05097a81dfc0cbcdbb4eb1add673c32a0b4aac949a11aa3cd7d890",
     "rigs/rig-transform-modes.bin": "876325b4abfa9258bc46fcc9290f9e4ba7fd93e8c518216240369f187127740e",
     "rigs/rig-transform-modes.json": "b5d88fa7ab551fdf2bd3463f9c2f477bfa53d88ec72dfebb69f1edcd5ac44ada",
+    "rigs/rig-transform-variants.bin": "29c2dad244abb73573ce2bb648087b12142d664ef059a3df2037dc52c37f392b",
+    "rigs/rig-transform-variants.json": "56b8d9d013c53ab84ccb1d5422d280295a3d1b4fd63135a27d69c39effe4789f",
     "rigs/rig-two-bone-ik.bin": "e5f57def34366be957742bf109b63a6db58d292fa074b5f0a8bb545e17f1a1a4",
     "rigs/rig-two-bone-ik.json": "db4a39227b54c2ffaba7d98fa07553565df2afb51184f83fc129d9538459e5c5",
     "rigs/rig-weighted-mesh.bin": "ed8f0fb2a38c0ba22e33be19714c28b63d643b66b8475b9acef44e026e416370",
@@ -51,6 +54,7 @@
     "sample-spec/rig-rigid-mesh.sample-spec.json": "5cd1b2cbbe624a76eba901e6acf60d2a518ebf6837af902a0c84304a5e86fc29",
     "sample-spec/rig-transform-constraint.sample-spec.json": "b542cd8bf177823d9eb0b97a069af289c3701a3d7e2f0c85df8c90d002cd6e73",
     "sample-spec/rig-transform-modes.sample-spec.json": "3f8ebfa6c1654fb4b14413d3a94301a1888e88b52523471a9a5c157ff8928ad8",
+    "sample-spec/rig-transform-variants.sample-spec.json": "b3ebe72dda412a8c1fee6f86ab0d6839a7f538a475c6d8bc4f0cda1c112e0954",
     "sample-spec/rig-two-bone-ik.sample-spec.json": "327a349d60f2470461f02c9b8baa0be93ebb559ff2c138e1df27ec0af062c438",
     "sample-spec/rig-weighted-mesh.sample-spec.json": "bef66199094d35f869144e32f0bb3b51807ea99b47a9a543757d6455d4efcde8"
   }

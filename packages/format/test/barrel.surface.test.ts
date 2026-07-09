@@ -34,7 +34,7 @@ describe('public barrel surface', () => {
   });
 
   it('exposes the version constants with their current values', () => {
-    expect(barrel.CURRENT_FORMAT_VERSION).toBe('0.4.0');
+    expect(barrel.CURRENT_FORMAT_VERSION).toBe('0.5.0');
     expect(barrel.SUPPORTED_FORMAT_MAJOR).toBe(0);
   });
 

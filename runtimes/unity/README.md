@@ -21,7 +21,7 @@ Marionette.Runtime.Core/                 class library, netstandard2.1, zero Uni
   Determinism/                           Prng (spinSeed FNV-1a-32, hash32, Mulberry32) and Crc32
 Marionette.Runtime.Core.Tests/           xUnit harness, net8.0
   ConformanceHarness.cs                  loads rig + sample-spec + fixture, solves, compares
-  ConformanceTests.cs                    one case per committed skeleton rig
+  ConformanceTests.cs                    one case per committed skeleton rig (enumerated from the corpus)
   CrossLanguageVectorTests.cs            reproduces the integer determinism corpus bit for bit
   MathTests.cs                           focused unit checks (decompose/compose, invert, bezier table)
   Tolerance.cs, RepoPaths.cs             the ported A.5 tolerance table and repo-root resolution
@@ -51,7 +51,19 @@ must reproduce every value in `packages/conformance/src/cross-language/seed-prng
 for bit (integer arithmetic is portable by construction, so those compare EXACT). The tolerance is never
 loosened to make this runtime pass; a drift beyond it is a solve bug in this port, not a fixture problem.
 
-Because Unity and Godot will share this one core (ADR-0001), the committed fixture coverage is the sole
+Every committed skeleton rig is covered, and the test enumerates them from the fixtures corpus
+(`RepoPaths.AllRigIds`, the materialized projection of `registry.ts` `LANDED_RIG_IDS`) rather than a
+hardcoded list, so a newly landed rig is picked up automatically and its fixture must then pass. Every
+fixture lane is asserted: bone world affines and skinned/deformed mesh vertices (within tolerance), the
+per-slot `blendMode` (EXACT) and resolved `color` (COLOR tolerance) of `rig-blendmodes`, every
+`WorldFromParentByMode` branch of `rig-transform-modes`, the resolved render-order permutation of
+`rig-events-draworder` (ADR-0008 draw order, EXACT integers), and the ordered fired-event log of both
+`rig-events-draworder` and `rig-events-loop` (name/int/string/time EXACT, the float payload within the
+EVENT_FLOAT tolerance). The fixture reader is strict: a fixture carrying an unknown top-level or
+per-sample member is rejected, so a future capture lane fails loudly here rather than being silently
+skipped.
+
+Because Unity and Godot share this one core (ADR-0001), the committed fixture coverage is the sole
 cross-implementation guard: any solve path a fixture does not exercise has no independent check. Closing
 a coverage gap is a fixture addition in `packages/conformance`, a deliberate reviewed act, never a code
 change here.

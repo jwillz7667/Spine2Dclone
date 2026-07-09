@@ -76,10 +76,17 @@ loosened to make this runtime pass; a drift beyond it is a solve bug in this por
 In practice the observed drift sits at the f64 round-off floor (order 1e-16 on the basis, 1e-14 on
 translation), orders of magnitude below the A.5 band.
 
-The nine committed skeleton rigs are all covered, including the two PP-B1 rigs: `rig-transform-modes`
-(exercises every `world_from_parent_by_mode` branch under a rotated, non-uniformly-scaled, reflected
-animated parent) and `rig-blendmodes` (asserts per-slot `blendMode` EXACTLY and the resolved per-slot
-`color` within the COLOR tolerance, making solve-order step 6 observable).
+Every committed skeleton rig is covered, and the harness enumerates them from the fixtures corpus
+(`RepoPaths.all_rig_ids`, the materialized projection of `registry.ts` `LANDED_RIG_IDS`) rather than a
+hardcoded list, so a newly landed rig is picked up automatically and its fixture must then pass. Every
+fixture lane is asserted: bone world affines and skinned/deformed mesh vertices (within tolerance), the
+per-slot `blendMode` (EXACT) and resolved `color` (COLOR tolerance) of `rig-blendmodes`, every
+`world_from_parent_by_mode` branch of `rig-transform-modes`, the resolved render-order permutation of
+`rig-events-draworder` (ADR-0008 draw order, EXACT integers), and the ordered fired-event log of both
+`rig-events-draworder` and `rig-events-loop` (name/int/string/time EXACT, the float payload within the
+EVENT_FLOAT tolerance; the half-open loop sweep exercised by `rig-events-loop`). The fixture reader is
+strict: a fixture carrying an unknown top-level or per-sample member is rejected, so a future capture lane
+fails loudly here rather than being silently skipped.
 
 Format compatibility: the rig reader accepts BOTH formatVersion 0.2.0 (current) and 0.3.0 (the
 additive-empty-collections revision: document `events`, animation `drawOrder`/`events`, optional

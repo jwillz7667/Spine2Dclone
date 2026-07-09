@@ -5,7 +5,7 @@ The GUI panels and the MCP tools drive the exact same command layer (`@marionett
 so everything in this reference is also a precise description of what the editor itself can do.
 Anything you can click, you can script; anything you can script, you can undo.
 
-This chapter is the complete reference: 160 tools across 22 namespaces. For a guided walkthrough
+This chapter is the complete reference: 166 tools across 23 namespaces. For a guided walkthrough
 that uses a small subset of these, read Chapter 1 (Getting Started) first.
 
 ## Conventions used by every tool
@@ -103,6 +103,9 @@ after `attach.region.add` or nothing renders.
 |---|---|---|
 | `attach.region.add` | Add a region (image) attachment to a slot | `slotId`, `name`, `path` (atlas region), `x`, `y`, `rotation`, `scaleX`, `scaleY`, `width`, `height`, `color` |
 | `attach.region.transform` | Update placement/size; omitted fields keep their value | `slotId`, `name`, any of the transform fields |
+| `attach.linkedmesh.create` | Add a linked mesh reusing a parent mesh's geometry | `slotId`, `name`, `path`, `parent`, `skin?`, `timelines`, `width`, `height`, `color` |
+| `attach.linkedmesh.unlink` | Bake a linked mesh to a plain mesh | `slotId`, `name` |
+| `attach.sequence.set` | Set or clear a region/mesh frame-sequence | `slotId`, `name`, `sequence` (count/start/digits/setupIndex) or null |
 | `attach.remove` | Remove an attachment from a slot | `slotId`, `name` |
 
 ## Meshes and weights: `mesh.*`
@@ -143,6 +146,7 @@ Skinning:
 | `ik.createConstraint` | Create an IK constraint over a 1 or 2 bone chain | `name`, `boneIds` (1 or 2, parent-child), `targetId`, `mix` (0..1), `bendPositive` |
 | `ik.setMix` | Set the mix | `ikConstraintId`, `mix` |
 | `ik.setBendPositive` | Flip the bend direction | `ikConstraintId`, `bendPositive` |
+| `ik.setDepth` | Patch the Stage F2 depth fields | `ikConstraintId`, any of `softness` / `stretch` / `compress` / `uniform` |
 | `ik.deleteConstraint` | Delete the constraint and cascade its timelines | `ikConstraintId` |
 | `ik.setKeyframe` | Key mix + bend in an animation | `animationId`, `ikConstraintId`, `time`, `mix`, `bendPositive`, optional `curve` |
 | `ik.deleteKeyframe` | Delete an IK keyframe | `animationId`, `ikConstraintId`, `keyframeId` |
@@ -161,12 +165,19 @@ and six offsets (`offsetRotation`, `offsetX`, `offsetY`, `offsetScaleX`, `offset
 |---|---|---|
 | `transform.createConstraint` | Create a constraint | `name`, `boneIds`, `targetId`, `params` (any of the 12 channels) |
 | `transform.setParams` | Patch one or more channels | `transformConstraintId`, `patch` |
+| `transform.setVariants` | Patch the Stage F2 local/relative flags | `transformConstraintId`, any of `local` / `relative` |
 | `transform.deleteConstraint` | Delete and cascade timelines | `transformConstraintId` |
 | `transform.setKeyframe` | Key the mix factors in an animation | `animationId`, `transformConstraintId`, `time`, `mix` (any of the 6 factors), optional `curve` |
 | `transform.deleteKeyframe` | Delete a keyframe | `animationId`, `transformConstraintId`, `keyframeId` |
 | `transform.moveKeyframe` | Move a keyframe to a new time (rejects a collision) | `animationId`, `transformConstraintId`, `keyframeId`, `time` |
 | `transform.list` | List in solve order | |
 | `transform.get` | Get one constraint | `transformConstraintId` |
+
+## Constraint order: `constraints.*`
+
+| Tool | Purpose | Key input |
+|---|---|---|
+| `constraints.reorder` | Set the explicit cross-array solve order, or clear it | `order` (combined IK-then-transform ids), or `order: null` to restore the default |
 
 ## Skins: `skin.*`
 

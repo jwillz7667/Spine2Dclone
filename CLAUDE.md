@@ -93,7 +93,7 @@ packages/
   runtime-core/                  # platform-agnostic solve (skeleton, effects, slot). NO PixiJS. Behavioral source of truth.
   runtime-web/                   # TS + PixiJS playback; also powers the editor viewport
   document-core/                 # renderer-agnostic DocumentModel + commands + History (ADR-0001). NO React/PixiJS/DOM. Shared by the editor AND the headless MCP server.
-  mcp-server/                    # standalone headless MCP server (stdio CLI: marionette-mcp), 160 tools over the same commands (WP-M.1). Imports document-core/format/runtime-core/render-preview/atlas-pack.
+  mcp-server/                    # standalone headless MCP server (stdio CLI: marionette-mcp), 166 tools over the same commands (WP-M.1). Imports document-core/format/runtime-core/render-preview/atlas-pack.
   render-preview/                # deterministic CPU rasterizer -> PNG (ADR-0006) for headless render feedback
   atlas-pack/                    # deterministic atlas pipeline (ADR-0007), shared by editor main + mcp-server
   math-bridge/                   # SpinResult types + adapter to the existing engine (+ mock)

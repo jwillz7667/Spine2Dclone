@@ -137,7 +137,7 @@ export function buildFixtureSamples(document: SkeletonDocument, spec: SampleSpec
       // with no color timeline, the blended value otherwise). Blend mode is a static document property.
       const slots: SlotState[] = slotTargets.map((target) => {
         const base = target.poseIndex * SLOT_COLOR_STRIDE;
-        return {
+        const state: SlotState = {
           slot: target.name,
           blendMode: target.blendMode,
           color: [
@@ -147,6 +147,18 @@ export function buildFixtureSamples(document: SkeletonDocument, spec: SampleSpec
             pose.slotColor[base + 3]!,
           ],
         };
+        // The resolved two-color dark tint, captured only for a slot that enabled two-color tinting
+        // (ADR-0011 section 3). A slot without a setup darkColor omits the lane, so pre-slice-6 slot
+        // captures stay byte-identical.
+        if (pose.slotHasDarkColor[target.poseIndex] === 1) {
+          state.dark = [
+            pose.slotDarkColor[base]!,
+            pose.slotDarkColor[base + 1]!,
+            pose.slotDarkColor[base + 2]!,
+            pose.slotDarkColor[base + 3]!,
+          ];
+        }
+        return state;
       });
       sample.slots = slots;
     }

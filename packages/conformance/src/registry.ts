@@ -57,6 +57,10 @@ export const RIG_IDS = [
   // modes (hold/once/loop/pingpong plus the three reverses) and the setup-frame fallback, captured on a
   // new EXACT-integer sequence-frame lane. Authored first-principles.
   'rig-sequences',
+  // PP-B5 slice 6 (ADR-0011 section 3): per-component split bone tracks (translateX/Y, scaleX/Y,
+  // shearX/Y), split rgb/alpha slot color, and a keyable two-color dark tint (a new dark-color lane on the
+  // slot capture). Authored first-principles.
+  'rig-split-tracks',
 ] as const;
 
 export type RigId = (typeof RIG_IDS)[number];
@@ -86,6 +90,7 @@ export const RIG_PHASE: Readonly<Record<RigId, number>> = {
   'rig-transform-variants': 2,
   'rig-linked-mesh': 2,
   'rig-sequences': 2,
+  'rig-split-tracks': 2,
 };
 
 // The committed current phase (B.2 landed-rig gating). Bumped per phase milestone in this file, NOT

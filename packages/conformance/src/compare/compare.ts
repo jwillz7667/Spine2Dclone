@@ -29,6 +29,7 @@ export type QuantityClass =
   | 'worldTranslation'
   | 'vertex'
   | 'slotColor'
+  | 'slotDarkColor'
   | 'eventFloat'
   | 'structural';
 
@@ -218,6 +219,38 @@ function compareSlots(
         rtol: COLOR.rtol,
         message: `slot "${es.slot}" color lane ${lane} (${COLOR_LANE_NAMES[lane]}) at t=${time} drifts beyond tolerance`,
       });
+    }
+    // The two-color dark tint (ADR-0011 section 3), present only for two-color slots. Presence must agree
+    // (a structural mismatch) and each lane rides the COLOR tolerance like the primary color.
+    const expectedDark = es.dark;
+    const actualDark = as.dark;
+    if ((expectedDark === undefined) !== (actualDark === undefined)) {
+      failures.push(
+        structuralFailure(
+          rigId,
+          `slot "${es.slot}" at t=${time} dark-tint presence mismatch: expected ${expectedDark !== undefined}, actual ${actualDark !== undefined}`,
+          time,
+        ),
+      );
+    } else if (expectedDark !== undefined && actualDark !== undefined) {
+      for (let lane = 0; lane < 4; lane += 1) {
+        const expectedValue = expectedDark[lane]!;
+        const actualValue = actualDark[lane]!;
+        if (withinTolerance(actualValue, expectedValue, COLOR)) continue;
+        failures.push({
+          rigId,
+          time,
+          bone: es.slot,
+          quantity: 'slotDarkColor',
+          lane,
+          expected: expectedValue,
+          actual: actualValue,
+          absDelta: Math.abs(actualValue - expectedValue),
+          atol: COLOR.atol,
+          rtol: COLOR.rtol,
+          message: `slot "${es.slot}" dark lane ${lane} (${COLOR_LANE_NAMES[lane]}) at t=${time} drifts beyond tolerance`,
+        });
+      }
     }
   }
 }

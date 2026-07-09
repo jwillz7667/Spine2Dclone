@@ -128,6 +128,19 @@ export interface Pose {
   readonly slotSetupColor: Float64Array;
   // SLOT_COLOR_STRIDE lanes per slot: the resolved color written by sampleSkeleton (replaces setup).
   readonly slotColor: Float64Array;
+  // SLOT_COLOR_STRIDE lanes per slot: the setup two-color DARK tint (ADR-0009 section 4.3), the reset
+  // source for the keyable dark color. A slot with no setup `darkColor` keeps (0, 0, 0, 1) here (inert; the
+  // dark tint's alpha is ignored by renderers). `slotHasDarkColor` records which slots actually declared
+  // one, so a renderer / fixture reads the dark lane only where two-color tinting is enabled.
+  readonly slotSetupDarkColor: Float64Array;
+  // SLOT_COLOR_STRIDE lanes per slot: the resolved dark tint written by sampleSkeleton (reset to
+  // slotSetupDarkColor each frame in step 1, blended by the `dark` timeline in step 2). Exposed for
+  // renderers that draw the two-color tint.
+  readonly slotDarkColor: Float64Array;
+  // One flag per slot: 1 when the slot declared a setup `darkColor` (two-color tinting enabled). The format
+  // guarantees a slot that keys a `dark` timeline has a setup `darkColor` (ANIM_DARK_NO_SETUP), so this is
+  // set for every slot the dark lane is meaningful on.
+  readonly slotHasDarkColor: Uint8Array;
   // One f64 per slot: the greatest track weight that has written this slot's active attachment this
   // frame (the discrete greater-weight-wins winner weight, ADR-0005 rule 5). Reset to -1 each frame by
   // beginBlend so any keying track (even weight 0) beats "nothing"; a later-applied track with an equal
@@ -222,6 +235,9 @@ export function allocatePose(
     slotBoneIndices: new Int32Array(slotCount),
     slotSetupColor: new Float64Array(slotCount * SLOT_COLOR_STRIDE),
     slotColor: new Float64Array(slotCount * SLOT_COLOR_STRIDE),
+    slotSetupDarkColor: new Float64Array(slotCount * SLOT_COLOR_STRIDE),
+    slotDarkColor: new Float64Array(slotCount * SLOT_COLOR_STRIDE),
+    slotHasDarkColor: new Uint8Array(slotCount),
     slotAttachmentWinWeight: new Float64Array(slotCount),
     ikBendWinWeight: new Float64Array(ikConstraints.length),
     ikStretchWinWeight: new Float64Array(ikConstraints.length),

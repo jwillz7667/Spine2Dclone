@@ -1,0 +1,245 @@
+{
+  "formatVersion": "0.4.0",
+  "name": "rig-split-tracks",
+  "hash": "",
+  "bones": [
+    {
+      "name": "root",
+      "parent": null,
+      "length": 0,
+      "x": 0,
+      "y": 0,
+      "rotation": 0,
+      "scaleX": 1,
+      "scaleY": 1,
+      "shearX": 0,
+      "shearY": 0,
+      "transformMode": "normal"
+    },
+    {
+      "name": "splitBone",
+      "parent": "root",
+      "length": 40,
+      "x": 0,
+      "y": 0,
+      "rotation": 0,
+      "scaleX": 1,
+      "scaleY": 1,
+      "shearX": 0,
+      "shearY": 0,
+      "transformMode": "normal"
+    }
+  ],
+  "slots": [
+    {
+      "name": "tintSlot",
+      "bone": "root",
+      "color": {
+        "r": 1,
+        "g": 1,
+        "b": 1,
+        "a": 1
+      },
+      "darkColor": {
+        "r": 0.2,
+        "g": 0.1,
+        "b": 0.3,
+        "a": 1
+      },
+      "attachment": null,
+      "blendMode": "normal"
+    }
+  ],
+  "skins": [
+    {
+      "name": "default",
+      "attachments": {}
+    }
+  ],
+  "ikConstraints": [],
+  "transformConstraints": [],
+  "animations": {
+    "default": {
+      "duration": 1,
+      "bones": {
+        "splitBone": {
+          "translateX": [
+            {
+              "time": 0,
+              "value": {
+                "value": 0
+              },
+              "curve": "linear"
+            },
+            {
+              "time": 1,
+              "value": {
+                "value": 20
+              },
+              "curve": "linear"
+            }
+          ],
+          "translateY": [
+            {
+              "time": 0,
+              "value": {
+                "value": 0
+              },
+              "curve": "linear"
+            },
+            {
+              "time": 1,
+              "value": {
+                "value": -15
+              },
+              "curve": "linear"
+            }
+          ],
+          "scaleX": [
+            {
+              "time": 0,
+              "value": {
+                "value": 1
+              },
+              "curve": "linear"
+            },
+            {
+              "time": 1,
+              "value": {
+                "value": 1.4
+              },
+              "curve": "linear"
+            }
+          ],
+          "scaleY": [
+            {
+              "time": 0,
+              "value": {
+                "value": 1
+              },
+              "curve": "linear"
+            },
+            {
+              "time": 1,
+              "value": {
+                "value": 0.8
+              },
+              "curve": "linear"
+            }
+          ],
+          "shearX": [
+            {
+              "time": 0,
+              "value": {
+                "value": 0
+              },
+              "curve": "linear"
+            },
+            {
+              "time": 1,
+              "value": {
+                "value": 12
+              },
+              "curve": "linear"
+            }
+          ],
+          "shearY": [
+            {
+              "time": 0,
+              "value": {
+                "value": 0
+              },
+              "curve": "linear"
+            },
+            {
+              "time": 1,
+              "value": {
+                "value": 6
+              },
+              "curve": "linear"
+            }
+          ]
+        }
+      },
+      "slots": {
+        "tintSlot": {
+          "rgb": [
+            {
+              "time": 0,
+              "value": {
+                "rgb": {
+                  "r": 1,
+                  "g": 1,
+                  "b": 1
+                }
+              },
+              "curve": "linear"
+            },
+            {
+              "time": 1,
+              "value": {
+                "rgb": {
+                  "r": 1,
+                  "g": 0,
+                  "b": 0
+                }
+              },
+              "curve": "linear"
+            }
+          ],
+          "alpha": [
+            {
+              "time": 0,
+              "value": {
+                "alpha": 1
+              },
+              "curve": "linear"
+            },
+            {
+              "time": 1,
+              "value": {
+                "alpha": 0.4
+              },
+              "curve": "linear"
+            }
+          ],
+          "dark": [
+            {
+              "time": 0,
+              "value": {
+                "color": {
+                  "r": 0.2,
+                  "g": 0.1,
+                  "b": 0.3,
+                  "a": 1
+                }
+              },
+              "curve": "linear"
+            },
+            {
+              "time": 1,
+              "value": {
+                "color": {
+                  "r": 0.8,
+                  "g": 0.2,
+                  "b": 0.5,
+                  "a": 1
+                }
+              },
+              "curve": "linear"
+            }
+          ]
+        }
+      },
+      "ik": {},
+      "transform": {},
+      "deform": {},
+      "drawOrder": [],
+      "events": []
+    }
+  },
+  "atlas": {
+    "pages": []
+  },
+  "events": []
+}

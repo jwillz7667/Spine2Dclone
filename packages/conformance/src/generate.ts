@@ -112,7 +112,8 @@ function serializeMesh(mesh: NonNullable<FixtureSample['meshes']>[number], inden
 // a diff reads one slot per line (matching the one-mesh-per-line convention).
 function serializeSlot(slot: NonNullable<FixtureSample['slots']>[number], indent: string): string {
   const color = `[${slot.color.map(num).join(', ')}]`;
-  return `${indent}{ "slot": ${str(slot.slot)}, "blendMode": ${str(slot.blendMode)}, "color": ${color} }`;
+  const dark = slot.dark !== undefined ? `, "dark": [${slot.dark.map(num).join(', ')}]` : '';
+  return `${indent}{ "slot": ${str(slot.slot)}, "blendMode": ${str(slot.blendMode)}, "color": ${color}${dark} }`;
 }
 
 function serializeSample(sample: FixtureSample, indent: string): string {

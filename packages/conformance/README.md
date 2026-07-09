@@ -12,7 +12,7 @@ All under `src/`:
 
 | Track | Rigs / inputs | Fixtures | Lock |
 |---|---|---|---|
-| **Skeleton** | `rigs/` (16 rigs, each committed as `.json` AND a binary `.bin` twin): rig-2bone, rig-rigid-mesh, rig-weighted-mesh, rig-one-bone-ik, rig-two-bone-ik, rig-transform-constraint, rig-deform, rig-transform-modes, rig-blendmodes, rig-events-draworder, rig-events-loop, rig-ik-depth, rig-constraint-order, rig-transform-variants, rig-linked-mesh, rig-sequences | `fixtures/` (16, driven by `sample-spec/`) | `.fixtures.lock` |
+| **Skeleton** | `rigs/` (17 rigs, each committed as `.json` AND a binary `.bin` twin): rig-2bone, rig-rigid-mesh, rig-weighted-mesh, rig-one-bone-ik, rig-two-bone-ik, rig-transform-constraint, rig-deform, rig-transform-modes, rig-blendmodes, rig-events-draworder, rig-events-loop, rig-ik-depth, rig-constraint-order, rig-transform-variants, rig-linked-mesh, rig-sequences, rig-split-tracks | `fixtures/` (17, driven by `sample-spec/`) | `.fixtures.lock` |
 | **Effects / particles** | `effects-rigs/` (4): coin-burst, ribbon-trail, circle-spawn, god-rays-sprite | `effects-fixtures/` (4) | `.effects-fixtures.lock` |
 | **AnimationState** (ADR-0005) | `anim-state-rigs/anim-state-rig.json` | `anim-state-fixtures/` (4): discrete-flip, additive-layer, queue-loop-boundary, crossfade-fractions | `.anim-state-fixtures.lock` |
 | **Slot** | `slot/scenes/` (4 scenes) x `slot/spins/` (6 spins) via `slot/sample-spec/` | `slot/expected/` (6 golden `PresentationTimeline`s) | `.slot.fixtures.lock` |
@@ -69,6 +69,13 @@ with a sequence attachment but no `sequence` timeline). It is observed on a new 
 (`{ slot, frame }` per captured slot, opted in with the sample-spec's `captureSequences`), compared EXACT
 because the frame index is discrete integer math. The lane is emitted only when the spec opts in, so every
 non-sequence fixture stays byte-identical.
+
+**rig-split-tracks** (PP-B5 slice 6, ADR-0011 section 3) exercises the per-component split bone tracks
+(translateX/Y, scaleX/Y, shearX/Y, observed on the bone world-affine lane, and unit-tested to equal the
+joint channels), the split rgb/alpha slot color (observed on the existing slot color lane), and the keyable
+two-color dark tint (observed on a new optional `dark` field of the slot capture, compared on the COLOR
+tolerance). The dark field is emitted only for a slot with a setup `darkColor`, so pre-slice-6 slot captures
+stay byte-identical.
 
 ## Structure
 

@@ -49,6 +49,16 @@ export interface PreparedBoneChannels {
   readonly translate: PreparedTrack | null;
   readonly scale: PreparedTrack | null;
   readonly shear: PreparedTrack | null;
+  // Per-component split tracks (ADR-0009 section 4.1, ADR-0011 section 3). Each is a single-lane scalar
+  // track for one component. The format forbids a joint channel and its split components coexisting on one
+  // bone (TIMELINE_COMPONENT_CONFLICT), so at most one of {translate} / {translateX, translateY} is
+  // non-null (and likewise scale, shear); applying all present tracks is therefore unambiguous.
+  readonly translateX: PreparedTrack | null;
+  readonly translateY: PreparedTrack | null;
+  readonly scaleX: PreparedTrack | null;
+  readonly scaleY: PreparedTrack | null;
+  readonly shearX: PreparedTrack | null;
+  readonly shearY: PreparedTrack | null;
 }
 
 // The channels of one animated slot, resolved to the pose's slot index at build time.
@@ -56,6 +66,13 @@ export interface PreparedSlotChannels {
   readonly slotIndex: number;
   readonly color: PreparedTrack | null;
   readonly attachment: PreparedAttachmentTrack | null;
+  // Split color tracks (ADR-0009 section 4.2): `rgb` is a 3-lane track, `alpha` a 1-lane track. The joint
+  // `color` (RGBA) and the split `rgb`/`alpha` must not coexist on one slot (TIMELINE_COMPONENT_CONFLICT),
+  // so at most one form is non-null. The keyable two-color `dark` tint (ADR-0009 section 4.3, RGBA) is
+  // independent and blends into the pose's dark-color lane.
+  readonly rgb: PreparedTrack | null;
+  readonly alpha: PreparedTrack | null;
+  readonly dark: PreparedTrack | null;
 }
 
 // The timelines of one animated IK constraint, resolved to the pose's ik-constraint index at build

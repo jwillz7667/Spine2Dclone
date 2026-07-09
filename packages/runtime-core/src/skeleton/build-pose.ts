@@ -69,6 +69,15 @@ export function buildPose(document: SkeletonDocument): Pose {
     pose.slotSetupColor[base + 1] = slot.color.g;
     pose.slotSetupColor[base + 2] = slot.color.b;
     pose.slotSetupColor[base + 3] = slot.color.a;
+    // Setup two-color dark tint (ADR-0009 section 4.3). Present only when the slot enables two-color
+    // tinting; absent slots keep an inert (0, 0, 0, 1) so the reset is well-defined but renderers skip it
+    // (slotHasDarkColor is 0). The dark tint's alpha channel is inert but carried for a total RGBA lane.
+    const dark = slot.darkColor;
+    pose.slotHasDarkColor[i] = dark === undefined ? 0 : 1;
+    pose.slotSetupDarkColor[base] = dark?.r ?? 0;
+    pose.slotSetupDarkColor[base + 1] = dark?.g ?? 0;
+    pose.slotSetupDarkColor[base + 2] = dark?.b ?? 0;
+    pose.slotSetupDarkColor[base + 3] = dark?.a ?? 1;
     pose.slotSetupAttachment[i] = slot.attachment;
   }
 

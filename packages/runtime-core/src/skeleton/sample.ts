@@ -1,4 +1,4 @@
-import type { Animation, SkeletonDocument } from '@marionette/format/types';
+import type { Animation, BoneTimelines, SkeletonDocument } from '@marionette/format/types';
 import { composeInto, MAT2X3_STRIDE } from '../math/affine';
 import { resolveWorld, solveIkOneBone, solveIkTwoBone, solveTransformConstraint } from '../solve';
 import type { TransformMix } from '../solve/transform-constraint';
@@ -14,9 +14,12 @@ import type {
   PreparedTransformChannel,
 } from './prepared';
 import {
+  buildAlphaTrack,
   buildAttachmentTrack,
   buildBendTrack,
   buildColorTrack,
+  buildComponentTrack,
+  buildRgbTrack,
   buildDeformTrack,
   buildDrawOrderTimeline,
   buildIkDepthBoolTrack,
@@ -310,6 +313,8 @@ function copyTransformMix(
 export function resetSlotsToSetup(pose: Pose): void {
   const { slotColor, slotSetupColor, slotAttachment, slotSetupAttachment, slotCount } = pose;
   slotColor.set(slotSetupColor);
+  // Reset the two-color dark tint to its setup (ADR-0009 section 4.3). Allocation-free typed-array copy.
+  pose.slotDarkColor.set(pose.slotSetupDarkColor);
   // Step 1 also resets the render order to the setup (identity) draw order, so a frame with no active
   // draw-order key renders in setup slot order. Allocation-free: a typed-array copy (ADR-0008, PP-B4).
   pose.drawOrder.set(pose.slotSetupDrawOrder);
@@ -447,8 +452,45 @@ function applyBoneEntry(
       touched = true;
     }
 
+    // Per-component split tracks (ADR-0009 section 4.1). Each writes ONE local component with the same
+    // math as the corresponding joint component (translate/shear are setup + value, scale is setup *
+    // value). The format's coexistence ban guarantees a channel's joint and split forms never both key,
+    // so applying every present track cannot double-write a component.
+    if (applyBoneScalar(channels.translateX, blendLocal, setup, s, false, t, alpha, additive)) touched = true;
+    if (applyBoneScalar(channels.translateY, blendLocal, setup, s + 1, false, t, alpha, additive)) touched = true;
+    if (applyBoneScalar(channels.scaleX, blendLocal, setup, s + 3, true, t, alpha, additive)) touched = true;
+    if (applyBoneScalar(channels.scaleY, blendLocal, setup, s + 4, true, t, alpha, additive)) touched = true;
+    if (applyBoneScalar(channels.shearX, blendLocal, setup, s + 5, false, t, alpha, additive)) touched = true;
+    if (applyBoneScalar(channels.shearY, blendLocal, setup, s + 6, false, t, alpha, additive)) touched = true;
+
     if (touched) boneTouched[boneIndex] = 1;
   }
+}
+
+// Apply one split scalar bone track to a single local-component lane, matching the joint channel's math:
+// `multiplicative` (scale) composes as setup * value, else (translate, shear) as setup + value; the result
+// blends onto blendLocal by alpha (additive adds the delta from setup). Returns whether the track applied
+// (null tracks are absent). Kept allocation-free and shaped like the joint blend so a split-keyed bone
+// produces the identical world affine a joint-keyed one would for equivalent values.
+function applyBoneScalar(
+  track: PreparedTrack | null,
+  blendLocal: Float64Array,
+  setup: Float64Array,
+  lane: number,
+  multiplicative: boolean,
+  t: number,
+  alpha: number,
+  additive: boolean,
+): boolean {
+  if (track === null) return false;
+  const i = findSegmentIndex(track.times, track.keyCount, t);
+  const f = segmentFraction(track, i, t);
+  const raw = segmentComponent(track, i, f, 0);
+  const sampled = multiplicative ? setup[lane]! * raw : setup[lane]! + raw;
+  blendLocal[lane] = additive
+    ? blendAddLinear(blendLocal[lane]!, setup[lane]!, sampled, alpha)
+    : blendReplaceLinear(blendLocal[lane]!, sampled, alpha);
+  return true;
 }
 
 // Blend one animation's slot channels: color REPLACES/adds like a continuous channel (rule 2/3, per-
@@ -463,22 +505,60 @@ function applySlotEntry(
   discreteWins: boolean,
 ): void {
   const { slotChannels } = prepared;
-  const { slotColor, slotSetupColor, slotAttachment, slotAttachmentWinWeight } = pose;
+  const { slotColor, slotSetupColor, slotDarkColor, slotSetupDarkColor, slotAttachment, slotAttachmentWinWeight } =
+    pose;
   for (let sc = 0; sc < slotChannels.length; sc += 1) {
     const channels: PreparedSlotChannels = slotChannels[sc]!;
     const slotIndex = channels.slotIndex;
     if (slotIndex < 0) continue;
+    const base = slotIndex * SLOT_COLOR_STRIDE;
 
     const color = channels.color;
     if (color !== null) {
       const i = findSegmentIndex(color.times, color.keyCount, t);
       const f = segmentFraction(color, i, t);
-      const base = slotIndex * SLOT_COLOR_STRIDE;
       for (let k = 0; k < SLOT_COLOR_STRIDE; k += 1) {
         const sampled = segmentComponent(color, i, f, k);
         slotColor[base + k] = additive
           ? blendAddLinear(slotColor[base + k]!, slotSetupColor[base + k]!, sampled, alpha)
           : blendReplaceLinear(slotColor[base + k]!, sampled, alpha);
+      }
+    }
+
+    // Split color (ADR-0009 section 4.2): `rgb` writes lanes 0..2, `alpha` lane 3. The coexistence ban
+    // means these never run alongside the joint `color` on the same slot.
+    const rgb = channels.rgb;
+    if (rgb !== null) {
+      const i = findSegmentIndex(rgb.times, rgb.keyCount, t);
+      const f = segmentFraction(rgb, i, t);
+      for (let k = 0; k < 3; k += 1) {
+        const sampled = segmentComponent(rgb, i, f, k);
+        slotColor[base + k] = additive
+          ? blendAddLinear(slotColor[base + k]!, slotSetupColor[base + k]!, sampled, alpha)
+          : blendReplaceLinear(slotColor[base + k]!, sampled, alpha);
+      }
+    }
+    const alphaTrack = channels.alpha;
+    if (alphaTrack !== null) {
+      const i = findSegmentIndex(alphaTrack.times, alphaTrack.keyCount, t);
+      const f = segmentFraction(alphaTrack, i, t);
+      const sampled = segmentComponent(alphaTrack, i, f, 0);
+      slotColor[base + 3] = additive
+        ? blendAddLinear(slotColor[base + 3]!, slotSetupColor[base + 3]!, sampled, alpha)
+        : blendReplaceLinear(slotColor[base + 3]!, sampled, alpha);
+    }
+
+    // Keyable two-color dark tint (ADR-0009 section 4.3): blends into the pose's dark-color lane like the
+    // RGBA color, over the setup dark tint. Renderers read slotDarkColor for the two-color draw.
+    const dark = channels.dark;
+    if (dark !== null) {
+      const i = findSegmentIndex(dark.times, dark.keyCount, t);
+      const f = segmentFraction(dark, i, t);
+      for (let k = 0; k < SLOT_COLOR_STRIDE; k += 1) {
+        const sampled = segmentComponent(dark, i, f, k);
+        slotDarkColor[base + k] = additive
+          ? blendAddLinear(slotDarkColor[base + k]!, slotSetupDarkColor[base + k]!, sampled, alpha)
+          : blendReplaceLinear(slotDarkColor[base + k]!, sampled, alpha);
       }
     }
 
@@ -598,6 +678,11 @@ function prepareAnimation(pose: Pose, animation: Animation): PreparedAnimation {
   const boneIndexByName = nameIndex(pose.boneNames);
   const slotIndexByName = nameIndex(pose.slotNames);
 
+  // Prepare one optional split component track (translateX/Y, scaleX/Y, shearX/Y): null when absent/empty.
+  const componentTrack = (
+    keys: NonNullable<BoneTimelines['translateX']> | undefined,
+  ): PreparedTrack | null => (keys && keys.length > 0 ? buildComponentTrack(keys) : null);
+
   const boneChannels: PreparedBoneChannels[] = [];
   for (const boneName of Object.keys(animation.bones)) {
     const timelines = animation.bones[boneName]!;
@@ -611,6 +696,12 @@ function prepareAnimation(pose: Pose, animation: Animation): PreparedAnimation {
           : null,
       scale: timelines.scale && timelines.scale.length > 0 ? buildVec2Track(timelines.scale) : null,
       shear: timelines.shear && timelines.shear.length > 0 ? buildVec2Track(timelines.shear) : null,
+      translateX: componentTrack(timelines.translateX),
+      translateY: componentTrack(timelines.translateY),
+      scaleX: componentTrack(timelines.scaleX),
+      scaleY: componentTrack(timelines.scaleY),
+      shearX: componentTrack(timelines.shearX),
+      shearY: componentTrack(timelines.shearY),
     });
   }
 
@@ -625,6 +716,9 @@ function prepareAnimation(pose: Pose, animation: Animation): PreparedAnimation {
         timelines.attachment && timelines.attachment.length > 0
           ? buildAttachmentTrack(timelines.attachment)
           : null,
+      rgb: timelines.rgb && timelines.rgb.length > 0 ? buildRgbTrack(timelines.rgb) : null,
+      alpha: timelines.alpha && timelines.alpha.length > 0 ? buildAlphaTrack(timelines.alpha) : null,
+      dark: timelines.dark && timelines.dark.length > 0 ? buildColorTrack(timelines.dark) : null,
     });
   }
 

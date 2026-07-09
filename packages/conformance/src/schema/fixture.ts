@@ -59,6 +59,12 @@ const slotStateSchema = z
       z.number().finite(),
       z.number().finite(),
     ]),
+    // The resolved two-color DARK tint RGBA (PP-B5 slice 6, ADR-0011 section 3), present only for a slot
+    // that declared a setup `darkColor` (two-color tinting enabled). Compared on the COLOR tolerance like
+    // the primary color. Omitted otherwise, so pre-slice-6 slot captures stay byte-identical.
+    dark: z
+      .tuple([z.number().finite(), z.number().finite(), z.number().finite(), z.number().finite()])
+      .optional(),
   })
   .strict();
 

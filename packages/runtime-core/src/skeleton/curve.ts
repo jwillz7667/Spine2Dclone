@@ -3,6 +3,7 @@ import type {
   DrawOrderKeyframe,
   IkFrame,
   Keyframe,
+  RGB,
   RGBA,
   SlotTimelines,
   TransformFrame,
@@ -151,6 +152,9 @@ function buildTrack<TValue>(
 type RotateKeys = NonNullable<BoneTimelines['rotate']>;
 type Vec2Keys = NonNullable<BoneTimelines['translate']>;
 type ColorKeys = NonNullable<SlotTimelines['color']>;
+type ComponentKeys = NonNullable<BoneTimelines['translateX']>;
+type RgbKeys = NonNullable<SlotTimelines['rgb']>;
+type AlphaKeys = NonNullable<SlotTimelines['alpha']>;
 type AttachmentFrames = NonNullable<SlotTimelines['attachment']>;
 
 export function buildScalarTrack(keys: RotateKeys): PreparedTrack {
@@ -173,6 +177,33 @@ export function buildColorTrack(keys: ColorKeys): PreparedTrack {
     out[base + 1] = color.g;
     out[base + 2] = color.b;
     out[base + 3] = color.a;
+  });
+}
+
+// One split component bone track (ADR-0009 section 4.1): a single scalar lane read from a
+// `{ value }` keyframe (translateX/Y, scaleX/Y, shearX/Y). The apply layer composes it as add (translate,
+// shear) or multiply (scale) onto the setup lane, matching the joint channel's per-component math.
+export function buildComponentTrack(keys: ComponentKeys): PreparedTrack {
+  return buildTrack(keys, 1, (key, out, base) => {
+    out[base] = key.value.value;
+  });
+}
+
+// The split `rgb` slot color track (ADR-0009 section 4.2): three lanes from an `{ rgb }` keyframe. Alpha
+// rides the separate `alpha` track (buildAlphaTrack), so this writes only lanes 0..2.
+export function buildRgbTrack(keys: RgbKeys): PreparedTrack {
+  return buildTrack(keys, 3, (key, out, base) => {
+    const rgb: RGB = key.value.rgb;
+    out[base] = rgb.r;
+    out[base + 1] = rgb.g;
+    out[base + 2] = rgb.b;
+  });
+}
+
+// The split `alpha` slot color track (ADR-0009 section 4.2): one lane from an `{ alpha }` keyframe.
+export function buildAlphaTrack(keys: AlphaKeys): PreparedTrack {
+  return buildTrack(keys, 1, (key, out, base) => {
+    out[base] = key.value.alpha;
   });
 }
 

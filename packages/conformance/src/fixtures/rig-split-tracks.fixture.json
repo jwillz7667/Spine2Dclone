@@ -1,0 +1,46 @@
+{
+  "rigId": "rig-split-tracks",
+  "rigHash": "sha256:d0e9dd2723911d6ce8f98ed76e89c0f536142bc0d82791993171d1a486aa7037",
+  "specHash": "sha256:dc89ae76c6e01751e004f21a3b736d5ef8501db7b06a62275a6d2c0f768ff81e",
+  "coreVersion": "runtime-core@0.0.0",
+  "toolchain": "node-22.13.1-v8",
+  "generatedBy": "generate.ts",
+  "samples": [
+    {
+      "time": 0,
+      "animation": "default",
+      "loop": false,
+      "bones": {
+        "root": [1, 0, 0, 1, 0, 0],
+        "splitBone": [1, 0, 0, 1, 0, 0]
+      },
+      "slots": [
+        { "slot": "tintSlot", "blendMode": "normal", "color": [1, 1, 1, 1], "dark": [0.2, 0.1, 0.3, 1] }
+      ]
+    },
+    {
+      "time": 0.5,
+      "animation": "default",
+      "loop": false,
+      "bones": {
+        "root": [1, 0, 0, 1, 0, 0],
+        "splitBone": [1.2, 0.06288933513964945, 0.09459381173910883, 0.9, 10, -7.5]
+      },
+      "slots": [
+        { "slot": "tintSlot", "blendMode": "normal", "color": [1, 0.5, 0.5, 0.7], "dark": [0.5, 0.15000000000000002, 0.4, 1] }
+      ]
+    },
+    {
+      "time": 1,
+      "animation": "default",
+      "loop": false,
+      "bones": {
+        "root": [1, 0, 0, 1, 0, 0],
+        "splitBone": [1.4, 0.14714592937194704, 0.17004524933601772, 0.8, 20, -15]
+      },
+      "slots": [
+        { "slot": "tintSlot", "blendMode": "normal", "color": [1, 0, 0, 0.4], "dark": [0.8, 0.2, 0.5, 1] }
+      ]
+    }
+  ]
+}

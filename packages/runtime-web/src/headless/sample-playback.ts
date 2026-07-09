@@ -41,10 +41,16 @@ export interface SampledFrame {
 // `times` are single-period times in [0, duration]; sampleSkeleton clamps outside it and does NOT wrap
 // (map elapsed time through loopTime first for a looping sample). Throws AnimationNotFoundError, exactly
 // as sampleSkeleton does, for an unknown animation name.
+//
+// `activeSkin` (default null) selects the skin for skin-scoped constraints (ADR-0009 section 5): a
+// constraint a skin scopes solves only while that skin is active, so passing the active skin here samples
+// the SAME scoped solve the on-screen player runs (SkeletonView.syncAnimated forwards its active skin the
+// same way). null leaves only the always-active 'default' skin active, so unscoped rigs are unaffected.
 export function samplePlaybackWorlds(
   document: SkeletonDocument,
   animationName: string,
   times: readonly number[],
+  activeSkin: string | null = null,
 ): SampledFrame[] {
   const pose = buildPose(document);
   const boneCount = document.bones.length;
@@ -52,7 +58,7 @@ export function samplePlaybackWorlds(
 
   const frames: SampledFrame[] = [];
   for (const time of times) {
-    sampleSkeleton(document, animationName, time, pose);
+    sampleSkeleton(document, animationName, time, pose, activeSkin);
 
     const worlds: Mat2x3[] = [];
     const tips: (readonly [number, number])[] = [];

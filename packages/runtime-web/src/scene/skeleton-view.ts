@@ -297,7 +297,11 @@ export class SkeletonView {
   // per document and reused, so a steady-state frame allocates only the region products (TASK-1.10.5).
   syncAnimated(document: SkeletonDocument, animationId: string, t: number): void {
     const scene = this.ensureScene(document);
-    sampleSkeleton(document, animationId, t, scene.pose);
+    // Forward the ACTIVE skin so skin-scoped constraints (ADR-0009 section 5) solve only under the skin that
+    // scopes them: switching to a costume skin turns its scoped constraints on, matching the scoped
+    // attachment resolution this view already does (PP-C8). An unscoped rig is unaffected (every constraint
+    // is always active). The headless samplePlaybackWorlds forwards the active skin the same way for parity.
+    sampleSkeleton(document, animationId, t, scene.pose, scene.skinState.activeSkin);
     this.renderFromPose(scene, animationId, t);
   }
 
@@ -323,6 +327,13 @@ export class SkeletonView {
   // layer), on top of the state-solved skin. A crossfade on track 0 uses its incoming (current) entry.
   // When track 0 is empty, meshes render as the pure skin of the state-solved pose (no deform). This is a
   // deliberate, documented scope, NOT invented cross-track deform math.
+  //
+  // SKIN-SCOPED CONSTRAINTS under AnimationState (known gap): runtime-core's applyAnimationState takes no
+  // active-skin argument, so a skin-scoped constraint (ADR-0009 section 5) is NOT toggled by the active skin
+  // on this path (it behaves as the default skin does). The single-animation path (syncAnimated) DOES forward
+  // the active skin. Full parity waits on a runtime-core applyAnimationState overload that accepts the active
+  // skin; that is a runtime-core change, out of Lane C's boundary. Attachment resolution under a costume skin
+  // still works here (PP-C6, resolveActive reads the SkinState); only constraint scoping is deferred.
   syncState(document: SkeletonDocument, state: AnimationState): void {
     const scene = this.ensureScene(document);
     applyAnimationState(state, scene.pose);

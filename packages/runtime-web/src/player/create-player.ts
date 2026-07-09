@@ -259,6 +259,12 @@ export class Player {
     return this.skeletonView.getSkinNames();
   }
 
+  // The active skin name (PP-C6/PP-C8). Two-color, sequence, and linked-mesh rendering read attachments and
+  // (on the single-animation path) skin-scoped constraints under this skin.
+  getActiveSkin(): string {
+    return this.skeletonView.getActiveSkin();
+  }
+
   // Trigger a VFX effect by name (a slot vfxBurst callback can forward to this). No-op without an effects
   // subsystem. Returns the instance id, or null when there is no effect system.
   triggerEffect(

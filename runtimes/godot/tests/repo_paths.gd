@@ -1,0 +1,45 @@
+extends RefCounted
+# Locates the committed conformance sources by walking up from the Godot project (res://) to the
+# repository root (the first ancestor that contains packages/conformance/src). The runtime reads the
+# fixtures, sample specs, rigs, and integer vectors DIRECTLY from that one tree (single source of truth,
+# never copied), so a fixture regeneration in the TS oracle is seen here with no sync step.
+
+static var _conformance_src: String = _resolve()
+
+
+static func _resolve() -> String:
+	var dir := ProjectSettings.globalize_path("res://").simplify_path()
+	while true:
+		var candidate := dir.path_join("packages/conformance/src")
+		if DirAccess.dir_exists_absolute(candidate):
+			return candidate
+		var parent := dir.path_join("..").simplify_path()
+		if parent == dir:
+			break
+		dir = parent
+	push_error("could not locate packages/conformance/src walking up from res://")
+	return ""
+
+
+static func conformance_src() -> String:
+	return _conformance_src
+
+
+static func rig_json(rig_id: String) -> String:
+	return _conformance_src.path_join("rigs/%s.json" % rig_id)
+
+
+static func rig_bin(rig_id: String) -> String:
+	return _conformance_src.path_join("rigs/%s.bin" % rig_id)
+
+
+static func sample_spec(rig_id: String) -> String:
+	return _conformance_src.path_join("sample-spec/%s.sample-spec.json" % rig_id)
+
+
+static func fixture(rig_id: String) -> String:
+	return _conformance_src.path_join("fixtures/%s.fixture.json" % rig_id)
+
+
+static func cross_language_vectors() -> String:
+	return _conformance_src.path_join("cross-language/seed-prng-crc-vectors.json")

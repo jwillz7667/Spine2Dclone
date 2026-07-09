@@ -1,6 +1,6 @@
 import type { IDockviewPanelProps } from 'dockview';
 import { useEffect, useMemo, useState, type CSSProperties, type ReactElement } from 'react';
-import type { AtlasRegion, BlendMode, RGBA } from '@marionette/format/types';
+import type { AtlasRegion, BlendMode, RGBA, Sequence } from '@marionette/format/types';
 import {
   AddRegionAttachmentCommand,
   AutoWeightFromProximityCommand,
@@ -12,6 +12,8 @@ import {
   MeshBindingError,
   NormalizeMeshWeightsCommand,
   RemoveAttachmentCommand,
+  SequenceError,
+  SetAttachmentSequenceCommand,
   UnlinkMeshCommand,
   RenameSlotCommand,
   ReorderSlotCommand,
@@ -284,6 +286,96 @@ function unlinkMesh(slotId: SlotId, name: string): void {
   } catch (error) {
     if (!(error instanceof LinkedMeshError)) throw error;
   }
+}
+
+// Set or clear the Stage F2 frame-sequence on a region/mesh attachment (PP-D10). setupIndex is clamped into
+// [0, count) so the command's validation never rejects a UI edit; a SequenceError is swallowed at the edge.
+function setAttachmentSequence(slotId: SlotId, name: string, sequence: Sequence | null): void {
+  const clamped: Sequence | null =
+    sequence === null
+      ? null
+      : {
+          count: Math.max(1, Math.floor(sequence.count)),
+          start: Math.max(0, Math.floor(sequence.start)),
+          digits: Math.max(0, Math.floor(sequence.digits)),
+          setupIndex: Math.min(
+            Math.max(0, Math.floor(sequence.setupIndex)),
+            Math.max(1, Math.floor(sequence.count)) - 1,
+          ),
+        };
+  try {
+    documentHost.current().history.execute(new SetAttachmentSequenceCommand(slotId, name, clamped));
+  } catch (error) {
+    if (!(error instanceof SequenceError)) throw error;
+  }
+}
+
+// A compact frame-sequence editor for a region/mesh attachment (PP-D10). Shows count/setupIndex when a
+// sequence is present (with a Clear), else a button that adds a default 2-frame sequence.
+function SequenceControl(props: {
+  readonly slotId: SlotId;
+  readonly name: string;
+  readonly sequence: Sequence | undefined;
+}): ReactElement {
+  const { slotId, name, sequence } = props;
+  if (sequence === undefined) {
+    return (
+      <div style={detailRowStyle}>
+        <span style={labelStyle}>Sequence</span>
+        <button
+          type="button"
+          style={smallButtonStyle}
+          title="Add a frame-sequence playback block to this attachment (Stage F2)"
+          onClick={() =>
+            setAttachmentSequence(slotId, name, { count: 2, start: 0, digits: 2, setupIndex: 0 })
+          }
+        >
+          Add Sequence
+        </button>
+      </div>
+    );
+  }
+  return (
+    <div style={detailRowStyle}>
+      <span style={labelStyle}>Sequence</span>
+      <span style={rowBoneStyle}>count</span>
+      <input
+        style={cellSizeInputStyle}
+        defaultValue={sequence.count}
+        inputMode="numeric"
+        key={`count-${sequence.count}`}
+        title="Number of frames"
+        onBlur={(event) =>
+          setAttachmentSequence(slotId, name, {
+            ...sequence,
+            count: parseFinite(event.currentTarget.value, sequence.count),
+          })
+        }
+      />
+      <span style={rowBoneStyle}>setup</span>
+      <input
+        style={cellSizeInputStyle}
+        defaultValue={sequence.setupIndex}
+        inputMode="numeric"
+        key={`setup-${sequence.setupIndex}`}
+        title="The frame shown in setup pose (0-based)"
+        onBlur={(event) =>
+          setAttachmentSequence(slotId, name, {
+            ...sequence,
+            setupIndex: parseFinite(event.currentTarget.value, sequence.setupIndex),
+          })
+        }
+      />
+      <button
+        type="button"
+        style={smallButtonStyle}
+        title="Remove the frame-sequence block"
+        onClick={() => setAttachmentSequence(slotId, name, null)}
+      >
+        Clear
+      </button>
+    </div>
+  );
 }
 
 // Commit a slot color edit inside a coalescing interaction session (mirrors the animation panel's
@@ -630,6 +722,7 @@ function AttachmentRow(props: AttachmentRowProps): ReactElement {
           onCommit={commitField}
         />
       </div>
+      <SequenceControl slotId={slotId} name={attachment.name} sequence={attachment.sequence} />
     </div>
   );
 }
@@ -761,6 +854,7 @@ function MeshAttachmentRow(props: MeshAttachmentRowProps): ReactElement {
           </>
         )}
       </div>
+      <SequenceControl slotId={slotId} name={name} sequence={mesh.sequence} />
     </div>
   );
 }

@@ -196,14 +196,15 @@ Clarification of the attachment name model: an attachment has no `name` field. I
 - Top-level keys must be existing slot names (`SKIN_SLOT_UNKNOWN`).
 - Runtime skin switching looks an attachment up in the active skin first and falls back to `default`. Setup pose always resolves against `default`.
 
-### 4.6 The five attachment kinds
+### 4.6 The six attachment kinds
 
-`Attachment` is a discriminated union on `type` (`region | mesh | clipping | point | boundingbox`). Zod uses `z.discriminatedUnion('type', [...])`.
+`Attachment` is a discriminated union on `type` (`region | mesh | linkedmesh | clipping | point | boundingbox`). Zod uses `z.discriminatedUnion('type', [...])`. Stage F2 (ADR-0009) added the closed `linkedmesh` kind and an optional frame `sequence` block on `region` and `mesh`.
 
 | Type | Clarified invariants |
 |---|---|
-| `region` | `path` must name an existing atlas region (`ATTACHMENT_REGION_MISSING`). `width/height` are the source region size; `scaleX/scaleY`, `rotation`, `x/y` place it relative to the slot bone. |
-| `mesh` | `path` must name an existing atlas region. Vertex encoding rules in section 6 (weighted and unweighted). `uvs.length` even; vertex count `V = uvs.length / 2`. `triangles.length % 3 == 0`; every index in `[0, V)`. `hullLength` is a count of HULL VERTICES (not coordinates) in `[0, V]` (`MESH_HULL_RANGE`). `edges` (optional) is editor-only wireframe data, ignored by runtimes but validated for integrity when present (see below). |
+| `region` | `path` must name an existing atlas region (`ATTACHMENT_REGION_MISSING`). `width/height` are the source region size; `scaleX/scaleY`, `rotation`, `x/y` place it relative to the slot bone. Optional F2 `sequence` (`count` >= 1, `start`/`digits` >= 0, `setupIndex` in `[0, count)`, `SEQUENCE_SETUP_RANGE`). |
+| `mesh` | `path` must name an existing atlas region. Vertex encoding rules in section 6 (weighted and unweighted). `uvs.length` even; vertex count `V = uvs.length / 2`. `triangles.length % 3 == 0`; every index in `[0, V)`. `hullLength` is a count of HULL VERTICES (not coordinates) in `[0, V]` (`MESH_HULL_RANGE`). `edges` (optional) is editor-only wireframe data, ignored by runtimes but validated for integrity when present (see below). Optional F2 `sequence` as for `region`. |
+| `linkedmesh` | Reuses a parent mesh's geometry. `path` names an existing atlas region. `parent` names an attachment on the SAME slot in skin `skin ?? this skin` that resolves (`LINKED_MESH_PARENT_MISSING`) and is a `mesh` or `linkedmesh` (`LINKED_MESH_PARENT_INVALID`); the parent chain must reach a real `mesh` without revisiting a node (`LINKED_MESH_CYCLE`). `timelines` (boolean) selects whether it shares the parent's deform. Carries its own `color`/`width`/`height`. |
 | `clipping` | `end` names an existing slot (`CLIPPING_END_MISSING`) that is at or after this clipping slot in SETUP draw order (the `slots` array order) (`CLIPPING_END_ORDER`). `vertices.length` even and `>= 6` (a clip polygon needs at least 3 points) (`POLY_VERTEX_LENGTH`). |
 | `point` | An anchor (muzzle/origin). No atlas reference. `x/y/rotation` only. |
 | `boundingbox` | `vertices.length` even and `>= 6` (`POLY_VERTEX_LENGTH`). No atlas reference. Used for hit/region polygons. |
@@ -216,14 +217,15 @@ Two clarifications the reviewer flagged:
 
 ### 4.7 Constraints
 
-- `IkConstraint`: `bones` length is 1 or 2 (`IK_BONES_ARITY`). All `bones` and `target` name existing bones. For a 2-bone chain, `bones[1]` must be a direct child of `bones[0]` (`IK_CHAIN_DISCONTINUOUS`). `mix` in `[0, 1]` (`IK_MIX_RANGE`). `bendPositive` sets elbow/knee direction.
-- `TransformConstraint`: `bones` non-empty, all exist. `target` exists. All `mix*` in `[0, 1]` (`TC_MIX_RANGE`). Offsets are unbounded finite numbers.
-- Constraints are solved IK then transform, before world transforms. The canonical per-frame solve order is handoff section 6; its behavior is owned by `runtime-core` and locked by conformance, NOT by this document. Constraint parameters are animatable via the `ik` and `transform` timelines.
+- `IkConstraint`: `bones` length is 1 or 2 (`IK_BONES_ARITY`). All `bones` and `target` name existing bones. For a 2-bone chain, `bones[1]` must be a direct child of `bones[0]` (`IK_CHAIN_DISCONTINUOUS`). `mix` in `[0, 1]` (`IK_MIX_RANGE`). Stage F2 (ADR-0009) replaces the pre-0.4.0 `bendPositive` boolean with a signed `bend` (`1` or `-1`, the elbow/knee direction, a closed literal union) and adds `softness` (non-negative, `IK_SOFTNESS_RANGE`) plus the `stretch`/`compress`/`uniform` booleans.
+- `TransformConstraint`: `bones` non-empty, all exist. `target` exists. All `mix*` in `[0, 1]` (`TC_MIX_RANGE`). Offsets are unbounded finite numbers. Stage F2 adds the `local` and `relative` variant booleans.
+- Every constraint (IK and transform) may carry an optional `order` (a non-negative integer). When ANY carries it, ALL must, and the values are a dense unique permutation of `[0, N)` over the COMBINED constraint set (`CONSTRAINT_ORDER_INVALID`). Absent `order` means the default order: all IK constraints then all transform constraints, each in array order.
+- Constraints are solved IK then transform (the default order), before world transforms. The canonical per-frame solve order is handoff section 6; its behavior is owned by `runtime-core` and locked by conformance, NOT by this document. The F2 depth/variant/order fields carry solve capability owned by `runtime-core` (PP-B5); the format validates only their shape and the `order` permutation. Constraint parameters are animatable via the `ik` and `transform` timelines.
 
 ### 4.8 Animation and timelines
 
 - `Animation.duration` is in seconds, `> 0` when any timeline has keyframes, and `>= max keyframe time` across ALL timelines in that animation (`ANIM_DURATION`).
-- `BoneTimelines` has optional `rotate/translate/scale/shear` arrays. `SlotTimelines` has optional `attachment` and `color` arrays.
+- `BoneTimelines` has optional `rotate/translate/scale/shear` arrays. Stage F2 (ADR-0009) adds optional per-component scalar tracks `translateX/translateY/scaleX/scaleY/shearX/shearY`; a joint channel and its split components MUST NOT coexist on one bone (`TIMELINE_COMPONENT_CONFLICT`). `SlotTimelines` has optional `attachment` and `color` arrays; F2 adds the split `rgb`/`alpha` tracks (which must not coexist with the joint `color`, `TIMELINE_COMPONENT_CONFLICT`), the keyable two-color `dark` tint (requires a setup `Slot.darkColor`, `ANIM_DARK_NO_SETUP`), and a frame `sequence` track.
 - Time ordering is per timeline kind:
   - INTERPOLATED VALUE timelines (`bone` rotate/translate/scale/shear, `slot` color, `ik`, `transform`, `deform`) and the `drawOrder` timeline are sorted STRICTLY ascending by `time`: no two keyframes share a time (`ANIM_TIME_ORDER`). Strictness matters because interpolation between two keys at the same time is undefined.
   - The `events` timeline is sorted NON-DECREASING: two events MAY legitimately fire at the same time, so equal adjacent times are allowed; only a strictly decreasing pair is `ANIM_TIME_ORDER`.
@@ -232,7 +234,7 @@ Two clarifications the reviewer flagged:
 - `attachment` timeline frames carry `{ time, name: string | null }`; they are stepped by nature (discrete swaps) and have no curve field. A non-null `name` must resolve in the `default` skin under that slot.
 - `color` timeline frames carry an `RGBA`, each channel in `[0, 1]` (`COLOR_RANGE`).
 - Bezier curve control points: `cx1, cx2` in `[0, 1]` inclusive so the easing is a function of time (`CURVE_BEZIER_X_RANGE`); `cy1, cy2` are unbounded finite (overshoot/anticipation allowed).
-- `ik` and `transform` timelines key constraint parameters by constraint name; the name must reference an existing constraint (`ANIM_IK_UNKNOWN`, `ANIM_TRANSFORM_UNKNOWN`). `IkFrame.mix` and every `TransformFrame.mix*` channel PRESENT in a frame is range-checked to `[0, 1]` (`IK_MIX_RANGE`, `TC_MIX_RANGE`), the same refinement applied to the constraint definitions in section 4.7. A `TransformFrame` MAY carry a subset of mix channels (the frame type is partial). The MEANING of an absent channel during a frame (hold, zero, or inherit) is a SOLVE-SEMANTICS decision owned by `runtime-core` and locked by conformance; the format assigns it no value and does not adjudicate it.
+- `ik` and `transform` timelines key constraint parameters by constraint name; the name must reference an existing constraint (`ANIM_IK_UNKNOWN`, `ANIM_TRANSFORM_UNKNOWN`). `IkFrame.mix` and every `TransformFrame.mix*` channel PRESENT in a frame is range-checked to `[0, 1]` (`IK_MIX_RANGE`, `TC_MIX_RANGE`), the same refinement applied to the constraint definitions in section 4.7. Stage F2 (ADR-0009) keys the signed `IkFrame.bend` (superseding the pre-0.4.0 `bendPositive`) with optional `softness`/`stretch`/`compress` depth channels; `bend` is sampled stepped (non-interpolatable). A `TransformFrame` MAY carry a subset of mix channels (the frame type is partial). The MEANING of an absent channel during a frame (hold, zero, or inherit) is a SOLVE-SEMANTICS decision owned by `runtime-core` and locked by conformance; the format assigns it no value and does not adjudicate it.
 
 ### 4.9 `DeformTimelines`
 
@@ -464,16 +466,22 @@ export type FormatErrorCode =
   | 'BONE_NAME_DUPLICATE' | 'BONE_PARENT_MISSING' | 'BONE_ORDER_VIOLATION'
   | 'SLOT_NAME_DUPLICATE' | 'SLOT_BONE_MISSING' | 'SLOT_ATTACHMENT_MISSING'
   | 'SKIN_DEFAULT_MISSING' | 'SKIN_SLOT_UNKNOWN'
+  | 'SKIN_BONE_UNKNOWN' | 'SKIN_CONSTRAINT_UNKNOWN'
   | 'ATLAS_REGION_DUPLICATE' | 'ATTACHMENT_REGION_MISSING'
   | 'MESH_UV_LENGTH' | 'MESH_TRIANGLE_LENGTH' | 'MESH_TRIANGLE_INDEX_RANGE' | 'MESH_HULL_RANGE'
   | 'MESH_EDGE_INVALID'
   | 'MESH_VERTEX_LENGTH' | 'MESH_WEIGHT_DECODE' | 'MESH_WEIGHT_BONE_RANGE'
   | 'MESH_WEIGHT_BONES_MANIFEST' | 'MESH_WEIGHT_SUM' | 'MESH_WEIGHT_INFLUENCE_CAP'
+  | 'LINKED_MESH_PARENT_MISSING' | 'LINKED_MESH_PARENT_INVALID' | 'LINKED_MESH_CYCLE'
+  | 'SEQUENCE_SETUP_RANGE'
   | 'CLIPPING_END_MISSING' | 'CLIPPING_END_ORDER' | 'POLY_VERTEX_LENGTH'
   | 'IK_BONES_ARITY' | 'IK_BONE_MISSING' | 'IK_TARGET_MISSING' | 'IK_CHAIN_DISCONTINUOUS' | 'IK_MIX_RANGE'
+  | 'IK_SOFTNESS_RANGE'
   | 'TC_BONE_MISSING' | 'TC_TARGET_MISSING' | 'TC_MIX_RANGE' | 'CONSTRAINT_NAME_DUPLICATE'
+  | 'CONSTRAINT_ORDER_INVALID'
   | 'ANIM_BONE_UNKNOWN' | 'ANIM_SLOT_UNKNOWN' | 'ANIM_IK_UNKNOWN' | 'ANIM_TRANSFORM_UNKNOWN'
   | 'ANIM_TIME_RANGE' | 'ANIM_TIME_ORDER' | 'ANIM_DURATION'
+  | 'TIMELINE_COMPONENT_CONFLICT' | 'ANIM_DARK_NO_SETUP'
   | 'CURVE_BEZIER_X_RANGE' | 'COLOR_RANGE'
   | 'DRAWORDER_INCOMPLETE'
   | 'DEFORM_SKIN_UNKNOWN' | 'DEFORM_SLOT_UNKNOWN' | 'DEFORM_ATTACHMENT_UNKNOWN'
@@ -548,15 +556,15 @@ Each row names a CHECK FAMILY (used by the WP-F.10 corpus rule, section 8.4.1). 
 |---|---|---|
 | BONE | names unique; parent resolves and precedes child; rootless/cyclic sets (section 5.4) | `BONE_NAME_DUPLICATE`, `BONE_PARENT_MISSING`, `BONE_ORDER_VIOLATION` |
 | SLOT | names unique; `bone` resolves; setup `attachment` (if non-null) resolves in `default` skin | `SLOT_NAME_DUPLICATE`, `SLOT_BONE_MISSING`, `SLOT_ATTACHMENT_MISSING` |
-| SKIN | `default` skin exists; top-level keys are valid slot names | `SKIN_DEFAULT_MISSING`, `SKIN_SLOT_UNKNOWN` |
+| SKIN | `default` skin exists; top-level keys are valid slot names; F2 skin-scoping `bones`/`constraints` names resolve | `SKIN_DEFAULT_MISSING`, `SKIN_SLOT_UNKNOWN`, `SKIN_BONE_UNKNOWN`, `SKIN_CONSTRAINT_UNKNOWN` |
 | ATLAS | region names unique across pages; region/mesh `path` resolves | `ATLAS_REGION_DUPLICATE`, `ATTACHMENT_REGION_MISSING` |
-| MESH | uv/triangle/hull/edge integrity; vertex encoding (section 6); clipping/boundingbox polygon length; clipping `end` resolution and setup-order | `MESH_UV_LENGTH`, `MESH_TRIANGLE_LENGTH`, `MESH_TRIANGLE_INDEX_RANGE`, `MESH_HULL_RANGE`, `MESH_EDGE_INVALID`, `MESH_VERTEX_LENGTH`, `MESH_WEIGHT_DECODE`, `MESH_WEIGHT_BONE_RANGE`, `MESH_WEIGHT_BONES_MANIFEST`, `MESH_WEIGHT_SUM`, `MESH_WEIGHT_INFLUENCE_CAP`, `CLIPPING_END_MISSING`, `CLIPPING_END_ORDER`, `POLY_VERTEX_LENGTH` |
-| CONSTRAINT | IK arity, bone/target resolution, 2-bone contiguity; transform bone/target resolution; constraint-name uniqueness across both arrays | `IK_BONES_ARITY`, `IK_BONE_MISSING`, `IK_TARGET_MISSING`, `IK_CHAIN_DISCONTINUOUS`, `TC_BONE_MISSING`, `TC_TARGET_MISSING`, `CONSTRAINT_NAME_DUPLICATE` |
-| ANIM | bone/slot/ik/transform timeline key resolution; time order and range; duration; draw-order completeness | `ANIM_BONE_UNKNOWN`, `ANIM_SLOT_UNKNOWN`, `ANIM_IK_UNKNOWN`, `ANIM_TRANSFORM_UNKNOWN`, `ANIM_TIME_ORDER`, `ANIM_TIME_RANGE`, `ANIM_DURATION`, `DRAWORDER_INCOMPLETE` |
+| MESH | uv/triangle/hull/edge integrity; vertex encoding (section 6); clipping/boundingbox polygon length; clipping `end` resolution and setup-order; F2 linked-mesh parent resolution/kind/cycle | `MESH_UV_LENGTH`, `MESH_TRIANGLE_LENGTH`, `MESH_TRIANGLE_INDEX_RANGE`, `MESH_HULL_RANGE`, `MESH_EDGE_INVALID`, `MESH_VERTEX_LENGTH`, `MESH_WEIGHT_DECODE`, `MESH_WEIGHT_BONE_RANGE`, `MESH_WEIGHT_BONES_MANIFEST`, `MESH_WEIGHT_SUM`, `MESH_WEIGHT_INFLUENCE_CAP`, `LINKED_MESH_PARENT_MISSING`, `LINKED_MESH_PARENT_INVALID`, `LINKED_MESH_CYCLE`, `CLIPPING_END_MISSING`, `CLIPPING_END_ORDER`, `POLY_VERTEX_LENGTH` |
+| CONSTRAINT | IK arity, bone/target resolution, 2-bone contiguity; transform bone/target resolution; constraint-name uniqueness across both arrays; F2 `order` dense-permutation | `IK_BONES_ARITY`, `IK_BONE_MISSING`, `IK_TARGET_MISSING`, `IK_CHAIN_DISCONTINUOUS`, `TC_BONE_MISSING`, `TC_TARGET_MISSING`, `CONSTRAINT_NAME_DUPLICATE`, `CONSTRAINT_ORDER_INVALID` |
+| ANIM | bone/slot/ik/transform timeline key resolution; time order and range; duration; draw-order completeness; F2 joint-vs-split coexistence and keyable-dark setup | `ANIM_BONE_UNKNOWN`, `ANIM_SLOT_UNKNOWN`, `ANIM_IK_UNKNOWN`, `ANIM_TRANSFORM_UNKNOWN`, `ANIM_TIME_ORDER`, `ANIM_TIME_RANGE`, `ANIM_DURATION`, `DRAWORDER_INCOMPLETE`, `TIMELINE_COMPONENT_CONFLICT`, `ANIM_DARK_NO_SETUP` |
 | DEFORM | skin/slot/attachment resolve; attachment is a mesh; `offsets.length === 2 * V` | `DEFORM_SKIN_UNKNOWN`, `DEFORM_SLOT_UNKNOWN`, `DEFORM_ATTACHMENT_UNKNOWN`, `DEFORM_NOT_MESH`, `DEFORM_OFFSET_LENGTH` |
 | EVENT | def names unique; timeline event names resolve | `EVENT_NAME_DUPLICATE`, `ANIM_EVENT_UNKNOWN` |
 | HASH | content hash matches (when verified) | `HASH_MISMATCH` |
-| SCHEMA | structural shape and range refinements (layer 2) | `SCHEMA_SHAPE`, `COLOR_RANGE`, `CURVE_BEZIER_X_RANGE`, `IK_MIX_RANGE`, `TC_MIX_RANGE` |
+| SCHEMA | structural shape and range refinements (layer 2) | `SCHEMA_SHAPE`, `COLOR_RANGE`, `CURVE_BEZIER_X_RANGE`, `IK_MIX_RANGE`, `TC_MIX_RANGE`, `IK_SOFTNESS_RANGE`, `SEQUENCE_SETUP_RANGE` |
 | VERSION | version gate and migration | `UNSUPPORTED_FORMAT_VERSION`, `MIGRATION_REQUIRED` |
 
 `IK_MIX_RANGE` and `TC_MIX_RANGE` live in the SCHEMA family because they are Zod refinements (section 4.1) applied both to constraint definitions and to timeline frame values (section 4.8).

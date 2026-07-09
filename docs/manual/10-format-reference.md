@@ -10,7 +10,7 @@ independent document formats plus project manifests, each with its own version l
 
 | Format | Version constant | Current |
 |---|---|---|
-| Skeletal (`SkeletonDocument`) | `CURRENT_FORMAT_VERSION` | `0.3.0` |
+| Skeletal (`SkeletonDocument`) | `CURRENT_FORMAT_VERSION` | `0.4.0` |
 | Effects (`EffectsDocument`) | `EFFECTS_FORMAT_VERSION` | `1.0.0` |
 | Slot scene (`SlotSceneDocument`) | `SLOT_SCENE_FORMAT_VERSION` | `0.1.0` |
 | Shared primitives (blend modes, atlas, curves) | `FORMAT_COMMON_VERSION` | `1.0.0` |
@@ -26,7 +26,7 @@ error, not a warning.
 
 ```jsonc
 {
-  "formatVersion": "0.3.0",
+  "formatVersion": "0.4.0",
   "name": "my-character",
   "hash": "…64 lowercase hex, or empty for an unhashed draft…",
   "bones": [ … ],                 // at least one bone
@@ -118,14 +118,19 @@ attachment lookup checks the active named skin first, then falls back to default
 ### Constraints
 
 IK constraint: `name`, `bones` (1 or 2 bone names; a 2-bone chain must be parent then direct
-child), `target` (bone name), `mix` in `[0, 1]`, `bendPositive`.
+child), `target` (bone name), `mix` in `[0, 1]`, `bend` (the signed elbow/knee direction, `1` or
+`-1`), `softness` (non-negative), `stretch`, `compress`, `uniform` (booleans), and an optional
+`order` (see below).
 
 Transform constraint: `name`, `bones` (1 or more), `target`, six mix factors (`mixRotate`,
-`mixX`, `mixY`, `mixScaleX`, `mixScaleY`, `mixShearY`, each `[0, 1]`) and six offsets
-(`offsetRotation`, `offsetX`, `offsetY`, `offsetScaleX`, `offsetScaleY`, `offsetShearY`).
+`mixX`, `mixY`, `mixScaleX`, `mixScaleY`, `mixShearY`, each `[0, 1]`), six offsets
+(`offsetRotation`, `offsetX`, `offsetY`, `offsetScaleX`, `offsetScaleY`, `offsetShearY`), the
+`local` and `relative` variant flags (booleans), and an optional `order`.
 
-Constraint names must be unique across BOTH arrays. Solve order is fixed: all IK constraints
-first, then all transform constraints, each in array order.
+Constraint names must be unique across BOTH arrays. The default solve order is fixed: all IK
+constraints first, then all transform constraints, each in array order. When any constraint carries
+`order`, all must, and the values form a dense unique permutation of `[0, N)` over the combined set
+(`CONSTRAINT_ORDER_INVALID`).
 
 ### Animation
 
@@ -146,7 +151,7 @@ first, then all transform constraints, each in array order.
       "attachment": [ { "time": 0.5, "name": "leg-bent" } ]   // stepped by nature, name may be null
     }
   },
-  "ik":        { "leg-ik": [ { "time": 0, "value": { "mix": 1, "bendPositive": true }, "curve": "linear" } ] },
+  "ik":        { "leg-ik": [ { "time": 0, "value": { "mix": 1, "bend": 1 }, "curve": "linear" } ] },
   "transform": { "follow": [ { "time": 0, "value": { "mixRotate": 0.5 }, "curve": "linear" } ] },
   "deform":    { "default": { "front-leg": { "leg-mesh": [ { "time": 0, "value": { "offsets": [dx0, dy0, …] }, "curve": "linear" } ] } } },
   "drawOrder": [ { "time": 0.5, "offsets": [ { "slot": "front-leg", "offset": 1 } ] } ],   // required, may be empty
@@ -162,7 +167,7 @@ Rules the validator enforces:
 - A `drawOrder` key's `offsets` describe a consistent reordering: each named slot exists, appears once, and its derived target index (setup index + offset) is unique and in range (`DRAWORDER_INCOMPLETE`).
 - The `curve` on a timeline's last keyframe is ignored by the runtime (there is nothing after
   it to ease into).
-- The IK `bendPositive` boolean channel is sampled stepped regardless of curve.
+- The IK `bend` direction channel (signed `1` / `-1`) is sampled stepped regardless of curve.
 
 ### Curves
 
@@ -236,7 +241,10 @@ is 0, the MINOR digit is the compatibility key. Migrations are forward-only step
 re-validated structurally. Examples: the `0.1.x` to `0.2.0` migration injects empty
 `ikConstraints`/`transformConstraints` arrays and empty `ik`/`transform`/`deform` timeline maps;
 the `0.2.x` to `0.3.0` migration (ADR-0008) injects the empty document `events` collection and
-the empty per-animation `drawOrder`/`events` timelines. Each recomputes the hash if one was
+the empty per-animation `drawOrder`/`events` timelines; the `0.3.x` to `0.4.0` migration (ADR-0009)
+maps each IK constraint's and IK frame's `bendPositive` boolean to the signed `bend` losslessly
+(`true` to `+1`, `false` to `-1`) and injects the IK depth (`softness`/`stretch`/`compress`/`uniform`)
+and transform variant (`local`/`relative`) no-op defaults. Each recomputes the hash if one was
 present (an unhashed draft stays a draft).
 
 Policy (see `docs/plan/cross-cutting/format-contract.md` section 10): a schema or semantic

@@ -194,6 +194,27 @@ export {
   SetTumbleChoreographyCommand,
   setTumbleChoreographySpec,
 } from './set-tumble-choreography.command';
+// Stage F1 (PP-D9) event definition + event/draw-order timeline + document metadata authoring
+export { DefineEventCommand, defineEventSpec } from './define-event.command';
+export type { EventDefInit } from './define-event.command';
+export { RenameEventCommand, renameEventSpec } from './rename-event.command';
+export { DeleteEventCommand, deleteEventSpec } from './delete-event.command';
+export { SetEventDefaultsCommand, setEventDefaultsSpec } from './set-event-defaults.command';
+export type { EventDefaults } from './set-event-defaults.command';
+export { SetEventAudioCommand, setEventAudioSpec } from './set-event-audio.command';
+export { SetEventKeyCommand, setEventKeySpec } from './set-event-key.command';
+export type { EventKeyOverrides } from './set-event-key.command';
+export { MoveEventKeyCommand, moveEventKeySpec } from './move-event-key.command';
+export { DeleteEventKeyCommand, deleteEventKeySpec } from './delete-event-key.command';
+export { SetDrawOrderKeyCommand, setDrawOrderKeySpec } from './set-draw-order-key.command';
+export { MoveDrawOrderKeyCommand, moveDrawOrderKeySpec } from './move-draw-order-key.command';
+export { DeleteDrawOrderKeyCommand, deleteDrawOrderKeySpec } from './delete-draw-order-key.command';
+export {
+  SetDocumentMetadataCommand,
+  setDocumentMetadataSpec,
+} from './set-document-metadata.command';
+export { sortEventKeysByTime } from './event-support';
+export { assertConsistentDrawOrder, sortDrawOrderKeysByTime } from './draw-order-support';
 export {
   assertValidGridConfig,
   preset5x3ReelStrip,

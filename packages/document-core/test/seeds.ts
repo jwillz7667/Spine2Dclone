@@ -251,6 +251,47 @@ function riggedDoc(): SkeletonDocument {
   };
 }
 
+// A Stage F1 (0.3.0) document exercising the PP-D9 event + draw-order authoring commands: two slots (so a
+// draw-order key can reorder one over the other), two event definitions (one with an int payload and an
+// audio hint, one with a float default), an animation carrying an existing draw-order key and two event
+// keys (one overriding the float payload), and a metadata block. This is the representative seed for every
+// event.* / draworder.* / document.setMetadata command: each is applicable here with a real delta, and the
+// keyed edit/delete/move commands have an existing key to target.
+function eventedDoc(): SkeletonDocument {
+  const walk: Animation = {
+    duration: 1,
+    bones: {},
+    slots: {},
+    ik: {},
+    transform: {},
+    deform: {},
+    // Move `back` forward one position at t=0.5 (target index 1); `front` implicitly fills index 0.
+    drawOrder: [{ time: 0.5, offsets: [{ slot: 'back', offset: 1 }] }],
+    // Fire `footstep` at t=0.25 and `landing` at t=0.75 (overriding its float default for this firing).
+    events: [
+      { time: 0.25, name: 'footstep' },
+      { time: 0.75, name: 'landing', float: 2.5 },
+    ],
+  };
+  return {
+    formatVersion: CURRENT_FORMAT_VERSION,
+    name: 'evented',
+    hash: '',
+    bones: [bone('root', null)],
+    slots: [slot('back', 'root'), slot('front', 'root')],
+    skins: [{ name: 'default', attachments: {} }],
+    ikConstraints: [],
+    transformConstraints: [],
+    events: [
+      { name: 'footstep', int: 3, audio: { path: 'sfx/footstep.wav', volume: 0.8, balance: -0.25 } },
+      { name: 'landing', float: 1.5 },
+    ],
+    animations: { walk },
+    atlas: { pages: [] },
+    metadata: { fps: 30, imagesPath: 'art/images' },
+  };
+}
+
 interface DocBody {
   readonly slots?: Slot[];
   readonly skins?: SkeletonDocument['skins'];
@@ -393,6 +434,10 @@ export const seeds = {
   // variant skin, and an animation with ik/transform/deform timelines. Target of the WP-2.6/2.7/2.8/2.9
   // constraint, skin, and deform commands.
   rigged: riggedDoc(),
+  // The Stage F1 (0.3.0) event + draw-order seed: two slots, two event definitions, an animation carrying a
+  // draw-order key and two event keys, and a metadata block. Target of the PP-D9 event.* / draworder.* /
+  // document.setMetadata commands.
+  evented: eventedDoc(),
 } as const;
 
 export interface Seed {
@@ -409,6 +454,7 @@ export const seedList: readonly Seed[] = [
   { id: 'meshed', json: seeds.meshed },
   { id: 'weighted', json: seeds.weighted },
   { id: 'rigged', json: seeds.rigged },
+  { id: 'evented', json: seeds.evented },
 ];
 
 // A deterministic test environment: a controllable fake clock (so coalescing-window tests are

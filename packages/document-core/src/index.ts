@@ -34,6 +34,8 @@ export {
   EffectEditError,
   EffectsAtlasDanglingRegionError,
   SlotEditError,
+  EventEditError,
+  DrawOrderError,
 } from './command/errors';
 export type {
   DocumentError,
@@ -44,6 +46,8 @@ export type {
   EffectEditErrorReason,
   EffectsValidationLike,
   SlotEditErrorReason,
+  EventEditErrorReason,
+  DrawOrderErrorReason,
 } from './command/errors';
 
 // Model (read surface + value types; the write surface stays private)
@@ -313,6 +317,21 @@ export {
   RenameFeatureFlowStateCommand,
   RemoveFeatureFlowTransitionCommand,
   SetTumbleChoreographyCommand,
+  DefineEventCommand,
+  RenameEventCommand,
+  DeleteEventCommand,
+  SetEventDefaultsCommand,
+  SetEventAudioCommand,
+  SetEventKeyCommand,
+  MoveEventKeyCommand,
+  DeleteEventKeyCommand,
+  SetDrawOrderKeyCommand,
+  MoveDrawOrderKeyCommand,
+  DeleteDrawOrderKeyCommand,
+  SetDocumentMetadataCommand,
+  sortEventKeysByTime,
+  sortDrawOrderKeysByTime,
+  assertConsistentDrawOrder,
   assertValidGridConfig,
   preset5x3ReelStrip,
   preset6x5ScatterPay,
@@ -339,6 +358,9 @@ export type {
   TransformConstraintParams,
   TransformKeyframeMix,
   MapSymbolAnimSetInit,
+  EventDefInit,
+  EventDefaults,
+  EventKeyOverrides,
   CommandSpec,
   CommandFixture,
 } from './commands';

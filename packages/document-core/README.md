@@ -14,14 +14,15 @@ excluded from the barrel; a `Mutator` is only handed to a command by `History` d
 - **`Command`** (`src/command/command.ts`): `kind`, `label`, `do(ctx)`, `undo(ctx)`, optional
   `coalesceWith(prev)` (same kind and same target only; omitted means never coalesces), optional
   `selectionHint(phase)`. `CommandContext` is `{ mutate, effects, ids }` and nothing else.
-- **101 commands total**, registered in two CI-guarded registries (a discovery guard globs
+- **113 commands total**, registered in two CI-guarded registries (a discovery guard globs
   `*.command.ts` and asserts one registered spec per file):
-  - **80 skeletal commands** (`src/commands/registry.ts`): bone (create/move/rotate/scale/length/
+  - **92 skeletal commands** (`src/commands/registry.ts`): bone (create/move/rotate/scale/length/
     transform-mode/rename/reparent/delete/normalize-rotation), slot, region attachment, animation,
     keyframe and curve, mesh creation and topology editing (WP-2.1), mesh-to-bone binding (WP-2.3),
     weight painting (WP-2.4), IK constraints (WP-2.6), transform constraints (WP-2.7), skins
-    (WP-2.8), deform timelines (WP-2.9), and the slot-composer family (grid config, symbol mapping,
-    win sequences, escalation, feature flows, tumble; WP-4.5 to 4.10).
+    (WP-2.8), deform timelines (WP-2.9), the slot-composer family (grid config, symbol mapping,
+    win sequences, escalation, feature flows, tumble; WP-4.5 to 4.10), and the Stage F1 event
+    definitions, event/draw-order timelines, and document metadata (ADR-0008, PP-D9).
   - **21 effects commands** (`src/effects-commands/registry.ts`): effect lifecycle, layers, life
     curves, bundles.
 - **`History`** (`src/command/history.ts`): `HISTORY_DEFAULTS = { maxDepth: 500,

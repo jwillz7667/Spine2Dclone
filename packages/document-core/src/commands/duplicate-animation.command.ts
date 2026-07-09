@@ -7,15 +7,17 @@ import type { AnimationSnapshot } from '../model/read-model';
 import { type KeyframeTarget } from './keyframe-support';
 import { CreateAnimationCommand } from './create-animation.command';
 import { SetKeyframeCommand } from './set-keyframe.command';
+import { SetEventKeyCommand } from './set-event-key.command';
+import { SetDrawOrderKeyCommand } from './set-draw-order-key.command';
 import { findAnimationSnapshot, type CommandSpec } from './spec';
 
 const BONE_CHANNELS: readonly BoneChannel[] = ['rotate', 'translate', 'scale', 'shear'];
 
 // Build the child commands that reproduce a source animation under a new id: CreateAnimation for the new
-// (empty) animation, then one SetKeyframe per authored keyframe (bone transform channels + slot color).
-// Each SetKeyframe mints a fresh KeyframeId in the new animation and carries the source keyframe's curve
-// as its insert curve, so the copy reproduces values, times, and curves. Slot attachment-swap frames are
-// not authorable in Phase 1 (no command creates one) and are therefore not duplicated.
+// (empty) animation, then one SetKeyframe per authored keyframe (bone transform channels + slot color), one
+// SetEventKey per event firing, and one SetDrawOrderKey per draw-order reorder. Each child mints a FRESH
+// KeyframeId in the new animation (the unique-id invariant), carrying the source key's values/curves/offsets.
+// Slot attachment-swap frames are not authorable in Phase 1 (no command creates one) and are not duplicated.
 function buildDuplicateChildren(
   source: AnimationEntity,
   newId: AnimationId,
@@ -35,6 +37,18 @@ function buildDuplicateChildren(
       const target: KeyframeTarget = { kind: 'slot', slotId, channel: 'color' };
       children.push(new SetKeyframeCommand(newId, target, kf.time, kf.value, kf.curve));
     }
+  }
+  for (const key of source.events) {
+    children.push(
+      new SetEventKeyCommand(newId, key.event, key.time, {
+        int: key.int,
+        float: key.float,
+        string: key.string,
+      }),
+    );
+  }
+  for (const key of source.drawOrder) {
+    children.push(new SetDrawOrderKeyCommand(newId, key.time, key.offsets));
   }
   return children;
 }
@@ -79,6 +93,7 @@ function totalKeyframes(snapshot: AnimationSnapshot | undefined): number {
     total += bone.rotate.length + bone.translate.length + bone.scale.length + bone.shear.length;
   }
   for (const slot of snapshot.slots) total += slot.color.length;
+  total += snapshot.events.length + snapshot.drawOrder.length;
   return total;
 }
 

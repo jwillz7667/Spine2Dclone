@@ -3,12 +3,14 @@ import type {
   BoneTimelineSet,
   DeformKeyframeEntity,
   DeformSkinKey,
+  DrawOrderKeyEntity,
   IkConstraintEntity,
   IkKeyframeEntity,
   SlotTimelineSet,
   TransformConstraintEntity,
   TransformKeyframeEntity,
 } from '../model/doc-state';
+import { makeDrawOrderKey } from '../model/doc-state';
 import type { AnimationId, BoneId, SkinId, SlotId } from '../model/ids';
 import type { Mutator } from '../model/mutator';
 
@@ -62,6 +64,16 @@ interface RemovedDeformTrack {
   readonly frames: readonly DeformKeyframeEntity[];
 }
 
+// A captured draw-order timeline (one animation) whose keys referenced a deleted slot (Stage F1, PP-D9):
+// `before` is the original timeline and `after` is it with every deleted-slot offset dropped, so a slot
+// delete never leaves a draw-order key pointing at a gone slot (which would break assertInvariants and
+// export). A key whose offsets all drop simply becomes an identity key (empty offsets), which is legal.
+interface RemovedDrawOrderTrack {
+  readonly animId: AnimationId;
+  readonly before: readonly DrawOrderKeyEntity[];
+  readonly after: readonly DrawOrderKeyEntity[];
+}
+
 // The full delete-cascade memento (TASK-1.5.7, extended in Phase 2): every animation track, constraint,
 // named-skin attachment, and deform track that references a deleted bone or slot, captured so undo restores
 // them exactly. Empty members when nothing references the deletions.
@@ -72,6 +84,7 @@ export interface RemovedTracks {
   readonly transformConstraints: readonly RemovedTransformConstraint[];
   readonly skinAttachments: readonly RemovedSkinAttachment[];
   readonly deformTracks: readonly RemovedDeformTrack[];
+  readonly drawOrderTracks: readonly RemovedDrawOrderTrack[];
 }
 
 // Scan every animation/skin/constraint for state targeting any of the given bone/slot ids and capture it.
@@ -147,6 +160,24 @@ export function collectRemovedTracks(
     }
   }
 
+  // Draw-order timelines (Stage F1) referencing a deleted slot: drop that slot's offset from every key so
+  // no key points at a gone slot. Only captured when the timeline actually changes (a document with no
+  // draw-order keys, or none touching a deleted slot, is untouched).
+  const drawOrderTracks: RemovedDrawOrderTrack[] = [];
+  for (const animation of animations) {
+    if (!animation.drawOrder.some((key) => key.offsets.some((entry) => slotIds.has(entry.slot)))) {
+      continue;
+    }
+    const after = animation.drawOrder.map((key) =>
+      makeDrawOrderKey(
+        key.id,
+        key.time,
+        key.offsets.filter((entry) => !slotIds.has(entry.slot)),
+      ),
+    );
+    drawOrderTracks.push({ animId: animation.id, before: animation.drawOrder, after });
+  }
+
   return {
     boneTracks,
     slotTracks,
@@ -154,6 +185,7 @@ export function collectRemovedTracks(
     transformConstraints,
     skinAttachments,
     deformTracks,
+    drawOrderTracks,
   };
 }
 
@@ -176,6 +208,7 @@ export function pruneRemovedTracks(mutate: Mutator, removed: RemovedTracks): voi
   for (const d of removed.deformTracks) {
     mutate.setDeformChannel(d.animId, d.skinKey, d.slotId, d.attachmentName, []);
   }
+  for (const t of removed.drawOrderTracks) mutate.setDrawOrderTimeline(t.animId, t.after);
 }
 
 // Restore the captured state (the undo half of the cascade). Bones/slots are already re-inserted by the
@@ -203,4 +236,5 @@ export function restoreRemovedTracks(mutate: Mutator, removed: RemovedTracks): v
   for (const d of removed.deformTracks) {
     mutate.setDeformChannel(d.animId, d.skinKey, d.slotId, d.attachmentName, d.frames);
   }
+  for (const t of removed.drawOrderTracks) mutate.setDrawOrderTimeline(t.animId, t.before);
 }

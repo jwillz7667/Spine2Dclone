@@ -26,6 +26,18 @@ import { renameFeatureFlowStateSpec } from './rename-feature-flow-state.command'
 import { removeFeatureFlowTransitionSpec } from './remove-feature-flow-transition.command';
 import { setTumbleChoreographySpec } from './set-tumble-choreography.command';
 import { setEscalationThresholdSpec } from './set-escalation-threshold.command';
+import { defineEventSpec } from './define-event.command';
+import { renameEventSpec } from './rename-event.command';
+import { deleteEventSpec } from './delete-event.command';
+import { setEventDefaultsSpec } from './set-event-defaults.command';
+import { setEventAudioSpec } from './set-event-audio.command';
+import { setEventKeySpec } from './set-event-key.command';
+import { moveEventKeySpec } from './move-event-key.command';
+import { deleteEventKeySpec } from './delete-event-key.command';
+import { setDrawOrderKeySpec } from './set-draw-order-key.command';
+import { moveDrawOrderKeySpec } from './move-draw-order-key.command';
+import { deleteDrawOrderKeySpec } from './delete-draw-order-key.command';
+import { setDocumentMetadataSpec } from './set-document-metadata.command';
 import { setIkBendPositiveSpec } from './set-ik-bend-positive.command';
 import { setIkKeyframeSpec } from './set-ik-keyframe.command';
 import { setIkMixSpec } from './set-ik-mix.command';
@@ -175,4 +187,20 @@ export const commandRegistry: readonly CommandSpec[] = [
   removeFeatureFlowTransitionSpec,
   // WP-4.10 tumble / cascade choreography authoring
   setTumbleChoreographySpec,
+  // Stage F1 (PP-D9) event definition authoring
+  defineEventSpec,
+  renameEventSpec,
+  deleteEventSpec,
+  setEventDefaultsSpec,
+  setEventAudioSpec,
+  // Stage F1 (PP-D9) event timeline authoring
+  setEventKeySpec,
+  moveEventKeySpec,
+  deleteEventKeySpec,
+  // Stage F1 (PP-D9) draw-order timeline authoring
+  setDrawOrderKeySpec,
+  moveDrawOrderKeySpec,
+  deleteDrawOrderKeySpec,
+  // Stage F1 (PP-D9) document metadata authoring
+  setDocumentMetadataSpec,
 ];

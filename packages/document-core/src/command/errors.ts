@@ -353,6 +353,52 @@ export class SlotEditError extends Error {
   }
 }
 
+// An event-definition authoring edit (Stage F1, PP-D9) rejected BEFORE any mutation, so it leaves no
+// document change and no history entry. The `reason` discriminant says which rule fired:
+//   - duplicateName: DefineEvent / RenameEvent targeted a name another event definition already uses (event
+//     names are the on-disk identity, so they are unique, the format's EVENT_NAME_DUPLICATE).
+//   - notFound: RenameEvent / DeleteEvent / SetEventDefaults / SetEventAudio targeted an EventDefId that does
+//     not exist.
+//   - audioRange: SetEventAudio was given a volume outside [0, 1] or a balance outside [-1, 1] (the format's
+//     EVENT_AUDIO_RANGE).
+//   - emptyName: DefineEvent / RenameEvent was given an empty name (structural floor).
+export type EventEditErrorReason = 'duplicateName' | 'notFound' | 'audioRange' | 'emptyName';
+
+export class EventEditError extends Error {
+  override readonly name = 'EventEditError';
+  readonly code = 'EVENT_EDIT' as const;
+  constructor(
+    readonly reason: EventEditErrorReason,
+    readonly detail?: string,
+  ) {
+    super(`event edit error (${reason})` + (detail === undefined ? '' : `: ${detail}`));
+  }
+}
+
+// A draw-order key authoring edit (Stage F1, PP-D9) rejected BEFORE any mutation because the proposed offset
+// list is not a consistent partial reordering of the setup draw order (the format's DRAWORDER_INCOMPLETE).
+// The `reason` discriminant says which rule fired:
+//   - slotMissing: an offset references a slot id not in the document.
+//   - slotDuplicate: the same slot appears more than once in one key's offsets.
+//   - targetOutOfRange: a slot's derived target index (setup index + offset) is outside [0, slotCount).
+//   - targetCollision: two listed slots resolve to the same target index.
+export type DrawOrderErrorReason =
+  | 'slotMissing'
+  | 'slotDuplicate'
+  | 'targetOutOfRange'
+  | 'targetCollision';
+
+export class DrawOrderError extends Error {
+  override readonly name = 'DrawOrderError';
+  readonly code = 'DRAW_ORDER' as const;
+  constructor(
+    readonly reason: DrawOrderErrorReason,
+    readonly detail?: string,
+  ) {
+    super(`draw-order edit error (${reason})` + (detail === undefined ? '' : `: ${detail}`));
+  }
+}
+
 export type DocumentError =
   | CommandTargetMissingError
   | CommandNotAppliedError
@@ -369,4 +415,6 @@ export type DocumentError =
   | DeformError
   | EffectEditError
   | EffectsAtlasDanglingRegionError
-  | SlotEditError;
+  | SlotEditError
+  | EventEditError
+  | DrawOrderError;

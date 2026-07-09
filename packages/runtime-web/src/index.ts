@@ -32,6 +32,26 @@ export type { RegionTextureResolver } from './scene/region-textures';
 export { blendModeToPixi } from './scene/blend-mode';
 export { makeParticleRenderBatch, fillEmitterBatch } from './scene/particle-render-batch';
 export type { ParticleRenderBatch } from './scene/particle-render-batch';
+// The pure triangle-strip geometry bridge for ribbon trails (PP-C3): strip index / UV construction (once
+// at capacity) and the allocation-free per-frame position fill from a ReadonlyRibbonView.
+export {
+  buildStripIndices,
+  buildStripUVs,
+  fillStripPositions,
+  stripBufferLength,
+} from './scene/ribbon-strip';
+// The GL particle renderer (WP-3.5 / PP-C3 remainder): consumes EffectSystem readonly frames into pooled
+// Sprites (emitters), MeshGeometry strips (ribbons), and viewport-cover / world quads (sprite animators),
+// per-layer blend through the one blendModeToPixi path, zero per-frame allocation in the steady state.
+export { ParticleLayerView } from './scene/particle-layer-view';
+export type {
+  ParticleSceneDescription,
+  InstanceRender,
+  EmitterRender,
+  EmitterParticleRender,
+  RibbonRender,
+  SpriteAnimatorRender,
+} from './scene/particle-layer-view';
 // Phase 5 atlas texture-variant selection (phase-5 WP-5.2, TASK-5.2.8): the NORMATIVE selector mapping the
 // static GPU capability set to a compressed target (ASTC/BC7/ETC2) or the canonical PNG fallback, plus the
 // pure WebGL extension-to-capability mapping. Shared by web/Unity/Godot (this is the web reference); reads

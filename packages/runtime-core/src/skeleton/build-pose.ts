@@ -95,8 +95,11 @@ function resolveIk(
     boneIndices: resolveBoneIndices(constraint.bones, indexByName),
     targetIndex: indexByName.get(constraint.target) ?? -1,
     baseMix: constraint.mix,
-    baseBendPositive: constraint.bendPositive,
-    sampled: { mix: constraint.mix, bendPositive: constraint.bendPositive },
+    // The format carries the signed bend direction (ADR-0009): +1 positive, -1 negative. The solve's
+    // internal boolean keys on the same sign (bend > 0), so this read is numerically identical to the
+    // pre-0.4.0 `bendPositive` boolean (migrated true -> +1, false -> -1).
+    baseBendPositive: constraint.bend > 0,
+    sampled: { mix: constraint.mix, bendPositive: constraint.bend > 0 },
   };
 }
 

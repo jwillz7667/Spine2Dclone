@@ -32,7 +32,7 @@ export interface PreparedAttachmentTrack {
 }
 
 // A boolean channel sampled STEPPED regardless of the keyframe's curve (ADR-0003 section 7): used for
-// IkFrame.bendPositive, which is non-interpolatable. `values[i]` is 0 or 1 for keyframe i; sampling
+// the IkFrame `bend` direction, which is non-interpolatable. `values[i]` is 0 or 1 for keyframe i; sampling
 // holds the segment-start value until the next key (the same clamp/step rule as the attachment track).
 export interface PreparedStepBoolTrack {
   readonly keyCount: number;

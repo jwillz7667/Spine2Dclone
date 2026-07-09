@@ -27,7 +27,19 @@ export function ikConstraint(
   mix: number,
   bendPositive: boolean,
 ): IkConstraint {
-  return { name, bones, target, mix, bendPositive };
+  // The format carries the signed `bend` (ADR-0009) plus the no-op depth defaults; the boolean param is
+  // preserved for test ergonomics and maps to the sign losslessly (true -> +1, false -> -1).
+  return {
+    name,
+    bones,
+    target,
+    mix,
+    bend: bendPositive ? 1 : -1,
+    softness: 0,
+    stretch: false,
+    compress: false,
+    uniform: false,
+  };
 }
 
 export function transformConstraint(
@@ -52,6 +64,8 @@ export function transformConstraint(
     offsetScaleX: 0,
     offsetScaleY: 0,
     offsetShearY: 0,
+    local: false,
+    relative: false,
     ...overrides,
   };
 }
@@ -62,7 +76,7 @@ export function ikKey(
   bendPositive: boolean,
   curve: CurveType = 'linear',
 ): Keyframe<IkFrame> {
-  return { time, value: { mix, bendPositive }, curve };
+  return { time, value: { mix, bend: bendPositive ? 1 : -1 }, curve };
 }
 
 export function transformKey(

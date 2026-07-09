@@ -183,8 +183,9 @@ export function buildIkMixTrack(frames: readonly Keyframe<IkFrame>[]): PreparedT
   });
 }
 
-// The `bendPositive` channel of an IK timeline: stepped (ADR-0003 section 7), so it carries no curve
-// and no eased value, only the 0/1 flag held until the next key.
+// The bend-direction channel of an IK timeline: stepped (ADR-0003 section 7), so it carries no curve
+// and no eased value, only the 0/1 flag held until the next key. The format keys the signed `bend`
+// (ADR-0009); the stored flag is 1 when bend > 0, matching the pre-0.4.0 `bendPositive` boolean exactly.
 export function buildBendTrack(frames: readonly Keyframe<IkFrame>[]): PreparedStepBoolTrack {
   const keyCount = frames.length;
   const times = new Float64Array(keyCount);
@@ -192,7 +193,7 @@ export function buildBendTrack(frames: readonly Keyframe<IkFrame>[]): PreparedSt
   for (let i = 0; i < keyCount; i += 1) {
     const frame = frames[i]!;
     times[i] = frame.time;
-    values[i] = frame.value.bendPositive ? 1 : 0;
+    values[i] = frame.value.bend > 0 ? 1 : 0;
   }
   return { keyCount, times, values };
 }
@@ -295,7 +296,7 @@ export function sampleAttachmentName(track: PreparedAttachmentTrack, t: number):
 }
 
 // The boolean value at time t (stepped: hold the segment-start flag until the next key, clamped within
-// the period), used for IkFrame.bendPositive (ADR-0003 section 7).
+// the period), used for the IkFrame `bend` direction (ADR-0003 section 7).
 export function sampleStepBool(track: PreparedStepBoolTrack, t: number): boolean {
   const i = findSegmentIndex(track.times, track.keyCount, t);
   return track.values[i] === 1;

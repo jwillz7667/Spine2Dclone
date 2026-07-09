@@ -16,20 +16,18 @@ namespace Marionette.Runtime.Core.Tests
             _output = output;
         }
 
-        // The committed skeleton rigs the native harness mirrors (packages/conformance/src/registry.ts
-        // RIG_IDS). PP-B4 adds rig-events-draworder and rig-events-loop, which exercise the draw-order lane
-        // and the fired-event log (the one-stage-lag native chase of the TS solve).
+        // The committed skeleton rigs the native harness mirrors, enumerated from the conformance corpus
+        // (RepoPaths.AllRigIds discovers every packages/conformance/src/fixtures/*.fixture.json) rather than
+        // a hardcoded list, so the full registry.ts landed-rig set runs and any newly landed rig is picked
+        // up automatically. Covers the affine, mesh, slot (blendMode + color), draw-order, and fired-event
+        // lanes across all rigs (rig-transform-modes, rig-blendmodes, rig-events-draworder, rig-events-loop
+        // included).
         public static IEnumerable<object[]> Rigs()
         {
-            yield return new object[] { "rig-2bone" };
-            yield return new object[] { "rig-rigid-mesh" };
-            yield return new object[] { "rig-weighted-mesh" };
-            yield return new object[] { "rig-one-bone-ik" };
-            yield return new object[] { "rig-two-bone-ik" };
-            yield return new object[] { "rig-transform-constraint" };
-            yield return new object[] { "rig-deform" };
-            yield return new object[] { "rig-events-draworder" };
-            yield return new object[] { "rig-events-loop" };
+            foreach (string rigId in RepoPaths.AllRigIds())
+            {
+                yield return new object[] { rigId };
+            }
         }
 
         [Theory]
@@ -41,7 +39,7 @@ namespace Marionette.Runtime.Core.Tests
             _output.WriteLine(
                 $"{rigId}: {result.LaneComparisons} lane comparisons, "
                 + $"maxBasis={result.MaxBasisError:E3}, maxTranslation={result.MaxTranslationError:E3}, "
-                + $"maxVertex={result.MaxVertexError:E3}");
+                + $"maxVertex={result.MaxVertexError:E3}, maxColor={result.MaxColorError:E3}");
 
             Assert.True(
                 result.Ok,

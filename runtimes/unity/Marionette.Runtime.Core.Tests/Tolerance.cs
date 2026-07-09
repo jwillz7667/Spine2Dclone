@@ -38,6 +38,9 @@ namespace Marionette.Runtime.Core.Tests
         // Event float payloads (authored values, low noise): mirrors EVENT_FLOAT in tolerance.ts.
         public static readonly Tolerance EventFloat = new Tolerance(1e-5, 1e-6);
 
+        // Slot color r, g, b, a (bounded 0..1): no relative term needed. Mirrors COLOR in tolerance.ts.
+        public static readonly Tolerance Color = new Tolerance(1e-5, 0.0);
+
         // Affine lanes [a, b, c, d, tx, ty]: 0..3 are the basis class, 4..5 the translation class.
         public static Tolerance ForLane(int lane) => lane < 4 ? WorldBasis : WorldTranslation;
     }

@@ -131,7 +131,8 @@ namespace Marionette.Runtime.Core.Document
                 ReqString(slot, "name"),
                 ReqString(slot, "bone"),
                 ReadColor(ReqMember(slot, "color", JsonKind.Object)),
-                attachmentName);
+                attachmentName,
+                OptString(slot, "blendMode") ?? "normal");
         }
 
         private static Skin ReadSkin(JsonValue skin)

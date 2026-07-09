@@ -18,6 +18,7 @@ namespace Marionette.Runtime.Core.Tests
         public double MaxBasisError { get; set; }
         public double MaxTranslationError { get; set; }
         public double MaxVertexError { get; set; }
+        public double MaxColorError { get; set; }
         public int LaneComparisons { get; set; }
     }
 
@@ -44,6 +45,18 @@ namespace Marionette.Runtime.Core.Tests
             for (int i = 0; i < pose.BoneNames.Count; i += 1)
             {
                 boneIndexByName[pose.BoneNames[i]] = i;
+            }
+
+            var slotIndexByName = new Dictionary<string, int>();
+            for (int i = 0; i < pose.SlotNames.Count; i += 1)
+            {
+                slotIndexByName[pose.SlotNames[i]] = i;
+            }
+
+            var blendModeByName = new Dictionary<string, string>();
+            foreach (Slot slot in document.Slots)
+            {
+                blendModeByName[slot.Name] = slot.BlendMode;
             }
 
             int maxMeshLanes = MaxMeshLanes(fixture);
@@ -82,12 +95,64 @@ namespace Marionette.Runtime.Core.Tests
                 }
 
                 CompareMeshes(result, document, spec, sample, pose, vertexScratch);
+                CompareSlots(result, rigId, sample, pose, slotIndexByName, blendModeByName);
                 CompareDrawOrder(result, rigId, sample, pose);
             }
 
             CompareEvents(result, rigId, document, spec, fixture);
 
             return result;
+        }
+
+        // Compare one sample's per-slot presentation state (PP-B1, rig-blendmodes, solve-order step 6): the
+        // static blendMode compares EXACT, the resolved color rides the COLOR tolerance. Present only on
+        // rigs whose sample-spec captures slots; absent samples short-circuit.
+        private static void CompareSlots(
+            ConformanceResult result,
+            string rigId,
+            FixtureSample sample,
+            Pose pose,
+            Dictionary<string, int> slotIndexByName,
+            Dictionary<string, string> blendModeByName)
+        {
+            if (sample.Slots.Count == 0)
+            {
+                return;
+            }
+
+            foreach (SlotState expectedSlot in sample.Slots)
+            {
+                if (!slotIndexByName.TryGetValue(expectedSlot.Slot, out int slotIndex))
+                {
+                    result.Failures.Add(
+                        $"[{rigId}] slot '{expectedSlot.Slot}' at t={sample.Time} is not in the solved pose");
+                    continue;
+                }
+
+                blendModeByName.TryGetValue(expectedSlot.Slot, out string? actualBlend);
+                if (actualBlend != expectedSlot.BlendMode)
+                {
+                    result.Failures.Add(
+                        $"[{rigId}] slot '{expectedSlot.Slot}' at t={sample.Time} blend mode mismatch: "
+                        + $"expected '{expectedSlot.BlendMode}', actual '{actualBlend}'");
+                }
+
+                int colorBase = slotIndex * Pose.SlotColorStride;
+                for (int k = 0; k < Pose.SlotColorStride; k += 1)
+                {
+                    double expectedValue = expectedSlot.Color[k];
+                    double actualValue = pose.SlotColor[colorBase + k];
+                    double delta = Math.Abs(actualValue - expectedValue);
+                    result.MaxColorError = Math.Max(result.MaxColorError, delta);
+                    result.LaneComparisons += 1;
+                    if (!Tolerances.Color.Within(actualValue, expectedValue))
+                    {
+                        result.Failures.Add(
+                            $"[{rigId}] slot '{expectedSlot.Slot}' color lane {k} at t={sample.Time} drifts: "
+                            + $"expected {expectedValue:R}, actual {actualValue:R}, delta {delta:R}");
+                    }
+                }
+            }
         }
 
         // Compare the resolved render order of one sample (ADR-0008, PP-B4): an integer permutation, EXACT.
@@ -408,6 +473,23 @@ namespace Marionette.Runtime.Core.Tests
         }
     }
 
+    // One slot's resolved presentation state at a sample time (PP-B1, rig-blendmodes): its static
+    // blendMode (compared EXACT) and the color the animation resolved to (compared within the COLOR
+    // tolerance). Mirrors slotStateSchema in schema/fixture.ts.
+    public sealed class SlotState
+    {
+        public string Slot { get; }
+        public string BlendMode { get; }
+        public IReadOnlyList<double> Color { get; }
+
+        public SlotState(string slot, string blendMode, IReadOnlyList<double> color)
+        {
+            Slot = slot;
+            BlendMode = blendMode;
+            Color = color;
+        }
+    }
+
     public sealed class FixtureSample
     {
         public double Time { get; }
@@ -416,6 +498,10 @@ namespace Marionette.Runtime.Core.Tests
         // Bone world affines, in document order (insertion order preserved by the parser).
         public IReadOnlyList<KeyValuePair<string, double[]>> Bones { get; }
         public IReadOnlyList<MeshVertices> Meshes { get; }
+
+        // Per-slot blend mode + resolved color (PP-B1), present only when the sample-spec captures slots.
+        // Empty list when absent, so bone-only and mesh-only samples add no slot comparisons.
+        public IReadOnlyList<SlotState> Slots { get; }
 
         // The resolved render order (ADR-0008, PP-B4): an integer permutation, present only when the
         // sample-spec captures it. Null otherwise.
@@ -426,12 +512,14 @@ namespace Marionette.Runtime.Core.Tests
             string animation,
             IReadOnlyList<KeyValuePair<string, double[]>> bones,
             IReadOnlyList<MeshVertices> meshes,
+            IReadOnlyList<SlotState> slots,
             IReadOnlyList<int>? drawOrder)
         {
             Time = time;
             Animation = animation;
             Bones = bones;
             Meshes = meshes;
+            Slots = slots;
             DrawOrder = drawOrder;
         }
     }
@@ -486,12 +574,41 @@ namespace Marionette.Runtime.Core.Tests
             Events = events;
         }
 
+        // The exhaustive member allowlists (mirror the .strict() fixtureSchema in schema/fixture.ts). A
+        // fixture or sample carrying any member outside these sets is rejected: a NEW capture lane (a
+        // future corpus growth) then fails LOUDLY here instead of being silently skipped, forcing the
+        // native harness to grow a comparison for it.
+        private static readonly HashSet<string> AllowedTopLevel = new HashSet<string>
+        {
+            "rigId", "rigHash", "specHash", "coreVersion", "toolchain", "generatedBy", "samples", "events",
+        };
+
+        private static readonly HashSet<string> AllowedSample = new HashSet<string>
+        {
+            "time", "animation", "loop", "bones", "meshes", "slots", "drawOrder",
+        };
+
+        private static void RequireKnownMembers(JsonValue obj, HashSet<string> allowed, string context)
+        {
+            foreach (KeyValuePair<string, JsonValue> member in obj.Members())
+            {
+                if (!allowed.Contains(member.Key))
+                {
+                    throw new InvalidDataException(
+                        $"fixture {context} has unknown member '{member.Key}'; the native harness has no "
+                        + "comparison for it (add one rather than skipping the lane)");
+                }
+            }
+        }
+
         public static Fixture Load(string path)
         {
             JsonValue root = JsonParser.Parse(File.ReadAllText(path));
+            RequireKnownMembers(root, AllowedTopLevel, "root");
             var samples = new List<FixtureSample>();
             foreach (JsonValue sample in root.Member("samples")!.AsArray())
             {
+                RequireKnownMembers(sample, AllowedSample, "sample");
                 var bones = new List<KeyValuePair<string, double[]>>();
                 foreach (KeyValuePair<string, JsonValue> boneEntry in sample.Member("bones")!.Members())
                 {
@@ -525,6 +642,25 @@ namespace Marionette.Runtime.Core.Tests
                     }
                 }
 
+                var slots = new List<SlotState>();
+                JsonValue? slotsValue = sample.Member("slots");
+                if (slotsValue != null && slotsValue.Kind == JsonKind.Array)
+                {
+                    foreach (JsonValue slot in slotsValue.AsArray())
+                    {
+                        var color = new List<double>();
+                        foreach (JsonValue channel in slot.Member("color")!.AsArray())
+                        {
+                            color.Add(channel.AsNumber());
+                        }
+
+                        slots.Add(new SlotState(
+                            slot.Member("slot")!.AsString(),
+                            slot.Member("blendMode")!.AsString(),
+                            color));
+                    }
+                }
+
                 List<int>? drawOrder = null;
                 JsonValue? drawOrderValue = sample.Member("drawOrder");
                 if (drawOrderValue != null && drawOrderValue.Kind == JsonKind.Array)
@@ -541,6 +677,7 @@ namespace Marionette.Runtime.Core.Tests
                     sample.Member("animation")!.AsString(),
                     bones,
                     meshes,
+                    slots,
                     drawOrder));
             }
 

@@ -99,12 +99,17 @@ namespace Marionette.Runtime.Core.Document
         public Rgba Color { get; }
         public string? Attachment { get; }
 
-        public Slot(string name, string slotBone, Rgba color, string? attachment)
+        // Static per-slot blend mode (solve-order step 6); the conformance fixture asserts it EXACTLY.
+        // Defaults to "normal" when the rig omits it. Mirrors Slot.blendMode in @marionette/format.
+        public string BlendMode { get; }
+
+        public Slot(string name, string slotBone, Rgba color, string? attachment, string blendMode)
         {
             Name = name;
             SlotBone = slotBone;
             Color = color;
             Attachment = attachment;
+            BlendMode = blendMode;
         }
     }
 

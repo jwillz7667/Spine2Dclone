@@ -1,4 +1,4 @@
-import type { MeshAttachment } from '../schema/attachment';
+import type { Attachment, MeshAttachment } from '../schema/attachment';
 import type { SkeletonDocument } from '../schema/document';
 import { MAX_BONE_INFLUENCES, WEIGHT_SUM_EPSILON } from '../mesh/weighted';
 import { formatError } from './errors';
@@ -252,6 +252,106 @@ export function checkMeshes(doc: SkeletonDocument): FormatError[] {
           boneCount,
           errors,
         );
+      }
+    }
+  }
+  return errors;
+}
+
+// Look up an attachment by (skin name, slot name, attachment name), or undefined when any level is
+// absent. Pure, no `as`: the skin/slot/attachment maps are typed records.
+function attachmentAt(
+  doc: SkeletonDocument,
+  skinName: string,
+  slotName: string,
+  attachmentName: string,
+): Attachment | undefined {
+  const skin = doc.skins.find((candidate) => candidate.name === skinName);
+  return skin?.attachments[slotName]?.[attachmentName];
+}
+
+// The outcome of resolving a linked-mesh chain to its geometry source (ADR-0009 section 2). A linked
+// mesh reuses a parent mesh's geometry; the parent lives on the SAME slot in skin `skin ?? this skin`
+// and may itself be a linked mesh, so resolution walks the chain until it reaches a real `mesh`.
+export type GeometrySource =
+  | { readonly kind: 'mesh'; readonly mesh: MeshAttachment }
+  | { readonly kind: 'missing' } // a link points at an attachment that does not exist
+  | { readonly kind: 'invalid' } // a link points at a non-geometry attachment (not mesh or linked mesh)
+  | { readonly kind: 'cycle' }; // the chain revisits a node and never reaches a real mesh
+
+// Follow the parent chain of the attachment at (skinName, slotName, attachmentName) to its root mesh.
+// The slot is constant along the chain; each linked-mesh hop may change the skin via its `skin` field.
+// Bounded by the visited set (revisiting a node is a cycle). Shared by the linked-mesh validator and the
+// deform vertex-count resolution (a linked mesh may be a deform target, inheriting the root mesh's V).
+export function resolveGeometrySource(
+  doc: SkeletonDocument,
+  skinName: string,
+  slotName: string,
+  attachmentName: string,
+): GeometrySource {
+  const visited = new Set<string>();
+  let currentSkin = skinName;
+  let currentName = attachmentName;
+  for (;;) {
+    const key = `${currentSkin} ${currentName}`;
+    if (visited.has(key)) return { kind: 'cycle' };
+    visited.add(key);
+    const attachment = attachmentAt(doc, currentSkin, slotName, currentName);
+    if (attachment === undefined) return { kind: 'missing' };
+    if (attachment.type === 'mesh') return { kind: 'mesh', mesh: attachment };
+    if (attachment.type !== 'linkedmesh') return { kind: 'invalid' };
+    currentSkin = attachment.skin ?? currentSkin;
+    currentName = attachment.parent;
+  }
+}
+
+// MESH family (ADR-0009 section 2): every linked-mesh attachment resolves to a real mesh through a
+// cycle-free parent chain. Reported per code so a reviewer sees whether the parent is missing, is a
+// non-geometry attachment, or the chain loops. The starting attachment always exists (we iterate the
+// linked meshes themselves), so `missing`/`invalid`/`cycle` describe the PARENT side of the link.
+export function checkLinkedMeshes(doc: SkeletonDocument): FormatError[] {
+  const errors: FormatError[] = [];
+  for (const [skinIndex, skin] of doc.skins.entries()) {
+    for (const [slotName, slotAttachments] of Object.entries(skin.attachments)) {
+      for (const [attachmentName, attachment] of Object.entries(slotAttachments)) {
+        if (attachment.type !== 'linkedmesh') continue;
+        const parentPath = jsonPointer([
+          'skins',
+          skinIndex,
+          'attachments',
+          slotName,
+          attachmentName,
+          'parent',
+        ]);
+        const source = resolveGeometrySource(doc, skin.name, slotName, attachmentName);
+        if (source.kind === 'missing') {
+          errors.push(
+            formatError(
+              'LINKED_MESH_PARENT_MISSING',
+              parentPath,
+              `linked mesh "${attachmentName}" references parent "${attachment.parent}" in skin "${attachment.skin ?? skin.name}" on slot "${slotName}", which does not exist`,
+              { parent: attachment.parent, skin: attachment.skin ?? skin.name, slot: slotName },
+            ),
+          );
+        } else if (source.kind === 'invalid') {
+          errors.push(
+            formatError(
+              'LINKED_MESH_PARENT_INVALID',
+              parentPath,
+              `linked mesh "${attachmentName}" references parent "${attachment.parent}", which is not a mesh or linked mesh`,
+              { parent: attachment.parent },
+            ),
+          );
+        } else if (source.kind === 'cycle') {
+          errors.push(
+            formatError(
+              'LINKED_MESH_CYCLE',
+              parentPath,
+              `linked mesh "${attachmentName}" parent chain is cyclic and never reaches a mesh`,
+              { parent: attachment.parent },
+            ),
+          );
+        }
       }
     }
   }

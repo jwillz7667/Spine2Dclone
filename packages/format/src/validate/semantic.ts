@@ -2,7 +2,7 @@ import type { SkeletonDocument } from '../schema/document';
 import { checkConstraints } from './constraints';
 import { formatError } from './errors';
 import type { FormatError } from './errors';
-import { checkMeshes } from './mesh';
+import { checkLinkedMeshes, checkMeshes, resolveGeometrySource } from './mesh';
 import { jsonPointer } from './structural';
 
 // Semantic (graph) layer: referential integrity and the invariants Zod cannot express
@@ -11,6 +11,33 @@ import { jsonPointer } from './structural';
 // ANIM with the draw-order timeline (consistency of per-key offsets) and the event timeline (event
 // reference and non-decreasing order). Each family is independent (collect-all) except the bone
 // graph, which short-circuits per section 5.4 so a single broken document yields a single bone code.
+
+// Every bone track channel (joint plus per-component, ADR-0009 section 4.1). Order and range apply to
+// each; TIMELINE_COMPONENT_CONFLICT forbids a joint channel coexisting with its split components.
+const BONE_TRACK_CHANNELS = [
+  'rotate',
+  'translate',
+  'scale',
+  'shear',
+  'translateX',
+  'translateY',
+  'scaleX',
+  'scaleY',
+  'shearX',
+  'shearY',
+] as const;
+
+// The three joint-vs-split conflict groups on a bone (ADR-0009 section 4.1).
+const BONE_COMPONENT_GROUPS = [
+  { joint: 'translate', components: ['translateX', 'translateY'] },
+  { joint: 'scale', components: ['scaleX', 'scaleY'] },
+  { joint: 'shear', components: ['shearX', 'shearY'] },
+] as const;
+
+// The slot value-timeline channels checked for order and range (ADR-0009 sections 3, 4.2, 4.3). The
+// `attachment` swap track is handled separately (contract-silent on order); the joint-vs-split `color`
+// conflict and the dark-without-setup check are handled inline.
+const SLOT_TRACK_CHANNELS = ['color', 'rgb', 'alpha', 'dark', 'sequence'] as const;
 
 // The time-ordering rule for a timeline (format-contract section 4.8): interpolated VALUE timelines and
 // the draw-order timeline are STRICT (no two keys share a time, because interpolation or a discrete
@@ -164,7 +191,10 @@ function checkSlots(doc: SkeletonDocument): FormatError[] {
   return errors;
 }
 
-// SKIN family: the default skin must exist; every top-level attachment key is a valid slot name.
+// SKIN family: the default skin must exist; every top-level attachment key is a valid slot name; every
+// skin-scoped bone and constraint name (ADR-0009 section 5) resolves. Skin scoping declares which bones
+// and (ik or transform) constraints are active while this skin is active; the format validates only that
+// the referenced names exist (the runtime owns activation semantics).
 function checkSkins(doc: SkeletonDocument): FormatError[] {
   const errors: FormatError[] = [];
   if (!doc.skins.some((skin) => skin.name === 'default')) {
@@ -177,6 +207,11 @@ function checkSkins(doc: SkeletonDocument): FormatError[] {
     );
   }
   const slotNames = new Set(doc.slots.map((slot) => slot.name));
+  const boneNames = new Set(doc.bones.map((bone) => bone.name));
+  const constraintNames = new Set([
+    ...doc.ikConstraints.map((c) => c.name),
+    ...doc.transformConstraints.map((c) => c.name),
+  ]);
   for (const [index, skin] of doc.skins.entries()) {
     for (const slotName of Object.keys(skin.attachments)) {
       if (!slotNames.has(slotName)) {
@@ -186,6 +221,30 @@ function checkSkins(doc: SkeletonDocument): FormatError[] {
             jsonPointer(['skins', index, 'attachments', slotName]),
             `skin "${skin.name}" carries attachments for slot "${slotName}", which does not exist`,
             { slot: slotName, skin: skin.name },
+          ),
+        );
+      }
+    }
+    for (const [boneIndex, boneName] of (skin.bones ?? []).entries()) {
+      if (!boneNames.has(boneName)) {
+        errors.push(
+          formatError(
+            'SKIN_BONE_UNKNOWN',
+            jsonPointer(['skins', index, 'bones', boneIndex]),
+            `skin "${skin.name}" scopes bone "${boneName}", which does not exist`,
+            { bone: boneName, skin: skin.name },
+          ),
+        );
+      }
+    }
+    for (const [constraintIndex, constraintName] of (skin.constraints ?? []).entries()) {
+      if (!constraintNames.has(constraintName)) {
+        errors.push(
+          formatError(
+            'SKIN_CONSTRAINT_UNKNOWN',
+            jsonPointer(['skins', index, 'constraints', constraintIndex]),
+            `skin "${skin.name}" scopes constraint "${constraintName}", which does not exist`,
+            { constraint: constraintName, skin: skin.name },
           ),
         );
       }
@@ -218,7 +277,9 @@ function checkAtlas(doc: SkeletonDocument): FormatError[] {
     for (const [slotName, slotAttachments] of Object.entries(skin.attachments)) {
       for (const [attachmentName, attachment] of Object.entries(slotAttachments)) {
         if (
-          (attachment.type === 'region' || attachment.type === 'mesh') &&
+          (attachment.type === 'region' ||
+            attachment.type === 'mesh' ||
+            attachment.type === 'linkedmesh') &&
           !regionNames.has(attachment.path)
         ) {
           errors.push(
@@ -237,8 +298,10 @@ function checkAtlas(doc: SkeletonDocument): FormatError[] {
 }
 
 // Resolve the mesh logical-vertex count (uvs.length / 2) for a deform attachment, or null when the
-// attachment does not exist or is not a mesh (the caller emits DEFORM_ATTACHMENT_UNKNOWN /
-// DEFORM_NOT_MESH). Deform offsets must be exactly 2 * V per keyframe (format-contract section 4.9).
+// attachment does not exist or is not a geometry attachment (the caller emits DEFORM_ATTACHMENT_UNKNOWN /
+// DEFORM_NOT_MESH). A linked mesh (ADR-0009 section 2) inherits its parent mesh's geometry, so its V is
+// resolved by walking the parent chain to the root mesh; an unresolvable chain yields null (the
+// LINKED_MESH_* error is raised separately). Deform offsets must be exactly 2 * V (format-contract 4.9).
 function meshVertexCount(
   doc: SkeletonDocument,
   skinName: string,
@@ -247,8 +310,13 @@ function meshVertexCount(
 ): number | null {
   const skin = doc.skins.find((s) => s.name === skinName);
   const attachment = skin?.attachments[slotName]?.[attachmentName];
-  if (attachment === undefined || attachment.type !== 'mesh') return null;
-  return attachment.uvs.length / 2;
+  if (attachment === undefined) return null;
+  if (attachment.type === 'mesh') return attachment.uvs.length / 2;
+  if (attachment.type === 'linkedmesh') {
+    const source = resolveGeometrySource(doc, skinName, slotName, attachmentName);
+    return source.kind === 'mesh' ? source.mesh.uvs.length / 2 : null;
+  }
+  return null;
 }
 
 // DEFORM family (format-contract section 4.9): every skin/slot/attachment key resolves, the attachment
@@ -304,7 +372,12 @@ function checkDeform(
               { attachment: attachmentName, animation: animName },
             ),
           );
-        } else if (skinExists && attachment !== undefined && attachment.type !== 'mesh') {
+        } else if (
+          skinExists &&
+          attachment !== undefined &&
+          attachment.type !== 'mesh' &&
+          attachment.type !== 'linkedmesh'
+        ) {
           errors.push(
             formatError(
               'DEFORM_NOT_MESH',
@@ -472,6 +545,7 @@ function checkAnimations(doc: SkeletonDocument): FormatError[] {
   const errors: FormatError[] = [];
   const boneNames = new Set(doc.bones.map((bone) => bone.name));
   const slotNames = new Set(doc.slots.map((slot) => slot.name));
+  const slotByName = new Map(doc.slots.map((slot) => [slot.name, slot]));
   const slotIndexByName = new Map(doc.slots.map((slot, index) => [slot.name, index]));
   const ikNames = new Set(doc.ikConstraints.map((c) => c.name));
   const transformNames = new Set(doc.transformConstraints.map((c) => c.name));
@@ -495,13 +569,32 @@ function checkAnimations(doc: SkeletonDocument): FormatError[] {
           ),
         );
       }
-      for (const channel of ['rotate', 'translate', 'scale', 'shear'] as const) {
+      // Every bone track (joint and per-component, ADR-0009 section 4.1) is a strict-ascending value
+      // timeline; range and order apply to all of them.
+      for (const channel of BONE_TRACK_CHANNELS) {
         const frames = timelines[channel];
         if (frames !== undefined) {
           recordFrames(frames);
           maxTime = Math.max(
             maxTime,
             checkFrameTimes(frames, [...basePath, channel], duration, 'strict', errors),
+          );
+        }
+      }
+      // A joint channel and its split component tracks are two encodings of the same channel and MUST
+      // NOT coexist on one bone (TIMELINE_COMPONENT_CONFLICT); the error points at the joint track.
+      for (const { joint, components } of BONE_COMPONENT_GROUPS) {
+        if (
+          timelines[joint] !== undefined &&
+          components.some((component) => timelines[component] !== undefined)
+        ) {
+          errors.push(
+            formatError(
+              'TIMELINE_COMPONENT_CONFLICT',
+              jsonPointer([...basePath, joint]),
+              `animation "${animName}" keys both the joint "${joint}" track and a split ${components.join('/')} track on bone "${boneName}"`,
+              { bone: boneName, joint, animation: animName },
+            ),
           );
         }
       }
@@ -531,11 +624,43 @@ function checkAnimations(doc: SkeletonDocument): FormatError[] {
           ),
         );
       }
-      if (timelines.color !== undefined) {
-        recordFrames(timelines.color);
-        maxTime = Math.max(
-          maxTime,
-          checkFrameTimes(timelines.color, [...basePath, 'color'], duration, 'strict', errors),
+      // The joint color and the split rgb/alpha/dark and sequence tracks (ADR-0009 sections 3, 4.2, 4.3)
+      // are all strict-ascending value timelines; range and order apply to each present track.
+      for (const channel of SLOT_TRACK_CHANNELS) {
+        const frames = timelines[channel];
+        if (frames !== undefined) {
+          recordFrames(frames);
+          maxTime = Math.max(
+            maxTime,
+            checkFrameTimes(frames, [...basePath, channel], duration, 'strict', errors),
+          );
+        }
+      }
+      // The joint `color` (RGBA) track and the split `rgb`/`alpha` tracks are two encodings of the same
+      // channel and MUST NOT coexist on one slot (TIMELINE_COMPONENT_CONFLICT).
+      if (
+        timelines.color !== undefined &&
+        (timelines.rgb !== undefined || timelines.alpha !== undefined)
+      ) {
+        errors.push(
+          formatError(
+            'TIMELINE_COMPONENT_CONFLICT',
+            jsonPointer([...basePath, 'color']),
+            `animation "${animName}" keys both the joint "color" track and a split rgb/alpha track on slot "${slotName}"`,
+            { slot: slotName, animation: animName },
+          ),
+        );
+      }
+      // A dark (two-color) timeline animates a channel the slot only has when it defines a setup
+      // darkColor (ANIM_DARK_NO_SETUP): a document cannot animate a tint the slot does not carry.
+      if (timelines.dark !== undefined && slotByName.get(slotName)?.darkColor === undefined) {
+        errors.push(
+          formatError(
+            'ANIM_DARK_NO_SETUP',
+            jsonPointer([...basePath, 'dark']),
+            `animation "${animName}" keys a dark-color timeline on slot "${slotName}", which has no setup darkColor`,
+            { slot: slotName, animation: animName },
+          ),
         );
       }
     }
@@ -620,6 +745,7 @@ export function validateSemantic(doc: SkeletonDocument): FormatError[] {
     ...checkSkins(doc),
     ...checkAtlas(doc),
     ...checkMeshes(doc),
+    ...checkLinkedMeshes(doc),
     ...checkConstraints(doc),
     ...checkEvents(doc),
     ...checkAnimations(doc),

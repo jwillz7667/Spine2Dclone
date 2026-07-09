@@ -124,11 +124,64 @@ function checkTransform(
   }
 }
 
+// Explicit constraint order (ADR-0009 section 1.3): `order` is a single ordering over the combined
+// ikConstraints + transformConstraints set. Omitted everywhere means the default IK-then-transform
+// document order (ADR-0003); present anywhere it must be present EVERYWHERE and be a dense, unique
+// permutation of [0, N). A partial assignment, a duplicate, a gap, or an out-of-range value is
+// CONSTRAINT_ORDER_INVALID: the ordering is not a well-formed total order the runtime can sort by.
+function checkConstraintOrder(doc: SkeletonDocument, errors: FormatError[]): void {
+  const entries: ReadonlyArray<{
+    readonly order: number | undefined;
+    readonly nodePath: ReadonlyArray<string | number>;
+    readonly orderPath: ReadonlyArray<string | number>;
+  }> = [
+    ...doc.ikConstraints.map((c, index) => ({
+      order: c.order,
+      nodePath: ['ikConstraints', index],
+      orderPath: ['ikConstraints', index, 'order'],
+    })),
+    ...doc.transformConstraints.map((c, index) => ({
+      order: c.order,
+      nodePath: ['transformConstraints', index],
+      orderPath: ['transformConstraints', index, 'order'],
+    })),
+  ];
+  const present = entries.filter((entry) => entry.order !== undefined);
+  if (present.length === 0) return;
+
+  if (present.length !== entries.length) {
+    const missing = entries.find((entry) => entry.order === undefined)!;
+    errors.push(
+      formatError(
+        'CONSTRAINT_ORDER_INVALID',
+        jsonPointer(missing.nodePath),
+        `constraint order must be set on all constraints or none: ${present.length} of ${entries.length} set`,
+        { set: present.length, total: entries.length },
+      ),
+    );
+    return;
+  }
+
+  const orders = present.map((entry) => entry.order!).sort((a, b) => a - b);
+  const dense = orders.every((value, index) => value === index);
+  if (!dense) {
+    errors.push(
+      formatError(
+        'CONSTRAINT_ORDER_INVALID',
+        jsonPointer(present[0]!.orderPath),
+        `constraint order must be a dense, unique permutation of [0, ${entries.length}); got [${orders.join(', ')}]`,
+        { orders: orders.join(','), total: entries.length },
+      ),
+    );
+  }
+}
+
 export function checkConstraints(doc: SkeletonDocument): FormatError[] {
   const errors: FormatError[] = [];
   const bones = boneByName(doc);
   checkConstraintNames(doc, errors);
   checkIk(doc, bones, errors);
   checkTransform(doc, bones, errors);
+  checkConstraintOrder(doc, errors);
   return errors;
 }

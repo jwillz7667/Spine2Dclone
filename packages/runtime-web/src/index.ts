@@ -95,6 +95,31 @@ export type {
   SlotSceneDescription,
 } from './slot/slot-scene-view';
 export { loopTime } from './transport';
+// The packaged web player (PP-C5): the documented embedding API. createPlayer loads a document (MRNT
+// binary or JSON) and its atlas pages through an injectable AssetLoader, then wires the SkeletonView
+// (AnimationState playback + fired-event subscription + skin switching), an optional ParticleLayerView,
+// and an optional SlotSceneView. See packages/runtime-web/README.md for the supported surface.
+export { createPlayer, Player } from './player/create-player';
+export type {
+  PlayerOptions,
+  AtlasSource,
+  AtlasPageUrl,
+  EffectsPlayerOptions,
+  SlotPlayerOptions,
+  EventListener,
+} from './player/create-player';
+export { browserAssetLoader } from './player/asset-loader';
+export type { AssetLoader } from './player/asset-loader';
+export {
+  decodeSkeletonDocument,
+  decodeEffectsDocument,
+  PlayerLoadError,
+} from './player/document-loader';
+export type {
+  SkeletonSource,
+  EffectsSource,
+  PlayerLoadErrorCode,
+} from './player/document-loader';
 // Headless sampling harness (TASK-1.10.4): samples the SAME runtime-core path the player renders,
 // with no GL/render context, so WP-1.13 can check editor-vs-runtime parity in plain Node/Vitest.
 export { samplePlaybackWorlds } from './headless/sample-playback';

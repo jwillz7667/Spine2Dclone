@@ -1,22 +1,36 @@
 import {
+  boundingBoxWorldVerticesForSlot,
   buildPose,
   collectFiredEvents,
+  computeClippedSlotRange,
+  hitTestPolygon,
   makeEventQueue,
   MAT2X3_STRIDE,
   prepareEventTimeline,
+  resolveClipWorldPolygonForSlot,
+  resolvePointWorldForSlot,
   sampleMeshVertices,
   sampleSkeleton,
   sampleSlotSequenceFrame,
   SLOT_COLOR_STRIDE,
 } from '@marionette/runtime-core';
 import type { FiredEvent } from '@marionette/runtime-core';
-import type { SkeletonDocument } from '@marionette/format/types';
+import type {
+  Attachment,
+  BoundingBoxAttachment,
+  ClippingAttachment,
+  PointAttachment,
+  SkeletonDocument,
+} from '@marionette/format/types';
 import type {
   Affine,
+  BoundingBoxState,
+  ClipState,
   FiredEventRecord,
   Fixture,
   FixtureSample,
   MeshVertices,
+  PointState,
   SequenceState,
   SlotState,
 } from './schema/fixture';
@@ -76,6 +90,116 @@ function resolveSlotCaptureTargets(
   });
 }
 
+// Look up an attachment by (skin, slot, attachment), failing loud (Law 3) when the sample-spec names one the
+// rig does not define: a bad capture request is an authoring error in the spec, never silently dropped.
+function lookupCaptureAttachment(
+  document: SkeletonDocument,
+  skinName: string,
+  slotName: string,
+  attachmentName: string,
+): Attachment {
+  const skin = document.skins.find((candidate) => candidate.name === skinName);
+  const attachment = skin?.attachments[slotName]?.[attachmentName];
+  if (attachment === undefined) {
+    throw new Error(
+      `sample-spec names attachment "${skinName}/${slotName}/${attachmentName}" to capture, but the rig has no such attachment`,
+    );
+  }
+  return attachment;
+}
+
+function slotIndexOf(document: SkeletonDocument, slotName: string): number {
+  const index = document.slots.findIndex((slot) => slot.name === slotName);
+  if (index < 0) throw new Error(`sample-spec names slot "${slotName}", but the rig has no such slot`);
+  return index;
+}
+
+// A resolved clip-capture target (PP-B2): the clip attachment plus its slot index and its `end` slot index,
+// with a reused world-polygon scratch sized to the polygon (2 * V lanes).
+interface ClipCaptureTarget {
+  readonly skin: string;
+  readonly slot: string;
+  readonly attachment: string;
+  readonly clip: ClippingAttachment;
+  readonly clipSlotIndex: number;
+  readonly endSlotIndex: number;
+  readonly polygonScratch: Float64Array;
+}
+
+function resolveClipTargets(document: SkeletonDocument, spec: SampleSpec): ClipCaptureTarget[] {
+  return (spec.clips ?? []).map((target) => {
+    const attachment = lookupCaptureAttachment(document, target.skin, target.slot, target.attachment);
+    if (attachment.type !== 'clipping') {
+      throw new Error(
+        `sample-spec captures clip "${target.skin}/${target.slot}/${target.attachment}", but it is a ${attachment.type}, not a clipping attachment`,
+      );
+    }
+    return {
+      skin: target.skin,
+      slot: target.slot,
+      attachment: target.attachment,
+      clip: attachment,
+      clipSlotIndex: slotIndexOf(document, target.slot),
+      endSlotIndex: slotIndexOf(document, attachment.end),
+      polygonScratch: new Float64Array(attachment.vertices.length),
+    };
+  });
+}
+
+interface BoxCaptureTarget {
+  readonly skin: string;
+  readonly slot: string;
+  readonly attachment: string;
+  readonly box: BoundingBoxAttachment;
+  readonly slotIndex: number;
+  readonly vertexScratch: Float64Array;
+}
+
+function resolveBoxTargets(document: SkeletonDocument, spec: SampleSpec): BoxCaptureTarget[] {
+  return (spec.boxes ?? []).map((target) => {
+    const attachment = lookupCaptureAttachment(document, target.skin, target.slot, target.attachment);
+    if (attachment.type !== 'boundingbox') {
+      throw new Error(
+        `sample-spec captures box "${target.skin}/${target.slot}/${target.attachment}", but it is a ${attachment.type}, not a boundingbox attachment`,
+      );
+    }
+    return {
+      skin: target.skin,
+      slot: target.slot,
+      attachment: target.attachment,
+      box: attachment,
+      slotIndex: slotIndexOf(document, target.slot),
+      vertexScratch: new Float64Array(attachment.vertices.length),
+    };
+  });
+}
+
+interface PointCaptureTarget {
+  readonly skin: string;
+  readonly slot: string;
+  readonly attachment: string;
+  readonly point: PointAttachment;
+  readonly slotIndex: number;
+}
+
+function resolvePointTargets(document: SkeletonDocument, spec: SampleSpec): PointCaptureTarget[] {
+  return (spec.points ?? []).map((target) => {
+    const attachment = lookupCaptureAttachment(document, target.skin, target.slot, target.attachment);
+    if (attachment.type !== 'point') {
+      throw new Error(
+        `sample-spec captures point "${target.skin}/${target.slot}/${target.attachment}", but it is a ${attachment.type}, not a point attachment`,
+      );
+    }
+    return {
+      skin: target.skin,
+      slot: target.slot,
+      attachment: target.attachment,
+      point: attachment,
+      slotIndex: slotIndexOf(document, target.slot),
+    };
+  });
+}
+
 // Sample the document at every poseTime in the spec and capture the per-bone world affines. The pose
 // buffer is allocated once and reused across times (runtime-core writes into it in place), matching the
 // allocation-free solve contract. Bones are emitted in document order (pose.boneNames order, which the
@@ -99,6 +223,13 @@ export function buildFixtureSamples(document: SkeletonDocument, spec: SampleSpec
       (a.attachment < b.attachment ? -1 : a.attachment > b.attachment ? 1 : 0),
   );
   const vertexScratch = meshTargets.length > 0 ? new Float32Array(maxMeshLanes(document)) : null;
+  // PP-B2 geometry-attachment capture targets (ADR-0012), resolved once. Each is empty unless the spec opts
+  // in, so no non-PP-B2 fixture gains a clips/boxes/points member and every prior fixture stays byte-identical.
+  const clipTargets = resolveClipTargets(document, spec);
+  const boxTargets = resolveBoxTargets(document, spec);
+  const pointTargets = resolvePointTargets(document, spec);
+  const hitProbes = spec.hitProbes ?? [];
+  const clippedSlotScratch = new Int32Array(document.slots.length);
   // Per-sample active skin for skin-scoped constraints (rig-skin-scoped). Must align with poseTimes when
   // present; a bad spec fails loudly (Law 3) rather than silently sampling the wrong skin.
   if (spec.activeSkins !== undefined && spec.activeSkins.length !== spec.poseTimes.length) {
@@ -186,6 +317,39 @@ export function buildFixtureSamples(document: SkeletonDocument, spec: SampleSpec
         frame: sampleSlotSequenceFrame(document, spec.animation, time, pose, slot),
       }));
       sample.sequences = sequences;
+    }
+    if (clipTargets.length > 0) {
+      // The resolved clip STATE per named clip attachment (ADR-0012 section 3): the world polygon (VERTEX
+      // class) and the clipped slot set (draw-order membership, EXACT), reusing the pose just solved at `time`.
+      sample.clips = clipTargets.map((target): ClipState => {
+        const vertexCount = resolveClipWorldPolygonForSlot(pose, target.clipSlotIndex, target.clip, target.polygonScratch);
+        const clippedCount = computeClippedSlotRange(pose, target.clipSlotIndex, target.endSlotIndex, clippedSlotScratch);
+        const clippedSlots: string[] = [];
+        for (let i = 0; i < clippedCount; i += 1) clippedSlots.push(pose.slotNames[clippedSlotScratch[i]!]!);
+        const worldPolygon: number[] = [];
+        for (let lane = 0; lane < vertexCount * 2; lane += 1) worldPolygon.push(target.polygonScratch[lane]!);
+        return { slot: target.slot, attachment: target.attachment, worldPolygon, clippedSlots };
+      });
+    }
+    if (boxTargets.length > 0) {
+      // The resolved bounding-box world vertices (VERTEX) + per-probe even-odd hit results (EXACT).
+      sample.boxes = boxTargets.map((target): BoundingBoxState => {
+        const vertexCount = boundingBoxWorldVerticesForSlot(pose, target.slotIndex, target.box, target.vertexScratch);
+        const worldVertices: number[] = [];
+        for (let lane = 0; lane < vertexCount * 2; lane += 1) worldVertices.push(target.vertexScratch[lane]!);
+        const hits = hitProbes.map(([px, py]) => hitTestPolygon(target.vertexScratch, vertexCount, px, py));
+        return { slot: target.slot, attachment: target.attachment, worldVertices, hits };
+      });
+    }
+    if (pointTargets.length > 0) {
+      // The resolved point world position (VERTEX) + rotation degrees (ANGLE).
+      sample.points = pointTargets.map((target): PointState => {
+        const world = resolvePointWorldForSlot(pose, target.slotIndex, target.point);
+        if (world === null) {
+          throw new Error(`point "${target.skin}/${target.slot}/${target.attachment}" has no resolvable slot bone`);
+        }
+        return { slot: target.slot, attachment: target.attachment, x: world.x, y: world.y, rotation: world.rotationDeg };
+      });
     }
     samples.push(sample);
   }

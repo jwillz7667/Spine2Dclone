@@ -49,6 +49,27 @@ export const sampleSpecSchema = z
     // in; a spec that omits it samples every frame with no active skin, so every pre-slice-7 fixture
     // regenerates byte-identically. When present it MUST have the same length as poseTimes (build-fixture).
     activeSkins: z.array(z.string().min(1).nullable()).optional(),
+    // The clip attachments whose resolved clip state (world polygon + clipped slot set) is captured at every
+    // poseTime (PP-B2, rig-clipping). Each names the (skin, slot, attachment) triple of a clipping attachment;
+    // its `end` slot comes from the attachment. Opt-in; omitting it captures no clips, so pre-PP-B2 fixtures
+    // regenerate byte-identically.
+    clips: z
+      .array(z.object({ skin: z.string().min(1), slot: z.string().min(1), attachment: z.string().min(1) }).strict())
+      .optional(),
+    // The bounding-box attachments whose world vertices and per-probe hit results are captured (PP-B2,
+    // rig-hit-point). Opt-in.
+    boxes: z
+      .array(z.object({ skin: z.string().min(1), slot: z.string().min(1), attachment: z.string().min(1) }).strict())
+      .optional(),
+    // The world-space probe points each captured bounding box is hit-tested against (PP-B2), in order. Each
+    // captured box records one boolean per probe. Required-with `boxes`; a spec that names boxes but no probes
+    // captures an empty hit list per box (still valid, just uninformative).
+    hitProbes: z.array(z.tuple([z.number().finite(), z.number().finite()])).optional(),
+    // The point attachments whose resolved world position + rotation are captured (PP-B2, rig-hit-point).
+    // Opt-in.
+    points: z
+      .array(z.object({ skin: z.string().min(1), slot: z.string().min(1), attachment: z.string().min(1) }).strict())
+      .optional(),
     eventStep: z
       .object({
         dt: z.number().finite().positive(),

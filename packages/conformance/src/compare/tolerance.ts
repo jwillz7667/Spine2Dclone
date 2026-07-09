@@ -41,6 +41,13 @@ export const COLOR: Tolerance = { atol: 1e-5, rtol: 0 };
 // Event floatValue (authored values, low noise). Carried here for completeness; events land in Phase 2.
 export const EVENT_FLOAT: Tolerance = { atol: 1e-5, rtol: 1e-6 };
 
+// World rotation in DEGREES for a point attachment (PP-B2, ADR-0012 section 2): point.rotation plus the
+// bone's world x-axis angle (an atan2). atan2 differs by a few ULPs across language math libs (~1e-11
+// degrees), so a small absolute band with a light relative term (angles reach a few hundred degrees)
+// keeps parity strict while staying far below the 1e-2 magnitude of a real bug (a missing bone-rotation
+// term, a radians-vs-degrees slip). Point world x/y ride the VERTEX class like every other world position.
+export const ANGLE: Tolerance = { atol: 1e-4, rtol: 1e-6 };
+
 // Particle float quantities (phase-3-vfx-particles.md section 8.9, WP-3.10): per-particle px/py (float
 // Euler position accumulation), rot (float degrees), outScale (curve output), the ribbon vertex
 // positions vx/vy, and the sprite rotationDeg/scale. A particle position is a semi-implicit Euler sum

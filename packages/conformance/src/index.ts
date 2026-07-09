@@ -35,6 +35,9 @@ export type {
   MeshVertices,
   SlotState,
   FixtureBlendMode,
+  ClipState,
+  BoundingBoxState,
+  PointState,
 } from './schema/fixture';
 export {
   validateSampleSpec,
@@ -88,8 +91,10 @@ export type {
 export {
   WORLD_TRANSLATION,
   WORLD_BASIS,
+  VERTEX,
   COLOR,
   EVENT_FLOAT,
+  ANGLE,
   PARTICLE,
   PARTICLE_COLOR,
   withinTolerance,

@@ -92,6 +92,46 @@ const sequenceStateSchema = z
   })
   .strict();
 
+// One clip attachment's resolved CLIP STATE at a sample (PP-B2, ADR-0012 section 3): the world-space clip
+// polygon (VERTEX class, the same skinned/deformed-vertex tolerance) and the set of slots the clip affects
+// in the current draw order (the slots after the clip slot up to and including its `end` slot). `clippedSlots`
+// is a discrete slot-name list compared EXACT (a draw-order membership decision, never float noise); it is in
+// ascending render-position order. The clip GEOMETRY operation (the Sutherland-Hodgman triangle clip) is
+// locked separately by the committed clip-geometry cross-language vector, not per sample.
+const clipStateSchema = z
+  .object({
+    slot: z.string().min(1),
+    attachment: z.string().min(1),
+    worldPolygon: z.array(z.number().finite()),
+    clippedSlots: z.array(z.string().min(1)),
+  })
+  .strict();
+
+// One bounding-box attachment's resolved hit-test state at a sample (PP-B2, ADR-0012 section 4): the box's
+// world vertices (VERTEX class) and the even-odd hit result for each committed probe point (the sample-spec's
+// `hitProbes`, in that order). `hits` is a discrete boolean list compared EXACT (a hit is a hit, never noise).
+const boundingBoxStateSchema = z
+  .object({
+    slot: z.string().min(1),
+    attachment: z.string().min(1),
+    worldVertices: z.array(z.number().finite()),
+    hits: z.array(z.boolean()),
+  })
+  .strict();
+
+// One point attachment's resolved world state at a sample (PP-B2, ADR-0012 section 2): world position (x, y
+// on the VERTEX class) and world rotation in degrees (the ANGLE class). No barycentrics or polygon: a point
+// is a single anchor transform.
+const pointStateSchema = z
+  .object({
+    slot: z.string().min(1),
+    attachment: z.string().min(1),
+    x: z.number().finite(),
+    y: z.number().finite(),
+    rotation: z.number().finite(),
+  })
+  .strict();
+
 const fixtureSampleSchema = z
   .object({
     time: z.number().finite(),
@@ -115,6 +155,16 @@ const fixtureSampleSchema = z
     // integer frame, compared EXACT (a discrete playback state, no float noise). Omitted otherwise, so
     // pre-slice-5 fixtures stay byte-identical.
     sequences: z.array(sequenceStateSchema).optional(),
+    // Per-clip-attachment resolved clip state (PP-B2, ADR-0012 section 3), captured only when the sample-spec
+    // names clip attachments in `clips` (rig-clipping). Omitted otherwise, so pre-PP-B2 fixtures stay
+    // byte-identical.
+    clips: z.array(clipStateSchema).optional(),
+    // Per-bounding-box resolved hit-test state (PP-B2, ADR-0012 section 4), captured only when the sample-spec
+    // names bounding boxes in `boxes` (rig-hit-point). Omitted otherwise.
+    boxes: z.array(boundingBoxStateSchema).optional(),
+    // Per-point resolved world state (PP-B2, ADR-0012 section 2), captured only when the sample-spec names
+    // points in `points` (rig-hit-point). Omitted otherwise.
+    points: z.array(pointStateSchema).optional(),
   })
   .strict();
 
@@ -141,6 +191,9 @@ export type FixtureBlendMode = z.infer<typeof fixtureBlendModeSchema>;
 export type SlotState = z.infer<typeof slotStateSchema>;
 export type FiredEventRecord = z.infer<typeof firedEventSchema>;
 export type SequenceState = z.infer<typeof sequenceStateSchema>;
+export type ClipState = z.infer<typeof clipStateSchema>;
+export type BoundingBoxState = z.infer<typeof boundingBoxStateSchema>;
+export type PointState = z.infer<typeof pointStateSchema>;
 export type FixtureSample = z.infer<typeof fixtureSampleSchema>;
 export type Fixture = z.infer<typeof fixtureSchema>;
 

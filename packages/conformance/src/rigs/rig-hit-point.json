@@ -1,0 +1,99 @@
+{
+  "formatVersion": "0.4.0",
+  "name": "rig-hit-point",
+  "hash": "",
+  "bones": [
+    {
+      "name": "root",
+      "parent": null,
+      "length": 32,
+      "x": 0,
+      "y": 0,
+      "rotation": 0,
+      "scaleX": 1,
+      "scaleY": 1,
+      "shearX": 0,
+      "shearY": 0,
+      "transformMode": "normal"
+    },
+    {
+      "name": "mover",
+      "parent": "root",
+      "length": 32,
+      "x": 0,
+      "y": 0,
+      "rotation": 0,
+      "scaleX": 1,
+      "scaleY": 1,
+      "shearX": 0,
+      "shearY": 0,
+      "transformMode": "normal"
+    }
+  ],
+  "slots": [
+    {
+      "name": "boxslot",
+      "bone": "mover",
+      "color": { "r": 1, "g": 1, "b": 1, "a": 1 },
+      "attachment": "hitbox",
+      "blendMode": "normal"
+    },
+    {
+      "name": "pointslot",
+      "bone": "mover",
+      "color": { "r": 1, "g": 1, "b": 1, "a": 1 },
+      "attachment": "muzzle",
+      "blendMode": "normal"
+    }
+  ],
+  "skins": [
+    {
+      "name": "default",
+      "attachments": {
+        "boxslot": {
+          "hitbox": {
+            "type": "boundingbox",
+            "vertices": [-20, -20, 20, -20, 20, 20, -20, 20]
+          }
+        },
+        "pointslot": {
+          "muzzle": {
+            "type": "point",
+            "x": 10,
+            "y": 0,
+            "rotation": 30
+          }
+        }
+      }
+    }
+  ],
+  "ikConstraints": [],
+  "transformConstraints": [],
+  "animations": {
+    "move": {
+      "duration": 1,
+      "bones": {
+        "mover": {
+          "translate": [
+            { "time": 0, "value": { "x": 0, "y": 0 }, "curve": "linear" },
+            { "time": 0.5, "value": { "x": 50, "y": 0 }, "curve": "linear" },
+            { "time": 1, "value": { "x": 50, "y": 50 }, "curve": "linear" }
+          ],
+          "rotate": [
+            { "time": 0, "value": { "angle": 0 }, "curve": "linear" },
+            { "time": 0.5, "value": { "angle": 0 }, "curve": "linear" },
+            { "time": 1, "value": { "angle": 45 }, "curve": "linear" }
+          ]
+        }
+      },
+      "slots": {},
+      "ik": {},
+      "transform": {},
+      "deform": {},
+      "drawOrder": [],
+      "events": []
+    }
+  },
+  "atlas": { "pages": [] },
+  "events": []
+}

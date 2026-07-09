@@ -1,0 +1,462 @@
+{
+  "note": "Clip-geometry cross-language golden vectors (PP-B2, ADR-0012 section 3). THE corpus that runtime-core (TS), Marionette.Runtime.Core (C#), and the GDScript runtime MUST all reproduce for the Sutherland-Hodgman triangle clip. Each case gives a clip polygon (world space, also used as the local polygon for the convexity/ear-clip decision) and a triangle-list input; `expected` is the clipped output the runtime-core clipper produces: ringCount, and per ring the sourceTri index, vertexCount, flat positions, and per-vertex barycentrics (with respect to the source triangle). A native runtime loads this file and asserts its clipper reproduces every ring: positions and barycentrics within the VERTEX tolerance, and ringCount, vertexCount, sourceTri, and the convex flag EXACT. Generated FROM runtime-core by scripts/gen-clip-geometry-vectors.mts and drift-guarded by clip-geometry-vectors.test.ts.",
+  "cases": [
+    {
+      "name": "convex-square-inside",
+      "polygon": [
+        0,
+        0,
+        2,
+        0,
+        2,
+        2,
+        0,
+        2
+      ],
+      "convex": true,
+      "triVerts": [
+        0.5,
+        0.5,
+        1.5,
+        0.5,
+        1,
+        1.5
+      ],
+      "triIndices": [
+        0,
+        1,
+        2
+      ],
+      "expected": {
+        "ringCount": 1,
+        "rings": [
+          {
+            "sourceTri": 0,
+            "vertexCount": 3,
+            "positions": [
+              0.5,
+              0.5,
+              1.5,
+              0.5,
+              1,
+              1.5
+            ],
+            "bary": [
+              1,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              1
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "convex-square-outside",
+      "polygon": [
+        0,
+        0,
+        2,
+        0,
+        2,
+        2,
+        0,
+        2
+      ],
+      "convex": true,
+      "triVerts": [
+        3,
+        3,
+        4,
+        3,
+        3,
+        4
+      ],
+      "triIndices": [
+        0,
+        1,
+        2
+      ],
+      "expected": {
+        "ringCount": 0,
+        "rings": []
+      }
+    },
+    {
+      "name": "convex-square-straddle",
+      "polygon": [
+        0,
+        0,
+        2,
+        0,
+        2,
+        2,
+        0,
+        2
+      ],
+      "convex": true,
+      "triVerts": [
+        1,
+        1,
+        3,
+        1,
+        1,
+        3
+      ],
+      "triIndices": [
+        0,
+        1,
+        2
+      ],
+      "expected": {
+        "ringCount": 1,
+        "rings": [
+          {
+            "sourceTri": 0,
+            "vertexCount": 5,
+            "positions": [
+              1,
+              2,
+              1,
+              1,
+              2,
+              1,
+              2,
+              2,
+              2,
+              2
+            ],
+            "bary": [
+              0.5,
+              0,
+              0.5,
+              1,
+              0,
+              0,
+              0.5,
+              0.5,
+              0,
+              0,
+              0.5,
+              0.5,
+              0,
+              0.5,
+              0.5
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "convex-square-cw-straddle",
+      "polygon": [
+        0,
+        0,
+        0,
+        2,
+        2,
+        2,
+        2,
+        0
+      ],
+      "convex": true,
+      "triVerts": [
+        1,
+        1,
+        3,
+        1,
+        1,
+        3
+      ],
+      "triIndices": [
+        0,
+        1,
+        2
+      ],
+      "expected": {
+        "ringCount": 1,
+        "rings": [
+          {
+            "sourceTri": 0,
+            "vertexCount": 5,
+            "positions": [
+              1,
+              2,
+              1,
+              1,
+              2,
+              1,
+              2,
+              2,
+              2,
+              2
+            ],
+            "bary": [
+              0.5,
+              0,
+              0.5,
+              1,
+              0,
+              0,
+              0.5,
+              0.5,
+              0,
+              0,
+              0.5,
+              0.5,
+              0,
+              0.5,
+              0.5
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "concave-L-across-notch",
+      "polygon": [
+        0,
+        0,
+        4,
+        0,
+        4,
+        1,
+        1,
+        1,
+        1,
+        4,
+        0,
+        4
+      ],
+      "convex": false,
+      "triVerts": [
+        0.5,
+        0.5,
+        3.5,
+        0.5,
+        0.5,
+        3.5
+      ],
+      "triIndices": [
+        0,
+        1,
+        2
+      ],
+      "expected": {
+        "ringCount": 4,
+        "rings": [
+          {
+            "sourceTri": 0,
+            "vertexCount": 3,
+            "positions": [
+              2,
+              0.5,
+              3.5,
+              0.5,
+              3.2,
+              0.8
+            ],
+            "bary": [
+              0.5,
+              0.5,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0.9,
+              0.1
+            ]
+          },
+          {
+            "sourceTri": 0,
+            "vertexCount": 6,
+            "positions": [
+              1,
+              1,
+              0.5,
+              0.5,
+              0.5,
+              0.5,
+              2,
+              0.5,
+              3.2,
+              0.8,
+              3,
+              1
+            ],
+            "bary": [
+              0.6666666666666667,
+              0.16666666666666663,
+              0.16666666666666663,
+              1,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0.5,
+              0.5,
+              0,
+              0,
+              0.9,
+              0.1,
+              0,
+              0.8333333333333334,
+              0.16666666666666666
+            ]
+          },
+          {
+            "sourceTri": 0,
+            "vertexCount": 4,
+            "positions": [
+              0.5,
+              2.5,
+              0.5,
+              0.5,
+              0.5,
+              0.5,
+              1,
+              1
+            ],
+            "bary": [
+              0.3333333333333333,
+              0,
+              0.6666666666666667,
+              1,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0.6666666666666667,
+              0.16666666666666666,
+              0.16666666666666666
+            ]
+          },
+          {
+            "sourceTri": 0,
+            "vertexCount": 4,
+            "positions": [
+              0.5,
+              2.5,
+              1,
+              1,
+              1,
+              3,
+              0.5,
+              3.5
+            ],
+            "bary": [
+              0.3333333333333333,
+              0,
+              0.6666666666666667,
+              0.6666666666666667,
+              0.16666666666666666,
+              0.16666666666666669,
+              0,
+              0.16666666666666663,
+              0.8333333333333334,
+              0,
+              0,
+              1
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "convex-square-two-triangles",
+      "polygon": [
+        0,
+        0,
+        3,
+        0,
+        3,
+        3,
+        0,
+        3
+      ],
+      "convex": true,
+      "triVerts": [
+        -1,
+        -1,
+        2,
+        -1,
+        2,
+        2,
+        -1,
+        2
+      ],
+      "triIndices": [
+        0,
+        1,
+        2,
+        0,
+        2,
+        3
+      ],
+      "expected": {
+        "ringCount": 2,
+        "rings": [
+          {
+            "sourceTri": 0,
+            "vertexCount": 3,
+            "positions": [
+              0,
+              0,
+              2,
+              0,
+              2,
+              2
+            ],
+            "bary": [
+              0.6666666666666666,
+              0,
+              0.33333333333333337,
+              0,
+              0.6666666666666667,
+              0.3333333333333333,
+              0,
+              0,
+              1
+            ]
+          },
+          {
+            "sourceTri": 1,
+            "vertexCount": 4,
+            "positions": [
+              0,
+              0,
+              0,
+              0,
+              2,
+              2,
+              0,
+              2
+            ],
+            "bary": [
+              0.6666666666666667,
+              0.3333333333333333,
+              0,
+              0.6666666666666667,
+              0.3333333333333333,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0.33333333333333337,
+              0.6666666666666666
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

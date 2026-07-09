@@ -65,6 +65,14 @@ export const RIG_IDS = [
   // "gold" solves only when that skin is active; an unscoped one always solves. Sampled under active skin
   // null (scoped off) vs "gold" (scoped on) via the sample-spec activeSkins knob. Authored first-principles.
   'rig-skin-scoped',
+  // PP-B2 (pro-parity Stage 0, ADR-0012) non-drawing geometry-attachment rigs. `rig-clipping` animates a clip
+  // bone (moving the world clip polygon) that ends at a slot carrying a deforming mesh, so the new clip lane
+  // (world polygon on the VERTEX class + clipped-slot set EXACT) is captured alongside the existing mesh lane.
+  // `rig-hit-point` carries bounding boxes and points on animated bones, capturing box world vertices +
+  // per-probe hit booleans and point world x/y/rotation. Both observe only new opt-in capture lanes, so every
+  // prior fixture regenerates byte-identical. Authored first-principles (Law 4).
+  'rig-clipping',
+  'rig-hit-point',
 ] as const;
 
 export type RigId = (typeof RIG_IDS)[number];
@@ -96,6 +104,11 @@ export const RIG_PHASE: Readonly<Record<RigId, number>> = {
   'rig-sequences': 2,
   'rig-split-tracks': 2,
   'rig-skin-scoped': 2,
+  // PP-B2 geometry-attachment rigs: the clipping/bounding-box/point solve features land now (Stage 0). Like
+  // the other PP additions they are ordinary skeletons in the phase-2 catalog track and gate at the current
+  // phase (the RIG_PHASE gate models "the rig's solve features exist", satisfied here).
+  'rig-clipping': 2,
+  'rig-hit-point': 2,
 };
 
 // The committed current phase (B.2 landed-rig gating). Bumped per phase milestone in this file, NOT

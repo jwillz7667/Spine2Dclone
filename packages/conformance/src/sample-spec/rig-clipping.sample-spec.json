@@ -1,0 +1,10 @@
+{
+  "rigId": "rig-clipping",
+  "animation": "clip",
+  "duration": 1.0,
+  "loop": false,
+  "poseTimes": [0.0, 0.25, 0.5, 0.75, 1.0],
+  "meshes": [{ "skin": "default", "slot": "meshslot", "attachment": "panel" }],
+  "captureDrawOrder": true,
+  "clips": [{ "skin": "default", "slot": "clipper", "attachment": "region" }]
+}

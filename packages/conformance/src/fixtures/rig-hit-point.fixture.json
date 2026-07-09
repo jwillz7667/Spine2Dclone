@@ -1,0 +1,85 @@
+{
+  "rigId": "rig-hit-point",
+  "rigHash": "sha256:6dfdcc47cfa45d0fd5d78a3531ed4fb65beb3a60790b50649b145d46b7f25124",
+  "specHash": "sha256:e8b9cca10564585638ef381d62449e1470de27e1e45e264eacb287edeae066db",
+  "coreVersion": "runtime-core@0.0.0",
+  "toolchain": "node-22.13.1-v8",
+  "generatedBy": "generate.ts",
+  "samples": [
+    {
+      "time": 0,
+      "animation": "move",
+      "loop": false,
+      "bones": {
+        "root": [1, 0, 0, 1, 0, 0],
+        "mover": [1, 0, 0, 1, 0, 0]
+      },
+      "boxes": [
+        { "slot": "boxslot", "attachment": "hitbox", "worldVertices": [-20, -20, 20, -20, 20, 20, -20, 20], "hits": [true, false, false, false] }
+      ],
+      "points": [
+        { "slot": "pointslot", "attachment": "muzzle", "x": 10, "y": 0, "rotation": 30 }
+      ]
+    },
+    {
+      "time": 0.25,
+      "animation": "move",
+      "loop": false,
+      "bones": {
+        "root": [1, 0, 0, 1, 0, 0],
+        "mover": [1, 0, 0, 1, 25, 0]
+      },
+      "boxes": [
+        { "slot": "boxslot", "attachment": "hitbox", "worldVertices": [5, -20, 45, -20, 45, 20, 5, 20], "hits": [false, false, false, false] }
+      ],
+      "points": [
+        { "slot": "pointslot", "attachment": "muzzle", "x": 35, "y": 0, "rotation": 30 }
+      ]
+    },
+    {
+      "time": 0.5,
+      "animation": "move",
+      "loop": false,
+      "bones": {
+        "root": [1, 0, 0, 1, 0, 0],
+        "mover": [1, 0, 0, 1, 50, 0]
+      },
+      "boxes": [
+        { "slot": "boxslot", "attachment": "hitbox", "worldVertices": [30, -20, 70, -20, 70, 20, 30, 20], "hits": [false, true, false, false] }
+      ],
+      "points": [
+        { "slot": "pointslot", "attachment": "muzzle", "x": 60, "y": 0, "rotation": 30 }
+      ]
+    },
+    {
+      "time": 0.75,
+      "animation": "move",
+      "loop": false,
+      "bones": {
+        "root": [1, 0, 0, 1, 0, 0],
+        "mover": [0.9238795325112867, 0.3826834323650898, -0.3826834323650898, 0.9238795325112867, 50, 25]
+      },
+      "boxes": [
+        { "slot": "boxslot", "attachment": "hitbox", "worldVertices": [39.176077997076064, -1.1312592975275315, 76.13125929752754, 14.17607799707606, 60.823922002923936, 51.131259297527535, 23.86874070247247, 35.823922002923936], "hits": [false, false, false, false] }
+      ],
+      "points": [
+        { "slot": "pointslot", "attachment": "muzzle", "x": 59.23879532511287, "y": 28.8268343236509, "rotation": 52.5 }
+      ]
+    },
+    {
+      "time": 1,
+      "animation": "move",
+      "loop": false,
+      "bones": {
+        "root": [1, 0, 0, 1, 0, 0],
+        "mover": [0.7071067811865476, 0.7071067811865475, -0.7071067811865475, 0.7071067811865476, 50, 50]
+      },
+      "boxes": [
+        { "slot": "boxslot", "attachment": "hitbox", "worldVertices": [50, 21.715728752538098, 78.2842712474619, 50, 50, 78.2842712474619, 21.715728752538098, 50], "hits": [false, false, true, false] }
+      ],
+      "points": [
+        { "slot": "pointslot", "attachment": "muzzle", "x": 57.071067811865476, "y": 57.071067811865476, "rotation": 75 }
+      ]
+    }
+  ]
+}

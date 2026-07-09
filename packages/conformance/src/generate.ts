@@ -116,6 +116,26 @@ function serializeSlot(slot: NonNullable<FixtureSample['slots']>[number], indent
   return `${indent}{ "slot": ${str(slot.slot)}, "blendMode": ${str(slot.blendMode)}, "color": ${color}${dark} }`;
 }
 
+// One clip-state entry on a single line (PP-B2): the slot/attachment, the compact world polygon, and the
+// clipped-slot name list.
+function serializeClip(clip: NonNullable<FixtureSample['clips']>[number], indent: string): string {
+  const polygon = `[${clip.worldPolygon.map(num).join(', ')}]`;
+  const slots = `[${clip.clippedSlots.map(str).join(', ')}]`;
+  return `${indent}{ "slot": ${str(clip.slot)}, "attachment": ${str(clip.attachment)}, "worldPolygon": ${polygon}, "clippedSlots": ${slots} }`;
+}
+
+// One bounding-box-state entry on a single line (PP-B2): the slot/attachment, world vertices, and hit booleans.
+function serializeBox(box: NonNullable<FixtureSample['boxes']>[number], indent: string): string {
+  const vertices = `[${box.worldVertices.map(num).join(', ')}]`;
+  const hits = `[${box.hits.map((h) => (h ? 'true' : 'false')).join(', ')}]`;
+  return `${indent}{ "slot": ${str(box.slot)}, "attachment": ${str(box.attachment)}, "worldVertices": ${vertices}, "hits": ${hits} }`;
+}
+
+// One point-state entry on a single line (PP-B2): the slot/attachment and world x/y/rotation.
+function serializePoint(point: NonNullable<FixtureSample['points']>[number], indent: string): string {
+  return `${indent}{ "slot": ${str(point.slot)}, "attachment": ${str(point.attachment)}, "x": ${num(point.x)}, "y": ${num(point.y)}, "rotation": ${num(point.rotation)} }`;
+}
+
 function serializeSample(sample: FixtureSample, indent: string): string {
   const i2 = `${indent}  `;
   const i3 = `${i2}  `;
@@ -146,6 +166,24 @@ function serializeSample(sample: FixtureSample, indent: string): string {
       (s) => `${i3}{ "slot": ${str(s.slot)}, "frame": ${num(s.frame)} }`,
     );
     members.push(`${i2}"sequences": [\n${seqLines.join(',\n')}\n${i2}]`);
+  }
+  // The resolved clip state per clip attachment, one entry per line (PP-B2). Present only when captured
+  // (rig-clipping); omitting it keeps every non-clip fixture byte-identical.
+  if (sample.clips !== undefined && sample.clips.length > 0) {
+    const clipLines = sample.clips.map((clip) => serializeClip(clip, i3));
+    members.push(`${i2}"clips": [\n${clipLines.join(',\n')}\n${i2}]`);
+  }
+  // The resolved bounding-box hit-test state per box, one entry per line (PP-B2). Present only when captured
+  // (rig-hit-point); omitting it keeps every non-box fixture byte-identical.
+  if (sample.boxes !== undefined && sample.boxes.length > 0) {
+    const boxLines = sample.boxes.map((box) => serializeBox(box, i3));
+    members.push(`${i2}"boxes": [\n${boxLines.join(',\n')}\n${i2}]`);
+  }
+  // The resolved point world state per point, one entry per line (PP-B2). Present only when captured
+  // (rig-hit-point); omitting it keeps every non-point fixture byte-identical.
+  if (sample.points !== undefined && sample.points.length > 0) {
+    const pointLines = sample.points.map((point) => serializePoint(point, i3));
+    members.push(`${i2}"points": [\n${pointLines.join(',\n')}\n${i2}]`);
   }
   return [
     `${indent}{`,

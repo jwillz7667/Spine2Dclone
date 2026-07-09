@@ -1,0 +1,90 @@
+{
+  "rigId": "rig-clipping",
+  "rigHash": "sha256:5028c7bf791f79f7dc0dab4bc491fa7509743c0322eb8b5598991de61b3189fb",
+  "specHash": "sha256:e439ab19c8f938313ac6b7e5ea84df379945c4d89cc7e9c95c6829902288355a",
+  "coreVersion": "runtime-core@0.0.0",
+  "toolchain": "node-22.13.1-v8",
+  "generatedBy": "generate.ts",
+  "samples": [
+    {
+      "time": 0,
+      "animation": "clip",
+      "loop": false,
+      "bones": {
+        "root": [1, 0, 0, 1, 0, 0],
+        "clipbone": [1, 0, 0, 1, 40, 40]
+      },
+      "meshes": [
+        { "skin": "default", "slot": "meshslot", "attachment": "panel", "positions": [0, 0, 40, 0, 40, 40, 0, 40] }
+      ],
+      "drawOrder": [0, 1, 2],
+      "clips": [
+        { "slot": "clipper", "attachment": "region", "worldPolygon": [10, 10, 70, 10, 70, 70, 10, 70], "clippedSlots": ["under", "meshslot"] }
+      ]
+    },
+    {
+      "time": 0.25,
+      "animation": "clip",
+      "loop": false,
+      "bones": {
+        "root": [1, 0, 0, 1, 0, 0],
+        "clipbone": [0.9659258262890683, 0.25881904510252074, -0.25881904510252074, 0.9659258262890683, 42.5, 37.5]
+      },
+      "meshes": [
+        { "skin": "default", "slot": "meshslot", "attachment": "panel", "positions": [2, 0, 42, 0, 38, 40, -2, 40] }
+      ],
+      "drawOrder": [0, 1, 2],
+      "clips": [
+        { "slot": "clipper", "attachment": "region", "worldPolygon": [21.286796564403573, 0.7576538582523256, 79.24234614174767, 16.286796564403573, 63.71320343559643, 74.24234614174767, 5.757653858252326, 58.71320343559643], "clippedSlots": ["under", "meshslot"] }
+      ]
+    },
+    {
+      "time": 0.5,
+      "animation": "clip",
+      "loop": false,
+      "bones": {
+        "root": [1, 0, 0, 1, 0, 0],
+        "clipbone": [0.8660254037844387, 0.49999999999999994, -0.49999999999999994, 0.8660254037844387, 45, 35]
+      },
+      "meshes": [
+        { "skin": "default", "slot": "meshslot", "attachment": "panel", "positions": [4, 0, 44, 0, 36, 40, -4, 40] }
+      ],
+      "drawOrder": [0, 2, 1],
+      "clips": [
+        { "slot": "clipper", "attachment": "region", "worldPolygon": [34.01923788646684, -5.98076211353316, 85.98076211353316, 24.01923788646684, 55.98076211353316, 75.98076211353316, 4.01923788646684, 45.98076211353316], "clippedSlots": ["meshslot"] }
+      ]
+    },
+    {
+      "time": 0.75,
+      "animation": "clip",
+      "loop": false,
+      "bones": {
+        "root": [1, 0, 0, 1, 0, 0],
+        "clipbone": [0.5000000000000001, 0.8660254037844386, -0.8660254037844386, 0.5000000000000001, 47.5, 32.5]
+      },
+      "meshes": [
+        { "skin": "default", "slot": "meshslot", "attachment": "panel", "positions": [2, 0, 42, 0, 38, 40, -2, 40] }
+      ],
+      "drawOrder": [0, 2, 1],
+      "clips": [
+        { "slot": "clipper", "attachment": "region", "worldPolygon": [58.48076211353315, -8.48076211353316, 88.48076211353316, 43.48076211353315, 36.51923788646685, 73.48076211353316, 6.51923788646684, 21.519237886466847], "clippedSlots": ["meshslot"] }
+      ]
+    },
+    {
+      "time": 1,
+      "animation": "clip",
+      "loop": false,
+      "bones": {
+        "root": [1, 0, 0, 1, 0, 0],
+        "clipbone": [6.123233995736766e-17, 1, -1, 6.123233995736766e-17, 50, 30]
+      },
+      "meshes": [
+        { "skin": "default", "slot": "meshslot", "attachment": "panel", "positions": [0, 0, 40, 0, 40, 40, 0, 40] }
+      ],
+      "drawOrder": [0, 2, 1],
+      "clips": [
+        { "slot": "clipper", "attachment": "region", "worldPolygon": [80, -3.552713678800501e-15, 80, 60, 20.000000000000004, 60, 19.999999999999996, 3.552713678800501e-15], "clippedSlots": ["meshslot"] }
+      ]
+    }
+  ]
+}

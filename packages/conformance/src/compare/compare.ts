@@ -1,5 +1,15 @@
-import type { Affine, FiredEventRecord, Fixture, MeshVertices, SlotState } from '../schema/fixture';
+import type {
+  Affine,
+  BoundingBoxState,
+  ClipState,
+  FiredEventRecord,
+  Fixture,
+  MeshVertices,
+  PointState,
+  SlotState,
+} from '../schema/fixture';
 import {
+  ANGLE,
   COLOR,
   EVENT_FLOAT,
   VERTEX,
@@ -31,6 +41,10 @@ export type QuantityClass =
   | 'slotColor'
   | 'slotDarkColor'
   | 'eventFloat'
+  | 'clipPolygon'
+  | 'pointPosition'
+  | 'pointRotation'
+  | 'boxVertex'
   | 'structural';
 
 // Slot-color lane names [r, g, b, a] for human-readable failure messages.
@@ -384,6 +398,195 @@ function compareEvents(
   }
 }
 
+// Compare the resolved clip state of one sample (PP-B2, ADR-0012 section 3, rig-clipping). The clip SET (by
+// slot/attachment) and each clip's world-polygon length are structural (exact); the polygon positions ride
+// the VERTEX tolerance; the clipped-slot list is DISCRETE, compared EXACT in order (a draw-order membership
+// decision, never float noise). Absent on both sides is a match.
+function compareClips(
+  expected: readonly ClipState[] | undefined,
+  actual: readonly ClipState[] | undefined,
+  rigId: string,
+  time: number,
+  failures: DriftFailure[],
+): void {
+  const e = expected ?? [];
+  const a = actual ?? [];
+  const key = (c: ClipState): string => `${c.slot}/${c.attachment}`;
+  if (e.length !== a.length || e.some((c, i) => key(c) !== key(a[i]!))) {
+    failures.push(
+      structuralFailure(
+        rigId,
+        `sample at t=${time} clip set mismatch: expected [${e.map(key).join(', ')}], actual [${a.map(key).join(', ')}]`,
+        time,
+      ),
+    );
+    return;
+  }
+  for (let idx = 0; idx < e.length; idx += 1) {
+    const ec = e[idx]!;
+    const ac = a[idx]!;
+    if (ec.clippedSlots.length !== ac.clippedSlots.length || ec.clippedSlots.some((s, i) => s !== ac.clippedSlots[i])) {
+      failures.push(
+        structuralFailure(
+          rigId,
+          `clip "${key(ec)}" at t=${time} clipped-slot set mismatch: expected [${ec.clippedSlots.join(', ')}], actual [${ac.clippedSlots.join(', ')}]`,
+          time,
+        ),
+      );
+    }
+    if (ec.worldPolygon.length !== ac.worldPolygon.length) {
+      failures.push(
+        structuralFailure(
+          rigId,
+          `clip "${key(ec)}" at t=${time} world-polygon length mismatch: expected ${ec.worldPolygon.length}, actual ${ac.worldPolygon.length}`,
+          time,
+        ),
+      );
+      continue;
+    }
+    for (let lane = 0; lane < ec.worldPolygon.length; lane += 1) {
+      pushNumeric(
+        failures,
+        withinTolerance(ac.worldPolygon[lane]!, ec.worldPolygon[lane]!, VERTEX),
+        rigId,
+        time,
+        key(ec),
+        'clipPolygon',
+        lane,
+        ec.worldPolygon[lane]!,
+        ac.worldPolygon[lane]!,
+        VERTEX,
+        `clip "${key(ec)}" world-polygon lane ${lane} (${lane % 2 === 0 ? 'x' : 'y'} of vertex ${Math.floor(lane / 2)}) at t=${time} drifts beyond tolerance`,
+      );
+    }
+  }
+}
+
+// Compare the resolved bounding-box hit-test state of one sample (PP-B2, ADR-0012 section 4, rig-hit-point).
+// The box SET and world-vertex length are structural; world vertices ride the VERTEX tolerance; the per-probe
+// hit booleans are DISCRETE, compared EXACT. Absent on both sides is a match.
+function compareBoxes(
+  expected: readonly BoundingBoxState[] | undefined,
+  actual: readonly BoundingBoxState[] | undefined,
+  rigId: string,
+  time: number,
+  failures: DriftFailure[],
+): void {
+  const e = expected ?? [];
+  const a = actual ?? [];
+  const key = (b: BoundingBoxState): string => `${b.slot}/${b.attachment}`;
+  if (e.length !== a.length || e.some((b, i) => key(b) !== key(a[i]!))) {
+    failures.push(
+      structuralFailure(
+        rigId,
+        `sample at t=${time} bounding-box set mismatch: expected [${e.map(key).join(', ')}], actual [${a.map(key).join(', ')}]`,
+        time,
+      ),
+    );
+    return;
+  }
+  for (let idx = 0; idx < e.length; idx += 1) {
+    const eb = e[idx]!;
+    const ab = a[idx]!;
+    if (eb.hits.length !== ab.hits.length || eb.hits.some((h, i) => h !== ab.hits[i])) {
+      failures.push(
+        structuralFailure(
+          rigId,
+          `box "${key(eb)}" at t=${time} hit results mismatch: expected [${eb.hits.join(', ')}], actual [${ab.hits.join(', ')}]`,
+          time,
+        ),
+      );
+    }
+    if (eb.worldVertices.length !== ab.worldVertices.length) {
+      failures.push(
+        structuralFailure(
+          rigId,
+          `box "${key(eb)}" at t=${time} world-vertex length mismatch: expected ${eb.worldVertices.length}, actual ${ab.worldVertices.length}`,
+          time,
+        ),
+      );
+      continue;
+    }
+    for (let lane = 0; lane < eb.worldVertices.length; lane += 1) {
+      pushNumeric(
+        failures,
+        withinTolerance(ab.worldVertices[lane]!, eb.worldVertices[lane]!, VERTEX),
+        rigId,
+        time,
+        key(eb),
+        'boxVertex',
+        lane,
+        eb.worldVertices[lane]!,
+        ab.worldVertices[lane]!,
+        VERTEX,
+        `box "${key(eb)}" world-vertex lane ${lane} at t=${time} drifts beyond tolerance`,
+      );
+    }
+  }
+}
+
+// Compare the resolved point world state of one sample (PP-B2, ADR-0012 section 2, rig-hit-point). The point
+// SET is structural; x/y ride the VERTEX tolerance; rotation rides the ANGLE tolerance. Absent on both is a match.
+function comparePoints(
+  expected: readonly PointState[] | undefined,
+  actual: readonly PointState[] | undefined,
+  rigId: string,
+  time: number,
+  failures: DriftFailure[],
+): void {
+  const e = expected ?? [];
+  const a = actual ?? [];
+  const key = (p: PointState): string => `${p.slot}/${p.attachment}`;
+  if (e.length !== a.length || e.some((p, i) => key(p) !== key(a[i]!))) {
+    failures.push(
+      structuralFailure(
+        rigId,
+        `sample at t=${time} point set mismatch: expected [${e.map(key).join(', ')}], actual [${a.map(key).join(', ')}]`,
+        time,
+      ),
+    );
+    return;
+  }
+  for (let idx = 0; idx < e.length; idx += 1) {
+    const ep = e[idx]!;
+    const ap = a[idx]!;
+    pushNumeric(failures, withinTolerance(ap.x, ep.x, VERTEX), rigId, time, key(ep), 'pointPosition', 0, ep.x, ap.x, VERTEX, `point "${key(ep)}" world x at t=${time} drifts beyond tolerance`);
+    pushNumeric(failures, withinTolerance(ap.y, ep.y, VERTEX), rigId, time, key(ep), 'pointPosition', 1, ep.y, ap.y, VERTEX, `point "${key(ep)}" world y at t=${time} drifts beyond tolerance`);
+    pushNumeric(failures, withinTolerance(ap.rotation, ep.rotation, ANGLE), rigId, time, key(ep), 'pointRotation', null, ep.rotation, ap.rotation, ANGLE, `point "${key(ep)}" world rotation at t=${time} drifts beyond tolerance`);
+  }
+}
+
+// Append a numeric lane failure when the tolerance check failed. Centralizes the DriftFailure shape for the
+// PP-B2 lanes so each comparator stays terse.
+function pushNumeric(
+  failures: DriftFailure[],
+  within: boolean,
+  rigId: string,
+  time: number,
+  bone: string,
+  quantity: QuantityClass,
+  lane: number | null,
+  expected: number,
+  actual: number,
+  tol: Tolerance,
+  message: string,
+): void {
+  if (within) return;
+  failures.push({
+    rigId,
+    time,
+    bone,
+    quantity,
+    lane,
+    expected,
+    actual,
+    absDelta: Math.abs(actual - expected),
+    atol: tol.atol,
+    rtol: tol.rtol,
+    message,
+  });
+}
+
 function structuralFailure(rigId: string, message: string, time: number | null): DriftFailure {
   return {
     rigId,
@@ -479,6 +682,9 @@ export function compareFixtures(expected: Fixture, actual: Fixture): DriftReport
     compareSlots(e.slots, a.slots, rigId, e.time, failures);
     compareDrawOrder(e.drawOrder, a.drawOrder, rigId, e.time, failures);
     compareSequences(e.sequences, a.sequences, rigId, e.time, failures);
+    compareClips(e.clips, a.clips, rigId, e.time, failures);
+    compareBoxes(e.boxes, a.boxes, rigId, e.time, failures);
+    comparePoints(e.points, a.points, rigId, e.time, failures);
   }
 
   // The fired-event log is fixture-level (one range sweep), not per-sample, so it is compared once.

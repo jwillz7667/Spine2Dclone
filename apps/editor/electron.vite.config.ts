@@ -24,15 +24,20 @@ export default defineConfig(({ command }) => {
   const mode: BuildMode = command === 'serve' ? 'dev' : 'prod';
   return {
     main: {
-      // Externalize real npm deps, but BUNDLE the workspace @marionette/* packages. They are consumed as
-      // TypeScript source (their package exports point at ./src/index.ts so Vite/Vitest compile them on the
-      // fly); the Electron main process runs under Node, which cannot load a .ts file, so an externalized
-      // import would throw ERR_UNKNOWN_FILE_EXTENSION at startup. Bundling lets Vite compile them in. Only
-      // packages the main process actually imports are listed; runtime-web (PixiJS) is renderer-only and
-      // must never be pulled into main. Add a workspace package here when the main process starts importing
-      // it. The transitive @noble/hashes is not a listed editor dependency, so it bundles automatically; zod
-      // is a direct editor dependency and stays external (Node resolves it).
-      plugins: [externalizeDepsPlugin({ exclude: ['@marionette/format'] })],
+      // Externalize real npm deps, but BUNDLE the workspace @marionette/* packages the main process imports.
+      // They are consumed as TypeScript source (their package exports point at ./src/index.ts so Vite/Vitest
+      // compile them on the fly); the Electron main process runs under Node, which cannot load a .ts file, so
+      // an externalized import resolves to source and the PACKAGED app crashes at startup before the window
+      // opens (verified: without atlas-pack bundled, main.ts's `import ... from "@marionette/atlas-pack"` for
+      // the atlas:import IPC handler fails on module load). Bundling lets Vite compile them in. The list is
+      // exactly the workspace packages main imports: format (hashing/validation on save) and atlas-pack (the
+      // atlas pipeline behind atlas:import); runtime-web (PixiJS) is renderer-only and must never be pulled
+      // into main. Add a workspace package here when the main process starts importing it. atlas-pack's own
+      // npm deps (maxrects-packer, pngjs) and the transitive @noble/hashes are not listed editor dependencies,
+      // so they bundle automatically; zod is a direct editor dependency and stays external (Node resolves it).
+      plugins: [
+        externalizeDepsPlugin({ exclude: ['@marionette/format', '@marionette/atlas-pack'] }),
+      ],
       build: {
         rollupOptions: {
           input: { main: resolve(dir, 'src/main/main.ts') },

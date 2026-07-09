@@ -40,6 +40,9 @@ export { TwoColorFilter, updateTwoColorFilter } from './scene/two-color-filter';
 // resolver; exported so tests can assert both renderers resolve the same source.
 export { resolveRenderMesh } from './scene/linked-mesh';
 export type { ResolvedRenderMesh } from './scene/linked-mesh';
+// Sequence-attachment region naming (PP-C8): the twin of render-preview's, exported so both renderers and
+// tests name frame regions identically.
+export { sequenceRegionName } from './scene/sequence-region';
 export { makeParticleRenderBatch, fillEmitterBatch } from './scene/particle-render-batch';
 export type { ParticleRenderBatch } from './scene/particle-render-batch';
 // The pure triangle-strip geometry bridge for ribbon trails (PP-C3): strip index / UV construction (once

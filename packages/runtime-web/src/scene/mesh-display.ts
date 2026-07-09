@@ -1,5 +1,5 @@
 import { Mesh, MeshGeometry, Texture } from 'pixi.js';
-import type { MeshAttachment, RGBA } from '@marionette/format/types';
+import type { MeshAttachment, RGBA, Sequence } from '@marionette/format/types';
 
 // Mesh attachment rendering (WP-2.11 renderer slice; handoff section 8.5). A mesh attachment renders as
 // a PixiJS Mesh whose geometry is built ONCE per scene: the uvs and triangles are constant per document
@@ -29,6 +29,10 @@ export interface MeshDisplay {
   readonly color: RGBA;
   readonly width: number;
   readonly height: number;
+  // The origin attachment's own atlas region name (the base `path`), used as the sequence naming template.
+  readonly path: string;
+  // The origin attachment's sequence block, when it carries one; drives per-frame texture swap at render.
+  readonly sequence: Sequence | undefined;
   readonly texture: Texture | null;
   readonly display: Mesh;
   readonly positions: Float32Array;
@@ -46,6 +50,8 @@ export function createMeshDisplay(
   color: RGBA,
   width: number,
   height: number,
+  path: string,
+  sequence: Sequence | undefined,
   texture: Texture | null,
 ): MeshDisplay {
   const vertexCount = sourceMesh.uvs.length / 2;
@@ -56,7 +62,18 @@ export function createMeshDisplay(
   });
   const display = new Mesh({ geometry, texture: texture ?? Texture.WHITE });
   display.visible = false;
-  return { sourceMesh, color, width, height, texture, display, positions: geometry.positions, vertexCount };
+  return {
+    sourceMesh,
+    color,
+    width,
+    height,
+    path,
+    sequence,
+    texture,
+    display,
+    positions: geometry.positions,
+    vertexCount,
+  };
 }
 
 // Mark the position buffer dirty after the solve wrote new lanes, so the renderer re-uploads it. This is

@@ -12,6 +12,7 @@ import {
   resetToSetupPose,
   sampleMeshVertices,
   sampleSkeleton,
+  sampleSlotSequenceFrame,
   skinMeshInto,
   SLOT_COLOR_STRIDE,
   type Mat2x3,
@@ -21,6 +22,7 @@ import type { AtlasIndex, TextureSampler } from './atlas';
 import type { Color } from './color';
 import { UnknownAnimationError } from './errors';
 import { resolveRenderMesh } from './linked-mesh';
+import { sequenceRegionName } from './sequence-region';
 import {
   regionWorldCorners,
   REGION_QUAD_TRIANGLES,
@@ -185,10 +187,24 @@ export function gatherDrawItemsFromPose(
             a: 1,
           }
         : null;
-    const sampler = atlas.resolve(attachment.path);
+    // A region / mesh attachment MAY carry a `sequence` block: the atlas region shown is the frame the
+    // sequence resolves to (setup frame at setup pose, else the mode-resolved frame from the slot's sequence
+    // timeline), not the base `path`. runtime-core resolves the integer frame; sequenceRegionName turns it
+    // into the region name. A linkedmesh carries no sequence (ADR-0009 section 3), and an attachment without
+    // a sequence keeps its base path unchanged.
+    const sequence = attachment.type === 'linkedmesh' ? undefined : attachment.sequence;
+    let regionPath = attachment.path;
+    if (sequence !== undefined) {
+      const frameIndex =
+        animationId === null
+          ? sequence.setupIndex
+          : sampleSlotSequenceFrame(document, animationId, sampleTime, pose, slot.name);
+      if (frameIndex >= 0) regionPath = sequenceRegionName(attachment.path, sequence, frameIndex);
+    }
+    const sampler = atlas.resolve(regionPath);
 
     if (attachment.type === 'region') {
-      const trim = atlas.regionTrim(attachment.path) ?? undefined;
+      const trim = atlas.regionTrim(regionPath) ?? undefined;
       items.push(
         regionItem(pose, boneIndex, attachment, tint, alpha, slot.blendMode, sampler, trim, dark),
       );

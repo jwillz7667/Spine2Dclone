@@ -83,6 +83,10 @@ export { combineTwoColor } from './two-color';
 export { resolveRenderMesh } from './linked-mesh';
 export type { ResolvedRenderMesh } from './linked-mesh';
 
+// Sequence-attachment region naming (PP-C8): turns a resolved frame index into its atlas region name
+// (ADR-0009 section 3). The twin of runtime-web's; exported so tests and tooling name frames identically.
+export { sequenceRegionName } from './sequence-region';
+
 // Placement parity primitives: the world-space region quad geometry, reproducing the runtime-web
 // region-placement math against runtime-core only (see geometry.ts). Exported so tooling and parity tests
 // can assert that what the rasterizer draws matches the runtimes' placement.

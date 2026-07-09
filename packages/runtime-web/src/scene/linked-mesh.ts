@@ -3,6 +3,7 @@ import type {
   LinkedMeshAttachment,
   MeshAttachment,
   RGBA,
+  Sequence,
   SkeletonDocument,
 } from '@marionette/format/types';
 
@@ -31,6 +32,9 @@ export interface ResolvedRenderMesh {
   readonly color: RGBA;
   readonly width: number;
   readonly height: number;
+  // The origin attachment's sequence block, when it is a mesh that carries one (a linked mesh never does,
+  // ADR-0009 section 3). Drives per-frame region selection at render time.
+  readonly sequence: Sequence | undefined;
 }
 
 function lookup(
@@ -60,6 +64,7 @@ export function resolveRenderMesh(
       color: attachment.color,
       width: attachment.width,
       height: attachment.height,
+      sequence: attachment.sequence,
     };
   }
 
@@ -80,5 +85,7 @@ export function resolveRenderMesh(
     color: linked.color,
     width: linked.width,
     height: linked.height,
+    // A linked mesh carries no sequence (sequences are scoped to region/mesh, ADR-0009 section 3).
+    sequence: undefined,
   };
 }

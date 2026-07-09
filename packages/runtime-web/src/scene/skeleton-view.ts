@@ -4,6 +4,7 @@ import type {
   Attachment,
   AtlasRegion,
   RegionAttachment,
+  Sequence,
   SkeletonDocument,
 } from '@marionette/format/types';
 import {
@@ -18,6 +19,7 @@ import {
   resetToSetupPose,
   sampleMeshVertices,
   sampleSkeleton,
+  sampleSlotSequenceFrame,
   setActiveSkin,
   skinMeshInto,
   SLOT_COLOR_STRIDE,
@@ -37,6 +39,7 @@ import {
 } from './attachment-sprites';
 import { createMeshDisplay, markMeshPositionsDirty, type MeshDisplay } from './mesh-display';
 import { resolveRenderMesh } from './linked-mesh';
+import { sequenceRegionName } from './sequence-region';
 import { TwoColorFilter, updateTwoColorFilter } from './two-color-filter';
 import { computeRegionSized, placeRegion } from './region-placement';
 import type { RegionTextureResolver } from './region-textures';
@@ -62,6 +65,10 @@ export interface AttachmentRender {
   // else null. Reported so a headless snapshot verifies the dark lane is read (the GPU shades it via the
   // two-color filter; PP-C8). Null means the single-color path.
   readonly dark: number | null;
+  // The atlas region NAME presented this frame. Equal to the attachment path for a plain attachment; for a
+  // sequence attachment (PP-C8) it is the resolved frame's region name, so a snapshot verifies the per-frame
+  // region selection headlessly (the texture swap rides the same name).
+  readonly region: string;
   readonly transform: DisplayTransform;
   // The sprite center in world space (the attachment origin), equal to the transform translation.
   readonly worldPosition: readonly [number, number];
@@ -80,6 +87,9 @@ export interface MeshRender {
   // The two-color DARK tint (0xRRGGBB) when the slot enables two-color tinting, else null (see
   // AttachmentRender.dark).
   readonly dark: number | null;
+  // The atlas region NAME presented this frame (the resolved sequence frame's region for a sequence mesh,
+  // else the mesh path). See AttachmentRender.region.
+  readonly region: string;
   readonly vertices: readonly number[];
 }
 
@@ -148,6 +158,8 @@ interface AttachmentRecord {
   tint: number;
   // The resolved two-color dark tint (0xRRGGBB) this frame, or null when the slot has no dark color.
   dark: number | null;
+  // The atlas region name presented this frame (attachment path, or the resolved sequence frame region).
+  region: string;
   alpha: number;
   spriteWorld: Mat2x3;
 }
@@ -361,6 +373,7 @@ export class SkeletonView {
           tint: record.tint,
           alpha: record.alpha,
           dark: record.dark,
+          region: record.region,
           vertices: Array.from(active.positions),
         });
         continue;
@@ -374,6 +387,7 @@ export class SkeletonView {
         tint: record.tint,
         alpha: record.alpha,
         dark: record.dark,
+        region: record.region,
         transform,
         worldPosition: [transform.x, transform.y],
       });
@@ -515,6 +529,10 @@ export class SkeletonView {
               resolved.color,
               resolved.width,
               resolved.height,
+              resolved.path,
+              resolved.sequence,
+              // The build-time texture is the base path's (the setup frame swaps in on first render for a
+              // sequence attachment). A non-sequence mesh keeps this texture for its whole life.
               this.resolver?.(resolved.path) ?? null,
             );
             meshEntries.set(attachment, entry);
@@ -548,6 +566,7 @@ export class SkeletonView {
         height: 0,
         tint: 0xffffff,
         dark: null,
+        region: '',
         alpha: 1,
         spriteWorld: [1, 0, 0, 1, 0, 0],
       });
@@ -655,10 +674,26 @@ export class SkeletonView {
 
       const sprite = record.sprite;
       sprite.visible = true;
+      // Resolve the presented atlas region: the base path, or (for a sequence attachment, PP-C8) the frame
+      // the sequence resolves to this sample. A sequence swaps the texture per frame via the resolver (which
+      // returns cached, pooled textures, so no allocation); a non-sequence region keeps its build-time
+      // texture and sizing unchanged (byte-identical to before). Same-size frames share the build-time
+      // sizedForSprite normalization (per-frame size variation is not modeled in this slice).
+      const regionName = this.presentedRegion(
+        scene,
+        record.slotIndex,
+        region.path,
+        region.sequence,
+        animationId,
+        t,
+      );
+      record.region = regionName;
+      const texture =
+        region.sequence === undefined ? entry.texture : (this.resolver?.(regionName) ?? null);
       // Bind the resolved texture, or Texture.WHITE when the region has none (resolver null / not loaded).
       // Pixi's texture setter early-returns when the value is unchanged, so a steady-state frame (the same
       // active attachment) does no work and allocates nothing here.
-      sprite.texture = entry.texture ?? Texture.WHITE;
+      sprite.texture = texture ?? Texture.WHITE;
       applyWorldToTarget(
         sprite,
         spriteWorld[0],
@@ -767,6 +802,20 @@ export class SkeletonView {
 
     record.sprite.visible = false;
     entry.display.visible = true;
+    // Sequence attachments (PP-C8): swap the mesh texture to the resolved frame's region per sample (the
+    // resolver returns cached, pooled textures). A non-sequence mesh keeps its build-time texture unchanged.
+    const regionName = this.presentedRegion(
+      scene,
+      record.slotIndex,
+      entry.path,
+      entry.sequence,
+      animationId,
+      t,
+    );
+    record.region = regionName;
+    if (entry.sequence !== undefined) {
+      entry.display.texture = this.resolver?.(regionName) ?? Texture.WHITE;
+    }
     // With the two-color filter active, draw the raw texture and let the filter tint it; otherwise tint the
     // mesh directly with the light color (single-color slot, or a context without a buildable GPU filter).
     const filtered = record.twoColorFilter !== null;
@@ -782,6 +831,27 @@ export class SkeletonView {
     record.tint = tint;
     record.dark = dark;
     record.alpha = alpha;
+  }
+
+  // Resolve the atlas region NAME a slot presents this sample: the attachment's base `path`, or (when it
+  // carries a `sequence` block, PP-C8) the frame the sequence resolves to. The frame index is the setup
+  // frame at the setup pose (animationId null) and the mode-resolved frame from the slot's sequence timeline
+  // when animated (runtime-core sampleSlotSequenceFrame). Allocation-free apart from the region-name string.
+  private presentedRegion(
+    scene: CachedScene,
+    slotIndex: number,
+    path: string,
+    sequence: Sequence | undefined,
+    animationId: string | null,
+    t: number,
+  ): string {
+    if (sequence === undefined) return path;
+    const frameIndex =
+      animationId === null
+        ? sequence.setupIndex
+        : sampleSlotSequenceFrame(scene.document, animationId, t, scene.pose, scene.pose.slotNames[slotIndex]!);
+    if (frameIndex < 0) return path;
+    return sequenceRegionName(path, sequence, frameIndex);
   }
 
   // Resolve a slot's two-color state for this frame: return the packed dark tint (0xRRGGBB) when the slot

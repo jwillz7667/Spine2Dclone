@@ -126,6 +126,11 @@ export {
   SetTransformConstraintParamsCommand,
   setTransformConstraintParamsSpec,
 } from './set-transform-constraint-params.command';
+export {
+  SetTransformConstraintVariantsCommand,
+  setTransformConstraintVariantsSpec,
+} from './set-transform-constraint-variants.command';
+export type { TransformVariantPatch } from './set-transform-constraint-variants.command';
 export type { TransformConstraintParams } from './create-transform-constraint.command';
 export {
   DeleteTransformConstraintCommand,

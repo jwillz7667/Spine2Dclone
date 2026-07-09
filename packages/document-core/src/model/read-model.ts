@@ -346,6 +346,11 @@ export interface TransformConstraintSnapshot {
   readonly offsetScaleX: number;
   readonly offsetScaleY: number;
   readonly offsetShearY: number;
+  // Stage F2 (ADR-0009 section 1.2) local/relative variant flags, promoted to editable by PP-D10
+  // (SetTransformConstraintVariants). Always present; `order` is the OPTIONAL solve order, emitted when set.
+  readonly local: boolean;
+  readonly relative: boolean;
+  readonly order?: number;
 }
 
 // A plain named-skin projection: its attachments as a flat sorted list (by slotId then name), the same
@@ -665,6 +670,9 @@ export function transformConstraintToSnapshot(
     offsetScaleX: c.offsetScaleX,
     offsetScaleY: c.offsetScaleY,
     offsetShearY: c.offsetShearY,
+    local: c.local,
+    relative: c.relative,
+    ...(c.order !== undefined ? { order: c.order } : {}),
   };
 }
 

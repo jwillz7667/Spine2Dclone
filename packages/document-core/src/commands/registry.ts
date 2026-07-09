@@ -89,6 +89,7 @@ import { moveAttachmentKeyframeSpec } from './move-attachment-keyframe.command';
 import { moveIkKeyframeSpec } from './move-ik-keyframe.command';
 import { moveTransformKeyframeSpec } from './move-transform-keyframe.command';
 import { setIkDepthParamsSpec } from './set-ik-depth-params.command';
+import { setTransformConstraintVariantsSpec } from './set-transform-constraint-variants.command';
 import { setMeshEdgesSpec } from './set-mesh-edges.command';
 import { setRegionAttachmentTransformSpec } from './set-region-attachment-transform.command';
 import { setSlotBlendModeSpec } from './set-slot-blend-mode.command';
@@ -165,6 +166,7 @@ export const commandRegistry: readonly CommandSpec[] = [
   // WP-2.7 transform constraint authoring
   createTransformConstraintSpec,
   setTransformConstraintParamsSpec,
+  setTransformConstraintVariantsSpec,
   deleteTransformConstraintSpec,
   setTransformKeyframeSpec,
   deleteTransformKeyframeSpec,

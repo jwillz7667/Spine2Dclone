@@ -3,6 +3,7 @@ import { CreateTransformConstraintCommand } from '../src/commands/create-transfo
 import { DeleteTransformConstraintCommand } from '../src/commands/delete-transform-constraint.command';
 import { DeleteTransformKeyframeCommand } from '../src/commands/delete-transform-keyframe.command';
 import { SetTransformConstraintParamsCommand } from '../src/commands/set-transform-constraint-params.command';
+import { SetTransformConstraintVariantsCommand } from '../src/commands/set-transform-constraint-variants.command';
 import { SetTransformKeyframeCommand } from '../src/commands/set-transform-keyframe.command';
 import { assertInvariants, ConstraintError, loadDocument, type Document } from '../src';
 import { makeTestEnv, seeds } from './seeds';
@@ -152,6 +153,36 @@ describe('SetTransformConstraintParams', () => {
     assertInvariants(doc.model);
     expect(doc.model.getTransformConstraint(id)!.mixRotate).toBe(originalMixRotate);
     expect(doc.model.snapshot()).toEqual(before);
+  });
+});
+
+describe('SetTransformConstraintVariants (PP-D10)', () => {
+  it('sets local / relative and undo restores the prior values', () => {
+    const { env } = makeTestEnv();
+    const doc = loadDocument(seeds.rigged, env);
+    const { id } = firstConstraint(doc);
+    // The rigged seed carries the migrated defaults (local false, relative false).
+    expect(doc.model.getTransformConstraint(id)!.local).toBe(false);
+    expect(doc.model.getTransformConstraint(id)!.relative).toBe(false);
+    const before = doc.model.snapshot();
+
+    doc.history.execute(new SetTransformConstraintVariantsCommand(id, { local: true, relative: true }));
+    assertInvariants(doc.model);
+    expect(doc.model.getTransformConstraint(id)!.local).toBe(true);
+    expect(doc.model.getTransformConstraint(id)!.relative).toBe(true);
+
+    doc.history.undo();
+    assertInvariants(doc.model);
+    expect(doc.model.snapshot()).toEqual(before);
+  });
+
+  it('patches only the named flag (the other keeps its value)', () => {
+    const { env } = makeTestEnv();
+    const doc = loadDocument(seeds.rigged, env);
+    const { id } = firstConstraint(doc);
+    doc.history.execute(new SetTransformConstraintVariantsCommand(id, { relative: true }));
+    expect(doc.model.getTransformConstraint(id)!.relative).toBe(true);
+    expect(doc.model.getTransformConstraint(id)!.local).toBe(false); // untouched
   });
 });
 

@@ -165,6 +165,36 @@ export class MeshBindingError extends Error {
   }
 }
 
+// A linked-mesh authoring edit (PP-D10) rejected BEFORE any mutation, so it leaves no document change and no
+// history entry. The `reason` discriminant mirrors the format's linked-mesh validators (ADR-0009 section 2):
+//   - parentMissing: the target skin/slot defines no attachment `parent` (LINKED_MESH_PARENT_MISSING).
+//   - parentInvalid: the resolved parent is not a mesh or linked mesh (LINKED_MESH_PARENT_INVALID).
+//   - cycle: the parent chain revisits a node and never reaches a real mesh (LINKED_MESH_CYCLE).
+//   - duplicateName: an attachment with that name already exists on the target slot.
+//   - notFound: an unlink targeted an attachment that does not exist or is not a linked mesh.
+export type LinkedMeshErrorReason =
+  | 'parentMissing'
+  | 'parentInvalid'
+  | 'cycle'
+  | 'duplicateName'
+  | 'notFound';
+
+export class LinkedMeshError extends Error {
+  override readonly name = 'LinkedMeshError';
+  readonly code = 'LINKED_MESH' as const;
+  constructor(
+    readonly slotId: string,
+    readonly attachmentName: string,
+    readonly reason: LinkedMeshErrorReason,
+    readonly detail?: string,
+  ) {
+    super(
+      `linked mesh "${attachmentName}" on slot "${slotId}" error (${reason})` +
+        (detail === undefined ? '' : `: ${detail}`),
+    );
+  }
+}
+
 // A constraint authoring edit (WP-2.6 / WP-2.7) rejected BEFORE any mutation, so it leaves no document
 // change and no history entry. The `reason` discriminant says which rule fired:
 //   - boneMissing: a referenced chain bone is not in the document.

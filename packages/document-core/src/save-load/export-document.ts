@@ -10,6 +10,7 @@ import type {
   IkConstraint,
   IkFrame,
   Keyframe,
+  LinkedMeshAttachment,
   MeshAttachment,
   RegionAttachment,
   Skin,
@@ -87,6 +88,21 @@ function attachmentToFormat(att: AttachmentEntity): Attachment {
       ...(att.sequence !== undefined ? { sequence: att.sequence } : {}),
     };
     return mesh;
+  }
+  if (att.kind === 'linkedmesh') {
+    // Project the editable linked mesh BACK to the format LinkedMeshAttachment (ADR-0009 section 2). `skin`
+    // is emitted only when present (default: the containing skin), per exactOptionalPropertyTypes.
+    const linked: LinkedMeshAttachment = {
+      type: 'linkedmesh',
+      path: att.path,
+      parent: att.parent,
+      ...(att.skin !== undefined ? { skin: att.skin } : {}),
+      timelines: att.timelines,
+      width: att.width,
+      height: att.height,
+      color: att.color,
+    };
+    return linked;
   }
   return att.value;
 }

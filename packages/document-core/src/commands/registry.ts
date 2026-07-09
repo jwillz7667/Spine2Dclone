@@ -91,6 +91,8 @@ import { moveTransformKeyframeSpec } from './move-transform-keyframe.command';
 import { setIkDepthParamsSpec } from './set-ik-depth-params.command';
 import { setTransformConstraintVariantsSpec } from './set-transform-constraint-variants.command';
 import { reorderConstraintsSpec } from './reorder-constraints.command';
+import { createLinkedMeshSpec } from './create-linked-mesh.command';
+import { unlinkMeshSpec } from './unlink-mesh.command';
 import { setMeshEdgesSpec } from './set-mesh-edges.command';
 import { setRegionAttachmentTransformSpec } from './set-region-attachment-transform.command';
 import { setSlotBlendModeSpec } from './set-slot-blend-mode.command';
@@ -120,6 +122,9 @@ export const commandRegistry: readonly CommandSpec[] = [
   setSlotColorSpec,
   reorderSlotSpec,
   addRegionAttachmentSpec,
+  // PP-D10 (Stage F2) linked meshes
+  createLinkedMeshSpec,
+  unlinkMeshSpec,
   removeAttachmentSpec,
   setActiveAttachmentSpec,
   setAtlasRefSpec,

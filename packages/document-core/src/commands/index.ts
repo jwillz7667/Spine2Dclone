@@ -33,6 +33,12 @@ export {
 export type { RegionAttachmentInit } from './add-region-attachment.command';
 export { RemoveAttachmentCommand, removeAttachmentSpec } from './remove-attachment.command';
 export {
+  CreateLinkedMeshCommand,
+  createLinkedMeshSpec,
+} from './create-linked-mesh.command';
+export type { LinkedMeshInit } from './create-linked-mesh.command';
+export { UnlinkMeshCommand, unlinkMeshSpec } from './unlink-mesh.command';
+export {
   SetActiveAttachmentCommand,
   setActiveAttachmentSpec,
 } from './set-active-attachment.command';

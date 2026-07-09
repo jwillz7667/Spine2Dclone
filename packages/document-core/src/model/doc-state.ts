@@ -142,11 +142,31 @@ export function meshGeometryOf(mesh: MeshAttachmentEntity): MeshGeometry {
   };
 }
 
+// A linked mesh (Stage F2, ADR-0009 section 2) promoted to editable (PP-D10). It reuses a PARENT mesh's
+// geometry (uvs/triangles/hull/vertices/weights) while carrying its OWN atlas region, color, and size. It has
+// NO geometry of its own; `parent` is the parent attachment NAME on the SAME slot in skin `skin ?? this skin`
+// (the default skin's name is 'default'), and `timelines` selects whether it shares the parent's deform
+// timelines. CreateLinkedMesh resolves and cycle-checks the parent at the command boundary (mirroring the
+// format's LINKED_MESH_* validators); UnlinkMesh bakes it to a plain MeshAttachmentEntity with the resolved
+// root geometry.
+export interface LinkedMeshAttachmentEntity {
+  readonly kind: 'linkedmesh';
+  readonly name: string;
+  readonly path: string;
+  readonly parent: string;
+  readonly skin?: string;
+  readonly timelines: boolean;
+  readonly width: number;
+  readonly height: number;
+  readonly color: RGBA;
+}
+
 // A non-region attachment (clipping/point/boundingbox) held VERBATIM so a loaded document round-trips
 // losslessly: WP-2.1 has no command that creates or edits one. It lives in the same per-slot attachment
 // map as region/mesh attachments (keyed by SlotId then name), so a slot rename keeps the linkage and the
 // delete cascade restores it uniformly. `value` is the exact format Attachment. Mesh attachments are NO
-// LONGER preserved verbatim (WP-2.1 promotes them to the editable MeshAttachmentEntity above).
+// LONGER preserved verbatim (WP-2.1 promotes them to the editable MeshAttachmentEntity above), and linked
+// meshes are promoted to LinkedMeshAttachmentEntity (PP-D10).
 export interface PreservedAttachmentEntity {
   readonly kind: 'preserved';
   readonly name: string;
@@ -154,14 +174,40 @@ export interface PreservedAttachmentEntity {
 }
 
 // The default skin's attachments are the only ones promoted to editable. The discriminated union keeps
-// the editable region (RegionAttachmentEntity) and mesh (MeshAttachmentEntity) paths clean while still
-// carrying the remaining attachment kinds losslessly (PreservedAttachmentEntity). RemoveAttachment and
-// the delete cascade operate on every kind uniformly; only the authoring commands construct or edit the
-// region and mesh variants.
+// the editable region (RegionAttachmentEntity), mesh (MeshAttachmentEntity), and linked-mesh
+// (LinkedMeshAttachmentEntity) paths clean while still carrying the remaining attachment kinds losslessly
+// (PreservedAttachmentEntity). RemoveAttachment and the delete cascade operate on every kind uniformly; only
+// the authoring commands construct or edit the region, mesh, and linked-mesh variants.
 export type AttachmentEntity =
   | RegionAttachmentEntity
   | MeshAttachmentEntity
+  | LinkedMeshAttachmentEntity
   | PreservedAttachmentEntity;
+
+// Construct an immutable, deep-frozen linked-mesh attachment (PP-D10). Centralized so load, the command, and
+// the internal freeze build it the same way; the color is copied so the entity never aliases a caller's value.
+export function makeLinkedMeshAttachment(init: {
+  readonly name: string;
+  readonly path: string;
+  readonly parent: string;
+  readonly skin?: string | undefined;
+  readonly timelines: boolean;
+  readonly width: number;
+  readonly height: number;
+  readonly color: RGBA;
+}): LinkedMeshAttachmentEntity {
+  return Object.freeze({
+    kind: 'linkedmesh',
+    name: init.name,
+    path: init.path,
+    parent: init.parent,
+    ...(init.skin !== undefined ? { skin: init.skin } : {}),
+    timelines: init.timelines,
+    width: init.width,
+    height: init.height,
+    color: Object.freeze({ ...init.color }),
+  });
+}
 
 // The four animatable bone transform channels (the format BoneTimelines keys). A keyframe on a bone
 // channel carries the channel-specific value shape below; the channel is the discriminant the model

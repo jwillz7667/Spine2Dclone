@@ -154,6 +154,19 @@ function freezeAttachment(att: AttachmentEntity): AttachmentEntity {
       ...(att.sequence !== undefined ? { sequence: att.sequence } : {}),
     });
   }
+  if (att.kind === 'linkedmesh') {
+    return Object.freeze({
+      kind: 'linkedmesh',
+      name: att.name,
+      path: att.path,
+      parent: att.parent,
+      ...(att.skin !== undefined ? { skin: att.skin } : {}),
+      timelines: att.timelines,
+      width: att.width,
+      height: att.height,
+      color: Object.freeze({ ...att.color }),
+    });
+  }
   return Object.freeze({ ...att });
 }
 

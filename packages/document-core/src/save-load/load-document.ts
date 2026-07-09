@@ -41,6 +41,7 @@ import {
   makeEventKey,
   makeIkKeyframe,
   makeKeyframe,
+  makeLinkedMeshAttachment,
   makeTransformKeyframe,
 } from '../model/doc-state';
 import { defaultSlotSceneState } from '../model/slot-scene';
@@ -128,6 +129,20 @@ function attachmentToEntity(attachmentName: string, attachment: Attachment): Att
       ...(attachment.bones !== undefined ? { bones: attachment.bones.slice() } : {}),
       ...(attachment.sequence !== undefined ? { sequence: carry(attachment.sequence) } : {}),
     };
+  }
+  if (attachment.type === 'linkedmesh') {
+    // Stage F2 (ADR-0009 section 2) linked meshes are promoted to editable (PP-D10); the parent/skin refs
+    // stay on-disk names (resolved lazily), exactly as the format carries them.
+    return makeLinkedMeshAttachment({
+      name: attachmentName,
+      path: attachment.path,
+      parent: attachment.parent,
+      skin: attachment.skin,
+      timelines: attachment.timelines,
+      width: attachment.width,
+      height: attachment.height,
+      color: attachment.color,
+    });
   }
   return { kind: 'preserved', name: attachmentName, value: attachment };
 }

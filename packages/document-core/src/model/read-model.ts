@@ -171,6 +171,18 @@ export type AttachmentSnapshot =
     }
   | {
       readonly slotId: string;
+      readonly kind: 'linkedmesh';
+      readonly name: string;
+      readonly path: string;
+      readonly parent: string;
+      readonly skin?: string;
+      readonly timelines: boolean;
+      readonly width: number;
+      readonly height: number;
+      readonly color: RGBA;
+    }
+  | {
+      readonly slotId: string;
       readonly kind: 'preserved';
       readonly name: string;
       readonly value: Attachment;
@@ -484,6 +496,20 @@ export function attachmentToSnapshot(slotId: SlotId, att: AttachmentEntity): Att
       vertices: att.vertices.slice(),
       ...(att.edges !== undefined ? { edges: att.edges.slice() } : {}),
       ...(att.bones !== undefined ? { bones: att.bones.slice() } : {}),
+    };
+  }
+  if (att.kind === 'linkedmesh') {
+    return {
+      slotId,
+      kind: 'linkedmesh',
+      name: att.name,
+      path: att.path,
+      parent: att.parent,
+      ...(att.skin !== undefined ? { skin: att.skin } : {}),
+      timelines: att.timelines,
+      width: att.width,
+      height: att.height,
+      color: { ...att.color },
     };
   }
   return { slotId, kind: 'preserved', name: att.name, value: att.value };

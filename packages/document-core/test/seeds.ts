@@ -450,6 +450,43 @@ export const seeds = {
   // draw-order key and two event keys, and a metadata block. Target of the PP-D9 event.* / draworder.* /
   // document.setMetadata commands.
   evented: eventedDoc(),
+  // A Stage F2 (0.4.0) seed carrying a LINKED MESH ('panel_ref' on 'mesh_slot') whose parent is the real mesh
+  // 'panel' on the same slot. Target of the PP-D10 linked-mesh commands: UnlinkMesh has a linked mesh to bake,
+  // and CreateLinkedMesh has a mesh to reference (its 'panel_ref' name is free elsewhere).
+  linked: doc('linked', [bone('root', null), bone('arm', 'root', { x: 50 })], {
+    slots: [slot('mesh_slot', 'arm', { attachment: 'panel' })],
+    skins: [
+      {
+        name: 'default',
+        attachments: {
+          mesh_slot: {
+            panel: mesh('skin_panel'),
+            panel_ref: {
+              type: 'linkedmesh',
+              path: 'skin_panel',
+              parent: 'panel',
+              timelines: true,
+              width: 32,
+              height: 32,
+              color: { r: 1, g: 1, b: 1, a: 1 },
+            },
+          },
+        },
+      },
+    ],
+    // Two regions (one unused) so the atlas shape (1 page, 2 regions) differs from the atlas.set fixture's
+    // (1 page, 1 region), per the convention every seed's atlas is distinguishable from it.
+    atlas: {
+      pages: [
+        {
+          file: 'atlas.png',
+          width: 128,
+          height: 128,
+          regions: [atlasRegion('skin_panel'), atlasRegion('skin_extra')],
+        },
+      ],
+    },
+  }),
 } as const;
 
 export interface Seed {
@@ -467,6 +504,7 @@ export const seedList: readonly Seed[] = [
   { id: 'weighted', json: seeds.weighted },
   { id: 'rigged', json: seeds.rigged },
   { id: 'evented', json: seeds.evented },
+  { id: 'linked', json: seeds.linked },
 ];
 
 // A deterministic test environment: a controllable fake clock (so coalescing-window tests are

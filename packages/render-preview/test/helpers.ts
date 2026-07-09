@@ -1,4 +1,21 @@
 import { PNG } from 'pngjs';
+import type { RenderedSequence } from '@marionette/render-preview';
+
+// Encode every frame PNG DURING iteration. renderSequence reuses one RGBA scratch buffer across frames, so
+// a frame's png() must be called before the iterator advances; `[...seq.frames()].map(f => f.png())` is
+// wrong (it drains first, then every png() reads the last frame). This helper does it correctly.
+export function collectFramePngs(sequence: RenderedSequence): Uint8Array[] {
+  const out: Uint8Array[] = [];
+  for (const frame of sequence.frames()) out.push(frame.png());
+  return out;
+}
+
+// Copy each frame's RGBA scratch during iteration (same streaming-consumption rule as collectFramePngs).
+export function collectFrameRgba(sequence: RenderedSequence): Uint8Array[] {
+  const out: Uint8Array[] = [];
+  for (const frame of sequence.frames()) out.push(frame.rgba.slice());
+  return out;
+}
 
 export interface Rgba {
   readonly r: number;

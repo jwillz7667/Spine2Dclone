@@ -24,9 +24,22 @@ and effect state from a real `EffectSystem` stepped at the effect's `simulationD
 - Rasterizer internals: `Framebuffer` with premultiplied-alpha float lanes and a pinned top-left
   triangle fill rule (`src/raster.ts`); blend modes normal/additive/multiply/screen; `encodePng`
   (`src/png.ts`).
+- `renderSequence(options)` (`src/render-sequence.ts`, PP-C10): a streaming clip renderer. Samples a
+  single animation (or an `AnimationState` via a factory, advanced 1/fps per frame) over a
+  `from`/`to` range at a caller-chosen fps, with an optional composed effect overlay and a stable
+  content-fit camera framed over the whole clip. Frames arrive through a generator or `forEach`
+  callback backed by ONE reused RGBA scratch buffer, so consumers must encode or copy each frame
+  before advancing (the bundled encoders do); a 10 second 60 fps clip never holds 600 PNGs.
+- Media encoders (`src/encode/`, PP-C10, zero new dependencies): `encodeGif` (first-principles
+  GIF89a: deterministic median-cut quantizer over a bounded 5-bit histogram, standard-timing
+  variable-width LZW, transparency via a reserved index, fps-derived delays, infinite loop) and
+  `encodeApng` (lossless truecolor+alpha acTL/fcTL/fdAT assembly over the pinned pngjs codec).
+  Both are byte-locked by committed goldens; WebM/MP4 export is deliberately deferred to the
+  editor-edge encoder (PP-D6).
 - Typed errors: `InvalidViewportError`, `ZeroContentFitError`, `UnknownAnimationError`,
-  `MalformedAtlasPageError`, `EffectTriggerError`. (`RotatedRegionUnsupportedError` was retired in PP-C2:
-  rotated regions are now sampled turned-back, matching runtime-web.)
+  `MalformedAtlasPageError`, `EffectTriggerError`, `InvalidFpsError`, `InvalidFrameRangeError`,
+  `EmptySequenceError`. (`RotatedRegionUnsupportedError` was retired in PP-C2: rotated regions are
+  now sampled turned-back, matching runtime-web.)
 
 **In scope (v1):** region and mesh attachments, per-slot blend modes, slot x attachment tint and
 alpha, bilinear sampling, particle/bundle/composed rendering. Atlas trim offsets (PP-C1) place a trimmed

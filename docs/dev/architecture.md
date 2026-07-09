@@ -36,9 +36,9 @@ demo/                # sample productions built with the tool (not product code)
 slot-assets/         # loose demo art assets
 ```
 
-`runtimes/unity` holds the shared C# solve core (PP-E1, fixture-conformant; see
-`runtimes/unity/README.md`); `runtimes/godot` is still pending (PP-E2), with native CI scaffolded
-for both (`.github/workflows/conformance-native.yml`).
+`runtimes/unity` holds the shared C# solve core (PP-E1) and `runtimes/godot` the GDScript port
+(PP-E2); both are fixture-conformant against the committed rigs and the cross-language vectors
+(see their READMEs). Native CI activation is PP-E3 (`.github/workflows/conformance-native.yml`).
 
 ## Dependency direction (machine-enforced)
 

@@ -32,8 +32,10 @@ migrations), regardless of app release cadence.
 5. Format changes that alter solve semantics also regenerate conformance fixtures in the same PR
    behind the behavior-change gate.
 
-The next planned format change is the 0.3.0 MINOR bump (drawOrder and event timelines with a
-migration and ADR), tracked in `docs/plan/phase-5-production-hardening.md`.
+The next planned format change is the 0.4.0 MINOR bump (stage F2 of
+`docs/plan/pro-parity-execution-plan.md`: constraint depth, linked meshes, sequences,
+per-component curves, two-color tint, skin-scoped bones/constraints). 0.3.0 (events, draw-order
+timelines, metadata) landed with ADR-0008.
 
 ## Changing solve behavior
 

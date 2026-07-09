@@ -16,6 +16,7 @@ import {
   makeIdFactory,
   newDocState,
   type AnimationId,
+  type BoneComponentChannel,
   type BoneId,
   type Document,
   type EventDefId,
@@ -75,6 +76,21 @@ export function setRotateKeys(
   const target: KeyframeTarget = { kind: 'bone', boneId, channel: 'rotate' };
   for (const key of keys) {
     doc.history.execute(new SetKeyframeCommand(animId, target, key.time, key.value));
+  }
+}
+
+// Key a per-component bone channel (Stage F2, ADR-0009 section 4.1) with scalar values, for the split-track
+// dopesheet tests.
+export function setComponentKeys(
+  doc: Document,
+  animId: AnimationId,
+  boneId: BoneId,
+  channel: BoneComponentChannel,
+  keys: readonly { readonly time: number; readonly value: number }[],
+): void {
+  const target: KeyframeTarget = { kind: 'bone', boneId, channel };
+  for (const key of keys) {
+    doc.history.execute(new SetKeyframeCommand(animId, target, key.time, { value: key.value }));
   }
 }
 

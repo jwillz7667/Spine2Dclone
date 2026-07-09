@@ -41,6 +41,7 @@ import { useDocumentRevision } from '../editor-state/use-document-revision';
 import { dispatchBoneTransform, type EditDispatchContext } from '../viewport/edit-dispatcher';
 import { buildBoneEdit, parseBoneField, type BoneTransformField } from './bone-inspector-logic';
 import {
+  buildBoneComponentKeyCommands,
   buildBoneKeyCommands,
   buildSlotColorKeyCommand,
   buildSlotDarkKeyCommand,
@@ -1262,6 +1263,26 @@ function keyBoneAtPlayhead(boneId: BoneId): void {
   }
 }
 
+// Manually key the bone's per-component split channels (Stage F2, ADR-0009 section 4.1) at the playhead in
+// ONE undo step. A joint channel and its split components must not coexist (TIMELINE_COMPONENT_CONFLICT); if
+// the bone already keys a joint channel of some group, the split command for that group throws, so the whole
+// interaction is rolled back (cancelInteraction) and nothing partial lands. Use "Key" (joint) OR "Key Split"
+// on a given bone, not both.
+function keyBoneComponentsAtPlayhead(boneId: BoneId): void {
+  const doc = documentHost.current();
+  const bone = doc.model.getBone(boneId);
+  const state = usePlaybackStore.getState();
+  if (bone === undefined || state.activeAnimation === null) return;
+  const commands = buildBoneComponentKeyCommands(state.activeAnimation, boneId, bone, state.playhead);
+  doc.history.beginInteraction();
+  try {
+    for (const command of commands) doc.history.execute(command);
+    doc.history.endInteraction('Key Bone Components');
+  } catch {
+    doc.history.cancelInteraction();
+  }
+}
+
 // Manually key the slot's CURRENT color at the playhead as one undo step. A no-op with no active animation.
 function keySlotColorAtPlayhead(slotId: SlotId): void {
   const doc = documentHost.current();
@@ -1344,6 +1365,19 @@ function BoneTransformSection(props: BoneTransformSectionProps): ReactElement {
           onClick={() => keyBoneAtPlayhead(bone.id)}
         >
           Key
+        </button>
+        <button
+          type="button"
+          style={canKey ? smallButtonStyle : { ...smallButtonStyle, ...buttonDisabledStyle }}
+          disabled={!canKey}
+          title={
+            canKey
+              ? 'Key this bone as per-component split tracks (translateX/Y, scaleX/Y, shearX/Y) at the playhead'
+              : 'Select an animation in the dopesheet to key'
+          }
+          onClick={() => keyBoneComponentsAtPlayhead(bone.id)}
+        >
+          Key Split
         </button>
       </div>
       <div style={transformGridStyle}>

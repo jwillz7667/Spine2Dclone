@@ -566,16 +566,28 @@ function resolveTarget(
   return { kind: 'bone', boneId: asBoneId(boneId), channel };
 }
 
+// The Stage F2 (ADR-0009 section 4.1) per-component bone channels, which carry a lone ScalarValue.
+const COMPONENT_CHANNELS = new Set<BoneChannel>([
+  'translateX',
+  'translateY',
+  'scaleX',
+  'scaleY',
+  'shearX',
+  'shearY',
+]);
+
 // Validate that a keyframe value's shape matches its channel (the model stores it as given, so the
 // boundary is where a mismatch must be rejected before it reaches the document). The two-color `dark` tint
-// is an RGBA color value like `color`.
+// is an RGBA color value like `color`; the split component channels carry a scalar `value`.
 function checkValueShape(channel: BoneChannel | 'color' | 'dark', value: KeyframeValue): KeyframeValue {
   const ok =
     channel === 'rotate'
       ? 'angle' in value
       : channel === 'color' || channel === 'dark'
         ? 'color' in value
-        : 'x' in value && 'y' in value;
+        : COMPONENT_CHANNELS.has(channel)
+          ? 'value' in value
+          : 'x' in value && 'y' in value;
   if (!ok) {
     throw new McpToolError('INVALID_INPUT', `value shape does not match channel "${channel}"`);
   }
@@ -747,6 +759,13 @@ function animationView(animation: AnimationEntity): Record<string, unknown> {
       translate: set.translate.map(keyframeView),
       scale: set.scale.map(keyframeView),
       shear: set.shear.map(keyframeView),
+      // Stage F2 (ADR-0009 section 4.1) per-component split tracks (each keyframe carries a scalar `value`).
+      translateX: set.translateX.map(keyframeView),
+      translateY: set.translateY.map(keyframeView),
+      scaleX: set.scaleX.map(keyframeView),
+      scaleY: set.scaleY.map(keyframeView),
+      shearX: set.shearX.map(keyframeView),
+      shearY: set.shearY.map(keyframeView),
     })),
     slots: [...animation.slots.entries()].map(([slotIdKey, set]) => ({
       slotId: slotIdKey,
@@ -858,9 +877,24 @@ const weightDabSchema = z
   })
   .strict();
 
-// A keyframe channel name (bone transform channels + the slot color channel). The handler resolves it
-// with boneId/slotId into a branded KeyframeTarget and validates the pairing (resolveTarget).
-const channelSchema = z.enum(['rotate', 'translate', 'scale', 'shear', 'color', 'dark']);
+// A keyframe channel name (bone transform channels + the slot color/dark channels). The joint bone channels
+// (rotate/translate/scale/shear) carry a rotate angle or vec2; the Stage F2 (ADR-0009 section 4.1) split
+// components (translateX/Y, scaleX/Y, shearX/Y) carry a lone scalar. The handler resolves it with
+// boneId/slotId into a branded KeyframeTarget and validates the pairing (resolveTarget).
+const channelSchema = z.enum([
+  'rotate',
+  'translate',
+  'scale',
+  'shear',
+  'translateX',
+  'translateY',
+  'scaleX',
+  'scaleY',
+  'shearX',
+  'shearY',
+  'color',
+  'dark',
+]);
 
 // A keyframe value: one of the disjoint channel value shapes. The handler checks the value shape matches
 // the channel (checkValueShape); the union here keeps a malformed shape (e.g. extra keys) out. Stage F2

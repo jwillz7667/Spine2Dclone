@@ -8,6 +8,7 @@ import {
 import { makeKeyframe, type KeyframeEntity, type KeyframeValue } from '../model/doc-state';
 import type { AnimationId, KeyframeId } from '../model/ids';
 import {
+  conflictingChannels,
   readChannel,
   sameTarget,
   sortByTime,
@@ -52,6 +53,17 @@ export class SetKeyframeCommand implements Command {
         if (slot === undefined) throw new CommandTargetMissingError(this.kind, this.target.slotId);
         if (slot.darkColor === null) {
           throw new TimelineError('darkNoSetup', `slot "${this.target.slotId}" has no setup dark color`);
+        }
+      }
+      // Stage F2 (ADR-0009 section 4.1) coexistence ban (the format's TIMELINE_COMPONENT_CONFLICT): a joint
+      // transform channel and its split components must not both be keyed on one bone. Reject BEFORE any
+      // mutation when a conflicting sibling channel already carries keyframes.
+      for (const sibling of conflictingChannels(this.target)) {
+        if (readChannel(animation, sibling).length > 0) {
+          throw new TimelineError(
+            'componentConflict',
+            `cannot key channel "${this.target.channel}" while a conflicting channel already has keyframes`,
+          );
         }
       }
       const channel = readChannel(animation, this.target);

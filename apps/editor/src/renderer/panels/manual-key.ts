@@ -2,11 +2,17 @@ import type { RGBA } from '@marionette/format/types';
 import {
   SetKeyframeCommand,
   type AnimationId,
+  type BoneComponentChannel,
   type BoneId,
   type KeyframeTarget,
   type SlotId,
 } from '../document';
-import { setupDelta, type BoneTransformEdit, type SetupTransform } from '../viewport/setup-delta';
+import {
+  setupComponentDelta,
+  setupDelta,
+  type BoneTransformEdit,
+  type SetupTransform,
+} from '../viewport/setup-delta';
 
 // Manual keyframe buttons (PP-D2): key a bone's current local transform or a slot's current color at the
 // playhead ON DEMAND, independent of the auto-key gizmo path. Auto-key writes a keyframe only when a value
@@ -47,6 +53,34 @@ export function buildBoneKeyCommands(
   return channels.map((channel) => {
     const target: KeyframeTarget = { kind: 'bone', boneId, channel };
     const value = setupDelta(editForChannel(channel, transform), transform);
+    return new SetKeyframeCommand(animationId, target, time, value);
+  });
+}
+
+// The six per-component bone channels (Stage F2, ADR-0009 section 4.1) and their inspector labels. A bone
+// keys a joint channel OR its split components, never both (TIMELINE_COMPONENT_CONFLICT), so the panel
+// offers the split Key buttons as an alternative to the joint ones; the command rejects a conflicting mix.
+export const ALL_BONE_COMPONENT_CHANNELS: readonly BoneComponentChannel[] = [
+  'translateX',
+  'translateY',
+  'scaleX',
+  'scaleY',
+  'shearX',
+  'shearY',
+];
+
+// One SetKeyframe per requested per-component channel, keying that axis of the bone's current transform at
+// `time` as a scalar setup-relative delta (setupComponentDelta, the per-axis analogue of buildBoneKeyCommands).
+export function buildBoneComponentKeyCommands(
+  animationId: AnimationId,
+  boneId: BoneId,
+  transform: SetupTransform,
+  time: number,
+  channels: readonly BoneComponentChannel[] = ALL_BONE_COMPONENT_CHANNELS,
+): SetKeyframeCommand[] {
+  return channels.map((channel) => {
+    const target: KeyframeTarget = { kind: 'bone', boneId, channel };
+    const value = setupComponentDelta(channel, transform, transform);
     return new SetKeyframeCommand(animationId, target, time, value);
   });
 }

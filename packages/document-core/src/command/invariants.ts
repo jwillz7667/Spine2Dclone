@@ -84,11 +84,39 @@ function valueMatchesChannel(channel: BoneChannel | 'color', value: KeyframeValu
       return 'angle' in value;
     case 'color':
       return 'color' in value;
-    default:
-      // translate / scale / shear share the vec2 shape.
+    case 'translate':
+    case 'scale':
+    case 'shear':
       return 'x' in value && 'y' in value;
+    default:
+      // The Stage F2 (ADR-0009 section 4.1) per-component channels (translateX/Y, scaleX/Y, shearX/Y)
+      // carry a lone ScalarValue.
+      return 'value' in value;
   }
 }
+
+// The ten bone channels (four joint, six Stage F2 split components) and the joint/split coexistence groups
+// (ADR-0009 section 4.1): a bone may key the joint channel OR its split components, never both.
+const ALL_BONE_CHANNELS: readonly BoneChannel[] = [
+  'rotate',
+  'translate',
+  'scale',
+  'shear',
+  'translateX',
+  'translateY',
+  'scaleX',
+  'scaleY',
+  'shearX',
+  'shearY',
+];
+const BONE_COMPONENT_GROUPS: readonly {
+  readonly joint: BoneChannel;
+  readonly components: readonly BoneChannel[];
+}[] = [
+  { joint: 'translate', components: ['translateX', 'translateY'] },
+  { joint: 'scale', components: ['scaleX', 'scaleY'] },
+  { joint: 'shear', components: ['shearX', 'shearY'] },
+];
 
 // Assert a value channel is strictly ascending in time, in [0, duration], and carries the channel's
 // value shape. Accumulates the maximum time so the caller can enforce the duration bound. Throws on the
@@ -414,12 +442,25 @@ export function assertInvariants(model: DocumentReadModel): void {
           `animation "${animation.name}" keys a timeline on bone ${boneId}, which does not exist`,
         );
       }
-      for (const channel of ['rotate', 'translate', 'scale', 'shear'] as const) {
+      for (const channel of ALL_BONE_CHANNELS) {
         for (const kf of set[channel]) noteKeyframeId(kf.id, animation.name);
         maxTime = Math.max(
           maxTime,
           checkValueChannel(animation, channel, channel, set[channel], duration),
         );
+      }
+      // Stage F2 (ADR-0009 section 4.1) coexistence ban (the format's TIMELINE_COMPONENT_CONFLICT): a bone
+      // keys a joint transform channel OR its split components, never both. SetKeyframe rejects introducing
+      // the conflict; this asserts no state reaches here with both non-empty.
+      for (const group of BONE_COMPONENT_GROUPS) {
+        if (
+          set[group.joint].length > 0 &&
+          group.components.some((component) => set[component].length > 0)
+        ) {
+          throw new DocumentInvariantError(
+            `animation "${animation.name}" bone ${boneId} keys both the joint "${group.joint}" channel and a split component channel`,
+          );
+        }
       }
     }
     for (const [slotId, set] of animation.slots) {

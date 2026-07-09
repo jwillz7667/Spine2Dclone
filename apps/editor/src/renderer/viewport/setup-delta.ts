@@ -1,4 +1,4 @@
-import type { KeyframeValue } from '../document';
+import type { BoneComponentChannel, KeyframeValue, ScalarValue } from '../document';
 
 // The desired LOCAL transform value a gizmo edit produced, per channel. This is the value the bone
 // should HAVE locally after the edit (setup-relative), the input the dispatcher either applies as a
@@ -41,5 +41,31 @@ export function setupDelta(edit: BoneTransformEdit, setup: SetupTransform): Keyf
       return { x: edit.scaleX / setup.scaleX, y: edit.scaleY / setup.scaleY };
     case 'shear':
       return { x: edit.shearX - setup.shearX, y: edit.shearY - setup.shearY };
+  }
+}
+
+// The per-AXIS setup-relative delta (Stage F2, ADR-0009 section 4.1) for a single split component channel,
+// the scalar analogue of setupDelta: the sampler ADDS translate/shear deltas and MULTIPLIES scale, so a
+// component keyframe stores one axis of the same delta (translateX is the x of the translate delta, scaleX
+// the x of the scale quotient, and so on). `current` is the desired local value (the inspector-displayed
+// transform); keying the current pose yields the identity delta (0 for translate/shear, 1 for scale).
+export function setupComponentDelta(
+  channel: BoneComponentChannel,
+  current: SetupTransform,
+  setup: SetupTransform,
+): ScalarValue {
+  switch (channel) {
+    case 'translateX':
+      return { value: current.x - setup.x };
+    case 'translateY':
+      return { value: current.y - setup.y };
+    case 'scaleX':
+      return { value: current.scaleX / setup.scaleX };
+    case 'scaleY':
+      return { value: current.scaleY / setup.scaleY };
+    case 'shearX':
+      return { value: current.shearX - setup.shearX };
+    case 'shearY':
+      return { value: current.shearY - setup.shearY };
   }
 }

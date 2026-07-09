@@ -68,6 +68,8 @@ export type {
   MeshGeometry,
   AnimationEntity,
   BoneChannel,
+  BoneJointChannel,
+  BoneComponentChannel,
   BoneTimelineSet,
   SlotTimelineSet,
   KeyframeEntity,

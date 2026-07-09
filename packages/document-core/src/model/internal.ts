@@ -249,21 +249,23 @@ function remapAttachmentMapWeighted(
 // Internal mutable bone timeline set: same channels as BoneTimelineSet but with writable arrays so the
 // mutator can replace a channel wholesale. Keyframe OBJECTS are immutable (replaced, never patched), so
 // the arrays carry shared frozen refs safely.
-// The carried Stage F2 (ADR-0009) tracks projected out of a timeline set (exactly the optional-readonly
-// channels of the entity, so Pick preserves optionality without widening to `| undefined`).
-type CarriedBoneTracks = Pick<
-  BoneTimelineSet,
-  'translateX' | 'translateY' | 'scaleX' | 'scaleY' | 'shearX' | 'shearY'
->;
+// The carried Stage F2 (ADR-0009) split slot-color tracks projected out of a timeline set (exactly the
+// optional-readonly channels of the entity, so Pick preserves optionality without widening to `| undefined`).
 type CarriedSlotTracks = Pick<SlotTimelineSet, 'rgb' | 'alpha'>;
 
-interface MutableBoneTimelineSet extends CarriedBoneTracks {
+interface MutableBoneTimelineSet {
   rotate: KeyframeEntity[];
   translate: KeyframeEntity[];
   scale: KeyframeEntity[];
   shear: KeyframeEntity[];
-  // The carried split tracks (from CarriedBoneTracks) are immutable frozen refs shared by reference through
-  // every copy; no command mutates them (PP-D10). Present only when the loaded document supplied them.
+  // Stage F2 (ADR-0009 section 4.1) per-component split tracks, now first-class editable channels (PP-D10)
+  // replaced wholesale like the joint channels; keyframe OBJECTS stay immutable frozen refs.
+  translateX: KeyframeEntity[];
+  translateY: KeyframeEntity[];
+  scaleX: KeyframeEntity[];
+  scaleY: KeyframeEntity[];
+  shearX: KeyframeEntity[];
+  shearY: KeyframeEntity[];
 }
 
 interface MutableSlotTimelineSet extends CarriedSlotTracks {
@@ -275,20 +277,9 @@ interface MutableSlotTimelineSet extends CarriedSlotTracks {
   dark: KeyframeEntity[];
 }
 
-// Spread only the PRESENT carried F2 tracks (exactOptionalPropertyTypes) so an absent track stays absent
-// through a mutable/frozen copy. The tracks are immutable, so sharing them by reference across copies is
-// safe; a mutating command only ever replaces the joint channels (rotate/translate/scale/shear, color).
-function carriedBoneTracks(set: BoneTimelineSet): CarriedBoneTracks {
-  return {
-    ...(set.translateX !== undefined ? { translateX: set.translateX } : {}),
-    ...(set.translateY !== undefined ? { translateY: set.translateY } : {}),
-    ...(set.scaleX !== undefined ? { scaleX: set.scaleX } : {}),
-    ...(set.scaleY !== undefined ? { scaleY: set.scaleY } : {}),
-    ...(set.shearX !== undefined ? { shearX: set.shearX } : {}),
-    ...(set.shearY !== undefined ? { shearY: set.shearY } : {}),
-  };
-}
-
+// Spread only the PRESENT carried slot F2 tracks (exactOptionalPropertyTypes) so an absent track stays
+// absent through a mutable/frozen copy. The tracks are immutable, so sharing them by reference across copies
+// is safe; a mutating command only ever replaces the first-class channels.
 function carriedSlotTracks(set: SlotTimelineSet): CarriedSlotTracks {
   return {
     ...(set.rgb !== undefined ? { rgb: set.rgb } : {}),
@@ -324,7 +315,12 @@ function toMutableBoneSet(set: BoneTimelineSet): MutableBoneTimelineSet {
     translate: set.translate.slice(),
     scale: set.scale.slice(),
     shear: set.shear.slice(),
-    ...carriedBoneTracks(set),
+    translateX: set.translateX.slice(),
+    translateY: set.translateY.slice(),
+    scaleX: set.scaleX.slice(),
+    scaleY: set.scaleY.slice(),
+    shearX: set.shearX.slice(),
+    shearY: set.shearY.slice(),
   };
 }
 
@@ -335,6 +331,23 @@ function toMutableSlotSet(set: SlotTimelineSet): MutableSlotTimelineSet {
     sequence: set.sequence.slice(),
     dark: set.dark.slice(),
     ...carriedSlotTracks(set),
+  };
+}
+
+// A fresh empty mutable bone timeline set (the create-on-write base for setBoneChannel), all ten channels
+// present and empty.
+function newMutableBoneSet(): MutableBoneTimelineSet {
+  return {
+    rotate: [],
+    translate: [],
+    scale: [],
+    shear: [],
+    translateX: [],
+    translateY: [],
+    scaleX: [],
+    scaleY: [],
+    shearX: [],
+    shearY: [],
   };
 }
 
@@ -413,15 +426,7 @@ function toMutableAnimation(animation: AnimationEntity): MutableAnimation {
 // fresh maps and fresh channel arrays. Keyframe objects are shared by reference (immutable).
 function cloneMutableAnimation(a: MutableAnimation): MutableAnimation {
   const bones = new Map<BoneId, MutableBoneTimelineSet>();
-  for (const [id, set] of a.bones) {
-    bones.set(id, {
-      rotate: set.rotate.slice(),
-      translate: set.translate.slice(),
-      scale: set.scale.slice(),
-      shear: set.shear.slice(),
-      ...carriedBoneTracks(set),
-    });
-  }
+  for (const [id, set] of a.bones) bones.set(id, toMutableBoneSet(set));
   const slots = new Map<SlotId, MutableSlotTimelineSet>();
   for (const [id, set] of a.slots) {
     slots.set(id, {
@@ -462,7 +467,12 @@ function freezeAnimation(a: MutableAnimation): AnimationEntity {
         translate: Object.freeze(set.translate.slice()),
         scale: Object.freeze(set.scale.slice()),
         shear: Object.freeze(set.shear.slice()),
-        ...carriedBoneTracks(set),
+        translateX: Object.freeze(set.translateX.slice()),
+        translateY: Object.freeze(set.translateY.slice()),
+        scaleX: Object.freeze(set.scaleX.slice()),
+        scaleY: Object.freeze(set.scaleY.slice()),
+        shearX: Object.freeze(set.shearX.slice()),
+        shearY: Object.freeze(set.shearY.slice()),
       }),
     );
   }
@@ -1261,18 +1271,11 @@ export class DocumentModelInternal implements DocumentReadModel {
       if (keyframes.length === 0) {
         if (!set) return;
         set[channel] = [];
-        if (
-          set.rotate.length === 0 &&
-          set.translate.length === 0 &&
-          set.scale.length === 0 &&
-          set.shear.length === 0
-        ) {
-          animation.bones.delete(boneId);
-        }
+        if (isBoneTimelineSetEmpty(set)) animation.bones.delete(boneId);
         return;
       }
       if (!set) {
-        set = { rotate: [], translate: [], scale: [], shear: [] };
+        set = newMutableBoneSet();
         animation.bones.set(boneId, set);
       }
       set[channel] = keyframes.slice();

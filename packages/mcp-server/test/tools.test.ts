@@ -727,6 +727,59 @@ describe('MCP animation + keyframe tools', () => {
       'ANIMATION_NOT_FOUND',
     );
   });
+
+  it('keys per-component bone channels and enforces the joint/split coexistence ban', async () => {
+    const deps = makeDeps();
+    const { documentId } = asRecord(await call(deps, 'document.new', { name: 'split' }));
+    const { boneId } = asRecord(
+      await call(deps, 'bone.create', { documentId, name: 'root', length: 100 }),
+    );
+    const { animationId } = asRecord(
+      await call(deps, 'anim.create', { documentId, name: 'idle', duration: 1 }),
+    );
+
+    // A per-component channel keys a scalar value and reads back on anim.get.
+    await call(deps, 'kf.set', {
+      documentId,
+      animationId,
+      channel: 'scaleX',
+      boneId,
+      time: 0.5,
+      value: { value: 0.4 },
+    });
+    const animGet = asRecord(await call(deps, 'anim.get', { documentId, animationId }));
+    const bones = asRecord(animGet.animation).bones as Array<{
+      scaleX: Array<{ value: { value: number } }>;
+    }>;
+    expect(bones[0]!.scaleX).toHaveLength(1);
+    expect(bones[0]!.scaleX[0]!.value).toEqual({ value: 0.4 });
+
+    // A vec2 value on a scalar channel is rejected at the boundary.
+    await expectToolError(
+      call(deps, 'kf.set', {
+        documentId,
+        animationId,
+        channel: 'scaleX',
+        boneId,
+        time: 0.75,
+        value: { x: 1, y: 2 },
+      }),
+      'INVALID_INPUT',
+    );
+
+    // Keying the JOINT scale channel while scaleX (a split component) is keyed is a TIMELINE conflict.
+    await expectToolError(
+      call(deps, 'kf.set', {
+        documentId,
+        animationId,
+        channel: 'scale',
+        boneId,
+        time: 0.5,
+        value: { x: 1, y: 1 },
+      }),
+      'TIMELINE',
+    );
+  });
 });
 
 // A two-bone rig with an UNWEIGHTED mesh, built through the MCP tools, so the WP-2.3/2.4 binding + weight

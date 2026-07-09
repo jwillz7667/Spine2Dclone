@@ -9,6 +9,7 @@ import {
   addTransformConstraint,
   createEmptyDocument,
   setAttachmentKeys,
+  setComponentKeys,
   setIkKeys,
   setRotateKeys,
   setSequenceKeys,
@@ -43,6 +44,25 @@ describe('dopesheet tracks', () => {
     expect(channel?.kind).toBe('channel');
     if (channel?.kind === 'channel') {
       expect(channel.target).toEqual({ kind: 'bone', boneId: bone, channel: 'rotate' });
+      expect(channel.keyframes).toHaveLength(2);
+    }
+  });
+
+  it('emits a split component channel row (Stage F2)', () => {
+    const doc = createEmptyDocument();
+    const bone = addBone(doc, 'root');
+    const anim = addAnimation(doc, 'idle', 2);
+    setComponentKeys(doc, anim, bone, 'scaleX', [
+      { time: 0, value: 1 },
+      { time: 1, value: 1.5 },
+    ]);
+
+    const rows = buildTracks(doc.model.getAnimation(anim)!, names(doc));
+
+    expect(rows.map((row) => `${row.kind}:${row.label}`)).toEqual(['group:root', 'channel:Scale X']);
+    const channel = rows[1];
+    if (channel?.kind === 'channel') {
+      expect(channel.target).toEqual({ kind: 'bone', boneId: bone, channel: 'scaleX' });
       expect(channel.keyframes).toHaveLength(2);
     }
   });

@@ -226,6 +226,14 @@ export interface BoneTimelineSnapshot {
   readonly translate: readonly KeyframeSnapshot[];
   readonly scale: readonly KeyframeSnapshot[];
   readonly shear: readonly KeyframeSnapshot[];
+  // Stage F2 (ADR-0009 section 4.1, PP-D10) per-component split tracks, promoted into the snapshot so the
+  // round-trip harness deep-compares them (each carries a ScalarValue).
+  readonly translateX: readonly KeyframeSnapshot[];
+  readonly translateY: readonly KeyframeSnapshot[];
+  readonly scaleX: readonly KeyframeSnapshot[];
+  readonly scaleY: readonly KeyframeSnapshot[];
+  readonly shearX: readonly KeyframeSnapshot[];
+  readonly shearY: readonly KeyframeSnapshot[];
 }
 
 // A plain per-slot timeline projection, keyed by the internal SlotId string.
@@ -626,6 +634,12 @@ export function animationToSnapshot(animation: AnimationEntity): AnimationSnapsh
       translate: set.translate.map(keyframeToSnapshot),
       scale: set.scale.map(keyframeToSnapshot),
       shear: set.shear.map(keyframeToSnapshot),
+      translateX: set.translateX.map(keyframeToSnapshot),
+      translateY: set.translateY.map(keyframeToSnapshot),
+      scaleX: set.scaleX.map(keyframeToSnapshot),
+      scaleY: set.scaleY.map(keyframeToSnapshot),
+      shearX: set.shearX.map(keyframeToSnapshot),
+      shearY: set.shearY.map(keyframeToSnapshot),
     });
   }
   bones.sort((a, b) => (a.boneId < b.boneId ? -1 : a.boneId > b.boneId ? 1 : 0));

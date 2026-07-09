@@ -130,6 +130,19 @@ function vec2Keyframes(
   });
 }
 
+// Project a per-component bone channel (translateX/Y, scaleX/Y, shearX/Y) to `{ time, value: { value },
+// curve }` (Stage F2, ADR-0009 section 4.1). The `in` narrowing is the export-boundary fail-loud check.
+function scalarKeyframes(
+  channel: readonly KeyframeEntity[],
+): NonNullable<BoneTimelines['translateX']> {
+  return channel.map((kf) => {
+    if (!('value' in kf.value)) {
+      throw new DocumentInvariantError('a per-component bone keyframe carries a non-scalar value');
+    }
+    return { time: kf.time, value: { value: kf.value.value }, curve: kf.curve };
+  });
+}
+
 // Project a slot color channel to `{ time, value: { color }, curve }`.
 function colorKeyframes(channel: readonly KeyframeEntity[]): NonNullable<SlotTimelines['color']> {
   return channel.map((kf) => {
@@ -144,20 +157,21 @@ function colorKeyframes(channel: readonly KeyframeEntity[]): NonNullable<SlotTim
 // Project a bone timeline set, emitting only the non-empty channels (the format channels are optional;
 // an empty channel is OMITTED rather than emitted as undefined or [], per exactOptionalPropertyTypes).
 function boneTimelinesToFormat(set: BoneTimelineSet): BoneTimelines {
-  // The joint channels project from the id-keyed keyframes; the carried Stage F2 (ADR-0009 section 4.1)
-  // split tracks are emitted verbatim (they are already the on-disk shape). A joint channel and its split
-  // components never coexist (the format's TIMELINE_COMPONENT_CONFLICT), so at most one form per channel.
+  // Every channel projects from its id-keyed keyframes, emitted only when non-empty (the format channels are
+  // optional; an empty channel is OMITTED, per exactOptionalPropertyTypes). The Stage F2 (ADR-0009 section
+  // 4.1) split components project through scalarKeyframes. A joint channel and its split components never
+  // coexist (the format's TIMELINE_COMPONENT_CONFLICT), so at most one form per channel is non-empty.
   return {
     ...(set.rotate.length > 0 ? { rotate: rotateKeyframes(set.rotate) } : {}),
     ...(set.translate.length > 0 ? { translate: vec2Keyframes(set.translate) } : {}),
     ...(set.scale.length > 0 ? { scale: vec2Keyframes(set.scale) } : {}),
     ...(set.shear.length > 0 ? { shear: vec2Keyframes(set.shear) } : {}),
-    ...(set.translateX !== undefined ? { translateX: set.translateX } : {}),
-    ...(set.translateY !== undefined ? { translateY: set.translateY } : {}),
-    ...(set.scaleX !== undefined ? { scaleX: set.scaleX } : {}),
-    ...(set.scaleY !== undefined ? { scaleY: set.scaleY } : {}),
-    ...(set.shearX !== undefined ? { shearX: set.shearX } : {}),
-    ...(set.shearY !== undefined ? { shearY: set.shearY } : {}),
+    ...(set.translateX.length > 0 ? { translateX: scalarKeyframes(set.translateX) } : {}),
+    ...(set.translateY.length > 0 ? { translateY: scalarKeyframes(set.translateY) } : {}),
+    ...(set.scaleX.length > 0 ? { scaleX: scalarKeyframes(set.scaleX) } : {}),
+    ...(set.scaleY.length > 0 ? { scaleY: scalarKeyframes(set.scaleY) } : {}),
+    ...(set.shearX.length > 0 ? { shearX: scalarKeyframes(set.shearX) } : {}),
+    ...(set.shearY.length > 0 ? { shearY: scalarKeyframes(set.shearY) } : {}),
   };
 }
 

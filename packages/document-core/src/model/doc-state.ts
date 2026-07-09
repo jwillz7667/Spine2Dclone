@@ -3,7 +3,6 @@ import type {
   Attachment,
   AtlasRef,
   BlendMode,
-  BoneTimelines,
   CurveType,
   RegionAttachment,
   RGB,
@@ -18,7 +17,6 @@ import type {
 // has no command that authors them yet (that is PP-D10); it carries them losslessly through load and export
 // so a 0.4.0 document round-trips. They are non-empty arrays of the exact on-disk shape (a NonNullable of
 // the optional format channel), deep-frozen and shared by reference (never mutated in place).
-type CarriedScalarTrack = NonNullable<BoneTimelines['translateX']>;
 type CarriedRgbTrack = NonNullable<SlotTimelines['rgb']>;
 type CarriedAlphaTrack = NonNullable<SlotTimelines['alpha']>;
 type CarriedSequence = NonNullable<RegionAttachment['sequence']>;
@@ -209,10 +207,20 @@ export function makeLinkedMeshAttachment(init: {
   });
 }
 
-// The four animatable bone transform channels (the format BoneTimelines keys). A keyframe on a bone
-// channel carries the channel-specific value shape below; the channel is the discriminant the model
-// and exporter switch on (WP-1.5).
-export type BoneChannel = 'rotate' | 'translate' | 'scale' | 'shear';
+// The animatable bone transform channels (the format BoneTimelines keys). A keyframe on a bone channel
+// carries the channel-specific value shape below; the channel is the discriminant the model and exporter
+// switch on (WP-1.5). The JOINT channels (rotate/translate/scale/shear) carry a rotate angle or a vec2;
+// the Stage F2 (ADR-0009 section 4.1, PP-D10) per-component SPLIT channels carry a lone ScalarValue. A
+// joint channel and its split components MUST NOT coexist on one bone (TIMELINE_COMPONENT_CONFLICT).
+export type BoneJointChannel = 'rotate' | 'translate' | 'scale' | 'shear';
+export type BoneComponentChannel =
+  | 'translateX'
+  | 'translateY'
+  | 'scaleX'
+  | 'scaleY'
+  | 'shearX'
+  | 'shearY';
+export type BoneChannel = BoneJointChannel | BoneComponentChannel;
 
 // Keyframe value shapes, mirroring the format keyframe value types BY VALUE (handoff section 6): a
 // rotate value is an angle, translate/scale/shear values are a vec2, a slot color value wraps an RGBA.
@@ -278,15 +286,16 @@ export interface BoneTimelineSet {
   readonly translate: readonly KeyframeEntity[];
   readonly scale: readonly KeyframeEntity[];
   readonly shear: readonly KeyframeEntity[];
-  // Stage F2 (ADR-0009 section 4.1) per-component split tracks, carried verbatim (no command authors them
-  // yet, PP-D10). A joint channel and its split components never coexist on one bone (the format's
-  // TIMELINE_COMPONENT_CONFLICT), so these are present only for bones the joint channels leave untouched.
-  readonly translateX?: CarriedScalarTrack;
-  readonly translateY?: CarriedScalarTrack;
-  readonly scaleX?: CarriedScalarTrack;
-  readonly scaleY?: CarriedScalarTrack;
-  readonly shearX?: CarriedScalarTrack;
-  readonly shearY?: CarriedScalarTrack;
+  // Stage F2 (ADR-0009 section 4.1, PP-D10) per-component split tracks, now first-class editable id-keyed
+  // keyframes (each carries a ScalarValue) like the joint channels: always present, empty when unused. A
+  // joint channel and its split components never coexist on one bone (the format's
+  // TIMELINE_COMPONENT_CONFLICT, enforced by SetKeyframe), so at most one form per channel is non-empty.
+  readonly translateX: readonly KeyframeEntity[];
+  readonly translateY: readonly KeyframeEntity[];
+  readonly scaleX: readonly KeyframeEntity[];
+  readonly scaleY: readonly KeyframeEntity[];
+  readonly shearX: readonly KeyframeEntity[];
+  readonly shearY: readonly KeyframeEntity[];
 }
 
 // A keyed slot frame-sequence entry (Stage F2, ADR-0009 section 3; promoted to editable by PP-D10). At
@@ -814,26 +823,38 @@ export function makeDrawOrderKey(
   });
 }
 
-// An empty bone timeline set (all four channels empty). The mutator creates one lazily when the first
+// An empty bone timeline set (all ten channels empty). The mutator creates one lazily when the first
 // keyframe is written to a bone, and prunes the entry when the set returns to all-empty.
 export function emptyBoneTimelineSet(): BoneTimelineSet {
-  return { rotate: [], translate: [], scale: [], shear: [] };
+  return {
+    rotate: [],
+    translate: [],
+    scale: [],
+    shear: [],
+    translateX: [],
+    translateY: [],
+    scaleX: [],
+    scaleY: [],
+    shearX: [],
+    shearY: [],
+  };
 }
 
-// True when a bone timeline set carries no keyframes on any channel (the prune condition). A carried F2
-// split track (ADR-0009) counts as content so a mutator never prunes a bone whose only tracks are carried.
+// True when a bone timeline set carries no keyframes on any of its ten channels (the prune condition). The
+// Stage F2 (ADR-0009) split component tracks are first-class editable channels (PP-D10), so an empty split
+// track is absent content exactly like an empty joint channel.
 export function isBoneTimelineSetEmpty(set: BoneTimelineSet): boolean {
   return (
     set.rotate.length === 0 &&
     set.translate.length === 0 &&
     set.scale.length === 0 &&
     set.shear.length === 0 &&
-    set.translateX === undefined &&
-    set.translateY === undefined &&
-    set.scaleX === undefined &&
-    set.scaleY === undefined &&
-    set.shearX === undefined &&
-    set.shearY === undefined
+    set.translateX.length === 0 &&
+    set.translateY.length === 0 &&
+    set.scaleX.length === 0 &&
+    set.scaleY.length === 0 &&
+    set.shearX.length === 0 &&
+    set.shearY.length === 0
   );
 }
 

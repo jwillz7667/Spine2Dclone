@@ -493,19 +493,19 @@ function loadBoneTimelines(
   timelines: SkeletonDocument['animations'][string]['bones'][string],
   ids: IdFactory,
 ): BoneTimelineSet {
-  // The joint channels become first-class id-keyed keyframes; the Stage F2 (ADR-0009 section 4.1) split
-  // component tracks are carried verbatim (no command authors them yet, PP-D10).
+  // Every channel (joint and the Stage F2 (ADR-0009 section 4.1) split component tracks) loads as
+  // first-class id-keyed keyframes (PP-D10); the format scalar value `{ value }` is a ScalarValue by shape.
   return {
     rotate: loadKeyframes(timelines.rotate, ids),
     translate: loadKeyframes(timelines.translate, ids),
     scale: loadKeyframes(timelines.scale, ids),
     shear: loadKeyframes(timelines.shear, ids),
-    ...(timelines.translateX !== undefined ? { translateX: carry(timelines.translateX) } : {}),
-    ...(timelines.translateY !== undefined ? { translateY: carry(timelines.translateY) } : {}),
-    ...(timelines.scaleX !== undefined ? { scaleX: carry(timelines.scaleX) } : {}),
-    ...(timelines.scaleY !== undefined ? { scaleY: carry(timelines.scaleY) } : {}),
-    ...(timelines.shearX !== undefined ? { shearX: carry(timelines.shearX) } : {}),
-    ...(timelines.shearY !== undefined ? { shearY: carry(timelines.shearY) } : {}),
+    translateX: loadKeyframes(timelines.translateX, ids),
+    translateY: loadKeyframes(timelines.translateY, ids),
+    scaleX: loadKeyframes(timelines.scaleX, ids),
+    scaleY: loadKeyframes(timelines.scaleY, ids),
+    shearX: loadKeyframes(timelines.shearX, ids),
+    shearY: loadKeyframes(timelines.shearY, ids),
   };
 }
 

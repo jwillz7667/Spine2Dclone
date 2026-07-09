@@ -62,6 +62,35 @@ export function targetEntityId(target: KeyframeTarget): string {
   return target.kind === 'bone' ? target.boneId : target.slotId;
 }
 
+// The channels a target MUST NOT coexist with (ADR-0009 section 4.1 TIMELINE_COMPONENT_CONFLICT): a bone's
+// joint transform channel vs its split components (translate vs translateX/Y, and likewise scale/shear).
+// Introducing a keyframe on a target while any conflicting sibling already has one is rejected by
+// SetKeyframe. rotate has no split; a component's only conflict is its joint. Returns sibling targets so
+// the caller reads them with readChannel.
+const BONE_JOINT_TO_COMPONENTS: Readonly<Record<BoneChannel, readonly BoneChannel[]>> = {
+  rotate: [],
+  translate: ['translateX', 'translateY'],
+  scale: ['scaleX', 'scaleY'],
+  shear: ['shearX', 'shearY'],
+  translateX: ['translate'],
+  translateY: ['translate'],
+  scaleX: ['scale'],
+  scaleY: ['scale'],
+  shearX: ['shear'],
+  shearY: ['shear'],
+};
+
+export function conflictingChannels(target: KeyframeTarget): KeyframeTarget[] {
+  if (target.kind === 'bone') {
+    return BONE_JOINT_TO_COMPONENTS[target.channel].map((channel) => ({
+      kind: 'bone',
+      boneId: target.boneId,
+      channel,
+    }));
+  }
+  return [];
+}
+
 // Sort keyframes by ascending time, returning a NEW array (the channel invariant is strictly ascending;
 // callers guarantee unique times so the comparator never ties).
 export function sortByTime(keyframes: readonly KeyframeEntity[]): KeyframeEntity[] {

@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import type { AnimationId, BoneId, SlotId } from '../document';
 import type { SetupTransform } from '../viewport/setup-delta';
 import {
+  ALL_BONE_COMPONENT_CHANNELS,
+  buildBoneComponentKeyCommands,
   buildBoneKeyCommands,
   buildSlotColorKeyCommand,
   buildSlotDarkKeyCommand,
@@ -66,5 +68,32 @@ describe('manual keyframe commands (PP-D2)', () => {
       0.5,
     );
     expect(command.kind).toBe('kf.set');
+  });
+
+  it('keys the per-component split channels as scalar setup-relative identity deltas (Stage F2)', () => {
+    const doc = createEmptyDocument();
+    const bone = addBone(doc, 'root');
+    const animId = addAnimation(doc, 'idle', 2);
+
+    const commands = buildBoneComponentKeyCommands(animId, bone, pose, 0.5);
+    expect(commands).toHaveLength(ALL_BONE_COMPONENT_CHANNELS.length);
+    for (const command of commands) doc.history.execute(command);
+
+    const set = doc.model.getAnimation(animId)!.bones.get(bone)!;
+    // translate/shear deltas add (identity 0), scale multiplies (identity 1).
+    expect(set.translateX[0]!.value).toEqual({ value: 0 });
+    expect(set.translateY[0]!.value).toEqual({ value: 0 });
+    expect(set.scaleX[0]!.value).toEqual({ value: 1 });
+    expect(set.scaleY[0]!.value).toEqual({ value: 1 });
+    expect(set.shearX[0]!.value).toEqual({ value: 0 });
+    expect(set.shearY[0]!.value).toEqual({ value: 0 });
+    expect(set.translateX[0]!.time).toBe(0.5);
+  });
+
+  it('keys only the requested split components', () => {
+    const animId = 'animation_1' as AnimationId;
+    const commands = buildBoneComponentKeyCommands(animId, 'bone_1' as BoneId, pose, 0, ['scaleX']);
+    expect(commands).toHaveLength(1);
+    expect(commands[0]!.kind).toBe('kf.set');
   });
 });

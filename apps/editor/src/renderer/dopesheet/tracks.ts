@@ -72,12 +72,32 @@ export interface TrackNames {
   skinName(key: DeformSkinKey): string;
 }
 
-const BONE_CHANNELS: readonly BoneChannel[] = ['rotate', 'translate', 'scale', 'shear'];
+// All ten bone channels: the four joint channels and the six Stage F2 (ADR-0009 section 4.1) split
+// components. A bone keys a joint channel OR its split components (never both), so a bone shows at most one
+// form per transform group; each non-empty channel becomes its own dopesheet row.
+const BONE_CHANNELS: readonly BoneChannel[] = [
+  'rotate',
+  'translate',
+  'scale',
+  'shear',
+  'translateX',
+  'translateY',
+  'scaleX',
+  'scaleY',
+  'shearX',
+  'shearY',
+];
 const BONE_CHANNEL_LABELS: Record<BoneChannel, string> = {
   rotate: 'Rotate',
   translate: 'Translate',
   scale: 'Scale',
   shear: 'Shear',
+  translateX: 'Translate X',
+  translateY: 'Translate Y',
+  scaleX: 'Scale X',
+  scaleY: 'Scale Y',
+  shearX: 'Shear X',
+  shearY: 'Shear Y',
 };
 
 function compareLabel(aName: string, aId: string, bName: string, bId: string): number {

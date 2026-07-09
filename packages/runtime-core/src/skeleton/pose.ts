@@ -35,6 +35,10 @@ export interface ResolvedIkConstraint {
   // The explicit combined-set solve order (ADR-0009 section 1.3), or -1 when this constraint carries none.
   // Read once at build to precompute the pose solve schedule; never sampled per frame.
   readonly order: number;
+  // The names of the skins that SCOPE this constraint (ADR-0009 section 5, ADR-0011 section 4), or null
+  // when no skin lists it (unscoped, always active). A scoped constraint solves only when one of these
+  // skins is active (the 'default' skin is always active). Captured once at build.
+  readonly scopeSkins: readonly string[] | null;
   readonly sampled: {
     mix: number;
     bendPositive: boolean;
@@ -61,6 +65,8 @@ export interface ResolvedTransformConstraint {
   readonly relative: boolean;
   // The explicit combined-set solve order (ADR-0009 section 1.3), or -1 when this constraint carries none.
   readonly order: number;
+  // The names of the skins that SCOPE this constraint (ADR-0009 section 5), or null when unscoped.
+  readonly scopeSkins: readonly string[] | null;
   readonly sampledMix: TransformMix;
 }
 

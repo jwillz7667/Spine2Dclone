@@ -30,11 +30,25 @@ export function buildPose(document: SkeletonDocument): Pose {
     indexByName.set(boneNames[i]!, i);
   }
 
+  // Skin-scoping map (ADR-0009 section 5): constraint name -> the skins that scope it. A constraint listed
+  // in a skin's `constraints` is active only while one of those skins is active; a constraint in no list is
+  // unscoped (always active). Built once here so the per-frame solve reads a captured `scopeSkins`.
+  const scopeByConstraint = new Map<string, string[]>();
+  for (const skin of document.skins) {
+    for (const name of skin.constraints ?? []) {
+      const existing = scopeByConstraint.get(name);
+      if (existing !== undefined) existing.push(skin.name);
+      else scopeByConstraint.set(name, [skin.name]);
+    }
+  }
+
   // A pre-0.2.0 draft may lack the constraint arrays (they were added in ADR-0004); tolerate that by
   // treating a missing array as empty, the same lenience buildPose already applies to unresolved names.
-  const ikConstraints = (document.ikConstraints ?? []).map((c) => resolveIk(c, indexByName));
+  const ikConstraints = (document.ikConstraints ?? []).map((c) =>
+    resolveIk(c, indexByName, scopeByConstraint.get(c.name) ?? null),
+  );
   const transformConstraints = (document.transformConstraints ?? []).map((c) =>
-    resolveTransform(c, indexByName),
+    resolveTransform(c, indexByName, scopeByConstraint.get(c.name) ?? null),
   );
 
   const pose = allocatePose(
@@ -98,6 +112,7 @@ function resolveBoneIndices(
 function resolveIk(
   constraint: IkConstraint,
   indexByName: ReadonlyMap<string, number>,
+  scopeSkins: readonly string[] | null,
 ): ResolvedIkConstraint {
   const bendPositive = constraint.bend > 0;
   return {
@@ -116,6 +131,7 @@ function resolveIk(
     baseCompress: constraint.compress,
     uniform: constraint.uniform,
     order: constraint.order ?? -1,
+    scopeSkins,
     sampled: {
       mix: constraint.mix,
       bendPositive,
@@ -129,6 +145,7 @@ function resolveIk(
 function resolveTransform(
   constraint: TransformConstraint,
   indexByName: ReadonlyMap<string, number>,
+  scopeSkins: readonly string[] | null,
 ): ResolvedTransformConstraint {
   const baseMix: TransformMix = {
     rotate: constraint.mixRotate,
@@ -156,6 +173,7 @@ function resolveTransform(
     local: constraint.local,
     relative: constraint.relative,
     order: constraint.order ?? -1,
+    scopeSkins,
     sampledMix: { ...baseMix },
   };
 }

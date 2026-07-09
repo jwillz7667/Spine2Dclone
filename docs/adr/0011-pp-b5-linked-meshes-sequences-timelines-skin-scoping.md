@@ -80,15 +80,44 @@ a sequence lane and all stay byte-identical.
 
 ### 3. Timeline granularity: per-component, split color, dark color (ADR-0009 section 4) [PLANNED, slice 6]
 
-### 4. Skin scoping (ADR-0009 section 5) [PLANNED, PP-B5 slice 7]
+### 4. Skin scoping (ADR-0009 section 5) [IMPLEMENTED, PP-B5 slice 7]
+
+A skin may list `constraints` (and `bones`) that are active only while that skin is active.
+
+**Scoped constraints (real solve effect).** `sampleSkeleton` takes an active-skin argument (default null =
+only the always-active 'default' skin). At build, each constraint captures the set of skins that list it in
+their `constraints` (`scopeSkins`, null when unscoped). Step 3 solves a constraint iff it is unscoped, OR
+one of its scoping skins is `default`, OR the frame's active skin is one of its scoping skins. A scoped-
+inactive constraint is skipped entirely (it writes no local transform), so the constrained bone keeps the
+value the animation gave it. This holds in both the default two-phase order and the explicit-order schedule
+(the scope check lives in the shared per-constraint helper). Default null active skin plus no scoping keeps
+every existing rig byte-identical.
+
+**Scoped bones (no transform-solve effect, documented per PP-B5 item 8).** A skin's `bones` list is pure
+data for runtime-core's transform solve: every bone in the hierarchy still computes its world transform
+from its local each frame regardless of the active skin (a bone cannot be omitted from the forward pass
+without breaking its descendants' frames), and the animation timelines apply to it unconditionally. Skin
+bone scoping governs which bones/attachments a RENDERER draws and which attachments resolve under the active
+skin, which is a rendering/attachment concern, not a transform-solve one. runtime-core therefore validates
+(via the format) that `bones` entries resolve, but the transform solve gives them no special treatment. If a
+future renderer track needs per-skin bone visibility it reads the format's `Skin.bones` directly; the solve
+does not need it. This is the deliberate "close pure-data semantics" outcome for the bones list.
+
+The fixture observes scoping through a per-sample `activeSkins` sample-spec knob (parallel to `poseTimes`),
+so one rig can sample the same constraint under different active skins and lock the on/off difference on the
+existing bone world-affine lane.
 
 ## Consequences
 
-- `runtime-core` mesh sampling resolves a linked mesh to its geometry root and its deform source before
-  skinning; a plain mesh takes the identity resolution, so its fixtures are byte-identical.
-- The conformance corpus gains `rig-linked-mesh` (a linked mesh inheriting a weighted mesh's geometry,
-  with both `timelines` values), observed on the existing mesh-vertex lane.
-- Unity and Godot mirror the same two walks (the one-stage-lag rule).
+- `runtime-core` gains: linked-mesh geometry/deform resolution (mesh sampling), the discrete sequence-frame
+  resolver, the per-component split bone tracks, split rgb/alpha and keyable dark slot color (a dark-color
+  pose lane), and skin-scoped constraint solving (an active-skin argument threaded to step 3). Every default
+  (plain mesh, no sequence, joint tracks, no dark, no scoping, null active skin) reproduces the pre-F2 solve,
+  so pre-F2 fixtures are byte-identical.
+- The conformance corpus gains `rig-linked-mesh`, `rig-sequences` (a new exact-integer sequence-frame lane),
+  `rig-split-tracks` (a new optional dark-color slot field), and `rig-skin-scoped` (a new per-sample
+  `activeSkins` sample-spec knob). Each new lane/knob is opt-in, so no other fixture changes.
+- Unity and Godot mirror every behavior and turn the new fixtures green (the one-stage-lag rule).
 
 ## Alternatives considered
 

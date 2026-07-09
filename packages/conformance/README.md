@@ -12,7 +12,7 @@ All under `src/`:
 
 | Track | Rigs / inputs | Fixtures | Lock |
 |---|---|---|---|
-| **Skeleton** | `rigs/` (17 rigs, each committed as `.json` AND a binary `.bin` twin): rig-2bone, rig-rigid-mesh, rig-weighted-mesh, rig-one-bone-ik, rig-two-bone-ik, rig-transform-constraint, rig-deform, rig-transform-modes, rig-blendmodes, rig-events-draworder, rig-events-loop, rig-ik-depth, rig-constraint-order, rig-transform-variants, rig-linked-mesh, rig-sequences, rig-split-tracks | `fixtures/` (17, driven by `sample-spec/`) | `.fixtures.lock` |
+| **Skeleton** | `rigs/` (18 rigs, each committed as `.json` AND a binary `.bin` twin): rig-2bone, rig-rigid-mesh, rig-weighted-mesh, rig-one-bone-ik, rig-two-bone-ik, rig-transform-constraint, rig-deform, rig-transform-modes, rig-blendmodes, rig-events-draworder, rig-events-loop, rig-ik-depth, rig-constraint-order, rig-transform-variants, rig-linked-mesh, rig-sequences, rig-split-tracks, rig-skin-scoped | `fixtures/` (18, driven by `sample-spec/`) | `.fixtures.lock` |
 | **Effects / particles** | `effects-rigs/` (4): coin-burst, ribbon-trail, circle-spawn, god-rays-sprite | `effects-fixtures/` (4) | `.effects-fixtures.lock` |
 | **AnimationState** (ADR-0005) | `anim-state-rigs/anim-state-rig.json` | `anim-state-fixtures/` (4): discrete-flip, additive-layer, queue-loop-boundary, crossfade-fractions | `.anim-state-fixtures.lock` |
 | **Slot** | `slot/scenes/` (4 scenes) x `slot/spins/` (6 spins) via `slot/sample-spec/` | `slot/expected/` (6 golden `PresentationTimeline`s) | `.slot.fixtures.lock` |
@@ -76,6 +76,12 @@ joint channels), the split rgb/alpha slot color (observed on the existing slot c
 two-color dark tint (observed on a new optional `dark` field of the slot capture, compared on the COLOR
 tolerance). The dark field is emitted only for a slot with a setup `darkColor`, so pre-slice-6 slot captures
 stay byte-identical.
+
+**rig-skin-scoped** (PP-B5 slice 7, ADR-0011 section 4) locks skin-scoped constraint solving: a transform
+constraint scoped to skin "gold" solves only while "gold" is active, while an unscoped one always solves.
+It uses a new per-sample `activeSkins` sample-spec knob (parallel to `poseTimes`) to sample the same rig
+under active skin null (scoped off) and "gold" (scoped on), observing the on/off difference on the bone
+world-affine lane. Scoped bones are pure data with no transform-solve effect (ADR-0011 section 4).
 
 ## Structure
 

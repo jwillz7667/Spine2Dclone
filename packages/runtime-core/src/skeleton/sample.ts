@@ -70,6 +70,10 @@ export function sampleSkeleton(
   animationId: string,
   t: number,
   outPose: Pose,
+  // The active skin for skin-scoped constraints (ADR-0009 section 5, ADR-0011 section 4). null (the
+  // default) leaves only the always-active 'default' skin active, so a scoped constraint stays inactive
+  // and every non-scoped rig is unaffected. A constraint no skin scopes is always solved.
+  activeSkin: string | null = null,
 ): void {
   const animation = document.animations[animationId];
   if (animation === undefined) throw new AnimationNotFoundError(animationId);
@@ -92,8 +96,9 @@ export function sampleSkeleton(
   composeTouchedBones(outPose);
 
   // Step 3: solve constraints: ALL IK constraints first, then ALL transform constraints, each in
-  // document array order (ADR-0003 section 3). Constraints write LOCAL only.
-  solveConstraints(outPose);
+  // document array order (ADR-0003 section 3). Constraints write LOCAL only. A skin-scoped constraint is
+  // skipped unless its skin is active.
+  solveConstraints(outPose, activeSkin);
 
   // Step 4: world transforms (single forward pass, parents before children). Because step 3 wrote only
   // local transforms, this pass is unconditional and reproduces every constraint's intended world.
@@ -178,11 +183,33 @@ function blendAddRotation(current: number, setupValue: number, sampled: number, 
   return current + normalizeDeltaDeg(sampled - setupValue) * w;
 }
 
+// Whether a constraint participates in the solve under the active skin (ADR-0009 section 5, ADR-0011
+// section 4). Unscoped (scopeSkins null) constraints are always active; a scoped one is active when the
+// 'default' skin scopes it (the default skin is always active) or when the frame's active skin is one of
+// its scoping skins. Allocation-free: a short scan of the scoping name list (empty for the common case).
+function isConstraintScopeActive(
+  scopeSkins: readonly string[] | null,
+  activeSkin: string | null,
+): boolean {
+  if (scopeSkins === null) return true;
+  for (let i = 0; i < scopeSkins.length; i += 1) {
+    const skin = scopeSkins[i]!;
+    if (skin === 'default' || skin === activeSkin) return true;
+  }
+  return false;
+}
+
 // Solve one IK constraint against the pose (ADR-0003 section 4, depth per ADR-0010 section 2). Reads the
 // target world origin into the module scratch and dispatches one/two-bone. A constraint with an
-// unresolved bone/target index (-1) or non-positive mix is a no-op. The per-constraint sampled scratch
-// (mix, bend, softness, stretch, compress) was written by step 2; `uniform` is the static definition flag.
-function solveOneIkConstraint(pose: Pose, constraint: ResolvedIkConstraint): void {
+// unresolved bone/target index (-1) or non-positive mix is a no-op; a skin-scoped constraint whose skin is
+// inactive is skipped. The per-constraint sampled scratch (mix, bend, softness, stretch, compress) was
+// written by step 2; `uniform` is the static definition flag.
+function solveOneIkConstraint(
+  pose: Pose,
+  constraint: ResolvedIkConstraint,
+  activeSkin: string | null,
+): void {
+  if (!isConstraintScopeActive(constraint.scopeSkins, activeSkin)) return;
   const targetIndex = constraint.targetIndex;
   if (targetIndex < 0) return;
   const sampled = constraint.sampled;
@@ -218,8 +245,14 @@ function solveOneIkConstraint(pose: Pose, constraint: ResolvedIkConstraint): voi
 }
 
 // Solve one transform constraint against the pose (ADR-0003 section 5). Applies to each constrained bone
-// in stored order; an unresolved bone/target index is skipped.
-function solveOneTransformConstraint(pose: Pose, constraint: ResolvedTransformConstraint): void {
+// in stored order; an unresolved bone/target index is skipped, as is a scoped constraint whose skin is
+// inactive.
+function solveOneTransformConstraint(
+  pose: Pose,
+  constraint: ResolvedTransformConstraint,
+  activeSkin: string | null,
+): void {
+  if (!isConstraintScopeActive(constraint.scopeSkins, activeSkin)) return;
   const targetIndex = constraint.targetIndex;
   if (targetIndex < 0) return;
   const boneIndices = constraint.boneIndices;
@@ -244,15 +277,15 @@ function solveOneTransformConstraint(pose: Pose, constraint: ResolvedTransformCo
 // is the precomputed dense schedule and step 3 walks it, dispatching each code to the SAME per-constraint
 // helper the default path uses (so an IK constraint is bit-identical either way; only the schedule moves).
 // Allocation-free: target world goes into the module scratch; the schedule is precomputed at build.
-export function solveConstraints(pose: Pose): void {
+export function solveConstraints(pose: Pose, activeSkin: string | null = null): void {
   const { ikConstraints, transformConstraints, solveOrder } = pose;
 
   if (solveOrder === null) {
     for (let i = 0; i < ikConstraints.length; i += 1) {
-      solveOneIkConstraint(pose, ikConstraints[i]!);
+      solveOneIkConstraint(pose, ikConstraints[i]!, activeSkin);
     }
     for (let i = 0; i < transformConstraints.length; i += 1) {
-      solveOneTransformConstraint(pose, transformConstraints[i]!);
+      solveOneTransformConstraint(pose, transformConstraints[i]!, activeSkin);
     }
     return;
   }
@@ -261,9 +294,9 @@ export function solveConstraints(pose: Pose): void {
   for (let p = 0; p < solveOrder.length; p += 1) {
     const code = solveOrder[p]!;
     if (code < ikCount) {
-      solveOneIkConstraint(pose, ikConstraints[code]!);
+      solveOneIkConstraint(pose, ikConstraints[code]!, activeSkin);
     } else {
-      solveOneTransformConstraint(pose, transformConstraints[code - ikCount]!);
+      solveOneTransformConstraint(pose, transformConstraints[code - ikCount]!, activeSkin);
     }
   }
 }

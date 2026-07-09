@@ -99,8 +99,17 @@ export function buildFixtureSamples(document: SkeletonDocument, spec: SampleSpec
       (a.attachment < b.attachment ? -1 : a.attachment > b.attachment ? 1 : 0),
   );
   const vertexScratch = meshTargets.length > 0 ? new Float32Array(maxMeshLanes(document)) : null;
-  for (const time of spec.poseTimes) {
-    sampleSkeleton(document, spec.animation, time, pose);
+  // Per-sample active skin for skin-scoped constraints (rig-skin-scoped). Must align with poseTimes when
+  // present; a bad spec fails loudly (Law 3) rather than silently sampling the wrong skin.
+  if (spec.activeSkins !== undefined && spec.activeSkins.length !== spec.poseTimes.length) {
+    throw new Error(
+      `sample-spec activeSkins length ${spec.activeSkins.length} must match poseTimes length ${spec.poseTimes.length}`,
+    );
+  }
+  for (let sampleIndex = 0; sampleIndex < spec.poseTimes.length; sampleIndex += 1) {
+    const time = spec.poseTimes[sampleIndex]!;
+    const activeSkin = spec.activeSkins?.[sampleIndex] ?? null;
+    sampleSkeleton(document, spec.animation, time, pose, activeSkin);
     const bones: Record<string, Affine> = {};
     for (let i = 0; i < pose.boneNames.length; i += 1) {
       bones[pose.boneNames[i]!] = readAffine(pose.world, i);

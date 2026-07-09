@@ -61,6 +61,10 @@ export const RIG_IDS = [
   // shearX/Y), split rgb/alpha slot color, and a keyable two-color dark tint (a new dark-color lane on the
   // slot capture). Authored first-principles.
   'rig-split-tracks',
+  // PP-B5 slice 7 (ADR-0011 section 4): skin-scoped constraints. A transform constraint scoped to skin
+  // "gold" solves only when that skin is active; an unscoped one always solves. Sampled under active skin
+  // null (scoped off) vs "gold" (scoped on) via the sample-spec activeSkins knob. Authored first-principles.
+  'rig-skin-scoped',
 ] as const;
 
 export type RigId = (typeof RIG_IDS)[number];
@@ -91,6 +95,7 @@ export const RIG_PHASE: Readonly<Record<RigId, number>> = {
   'rig-linked-mesh': 2,
   'rig-sequences': 2,
   'rig-split-tracks': 2,
+  'rig-skin-scoped': 2,
 };
 
 // The committed current phase (B.2 landed-rig gating). Bumped per phase milestone in this file, NOT

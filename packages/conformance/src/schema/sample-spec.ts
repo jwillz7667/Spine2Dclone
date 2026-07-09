@@ -44,6 +44,11 @@ export const sampleSpecSchema = z
     // rig-sequences). Opt-in and order-preserving: a spec that omits it captures no sequences, so every
     // pre-slice-5 fixture regenerates byte-identically. The captured integer frame is compared EXACT.
     captureSequences: z.array(z.string().min(1)).optional(),
+    // Per-sample active skin for skin-scoped constraints (PP-B5 slice 7, rig-skin-scoped). Parallel to
+    // poseTimes: `activeSkins[i]` is the active skin at `poseTimes[i]` (null = only the default skin). Opt-
+    // in; a spec that omits it samples every frame with no active skin, so every pre-slice-7 fixture
+    // regenerates byte-identically. When present it MUST have the same length as poseTimes (build-fixture).
+    activeSkins: z.array(z.string().min(1).nullable()).optional(),
     eventStep: z
       .object({
         dt: z.number().finite().positive(),

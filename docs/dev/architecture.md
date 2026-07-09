@@ -24,8 +24,8 @@ packages/
   format/            # THE CONTRACT: Zod schemas, validators, hashing, migrations, MRNT binary
   runtime-core/      # platform-agnostic solve: skeleton, effects, slot sequencer (no PixiJS/DOM/Node)
   runtime-web/       # PixiJS v8 playback; also powers the editor viewport
-  document-core/     # DocumentModel + 101 commands + History (shared by GUI and MCP; ADR-0001)
-  mcp-server/        # 143 MCP tools over stdio: full headless authoring control (AI + scripts)
+  document-core/     # DocumentModel + 113 commands + History (shared by GUI and MCP; ADR-0001)
+  mcp-server/        # 157 MCP tools over stdio: full headless authoring control (AI + scripts)
   render-preview/    # deterministic CPU rasterizer -> PNG for headless render feedback (ADR-0006)
   atlas-pack/        # deterministic sprite-atlas pipeline (ADR-0007)
   math-bridge/       # the LAW 1 boundary: SpinResult contract, validator, mock + real engine adapter
@@ -88,7 +88,7 @@ Full text in `CLAUDE.md`; every subsystem below is shaped by them.
    GUI panels / viewport tools            MCP client (AI agent)
               |                                   |
               v                                   v
-   apps/editor renderer                 packages/mcp-server (143 tools, stdio)
+   apps/editor renderer                 packages/mcp-server (157 tools, stdio)
               \                                   /
                \                                 /
                 +--> @marionette/document-core <-+

@@ -1625,6 +1625,325 @@ describe('MCP slot composer tools', () => {
   });
 });
 
+// A rig with two slots and an animation, so the event and draw-order timeline tools have real targets.
+async function buildEventRig(deps: ToolDeps): Promise<{
+  documentId: string;
+  slotA: string;
+  slotB: string;
+  animationId: string;
+}> {
+  const { documentId } = asRecord(await call(deps, 'document.new', { name: 'events' }));
+  const { boneId } = asRecord(
+    await call(deps, 'bone.create', { documentId, name: 'root', length: 50 }),
+  );
+  const { slotId: slotA } = asRecord(
+    await call(deps, 'slot.create', { documentId, boneId, name: 'slotA' }),
+  );
+  const { slotId: slotB } = asRecord(
+    await call(deps, 'slot.create', { documentId, boneId, name: 'slotB' }),
+  );
+  const { animationId } = asRecord(
+    await call(deps, 'anim.create', { documentId, name: 'idle', duration: 2 }),
+  );
+  return {
+    documentId: String(documentId),
+    slotA: String(slotA),
+    slotB: String(slotB),
+    animationId: String(animationId),
+  };
+}
+
+describe('MCP event tools (PP-D9)', () => {
+  it('defines, lists, gets, updates, renames, and deletes event definitions through the AI surface', async () => {
+    const deps = makeDeps();
+    const { documentId } = await buildEventRig(deps);
+
+    const defined = asRecord(
+      await call(deps, 'event.define', {
+        documentId,
+        name: 'footstep',
+        int: 3,
+        audio: { path: 'audio/step.ogg', volume: 0.8, balance: 0 },
+      }),
+    );
+    const eventId = String(defined.eventId);
+    expect(eventId.length).toBeGreaterThan(0);
+
+    const list = asRecord(await call(deps, 'event.list', { documentId }));
+    expect((list.events as unknown[]).length).toBe(1);
+
+    const got = asRecord(asRecord(await call(deps, 'event.get', { documentId, eventId })).event);
+    expect(got.name).toBe('footstep');
+    expect(got.int).toBe(3);
+    expect(asRecord(got.audio).volume).toBeCloseTo(0.8);
+
+    // setDefaults replaces payload defaults wholesale (absent field clears it); audio is left untouched.
+    const setDefaults = asRecord(
+      await call(deps, 'event.setDefaults', { documentId, eventId, float: 1.5 }),
+    );
+    expect(typeof setDefaults.revision).toBe('number');
+    const afterDefaults = asRecord(
+      asRecord(await call(deps, 'event.get', { documentId, eventId })).event,
+    );
+    expect(afterDefaults.int).toBeUndefined(); // cleared
+    expect(afterDefaults.float).toBe(1.5);
+    expect(asRecord(afterDefaults.audio).path).toBe('audio/step.ogg'); // audio untouched
+
+    // setAudio with no audio clears the hint.
+    await call(deps, 'event.setAudio', { documentId, eventId });
+    const cleared = asRecord(
+      asRecord(await call(deps, 'event.get', { documentId, eventId })).event,
+    );
+    expect(cleared.audio).toBeUndefined();
+
+    await call(deps, 'event.rename', { documentId, eventId, name: 'jump' });
+    const renamed = asRecord(
+      asRecord(await call(deps, 'event.get', { documentId, eventId })).event,
+    );
+    expect(renamed.name).toBe('jump');
+
+    await call(deps, 'event.delete', { documentId, eventId });
+    expect((asRecord(await call(deps, 'event.list', { documentId })).events as unknown[]).length).toBe(
+      0,
+    );
+  });
+
+  it('sets, moves, and deletes event-timeline keys and surfaces them through anim.get', async () => {
+    const deps = makeDeps();
+    const { documentId, animationId } = await buildEventRig(deps);
+    const { eventId } = asRecord(await call(deps, 'event.define', { documentId, name: 'boom' }));
+
+    await call(deps, 'event.key.set', {
+      documentId,
+      animationId,
+      eventId: String(eventId),
+      time: 0.5,
+      int: 7,
+    });
+
+    const readKeys = async (): Promise<Array<{ id: string; time: number; int?: number }>> => {
+      const animation = asRecord(
+        asRecord(await call(deps, 'anim.get', { documentId, animationId })).animation,
+      );
+      return animation.events as Array<{ id: string; time: number; int?: number }>;
+    };
+
+    let keys = await readKeys();
+    expect(keys).toHaveLength(1);
+    expect(keys[0]!.time).toBeCloseTo(0.5);
+    expect(keys[0]!.int).toBe(7);
+    const keyframeId = keys[0]!.id;
+
+    await call(deps, 'event.key.move', { documentId, animationId, keyframeId, time: 1.25 });
+    keys = await readKeys();
+    expect(keys[0]!.time).toBeCloseTo(1.25);
+
+    await call(deps, 'event.key.delete', { documentId, animationId, keyframeId });
+    expect(await readKeys()).toHaveLength(0);
+  });
+
+  it('surfaces typed errors for a duplicate name, a missing event, and a missing key', async () => {
+    const deps = makeDeps();
+    const { documentId, animationId } = await buildEventRig(deps);
+    await call(deps, 'event.define', { documentId, name: 'dup' });
+
+    await expectToolError(
+      call(deps, 'event.define', { documentId, name: 'dup' }),
+      'EVENT_EDIT',
+    );
+    await expectToolError(
+      call(deps, 'event.get', { documentId, eventId: 'nope' }),
+      'EVENT_NOT_FOUND',
+    );
+    await expectToolError(
+      call(deps, 'event.setAudio', {
+        documentId,
+        eventId: 'nope',
+        audio: { path: 'a', volume: 0.5, balance: 0 },
+      }),
+      'EVENT_NOT_FOUND',
+    );
+    // An out-of-range volume reaches the command's audioRange guard (EVENT_EDIT, not INVALID_INPUT).
+    const { eventId } = asRecord(await call(deps, 'event.define', { documentId, name: 'ranged' }));
+    await expectToolError(
+      call(deps, 'event.setAudio', {
+        documentId,
+        eventId: String(eventId),
+        audio: { path: 'a', volume: 2, balance: 0 },
+      }),
+      'EVENT_EDIT',
+    );
+    await expectToolError(
+      call(deps, 'event.key.move', {
+        documentId,
+        animationId,
+        keyframeId: 'ghost',
+        time: 0.1,
+      }),
+      'KEYFRAME_NOT_FOUND',
+    );
+    await expectToolError(
+      call(deps, 'event.key.delete', { documentId, animationId, keyframeId: 'ghost' }),
+      'KEYFRAME_NOT_FOUND',
+    );
+  });
+});
+
+describe('MCP draw-order tools (PP-D9)', () => {
+  it('sets, moves, and deletes draw-order keys and surfaces them through anim.get', async () => {
+    const deps = makeDeps();
+    const { documentId, animationId, slotA, slotB } = await buildEventRig(deps);
+
+    // slotB (setup index 1) moves to index 0.
+    const set = asRecord(
+      await call(deps, 'draworder.key.set', {
+        documentId,
+        animationId,
+        time: 0,
+        offsets: [{ slot: slotB, offset: -1 }],
+      }),
+    );
+    expect(typeof set.revision).toBe('number');
+    // slotA (setup index 0) moves to index 1.
+    await call(deps, 'draworder.key.set', {
+      documentId,
+      animationId,
+      time: 1,
+      offsets: [{ slot: slotA, offset: 1 }],
+    });
+
+    const readKeys = async (): Promise<
+      Array<{ id: string; time: number; offsets: Array<{ slot: string; offset: number }> }>
+    > => {
+      const animation = asRecord(
+        asRecord(await call(deps, 'anim.get', { documentId, animationId })).animation,
+      );
+      return animation.drawOrder as Array<{
+        id: string;
+        time: number;
+        offsets: Array<{ slot: string; offset: number }>;
+      }>;
+    };
+
+    let keys = await readKeys();
+    expect(keys).toHaveLength(2);
+    expect(keys[0]!.offsets).toEqual([{ slot: slotB, offset: -1 }]);
+    const secondKeyId = keys[1]!.id;
+
+    // Move the second key to a free time (draw-order times are strictly ascending).
+    await call(deps, 'draworder.key.move', {
+      documentId,
+      animationId,
+      keyframeId: secondKeyId,
+      time: 1.5,
+    });
+    keys = await readKeys();
+    expect(keys[1]!.time).toBeCloseTo(1.5);
+
+    await call(deps, 'draworder.key.delete', {
+      documentId,
+      animationId,
+      keyframeId: secondKeyId,
+    });
+    expect(await readKeys()).toHaveLength(1);
+  });
+
+  it('surfaces DRAW_ORDER for a bad offset and KEYFRAME_COLLISION / KEYFRAME_NOT_FOUND on move', async () => {
+    const deps = makeDeps();
+    const { documentId, animationId, slotA, slotB } = await buildEventRig(deps);
+
+    // A slot that does not exist in the document is a typed DRAW_ORDER (slotMissing).
+    await expectToolError(
+      call(deps, 'draworder.key.set', {
+        documentId,
+        animationId,
+        time: 0,
+        offsets: [{ slot: 'ghost', offset: 0 }],
+      }),
+      'DRAW_ORDER',
+    );
+    // An offset that targets an out-of-range index is a typed DRAW_ORDER (targetOutOfRange).
+    await expectToolError(
+      call(deps, 'draworder.key.set', {
+        documentId,
+        animationId,
+        time: 0,
+        offsets: [{ slot: slotA, offset: 5 }],
+      }),
+      'DRAW_ORDER',
+    );
+
+    await call(deps, 'draworder.key.set', {
+      documentId,
+      animationId,
+      time: 0,
+      offsets: [{ slot: slotB, offset: -1 }],
+    });
+    const second = asRecord(
+      await call(deps, 'draworder.key.set', {
+        documentId,
+        animationId,
+        time: 1,
+        offsets: [{ slot: slotA, offset: 1 }],
+      }),
+    );
+    expect(typeof second.revision).toBe('number');
+    const animation = asRecord(
+      asRecord(await call(deps, 'anim.get', { documentId, animationId })).animation,
+    );
+    const keys = animation.drawOrder as Array<{ id: string; time: number }>;
+    const secondKeyId = keys.find((key) => key.time === 1)!.id;
+
+    // Moving onto the time an existing key occupies is a typed KEYFRAME_COLLISION.
+    await expectToolError(
+      call(deps, 'draworder.key.move', {
+        documentId,
+        animationId,
+        keyframeId: secondKeyId,
+        time: 0,
+      }),
+      'KEYFRAME_COLLISION',
+    );
+    await expectToolError(
+      call(deps, 'draworder.key.delete', { documentId, animationId, keyframeId: 'ghost' }),
+      'KEYFRAME_NOT_FOUND',
+    );
+  });
+});
+
+describe('MCP document metadata tool (PP-D9)', () => {
+  it('sets and clears the skeleton metadata block through the AI surface', async () => {
+    const deps = makeDeps();
+    const { documentId } = await buildEventRig(deps);
+
+    const set = asRecord(
+      await call(deps, 'document.setMetadata', {
+        documentId,
+        fps: 30,
+        imagesPath: 'images',
+        audioPath: 'audio',
+      }),
+    );
+    expect(typeof set.revision).toBe('number');
+
+    const exported = asRecord(await call(deps, 'document.export', { documentId }));
+    const doc = exported.document as SkeletonDocument & {
+      metadata?: { fps?: number; imagesPath?: string; audioPath?: string };
+    };
+    expect(doc.metadata?.fps).toBe(30);
+    expect(doc.metadata?.imagesPath).toBe('images');
+
+    // All fields absent clears the block; one undo restores it in a single step.
+    await call(deps, 'document.setMetadata', { documentId });
+    const cleared = asRecord(await call(deps, 'document.export', { documentId }));
+    expect((cleared.document as { metadata?: unknown }).metadata).toBeUndefined();
+    await call(deps, 'history.undo', { documentId });
+    const restored = asRecord(await call(deps, 'document.export', { documentId }));
+    const restoredDoc = restored.document as SkeletonDocument & { metadata?: { fps?: number } };
+    expect(restoredDoc.metadata?.fps).toBe(30);
+  });
+});
+
 // A guard test enumerating the full tool catalog, so adding or removing a tool is a deliberate, reviewed
 // change (and the WP-2.6 to WP-2.9 tools are pinned present). The list mirrors TOOLS exactly.
 describe('MCP tool catalog', () => {
@@ -1657,12 +1976,35 @@ describe('MCP tool catalog', () => {
     'deform.clearAttachment',
   ] as const;
 
+  const PP_D9_EVENT_TOOLS = [
+    'event.define',
+    'event.rename',
+    'event.delete',
+    'event.setDefaults',
+    'event.setAudio',
+    'event.list',
+    'event.get',
+    'event.key.set',
+    'event.key.move',
+    'event.key.delete',
+    'draworder.key.set',
+    'draworder.key.move',
+    'draworder.key.delete',
+    'document.setMetadata',
+  ] as const;
+
   it('exposes every Phase 2 constraint / skin / deform tool with a unique name', () => {
     for (const name of PHASE_2_CONSTRAINT_TOOLS) {
       expect(byName.has(name), `missing tool ${name}`).toBe(true);
     }
     // Tool names are unique across the whole catalog.
     expect(byName.size).toBe(TOOLS.length);
+  });
+
+  it('exposes every Stage F1 event / draw-order / metadata tool with a unique name', () => {
+    for (const name of PP_D9_EVENT_TOOLS) {
+      expect(byName.has(name), `missing tool ${name}`).toBe(true);
+    }
   });
 });
 

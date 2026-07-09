@@ -117,6 +117,21 @@ import {
   RemoveFeatureFlowTransitionCommand,
   SetTumbleChoreographyCommand,
   SlotEditError,
+  // Events + draw-order timelines + document metadata (Stage F1, PP-D9) command surface and typed errors.
+  DefineEventCommand,
+  RenameEventCommand,
+  DeleteEventCommand,
+  SetEventDefaultsCommand,
+  SetEventAudioCommand,
+  SetEventKeyCommand,
+  MoveEventKeyCommand,
+  DeleteEventKeyCommand,
+  SetDrawOrderKeyCommand,
+  MoveDrawOrderKeyCommand,
+  DeleteDrawOrderKeyCommand,
+  SetDocumentMetadataCommand,
+  EventEditError,
+  DrawOrderError,
   exportDocument,
   exportEffects,
   EffectsExportValidationError,
@@ -160,9 +175,16 @@ import {
   type NewLayerKind,
   type MapSymbolAnimSetInit,
   type EffectsReadModel,
+  type EventDefEntity,
+  type EventDefId,
+  type EventDefInit,
+  type EventDefaults,
+  type EventKeyOverrides,
+  type EventAudioValue,
+  type DrawOrderOffsetEntity,
 } from '@marionette/document-core';
 import { FormatValidationError } from '@marionette/format';
-import type { AtlasRef, SkeletonDocument } from '@marionette/format/types';
+import type { AtlasRef, SkeletonDocument, SkeletonMeta } from '@marionette/format/types';
 import type { EffectsDocument } from '@marionette/format/effects-types';
 import type { SymbolId } from '@marionette/format/slot-types';
 import {
@@ -344,6 +366,52 @@ function executeDeformEdit(session: Session, cmd: Command): number {
   } catch (error) {
     if (error instanceof DeformError) {
       throw new McpToolError('DEFORM', error.message, { reason: error.reason });
+    }
+    throw error;
+  }
+  return session.document.model.revision;
+}
+
+// Brand a client-supplied event-definition id string; validated against the live model by requireEventDef,
+// so a non-existent id is a typed EVENT_NOT_FOUND rather than a silent no-op (mirrors asBoneId).
+function asEventDefId(id: string): EventDefId {
+  return id as EventDefId;
+}
+
+// Require an existing document-level event definition by id (Stage F1), rejected as EVENT_NOT_FOUND.
+function requireEventDef(session: Session, eventId: string): EventDefEntity {
+  const def = session.document.model.getEventDef(asEventDefId(eventId));
+  if (def === undefined) {
+    throw new McpToolError('EVENT_NOT_FOUND', `no event definition with id "${eventId}"`);
+  }
+  return def;
+}
+
+// Execute an event-definition / event-timeline edit (Stage F1), converting the EventEditError guard into a
+// typed EVENT_EDIT tool error carrying the reason (a duplicate name, an empty name, a missing definition, an
+// audio range). The guard throws BEFORE any mutation, so a rejected edit changes nothing and pushes no
+// history entry (mirrors executeSkinEdit).
+function executeEventEdit(session: Session, cmd: Command): number {
+  try {
+    session.document.history.execute(cmd);
+  } catch (error) {
+    if (error instanceof EventEditError) {
+      throw new McpToolError('EVENT_EDIT', error.message, { reason: error.reason });
+    }
+    throw error;
+  }
+  return session.document.model.revision;
+}
+
+// Execute a draw-order-timeline edit (Stage F1), converting the DrawOrderError guard into a typed DRAW_ORDER
+// tool error carrying the reason (a missing/duplicate slot, an out-of-range or colliding target offset). The
+// guard throws BEFORE any mutation, so a rejected edit changes nothing and pushes no history entry.
+function executeDrawOrderEdit(session: Session, cmd: Command): number {
+  try {
+    session.document.history.execute(cmd);
+  } catch (error) {
+    if (error instanceof DrawOrderError) {
+      throw new McpToolError('DRAW_ORDER', error.message, { reason: error.reason });
     }
     throw error;
   }
@@ -580,8 +648,21 @@ function skinView(skin: SkinEntity): Record<string, unknown> {
   return { id: skin.id, name: skin.name, attachments };
 }
 
-// A summary of an animation (ids, name, duration, and per-bone/slot track counts); the keyframe detail
-// lives in animationView for `anim.get`.
+// Project a document-level event definition for `event.list` / `event.get` (its payload defaults and the
+// optional audio hint; identity is the id, `name` is the mutable on-disk label the timeline references).
+function eventDefView(def: EventDefEntity): Record<string, unknown> {
+  return {
+    id: def.id,
+    name: def.name,
+    int: def.int,
+    float: def.float,
+    string: def.string,
+    audio: def.audio,
+  };
+}
+
+// A summary of an animation (ids, name, duration, and per-bone/slot track + event/draw-order key counts);
+// the keyframe detail lives in animationView for `anim.get`.
 function animationSummary(animation: AnimationEntity): Record<string, unknown> {
   return {
     id: animation.id,
@@ -589,6 +670,8 @@ function animationSummary(animation: AnimationEntity): Record<string, unknown> {
     duration: animation.duration,
     boneTracks: animation.bones.size,
     slotTracks: animation.slots.size,
+    eventKeys: animation.events.length,
+    drawOrderKeys: animation.drawOrder.length,
   };
 }
 
@@ -613,6 +696,19 @@ function animationView(animation: AnimationEntity): Record<string, unknown> {
         time: frame.time,
         name: frame.name,
       })),
+    })),
+    events: animation.events.map((key) => ({
+      id: key.id,
+      time: key.time,
+      event: key.event,
+      int: key.int,
+      float: key.float,
+      string: key.string,
+    })),
+    drawOrder: animation.drawOrder.map((key) => ({
+      id: key.id,
+      time: key.time,
+      offsets: key.offsets.map((entry) => ({ slot: entry.slot, offset: entry.offset })),
     })),
   };
 }
@@ -2165,6 +2261,403 @@ const slotSceneTools: readonly ToolDefinition[] = [
   ),
 ];
 
+// ============================================================================
+// Events, draw-order timelines, and document metadata (Stage F1, ADR-0008, PP-D9). Each mutating tool
+// drives the SAME document-core command the GUI uses on the shared per-document History (LAW 2): an event
+// or draw-order edit shares the ONE project undo stack with skeleton edits. Ids are client-supplied and
+// validated against the live model by the require* helpers; every typed document-core failure
+// (EventEditError / DrawOrderError / KeyframeCollisionError / CommandTargetMissingError) is surfaced as a
+// typed McpToolError (LAW 3).
+// ============================================================================
+
+const eventId = z.string().min(1);
+
+// An event's optional audio hint. `volume` / `balance` are passed through unclamped so the command's
+// audioRange guard (volume in [0, 1], balance in [-1, 1]) is the single range authority and surfaces as a
+// typed EVENT_EDIT (mirroring how the effects tools defer semantic range checks to the command).
+const eventAudioSchema = z
+  .object({
+    path: z.string().min(1),
+    volume: z.number().finite(),
+    balance: z.number().finite(),
+  })
+  .strict();
+
+// One draw-order offset entry: move `slot` by a signed integer number of positions from its setup draw
+// index. The command re-validates slot existence and target consistency (assertConsistentDrawOrder).
+const drawOrderOffsetSchema = z
+  .object({ slot: slotId, offset: z.number().int().finite() })
+  .strict();
+
+const eventTools: readonly ToolDefinition[] = [
+  // ----- event definitions (document-level; each drives the Stage F1 command on the shared History) -----
+  defineTool(
+    {
+      name: 'event.define',
+      title: 'Define event',
+      description:
+        'Create a document-level event definition (its int/float/string payload defaults and an optional ' +
+        'audio hint) and return its id. The name must be unique across event definitions.',
+      input: z
+        .object({
+          documentId,
+          name: z.string().min(1),
+          int: z.number().finite().optional(),
+          float: z.number().finite().optional(),
+          string: z.string().optional(),
+          audio: eventAudioSchema.optional(),
+        })
+        .strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      const id = session.document.ids.mint('eventDef');
+      const init: EventDefInit = {
+        int: input.int,
+        float: input.float,
+        string: input.string,
+        audio: input.audio,
+      };
+      executeEventEdit(session, new DefineEventCommand(id, input.name, init));
+      return { eventId: id };
+    },
+  ),
+  defineTool(
+    {
+      name: 'event.rename',
+      title: 'Rename event',
+      description:
+        'Rename an event definition (identity is the id, so an animation event key never re-binds). The ' +
+        'new name must be unique across event definitions.',
+      input: z.object({ documentId, eventId, name: z.string().min(1) }).strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireEventDef(session, input.eventId);
+      return {
+        revision: executeEventEdit(
+          session,
+          new RenameEventCommand(asEventDefId(input.eventId), input.name),
+        ),
+      };
+    },
+  ),
+  defineTool(
+    {
+      name: 'event.delete',
+      title: 'Delete event',
+      description:
+        'Delete an event definition and cascade-remove every animation event key that fires it (one undo ' +
+        'step).',
+      input: z.object({ documentId, eventId }).strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireEventDef(session, input.eventId);
+      return {
+        revision: executeEventEdit(session, new DeleteEventCommand(asEventDefId(input.eventId))),
+      };
+    },
+  ),
+  defineTool(
+    {
+      name: 'event.setDefaults',
+      title: 'Set event defaults',
+      description:
+        'Replace an event definition int/float/string payload defaults wholesale (an absent field clears ' +
+        'that default). The audio hint is left untouched.',
+      input: z
+        .object({
+          documentId,
+          eventId,
+          int: z.number().finite().optional(),
+          float: z.number().finite().optional(),
+          string: z.string().optional(),
+        })
+        .strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireEventDef(session, input.eventId);
+      const defaults: EventDefaults = {
+        int: input.int,
+        float: input.float,
+        string: input.string,
+      };
+      return {
+        revision: executeEventEdit(
+          session,
+          new SetEventDefaultsCommand(asEventDefId(input.eventId), defaults),
+        ),
+      };
+    },
+  ),
+  defineTool(
+    {
+      name: 'event.setAudio',
+      title: 'Set event audio',
+      description:
+        'Set (or, when audio is absent, clear) an event definition audio hint. `volume` must be in [0, 1] ' +
+        'and `balance` in [-1, 1] (EVENT_EDIT audioRange otherwise).',
+      input: z.object({ documentId, eventId, audio: eventAudioSchema.optional() }).strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireEventDef(session, input.eventId);
+      const audio: EventAudioValue | undefined = input.audio;
+      return {
+        revision: executeEventEdit(
+          session,
+          new SetEventAudioCommand(asEventDefId(input.eventId), audio),
+        ),
+      };
+    },
+  ),
+  defineTool(
+    {
+      name: 'event.list',
+      title: 'List events',
+      description: 'List the document-level event definitions (id, name, payload defaults, audio hint).',
+      input: z.object({ documentId }).strict(),
+    },
+    (deps, input) => ({
+      events: deps.sessions.get(input.documentId).document.model.eventDefs().map(eventDefView),
+    }),
+  ),
+  defineTool(
+    {
+      name: 'event.get',
+      title: 'Get event',
+      description: 'Get one document-level event definition by id.',
+      input: z.object({ documentId, eventId }).strict(),
+    },
+    (deps, input) => ({
+      event: eventDefView(requireEventDef(deps.sessions.get(input.documentId), input.eventId)),
+    }),
+  ),
+
+  // ----- event timeline keys (per animation; fire an event definition at a time, optional overrides) -----
+  defineTool(
+    {
+      name: 'event.key.set',
+      title: 'Set event key',
+      description:
+        'Insert or update an event-timeline key that fires an event definition at a time, optionally ' +
+        'overriding its int/float/string payload defaults (an absent override defers to the definition). ' +
+        'Updating an existing key that fires the same event at the same time keeps its id.',
+      input: z
+        .object({
+          documentId,
+          animationId,
+          eventId,
+          time: z.number().finite().nonnegative(),
+          int: z.number().finite().optional(),
+          float: z.number().finite().optional(),
+          string: z.string().optional(),
+        })
+        .strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireAnimation(session, input.animationId);
+      requireEventDef(session, input.eventId);
+      const overrides: EventKeyOverrides = {
+        int: input.int,
+        float: input.float,
+        string: input.string,
+      };
+      return {
+        revision: executeEventEdit(
+          session,
+          new SetEventKeyCommand(
+            asAnimationId(input.animationId),
+            asEventDefId(input.eventId),
+            input.time,
+            overrides,
+          ),
+        ),
+      };
+    },
+  ),
+  defineTool(
+    {
+      name: 'event.key.move',
+      title: 'Move event key',
+      description:
+        'Move an event-timeline key (by id) to a new time, keeping the timeline non-decreasing in time ' +
+        '(coincident event firings are legal). A time with no such key is a typed KEYFRAME_NOT_FOUND.',
+      input: z
+        .object({
+          documentId,
+          animationId,
+          keyframeId,
+          time: z.number().finite().nonnegative(),
+        })
+        .strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireAnimation(session, input.animationId);
+      try {
+        session.document.history.execute(
+          new MoveEventKeyCommand(
+            asAnimationId(input.animationId),
+            asKeyframeId(input.keyframeId),
+            input.time,
+          ),
+        );
+      } catch (error) {
+        if (error instanceof CommandTargetMissingError) {
+          throw new McpToolError(
+            'KEYFRAME_NOT_FOUND',
+            `no event key "${input.keyframeId}" on animation "${input.animationId}"`,
+          );
+        }
+        throw error;
+      }
+      return { revision: session.document.model.revision };
+    },
+  ),
+  defineTool(
+    {
+      name: 'event.key.delete',
+      title: 'Delete event key',
+      description:
+        'Delete an event-timeline key (by id) from an animation. A missing key is a typed ' +
+        'KEYFRAME_NOT_FOUND.',
+      input: z.object({ documentId, animationId, keyframeId }).strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireAnimation(session, input.animationId);
+      try {
+        session.document.history.execute(
+          new DeleteEventKeyCommand(
+            asAnimationId(input.animationId),
+            asKeyframeId(input.keyframeId),
+          ),
+        );
+      } catch (error) {
+        if (error instanceof CommandTargetMissingError) {
+          throw new McpToolError(
+            'KEYFRAME_NOT_FOUND',
+            `no event key "${input.keyframeId}" on animation "${input.animationId}"`,
+          );
+        }
+        throw error;
+      }
+      return { revision: session.document.model.revision };
+    },
+  ),
+
+  // ----- draw-order timeline keys (per animation; reorder slots over time by signed offsets) -----
+  defineTool(
+    {
+      name: 'draworder.key.set',
+      title: 'Set draw-order key',
+      description:
+        'Insert or update a draw-order key at a time: a compact list of per-slot signed offsets from the ' +
+        'setup draw order (an empty list restores the setup order). Each slot must exist and target a ' +
+        'distinct in-range index (DRAW_ORDER otherwise). Updating an existing key at the same time keeps ' +
+        'its id.',
+      input: z
+        .object({
+          documentId,
+          animationId,
+          time: z.number().finite().nonnegative(),
+          offsets: z.array(drawOrderOffsetSchema),
+        })
+        .strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireAnimation(session, input.animationId);
+      const offsets: DrawOrderOffsetEntity[] = input.offsets.map((entry) => ({
+        slot: asSlotId(entry.slot),
+        offset: entry.offset,
+      }));
+      return {
+        revision: executeDrawOrderEdit(
+          session,
+          new SetDrawOrderKeyCommand(asAnimationId(input.animationId), input.time, offsets),
+        ),
+      };
+    },
+  ),
+  defineTool(
+    {
+      name: 'draworder.key.move',
+      title: 'Move draw-order key',
+      description:
+        'Move a draw-order key (by id) to a new time (draw-order times are strictly ascending). Landing ' +
+        'on an occupied time is a typed KEYFRAME_COLLISION; a missing key is a typed KEYFRAME_NOT_FOUND.',
+      input: z
+        .object({
+          documentId,
+          animationId,
+          keyframeId,
+          time: z.number().finite().nonnegative(),
+        })
+        .strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireAnimation(session, input.animationId);
+      try {
+        session.document.history.execute(
+          new MoveDrawOrderKeyCommand(
+            asAnimationId(input.animationId),
+            asKeyframeId(input.keyframeId),
+            input.time,
+          ),
+        );
+      } catch (error) {
+        if (error instanceof KeyframeCollisionError) {
+          throw new McpToolError('KEYFRAME_COLLISION', error.message);
+        }
+        if (error instanceof CommandTargetMissingError) {
+          throw new McpToolError(
+            'KEYFRAME_NOT_FOUND',
+            `no draw-order key "${input.keyframeId}" on animation "${input.animationId}"`,
+          );
+        }
+        throw error;
+      }
+      return { revision: session.document.model.revision };
+    },
+  ),
+  defineTool(
+    {
+      name: 'draworder.key.delete',
+      title: 'Delete draw-order key',
+      description:
+        'Delete a draw-order key (by id) from an animation. A missing key is a typed KEYFRAME_NOT_FOUND.',
+      input: z.object({ documentId, animationId, keyframeId }).strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireAnimation(session, input.animationId);
+      try {
+        session.document.history.execute(
+          new DeleteDrawOrderKeyCommand(
+            asAnimationId(input.animationId),
+            asKeyframeId(input.keyframeId),
+          ),
+        );
+      } catch (error) {
+        if (error instanceof CommandTargetMissingError) {
+          throw new McpToolError(
+            'KEYFRAME_NOT_FOUND',
+            `no draw-order key "${input.keyframeId}" on animation "${input.animationId}"`,
+          );
+        }
+        throw error;
+      }
+      return { revision: session.document.model.revision };
+    },
+  ),
+];
+
 // ----- skeletal atlas (AtlasRef) schema: mirrors packages/format schema/atlas.ts at the MCP boundary.
 // The editor's atlas-pack pipeline produces this in the main process; atlas.set is the only legal path
 // that installs it on the live document (LAW 2, SetAtlasRefCommand). Sprite/mesh attachment `path`
@@ -2499,6 +2992,38 @@ export const TOOLS: readonly ToolDefinition[] = [
     (deps, input) => {
       deps.sessions.close(input.documentId);
       return { closed: true };
+    },
+  ),
+  defineTool(
+    {
+      name: 'document.setMetadata',
+      title: 'Set document metadata',
+      description:
+        'Set the optional skeleton metadata block (authoring fps and the project-relative imagesPath / ' +
+        'audioPath source directories). Replaced wholesale; when every field is absent the block is ' +
+        'cleared. Drives the Stage F1 command on the shared History (LAW 2).',
+      input: z
+        .object({
+          documentId,
+          fps: z.number().finite().positive().optional(),
+          imagesPath: z.string().min(1).optional(),
+          audioPath: z.string().min(1).optional(),
+        })
+        .strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      // exactOptionalPropertyTypes: build the block with only the present fields; all-absent clears it.
+      const metadata: SkeletonMeta | undefined =
+        input.fps === undefined && input.imagesPath === undefined && input.audioPath === undefined
+          ? undefined
+          : {
+              ...(input.fps !== undefined ? { fps: input.fps } : {}),
+              ...(input.imagesPath !== undefined ? { imagesPath: input.imagesPath } : {}),
+              ...(input.audioPath !== undefined ? { audioPath: input.audioPath } : {}),
+            };
+      session.document.history.execute(new SetDocumentMetadataCommand(metadata));
+      return { revision: session.document.model.revision };
     },
   ),
 
@@ -4797,4 +5322,6 @@ export const TOOLS: readonly ToolDefinition[] = [
   // ----- effects (VFX / particles, Phase 3) + slot composer (Phase 4) -----
   ...effectsTools,
   ...slotSceneTools,
+  // ----- events + draw-order timelines (Stage F1, PP-D9) -----
+  ...eventTools,
 ];

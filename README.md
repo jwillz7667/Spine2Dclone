@@ -12,7 +12,7 @@ composition layer. It exports one portable data format that web, Unity, and Godo
 back. A pre-existing certified math engine drives outcomes; Armature 2D authors presentation only.
 
 Two control surfaces drive the exact same command layer: the desktop GUI, and a headless MCP
-server exposing all 143 authoring tools so an AI agent or script can build, inspect, render, and
+server exposing all 157 authoring tools so an AI agent or script can build, inspect, render, and
 save everything a person can, with the same undo history.
 
 The product is planned to ship in two editions, Essentials and Pro; the tier split is tracked for
@@ -56,7 +56,7 @@ packages/
   runtime-core/    # platform-agnostic solve (skeleton, effects, slot); behavioral source of truth
   runtime-web/     # TS + PixiJS v8 playback; also powers the editor viewport
   document-core/   # DocumentModel + commands + History, shared by GUI and MCP (ADR-0001)
-  mcp-server/      # headless MCP control surface (143 tools over stdio)
+  mcp-server/      # headless MCP control surface (157 tools over stdio)
   render-preview/  # deterministic CPU rasterizer -> PNG for headless render feedback
   atlas-pack/      # deterministic sprite-atlas packing pipeline
   math-bridge/     # SpinResult contract + validator + mock engine + real-engine adapter

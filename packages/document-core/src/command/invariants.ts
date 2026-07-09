@@ -150,6 +150,85 @@ function checkAttachmentFrames(
   return maxTime;
 }
 
+// Assert an event timeline is NON-DECREASING in time (coincident firings are legal, only a strictly
+// decreasing adjacent pair is an error, ADR-0008 section 2), within [0, duration], and that every key
+// references a live event definition. Returns the maximum time so the caller can enforce the duration bound.
+function checkEventKeys(
+  animationName: string,
+  keys: readonly { readonly time: number; readonly event: string }[],
+  duration: number,
+  eventDefIds: ReadonlySet<string>,
+): number {
+  let previous: number | null = null;
+  let maxTime = 0;
+  for (const key of keys) {
+    if (key.time < 0 || key.time > duration) {
+      throw new DocumentInvariantError(
+        `animation "${animationName}" event keyframe time ${key.time} is outside [0, ${duration}]`,
+      );
+    }
+    if (previous !== null && key.time < previous) {
+      throw new DocumentInvariantError(
+        `animation "${animationName}" event keyframe times must not decrease, ${key.time} follows ${previous}`,
+      );
+    }
+    if (!eventDefIds.has(key.event)) {
+      throw new DocumentInvariantError(
+        `animation "${animationName}" event keyframe references event ${key.event}, which does not exist`,
+      );
+    }
+    previous = key.time;
+    if (key.time > maxTime) maxTime = key.time;
+  }
+  return maxTime;
+}
+
+// Assert a draw-order timeline is STRICTLY ascending in time, within [0, duration], and that every key's
+// offsets are a consistent partial reordering: each references a live slot and no slot appears twice in one
+// key (the cheap half of DRAWORDER_INCOMPLETE; the full target-index consistency is the export validator's
+// job, which needs the setup slot order). Returns the maximum time.
+function checkDrawOrderKeys(
+  animationName: string,
+  keys: readonly {
+    readonly time: number;
+    readonly offsets: readonly { readonly slot: string }[];
+  }[],
+  duration: number,
+  slotIds: ReadonlySet<string>,
+): number {
+  let previous: number | null = null;
+  let maxTime = 0;
+  for (const key of keys) {
+    if (key.time < 0 || key.time > duration) {
+      throw new DocumentInvariantError(
+        `animation "${animationName}" draw-order keyframe time ${key.time} is outside [0, ${duration}]`,
+      );
+    }
+    if (previous !== null && key.time <= previous) {
+      throw new DocumentInvariantError(
+        `animation "${animationName}" draw-order keyframe times must strictly ascend, ${key.time} does not follow ${previous}`,
+      );
+    }
+    const seenSlots = new Set<string>();
+    for (const entry of key.offsets) {
+      if (!slotIds.has(entry.slot)) {
+        throw new DocumentInvariantError(
+          `animation "${animationName}" draw-order keyframe references slot ${entry.slot}, which does not exist`,
+        );
+      }
+      if (seenSlots.has(entry.slot)) {
+        throw new DocumentInvariantError(
+          `animation "${animationName}" draw-order keyframe offsets slot ${entry.slot} more than once`,
+        );
+      }
+      seenSlots.add(entry.slot);
+    }
+    previous = key.time;
+    if (key.time > maxTime) maxTime = key.time;
+  }
+  return maxTime;
+}
+
 // Dev/test invariant guard (command-history Section 3.5). Verifies the bone graph, the slot graph, and
 // the slot draw order: every parent/bone reference resolves, parents precede children in boneOrder (the
 // format invariant the world-pass relies on), slotOrder is a permutation of the slot ids, every
@@ -307,6 +386,11 @@ export function assertInvariants(model: DocumentReadModel): void {
   // shape, duration is non-negative and at least the maximum keyframe time, and every KeyframeId is unique
   // across the whole document (ids are minted monotonically, so a duplicate is a bug). These mirror the
   // format validator's ANIM_* / CURVE checks at the command boundary.
+  // Event-definition graph (Stage F1, PP-D9): the id set an animation's event keys resolve against. Name
+  // uniqueness is an export-only D9 contract (like bone/slot names), so it is NOT checked here.
+  const eventDefIds = new Set<string>();
+  for (const def of model.eventDefs()) eventDefIds.add(def.id);
+
   const seenKeyframeIds = new Set<string>();
   const noteKeyframeId = (id: string, animationName: string): void => {
     if (seenKeyframeIds.has(id)) {
@@ -396,6 +480,16 @@ export function assertInvariants(model: DocumentReadModel): void {
         }
       }
     }
+    // Stage F1 (PP-D9) event + draw-order timelines: each key keeps a unique KeyframeId, event keys are
+    // non-decreasing and reference a live event, and draw-order keys are strictly ascending and reference
+    // live slots (no slot twice per key).
+    for (const key of animation.events) noteKeyframeId(key.id, animation.name);
+    maxTime = Math.max(maxTime, checkEventKeys(animation.name, animation.events, duration, eventDefIds));
+    for (const key of animation.drawOrder) noteKeyframeId(key.id, animation.name);
+    maxTime = Math.max(
+      maxTime,
+      checkDrawOrderKeys(animation.name, animation.drawOrder, duration, slotIds),
+    );
     if (duration < maxTime) {
       throw new DocumentInvariantError(
         `animation "${animation.name}" duration ${duration} is below its maximum keyframe time ${maxTime}`,

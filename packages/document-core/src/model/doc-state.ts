@@ -4,9 +4,6 @@ import type {
   AtlasRef,
   BlendMode,
   CurveType,
-  DrawOrderKeyframe,
-  EventDef,
-  EventKeyframe,
   RGBA,
   SkeletonMeta,
   TransformMode,
@@ -14,6 +11,7 @@ import type {
 import type {
   AnimationId,
   BoneId,
+  EventDefId,
   IkConstraintId,
   KeyframeId,
   SkinId,
@@ -252,6 +250,62 @@ export interface DeformKeyframeEntity {
 // so a Map keys on them directly; a SkinId ('skin_3') never collides with the literal 'default'.
 export type DeformSkinKey = 'default' | SkinId;
 
+// An event definition's optional audio hint (ADR-0008 section 1), mirroring the format EventAudio BY
+// VALUE: a required asset `path`, a `volume` in [0, 1], and a stereo `balance` in [-1, 1]. Immutable.
+export interface EventAudioValue {
+  readonly path: string;
+  readonly volume: number;
+  readonly balance: number;
+}
+
+// A document-level event definition (Stage F1, ADR-0008 section 1), promoted to a first-class id-keyed
+// entity (PP-D9). It carries the payload DEFAULTS an event fires with (`int`/`float`/`string`, each a
+// value or undefined so a caller states intent, exactly like TransformKeyframeEntity's mix channels) plus
+// an optional `audio` hint. `name` is the mutable on-disk identity an animation's event timeline references
+// (by EventDefId in the model, so a rename never cascades). Deep-frozen at construction (makeEventDef).
+export interface EventDefEntity {
+  readonly id: EventDefId;
+  readonly name: string;
+  readonly int: number | undefined;
+  readonly float: number | undefined;
+  readonly string: string | undefined;
+  readonly audio: EventAudioValue | undefined;
+}
+
+// An event-timeline key (Stage F1, ADR-0008 section 2): fires the event referenced by `event` (an
+// EventDefId, resolved from the on-disk name on load) at `time`, OPTIONALLY overriding the definition's
+// int/float/string payload defaults for this firing (an absent override is undefined). Events are discrete
+// (no curve). Event times are NON-DECREASING (coincident firings are legal), unlike the strictly-ascending
+// value timelines. Immutable and deep-frozen (makeEventKey), so it is shared by reference without aliasing.
+export interface EventKeyEntity {
+  readonly id: KeyframeId;
+  readonly time: number;
+  readonly event: EventDefId;
+  readonly int: number | undefined;
+  readonly float: number | undefined;
+  readonly string: string | undefined;
+}
+
+// One entry of a draw-order key's compact offset list (Stage F1, ADR-0008 section 3): move the slot
+// referenced by `slot` (a SlotId, resolved from the on-disk name on load, so a slot rename/reorder never
+// breaks the key) by a signed integer number of positions from its setup draw-order index. Immutable.
+export interface DrawOrderOffsetEntity {
+  readonly slot: SlotId;
+  readonly offset: number;
+}
+
+// A draw-order timeline key (Stage F1, ADR-0008 section 3): at `time`, apply this compact list of per-slot
+// offsets to the setup draw order. An EMPTY `offsets` list means the setup order (identity), so a key can
+// restore it after an earlier reorder. Draw-order changes are discrete (no curve) and STRICTLY ascending in
+// time. The FULL per-frame order is DERIVED by runtime-core (PP-B4); the model carries only the offsets and
+// keeps them consistent (each slot at most once, target indices distinct and in range) at the command
+// boundary. Immutable and deep-frozen (makeDrawOrderKey); the offsets array is copied at construction.
+export interface DrawOrderKeyEntity {
+  readonly id: KeyframeId;
+  readonly time: number;
+  readonly offsets: readonly DrawOrderOffsetEntity[];
+}
+
 // An editable animation (WP-1.5, extended in Phase 2). Bone/slot timelines are keyed by BoneId / SlotId;
 // the ik/transform timelines are keyed by the constraint's internal id; the deform timeline is the nested
 // skin -> slot -> attachment-name record (the format `deform` shape) keyed by DeformSkinKey then SlotId
@@ -269,12 +323,12 @@ export interface AnimationEntity {
     DeformSkinKey,
     ReadonlyMap<SlotId, ReadonlyMap<string, readonly DeformKeyframeEntity[]>>
   >;
-  // Stage F1 (ADR-0008, formatVersion 0.3.0) draw-order and event timelines. They are carried VERBATIM
-  // from the format in this slice (like preserved.atlas): authoring commands for them are PP-D9, so the
-  // model neither mints ids for their keys nor exposes editing here. They round-trip load -> export
-  // unchanged, which is what keeps a 0.3.0 document identical across a load/export cycle.
-  readonly drawOrder: readonly DrawOrderKeyframe[];
-  readonly events: readonly EventKeyframe[];
+  // Stage F1 (ADR-0008, formatVersion 0.3.0) draw-order and event timelines, promoted to id-keyed editable
+  // entities (PP-D9). Draw-order keys reorder slots over time (offsets reference slots by SlotId); event
+  // keys fire named events (referencing an EventDefId). Both carry a KeyframeId per key so a sibling
+  // insert/delete never invalidates a captured command, exactly like the value/deform timelines.
+  readonly drawOrder: readonly DrawOrderKeyEntity[];
+  readonly events: readonly EventKeyEntity[];
 }
 
 // An IK constraint (WP-2.6, format IkConstraint), mirrored BY VALUE except `bones`/`target`, which are
@@ -322,16 +376,12 @@ export interface SkinEntity {
   readonly attachments: ReadonlyMap<SlotId, ReadonlyMap<string, AttachmentEntity>>;
 }
 
-// Preserved content: the document body not yet promoted to editable id-keyed entities. After Phase 2 the
-// only member is the `atlas` (it stays preserved until its own editing lands beyond WP-1.3's SetAtlasRef).
-// Non-default skins are no longer preserved here: WP-2.8 promotes them to first-class DocState.skins.
+// Preserved content: the document body not yet promoted to editable id-keyed entities. The only remaining
+// member is the `atlas` (it stays preserved until its own editing lands beyond WP-1.3's SetAtlasRef).
+// Document-level events and the skeleton metadata block were promoted to first-class DocState.events /
+// DocState.metadata by PP-D9 (Stage F1); non-default skins were promoted to DocState.skins by WP-2.8.
 export interface PreservedContent {
   readonly atlas: AtlasRef;
-  // Stage F1 (ADR-0008, formatVersion 0.3.0) document-level content carried VERBATIM until its authoring
-  // lands (event definitions are PP-D9). `events` is the REQUIRED EventDef[] collection (empty when the rig
-  // defines none); `metadata` is the OPTIONAL skeleton metadata block (undefined when the document omits it).
-  readonly events: readonly EventDef[];
-  readonly metadata: SkeletonMeta | undefined;
 }
 
 // The full internal document state. Bones, slots, animations, constraints, and named skins are the
@@ -357,6 +407,13 @@ export interface DocState {
   readonly transformConstraintOrder: readonly TransformConstraintId[];
   readonly skins: ReadonlyMap<SkinId, SkinEntity>;
   readonly skinOrder: readonly SkinId[];
+  // Document-level event definitions (Stage F1, ADR-0008; PP-D9), keyed by EventDefId with an explicit
+  // `eventOrder` for a stable on-disk emission order (mirroring boneOrder alongside the bones map). An
+  // animation's event keys reference these by EventDefId. `metadata` is the OPTIONAL skeleton metadata block
+  // (fps/imagesPath/audioPath authoring hints), undefined when the document defines none.
+  readonly events: ReadonlyMap<EventDefId, EventDefEntity>;
+  readonly eventOrder: readonly EventDefId[];
+  readonly metadata: SkeletonMeta | undefined;
   // The slot-scene aggregate (phase-4 WP-4.5 / WP-4.6): the grid, the SymbolId-keyed symbol library, the
   // win sequencer, the feature-flow graph, the tumble choreography, and the scene refs, all value/name-keyed
   // (not id-branded, mirroring how the format references slot artifacts by name). It is ALWAYS present (a
@@ -371,8 +428,6 @@ export interface DocState {
 export function emptyPreservedContent(): PreservedContent {
   return {
     atlas: { pages: [] },
-    events: [],
-    metadata: undefined,
   };
 }
 
@@ -396,6 +451,9 @@ export function newDocState(name: string): DocState {
     transformConstraintOrder: [],
     skins: new Map(),
     skinOrder: [],
+    events: new Map(),
+    eventOrder: [],
+    metadata: undefined,
     slotScene: defaultSlotSceneState(),
     preserved: emptyPreservedContent(),
   };
@@ -504,6 +562,83 @@ export function makeDeformKeyframe(
     time,
     offsets: Object.freeze(offsets.slice()),
     curve: typeof curve === 'string' ? curve : Object.freeze(cloneCurve(curve)),
+  });
+}
+
+// Deep-copy an event audio hint (a value type) or pass through undefined, so a memento never aliases the
+// source. Centralized so the model, commands, and load build audio hints identically.
+export function cloneEventAudio(audio: EventAudioValue | undefined): EventAudioValue | undefined {
+  return audio === undefined
+    ? undefined
+    : { path: audio.path, volume: audio.volume, balance: audio.balance };
+}
+
+// Deep-copy the optional skeleton metadata block, emitting only the present fields (exactOptionalProperty
+// Types) so a block with, say, only `fps` round-trips deep-equal. Passes through undefined unchanged.
+export function cloneMetadata(metadata: SkeletonMeta | undefined): SkeletonMeta | undefined {
+  if (metadata === undefined) return undefined;
+  return {
+    ...(metadata.fps !== undefined ? { fps: metadata.fps } : {}),
+    ...(metadata.imagesPath !== undefined ? { imagesPath: metadata.imagesPath } : {}),
+    ...(metadata.audioPath !== undefined ? { audioPath: metadata.audioPath } : {}),
+  };
+}
+
+// Construct an immutable, deep-frozen event definition (Stage F1). Centralized so the model, commands, and
+// load build event defs the same way; the audio hint is copied so the entity never aliases a caller's value.
+export function makeEventDef(
+  id: EventDefId,
+  name: string,
+  payload: {
+    readonly int: number | undefined;
+    readonly float: number | undefined;
+    readonly string: string | undefined;
+    readonly audio: EventAudioValue | undefined;
+  },
+): EventDefEntity {
+  return Object.freeze({
+    id,
+    name,
+    int: payload.int,
+    float: payload.float,
+    string: payload.string,
+    audio: payload.audio === undefined ? undefined : Object.freeze(cloneEventAudio(payload.audio)),
+  });
+}
+
+// Construct an immutable, deep-frozen event-timeline key (Stage F1). The int/float/string overrides are
+// copied as given (each a value or undefined). `event` is the referenced definition's EventDefId.
+export function makeEventKey(
+  id: KeyframeId,
+  time: number,
+  event: EventDefId,
+  overrides: {
+    readonly int: number | undefined;
+    readonly float: number | undefined;
+    readonly string: string | undefined;
+  },
+): EventKeyEntity {
+  return Object.freeze({
+    id,
+    time,
+    event,
+    int: overrides.int,
+    float: overrides.float,
+    string: overrides.string,
+  });
+}
+
+// Construct an immutable, deep-frozen draw-order key (Stage F1). The offsets array is sliced and each entry
+// frozen so the model never aliases the caller's array and a handed-out reference cannot mutate it.
+export function makeDrawOrderKey(
+  id: KeyframeId,
+  time: number,
+  offsets: readonly DrawOrderOffsetEntity[],
+): DrawOrderKeyEntity {
+  return Object.freeze({
+    id,
+    time,
+    offsets: Object.freeze(offsets.map((entry) => Object.freeze({ slot: entry.slot, offset: entry.offset }))),
   });
 }
 

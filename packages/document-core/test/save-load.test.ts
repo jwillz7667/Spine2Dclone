@@ -366,11 +366,12 @@ describe('save / load seam', () => {
     expect(json2).toEqual(json1);
   });
 
-  it('round-trips a 0.3.0 document carrying events and draw-order keys, deep-equal', () => {
-    // Stage F1 (ADR-0008): event definitions and per-animation draw-order/event timelines are carried
-    // VERBATIM as preserved content (PP-D9 owns their authoring). This proves load -> export reproduces a
-    // 0.3.0 document with real events and a draw-order reorder EXACTLY, hash included, so the F1 additions
-    // survive the model round-trip and never silently drop.
+  it('round-trips a 0.3.0 document carrying events, draw-order keys, and metadata, deep-equal', () => {
+    // Stage F1 (ADR-0008, PP-D9): event definitions, per-animation draw-order/event timelines, and the
+    // metadata block are FIRST-CLASS model state. loadDocument resolves the on-disk NAMES (a draw-order
+    // offset's slot, an event key's event) to internal ids and mints a KeyframeId per key; exportDocument
+    // resolves them back. This proves that round-trip reproduces a 0.3.0 document with real events (payload
+    // defaults + audio + a per-key override), a draw-order reorder, and metadata EXACTLY, hash included.
     const draft: SkeletonDocument = {
       formatVersion: CURRENT_FORMAT_VERSION,
       name: 'events-and-draworder',
@@ -406,13 +407,22 @@ describe('save / load seam', () => {
         },
       },
       atlas: { pages: [] },
+      metadata: { fps: 30, imagesPath: 'art/images', audioPath: 'art/audio' },
     };
     const original: SkeletonDocument = { ...draft, hash: computeContentHash(draft) };
 
     const doc = loadDocument(original, makeTestEnv().env);
-    const exported = exportDocument(doc.model);
 
-    expect(exported).toEqual(original); // lossless, events + draw-order + hash included
+    // Promoted to first-class model state (no longer preserved verbatim): the event definition, the
+    // per-animation timelines, and the metadata are all reachable through the read model.
+    expect(doc.model.eventDefs().map((d) => d.name)).toEqual(['footstep']);
+    expect(doc.model.metadata()).toEqual({ fps: 30, imagesPath: 'art/images', audioPath: 'art/audio' });
+    const walk = doc.model.animations().find((a) => a.name === 'walk')!;
+    expect(walk.events).toHaveLength(2);
+    expect(walk.drawOrder).toHaveLength(1);
+
+    const exported = exportDocument(doc.model);
+    expect(exported).toEqual(original); // lossless, events + draw-order + metadata + hash included
     // And re-loading the export reproduces it again (idempotent projection).
     const reloaded = loadDocument(exported, makeTestEnv().env);
     expect(exportDocument(reloaded.model)).toEqual(original);

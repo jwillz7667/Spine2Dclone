@@ -393,6 +393,9 @@ function danglingSlotState(): DocState {
     transformConstraintOrder: [],
     skins: new Map(),
     skinOrder: [],
+    events: new Map(),
+    eventOrder: [],
+    metadata: undefined,
     slotScene: defaultSlotSceneState(),
     preserved: { atlas: { pages: [] } },
   };

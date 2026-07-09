@@ -3,6 +3,7 @@ import type {
   BlendMode,
   CurveType,
   RGBA,
+  SkeletonMeta,
   TransformMode,
 } from '@marionette/format/types';
 import type {
@@ -17,6 +18,9 @@ import type {
   AttachmentFrameEntity,
   BoneEntity,
   DeformKeyframeEntity,
+  DrawOrderKeyEntity,
+  EventDefEntity,
+  EventKeyEntity,
   IkConstraintEntity,
   IkKeyframeEntity,
   KeyframeEntity,
@@ -39,6 +43,7 @@ import {
 import type {
   AnimationId,
   BoneId,
+  EventDefId,
   IkConstraintId,
   SkinId,
   SlotId,
@@ -78,6 +83,14 @@ export interface DocumentReadModel {
   // The NON-default named skins in skinOrder. The default skin is implicit (its attachments are the
   // editable default-skin attachments reached via attachments()); it is never a SkinEntity.
   skins(): readonly SkinEntity[];
+  getEventDef(id: EventDefId): EventDefEntity | undefined;
+  // The document-level event definitions in eventOrder (the stable on-disk emission order).
+  eventDefs(): readonly EventDefEntity[];
+  // First event definition in eventOrder whose name matches, or undefined. Names are unique at export
+  // (EVENT_NAME_DUPLICATE, a D9 contract), so this is first-match by design (like findBoneByName).
+  findEventDefByName(name: string): EventDefEntity | undefined;
+  // The optional skeleton metadata block (fps/imagesPath/audioPath authoring hints), or undefined.
+  metadata(): SkeletonMeta | undefined;
   // The slot-scene aggregate (phase-4 WP-4.5 / WP-4.6), read-only and deep-frozen. Always present (a
   // default 5x3 reelStrip scene on a fresh document). The grid, the SymbolId-keyed symbol library, the
   // sequencer / feature-flow / tumble configs, and the scene refs.
@@ -245,8 +258,34 @@ export interface DeformTimelineSnapshot {
   readonly keyframes: readonly DeformKeyframeSnapshot[];
 }
 
+// A plain event-timeline key projection (Stage F1): the internal KeyframeId, the time, the referenced
+// EventDefId string, and the int/float/string payload overrides (value copies). In time order.
+export interface EventKeySnapshot {
+  readonly id: string;
+  readonly time: number;
+  readonly event: string;
+  readonly int: number | undefined;
+  readonly float: number | undefined;
+  readonly string: string | undefined;
+}
+
+// A plain draw-order offset projection (Stage F1): the referenced SlotId string and the signed offset.
+export interface DrawOrderOffsetSnapshot {
+  readonly slot: string;
+  readonly offset: number;
+}
+
+// A plain draw-order key projection (Stage F1): the internal KeyframeId, the time, and the compact offset
+// list (in the stored order). In time order.
+export interface DrawOrderKeySnapshot {
+  readonly id: string;
+  readonly time: number;
+  readonly offsets: readonly DrawOrderOffsetSnapshot[];
+}
+
 // A plain animation projection. `bones`/`slots`/`ik`/`transform` are sorted by their internal id and
 // `deform` by (skin, slotId, attachment), so the snapshot is deterministic and stable across renames.
+// `drawOrder` and `events` are the timeline order (ascending / non-decreasing time).
 export interface AnimationSnapshot {
   readonly id: string;
   readonly name: string;
@@ -256,6 +295,19 @@ export interface AnimationSnapshot {
   readonly ik: readonly IkTimelineSnapshot[]; // sorted by constraintId
   readonly transform: readonly TransformTimelineSnapshot[]; // sorted by constraintId
   readonly deform: readonly DeformTimelineSnapshot[]; // sorted by (skin, slotId, attachment)
+  readonly drawOrder: readonly DrawOrderKeySnapshot[]; // in time order (strictly ascending)
+  readonly events: readonly EventKeySnapshot[]; // in time order (non-decreasing)
+}
+
+// A plain event-definition projection (Stage F1): the internal EventDefId, the name, the payload defaults,
+// and the optional audio hint (value copies), so a do/undo round-trip deep-equal covers an event edit.
+export interface EventDefSnapshot {
+  readonly id: string;
+  readonly name: string;
+  readonly int: number | undefined;
+  readonly float: number | undefined;
+  readonly string: string | undefined;
+  readonly audio: { readonly path: string; readonly volume: number; readonly balance: number } | undefined;
 }
 
 // A plain IK-constraint projection. `bones`/`target` are internal BoneId strings (references), stable
@@ -348,6 +400,9 @@ export interface DocSnapshot {
   readonly transformConstraintOrder: readonly string[]; // order-significant (solve order)
   readonly skins: readonly SkinSnapshot[]; // sorted by id (NON-default named skins)
   readonly skinOrder: readonly string[]; // order-significant
+  readonly events: readonly EventDefSnapshot[]; // sorted by id (document-level event definitions)
+  readonly eventOrder: readonly string[]; // order-significant (on-disk emission order)
+  readonly metadata: SkeletonMeta | undefined; // the optional skeleton metadata block, deep-copied
   readonly slotScene: SlotSceneSnapshot; // the always-present slot-scene aggregate (phase-4)
   readonly preserved: PreservedContent; // verbatim (already deeply immutable)
 }
@@ -464,6 +519,41 @@ function deformKeyframeToSnapshot(kf: DeformKeyframeEntity): DeformKeyframeSnaps
   return { id: kf.id, time: kf.time, offsets: kf.offsets.slice(), curve: cloneCurve(kf.curve) };
 }
 
+function eventKeyToSnapshot(key: EventKeyEntity): EventKeySnapshot {
+  return {
+    id: key.id,
+    time: key.time,
+    event: key.event,
+    int: key.int,
+    float: key.float,
+    string: key.string,
+  };
+}
+
+function drawOrderKeyToSnapshot(key: DrawOrderKeyEntity): DrawOrderKeySnapshot {
+  return {
+    id: key.id,
+    time: key.time,
+    offsets: key.offsets.map((entry) => ({ slot: entry.slot, offset: entry.offset })),
+  };
+}
+
+// Project an event definition to its snapshot shape (payload defaults and audio hint deep-copied so the
+// snapshot never aliases the live entity).
+export function eventDefToSnapshot(def: EventDefEntity): EventDefSnapshot {
+  return {
+    id: def.id,
+    name: def.name,
+    int: def.int,
+    float: def.float,
+    string: def.string,
+    audio:
+      def.audio === undefined
+        ? undefined
+        : { path: def.audio.path, volume: def.audio.volume, balance: def.audio.balance },
+  };
+}
+
 // Project an animation entity to its snapshot shape: bones/slots/ik/transform sorted by their internal id,
 // deform sorted by (skin, slotId, attachment), each channel a value copy in time order. Keyframe arrays
 // are already time-sorted in the model.
@@ -525,6 +615,8 @@ export function animationToSnapshot(animation: AnimationEntity): AnimationSnapsh
     ik,
     transform,
     deform,
+    drawOrder: animation.drawOrder.map(drawOrderKeyToSnapshot),
+    events: animation.events.map(eventKeyToSnapshot),
   };
 }
 

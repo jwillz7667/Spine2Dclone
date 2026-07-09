@@ -1,5 +1,5 @@
 import { decodeWeightedVertices, encodeWeightedVertices } from '@marionette/format';
-import type { AtlasRef, DrawOrderKeyframe, EventKeyframe } from '@marionette/format/types';
+import type { AtlasRef, SkeletonMeta } from '@marionette/format/types';
 import type {
   FeatureFlowGraph,
   GridConfig,
@@ -19,6 +19,9 @@ import type {
   DeformKeyframeEntity,
   DeformSkinKey,
   DocState,
+  DrawOrderKeyEntity,
+  EventDefEntity,
+  EventKeyEntity,
   IkConstraintEntity,
   IkKeyframeEntity,
   KeyframeEntity,
@@ -32,7 +35,7 @@ import type {
   TransformConstraintEntity,
   TransformKeyframeEntity,
 } from './doc-state';
-import { isBoneTimelineSetEmpty, isSlotTimelineSetEmpty } from './doc-state';
+import { cloneMetadata, isBoneTimelineSetEmpty, isSlotTimelineSetEmpty } from './doc-state';
 import type { SlotSceneState } from './slot-scene';
 import {
   cloneFeatureFlowGraph,
@@ -46,6 +49,7 @@ import {
 import type {
   AnimationId,
   BoneId,
+  EventDefId,
   IdFactory,
   IkConstraintId,
   SkinId,
@@ -56,6 +60,7 @@ import {
   animationToSnapshot,
   attachmentToSnapshot,
   boneToSnapshot,
+  eventDefToSnapshot,
   freezeSlotSceneForReadOut,
   ikConstraintToSnapshot,
   skinToSnapshot,
@@ -66,6 +71,7 @@ import {
   type AttachmentSnapshot,
   type DocSnapshot,
   type DocumentReadModel,
+  type EventDefSnapshot,
   type IkConstraintSnapshot,
   type SkinSnapshot,
   type TransformConstraintSnapshot,
@@ -255,10 +261,10 @@ interface MutableAnimation {
   ik: Map<IkConstraintId, IkKeyframeEntity[]>;
   transform: Map<TransformConstraintId, TransformKeyframeEntity[]>;
   deform: MutableDeformMap;
-  // Draw-order and event timelines are carried verbatim (ADR-0008; no command edits them in this slice).
-  // They are replaced wholesale, never patched in place, so a shared array reference is safe.
-  drawOrder: readonly DrawOrderKeyframe[];
-  events: readonly EventKeyframe[];
+  // Draw-order and event timelines (Stage F1, PP-D9). Replaced WHOLESALE by their commands (the key
+  // objects are immutable), never patched in place, so a shared array reference is safe.
+  drawOrder: readonly DrawOrderKeyEntity[];
+  events: readonly EventKeyEntity[];
 }
 
 function toMutableBoneSet(set: BoneTimelineSet): MutableBoneTimelineSet {
@@ -524,6 +530,12 @@ export class DocumentModelInternal implements DocumentReadModel {
   private transformConstraintOrderArr: TransformConstraintId[];
   private skinsMap: Map<SkinId, MutableSkin>;
   private skinOrderArr: SkinId[];
+  // Document-level event definitions (Stage F1, PP-D9), keyed by EventDefId with an explicit order array
+  // (mirroring skinsMap/skinOrderArr). Entities are immutable (frozen at construction), so the map shares
+  // them by reference. `metadataValue` is the optional skeleton metadata block (undefined when absent).
+  private eventsMap: Map<EventDefId, EventDefEntity>;
+  private eventOrderArr: EventDefId[];
+  private metadataValue: SkeletonMeta | undefined;
   // The slot-scene aggregate (phase-4 WP-4.5 / WP-4.6). Held as a single value whose members are replaced
   // WHOLESALE by the slot commands (grid, one symbol entry, refs), never patched in place, so a frozen copy
   // is safe to share by reference. There is no batch/discrete distinction worth threading per member: a grid
@@ -561,13 +573,18 @@ export class DocumentModelInternal implements DocumentReadModel {
     this.skinsMap = new Map();
     for (const [id, skin] of state.skins) this.skinsMap.set(id, toMutableSkin(skin));
     this.skinOrderArr = state.skinOrder.slice();
+    // Event definitions are immutable value entities (frozen at construction), so the map carries them by
+    // reference; the order array is sliced so the model never aliases the caller's DocState. Metadata is
+    // deep-copied and frozen for the same isolation.
+    this.eventsMap = new Map(state.events);
+    this.eventOrderArr = state.eventOrder.slice();
+    const metadata = cloneMetadata(state.metadata);
+    this.metadataValue = metadata === undefined ? undefined : Object.freeze(metadata);
     // Deep-copy the incoming scene so the model never aliases the caller's DocState (the same isolation the
     // bones/slots maps get above). The grid and refs are copied; the immutable configs are shared.
     this.slotSceneValue = cloneSlotSceneState(state.slotScene);
     this.preservedContent = deepFreeze({
       atlas: state.preserved.atlas,
-      events: state.preserved.events,
-      metadata: state.preserved.metadata,
     });
   }
 
@@ -685,6 +702,31 @@ export class DocumentModelInternal implements DocumentReadModel {
     return out;
   }
 
+  getEventDef(id: EventDefId): EventDefEntity | undefined {
+    return this.eventsMap.get(id);
+  }
+
+  eventDefs(): readonly EventDefEntity[] {
+    const out: EventDefEntity[] = [];
+    for (const id of this.eventOrderArr) {
+      const def = this.eventsMap.get(id);
+      if (def) out.push(def);
+    }
+    return out;
+  }
+
+  findEventDefByName(name: string): EventDefEntity | undefined {
+    for (const id of this.eventOrderArr) {
+      const def = this.eventsMap.get(id);
+      if (def && def.name === name) return def;
+    }
+    return undefined;
+  }
+
+  metadata(): SkeletonMeta | undefined {
+    return cloneMetadata(this.metadataValue);
+  }
+
   slotScene(): SlotSceneState {
     return freezeSlotSceneForReadOut(this.slotSceneValue);
   }
@@ -742,6 +784,9 @@ export class DocumentModelInternal implements DocumentReadModel {
     const skins: SkinSnapshot[] = [...this.skinsMap.values()]
       .map((skin) => skinToSnapshot(freezeSkin(skin)))
       .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+    const events: EventDefSnapshot[] = [...this.eventsMap.values()]
+      .map(eventDefToSnapshot)
+      .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
     return {
       formatVersion: this.formatVersionValue,
       name: this.nameValue,
@@ -757,6 +802,9 @@ export class DocumentModelInternal implements DocumentReadModel {
       transformConstraintOrder: this.transformConstraintOrderArr.slice(),
       skins,
       skinOrder: this.skinOrderArr.slice(),
+      events,
+      eventOrder: this.eventOrderArr.slice(),
+      metadata: cloneMetadata(this.metadataValue),
       slotScene: slotSceneToSnapshot(this.slotSceneValue),
       preserved: this.preservedContent,
     };
@@ -1231,6 +1279,23 @@ export class DocumentModelInternal implements DocumentReadModel {
     });
   }
 
+  // Replace an animation's event timeline WHOLESALE (Stage F1 event.key.* commands). The key objects are
+  // immutable; the caller passes an already-time-ordered (non-decreasing) array. An empty array clears the
+  // timeline, exactly reversing a prior set (the round-trip symmetry).
+  setEventTimeline(animId: AnimationId, keys: readonly EventKeyEntity[]): void {
+    this.writeAnimation(animId, (animation) => {
+      animation.events = keys.slice();
+    });
+  }
+
+  // Replace an animation's draw-order timeline WHOLESALE (Stage F1 draworder.key.* commands). Same contract
+  // as setEventTimeline; the caller passes an already-time-sorted (strictly ascending) array.
+  setDrawOrderTimeline(animId: AnimationId, keys: readonly DrawOrderKeyEntity[]): void {
+    this.writeAnimation(animId, (animation) => {
+      animation.drawOrder = keys.slice();
+    });
+  }
+
   // The single copy-on-write boundary for an animation edit: DISCRETE clones the target animation (so a
   // reference-equality selector sees exactly one change and siblings stay shared), BATCH mutates it in
   // place. A missing id is a no-op (commands assert existence before writing).
@@ -1507,13 +1572,61 @@ export class DocumentModelInternal implements DocumentReadModel {
   // a discrete edit, never part of a drag. NO content hash is computed here (the exporter is the sole hash
   // owner, LAW 3).
   setAtlas(atlas: AtlasRef): void {
-    // Preserve the sibling event definitions and metadata block: setAtlas replaces only the atlas ref, so
-    // the rest of the preserved content carries through unchanged (ADR-0008).
-    this.preservedContent = deepFreeze({
-      atlas,
-      events: this.preservedContent.events,
-      metadata: this.preservedContent.metadata,
-    });
+    this.preservedContent = deepFreeze({ atlas });
+    this.revisionValue += 1;
+  }
+
+  // ----- event-definition + metadata write surface (Stage F1, PP-D9, reached only through the Mutator) -----
+
+  insertEventDef(entity: EventDefEntity, index: number): void {
+    if (this.batching) {
+      this.eventsMap.set(entity.id, entity);
+      this.eventOrderArr.splice(index, 0, entity.id);
+    } else {
+      const next = new Map(this.eventsMap);
+      next.set(entity.id, entity);
+      this.eventsMap = next;
+      const order = this.eventOrderArr.slice();
+      order.splice(index, 0, entity.id);
+      this.eventOrderArr = order;
+    }
+    this.revisionValue += 1;
+  }
+
+  removeEventDef(id: EventDefId): void {
+    if (this.batching) {
+      this.eventsMap.delete(id);
+      const i = this.eventOrderArr.indexOf(id);
+      if (i >= 0) this.eventOrderArr.splice(i, 1);
+    } else {
+      const next = new Map(this.eventsMap);
+      next.delete(id);
+      this.eventsMap = next;
+      this.eventOrderArr = this.eventOrderArr.filter((x) => x !== id);
+    }
+    this.revisionValue += 1;
+  }
+
+  // Replace one event definition WHOLESALE (rename / set-defaults / set-audio). The entity is immutable
+  // (frozen at construction), so the map just swaps the reference. A missing id is a no-op (commands assert
+  // existence before writing).
+  setEventDef(id: EventDefId, entity: EventDefEntity): void {
+    if (!this.eventsMap.has(id)) return;
+    if (this.batching) {
+      this.eventsMap.set(id, entity);
+    } else {
+      const next = new Map(this.eventsMap);
+      next.set(id, entity);
+      this.eventsMap = next;
+    }
+    this.revisionValue += 1;
+  }
+
+  // Replace the optional metadata block WHOLESALE (SetDocumentMetadata). The value is deep-copied and frozen
+  // so the model never aliases a command-held value; undefined clears the block.
+  setMetadata(metadata: SkeletonMeta | undefined): void {
+    const cloned = cloneMetadata(metadata);
+    this.metadataValue = cloned === undefined ? undefined : Object.freeze(cloned);
     this.revisionValue += 1;
   }
 
@@ -1536,6 +1649,8 @@ export class DocumentModelInternal implements DocumentReadModel {
     this.transformConstraintOrderArr = this.transformConstraintOrderArr.slice();
     this.skinsMap = cloneSkins(this.skinsMap);
     this.skinOrderArr = this.skinOrderArr.slice();
+    this.eventsMap = new Map(this.eventsMap);
+    this.eventOrderArr = this.eventOrderArr.slice();
     this.batching = false;
   }
 
@@ -1576,6 +1691,10 @@ export function createReadModel(model: DocumentModelInternal): DocumentReadModel
     transformConstraints: () => model.transformConstraints(),
     getSkin: (id) => model.getSkin(id),
     skins: () => model.skins(),
+    getEventDef: (id) => model.getEventDef(id),
+    eventDefs: () => model.eventDefs(),
+    findEventDefByName: (name) => model.findEventDefByName(name),
+    metadata: () => model.metadata(),
     slotScene: () => model.slotScene(),
     slotGrid: () => model.slotGrid(),
     slotTumble: () => model.slotTumble(),

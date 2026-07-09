@@ -38,6 +38,14 @@ export type IkConstraintId = Id<'ikConstraint'>;
 export type TransformConstraintId = Id<'transformConstraint'>;
 export type SkinId = Id<'skin'>;
 
+// Stage F1 (ADR-0008, formatVersion 0.3.0) promotes document-level event definitions to id-keyed
+// editable entities (PP-D9). An EventDefEntity is addressed by EventDefId, never by its name (the mutable
+// on-disk identity), so a rename is a single-field change with zero cascade and an animation's event keys
+// (which reference the definition by EventDefId, not name) survive it. Event keys and draw-order keys are
+// per-animation timeline entries addressed by KeyframeId, like every other keyed timeline (a sibling
+// insert/delete never invalidates a captured command).
+export type EventDefId = Id<'eventDef'>;
+
 // Phase 3 (WP-3.7) promotes the EffectsDocument entities to id-keyed editable entities (the realized
 // form of the EmitterId placeholder reserved in command-history Section 2). An EffectEntity is addressed
 // by EffectId (never by its name, the mutable on-disk record key), an EffectLayerEntity by EffectLayerId

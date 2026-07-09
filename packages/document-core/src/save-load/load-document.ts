@@ -19,6 +19,10 @@ import type {
   DeformKeyframeEntity,
   DeformSkinKey,
   DocState,
+  DrawOrderKeyEntity,
+  DrawOrderOffsetEntity,
+  EventDefEntity,
+  EventKeyEntity,
   IkConstraintEntity,
   IkKeyframeEntity,
   KeyframeEntity,
@@ -32,6 +36,9 @@ import type {
 import {
   makeAttachmentFrame,
   makeDeformKeyframe,
+  makeDrawOrderKey,
+  makeEventDef,
+  makeEventKey,
   makeIkKeyframe,
   makeKeyframe,
   makeTransformKeyframe,
@@ -40,6 +47,7 @@ import { defaultSlotSceneState } from '../model/slot-scene';
 import type {
   AnimationId,
   BoneId,
+  EventDefId,
   IdFactory,
   IkConstraintId,
   SkinId,
@@ -240,6 +248,31 @@ function formatToDocState(document: SkeletonDocument, ids: IdFactory): DocState 
     });
   }
 
+  // Event definitions (Stage F1, ADR-0008; PP-D9) become first-class: mint an EventDefId per definition,
+  // keep the on-disk order as eventOrder, and build the name->id map an animation's event keys resolve
+  // against. The validator already guaranteed event name uniqueness (EVENT_NAME_DUPLICATE), so the later
+  // resolve is total.
+  const eventNameToId = new Map<string, EventDefId>();
+  const eventOrder: EventDefId[] = [];
+  const events = new Map<EventDefId, EventDefEntity>();
+  for (const def of document.events) {
+    const id = ids.mint('eventDef');
+    eventNameToId.set(def.name, id);
+    eventOrder.push(id);
+    events.set(
+      id,
+      makeEventDef(id, def.name, {
+        int: def.int,
+        float: def.float,
+        string: def.string,
+        audio:
+          def.audio === undefined
+            ? undefined
+            : { path: def.audio.path, volume: def.audio.volume, balance: def.audio.balance },
+      }),
+    );
+  }
+
   // Constraints (WP-2.6/2.7): mint an id per constraint, resolve bone/target NAME references to ids, and
   // keep the stored array order as the solve order (ikConstraintOrder / transformConstraintOrder).
   const ikNameToId = new Map<string, IkConstraintId>();
@@ -309,6 +342,30 @@ function formatToDocState(document: SkeletonDocument, ids: IdFactory): DocState 
       }
       deformTracks.set(skinKey, slotMap);
     }
+    // Draw-order and event timelines (Stage F1, PP-D9): mint a KeyframeId per key and resolve NAME
+    // references to ids (a draw-order offset's slot to its SlotId, an event key's name to its EventDefId),
+    // so a slot/event rename never breaks a key. The validator already guaranteed every reference resolves
+    // (ANIM_SLOT_UNKNOWN / ANIM_EVENT_UNKNOWN), so resolveId is total here.
+    const drawOrderKeys: DrawOrderKeyEntity[] = animation.drawOrder.map((key) =>
+      makeDrawOrderKey(
+        ids.mint('keyframe'),
+        key.time,
+        key.offsets.map(
+          (entry): DrawOrderOffsetEntity => ({
+            slot: resolveId(entry.slot, slotNameToId, 'draw-order slot'),
+            offset: entry.offset,
+          }),
+        ),
+      ),
+    );
+    const eventKeys: EventKeyEntity[] = animation.events.map((key) =>
+      makeEventKey(
+        ids.mint('keyframe'),
+        key.time,
+        resolveId(key.name, eventNameToId, 'animation event'),
+        { int: key.int, float: key.float, string: key.string },
+      ),
+    );
     animations.set(id, {
       id,
       name: animName,
@@ -318,11 +375,8 @@ function formatToDocState(document: SkeletonDocument, ids: IdFactory): DocState 
       ik: ikTracks,
       transform: transformTracks,
       deform: deformTracks,
-      // Draw-order and event timelines are carried VERBATIM from the (already-migrated) format document
-      // (ADR-0008; PP-D9 owns their authoring). Slicing detaches the model from the parsed document; the
-      // entries themselves are immutable value objects the model never mutates in this slice.
-      drawOrder: animation.drawOrder.slice(),
-      events: animation.events.slice(),
+      drawOrder: drawOrderKeys,
+      events: eventKeys,
     });
   }
 
@@ -341,6 +395,22 @@ function formatToDocState(document: SkeletonDocument, ids: IdFactory): DocState 
     transformConstraintOrder,
     skins: skinsMap,
     skinOrder,
+    events,
+    eventOrder,
+    // The optional metadata block (fps/imagesPath/audioPath) is copied so the model never aliases the parsed
+    // document; only the present fields are kept (exactOptionalPropertyTypes), so a partial block round-trips.
+    metadata:
+      document.metadata === undefined
+        ? undefined
+        : {
+            ...(document.metadata.fps !== undefined ? { fps: document.metadata.fps } : {}),
+            ...(document.metadata.imagesPath !== undefined
+              ? { imagesPath: document.metadata.imagesPath }
+              : {}),
+            ...(document.metadata.audioPath !== undefined
+              ? { audioPath: document.metadata.audioPath }
+              : {}),
+          },
     // The skeletal SkeletonDocument envelope carries NO slot scene (the slot scene is its own
     // SlotSceneDocument, phase-4 WP-4.4). A skeleton-only load therefore seeds the always-present DEFAULT
     // slot scene; wiring the SlotSceneDocument save/load envelope is a separate change (see report). The
@@ -348,11 +418,6 @@ function formatToDocState(document: SkeletonDocument, ids: IdFactory): DocState 
     slotScene: defaultSlotSceneState(),
     preserved: {
       atlas: document.atlas,
-      // Document-level events and the optional metadata block ride through as preserved content (ADR-0008;
-      // PP-D9 owns event-definition authoring). Both are carried verbatim from the migrated document, so a
-      // 0.3.0 file round-trips load -> export unchanged.
-      events: document.events.slice(),
-      metadata: document.metadata,
     },
   };
 }

@@ -192,6 +192,7 @@ function animationToFormat(
   ikIdToName: ReadonlyMap<string, string>,
   transformIdToName: ReadonlyMap<string, string>,
   skinIdToName: ReadonlyMap<string, string>,
+  eventIdToName: ReadonlyMap<string, string>,
 ): Animation {
   const bones: Record<string, BoneTimelines> = {};
   for (const [boneId, set] of animation.bones) {
@@ -232,16 +233,20 @@ function animationToFormat(
     }
     if (Object.keys(bySlotOut).length > 0) deform[skinName] = bySlotOut;
   }
-  // Draw-order and event timelines are carried VERBATIM (ADR-0008, PP-D9 owns their authoring). They are
-  // REQUIRED format collections, so they always emit (empty when the animation reorders nothing / fires
-  // nothing). Arrays are copied so the exported document never aliases the model's frozen arrays.
+  // Draw-order and event timelines (Stage F1, PP-D9): resolve each key's id references back to CURRENT
+  // names (an offset's SlotId to the slot name, an event key's EventDefId to the event name), so a rename
+  // is a single-field change with zero cascade. They are REQUIRED format collections, so they always emit
+  // (empty when the animation reorders nothing / fires nothing).
   const drawOrder: DrawOrderKeyframe[] = animation.drawOrder.map((key) => ({
     time: key.time,
-    offsets: key.offsets.map((offset) => ({ slot: offset.slot, offset: offset.offset })),
+    offsets: key.offsets.map((entry) => ({
+      slot: resolveName(entry.slot, slotIdToName, 'draw-order slot'),
+      offset: entry.offset,
+    })),
   }));
   const events: EventKeyframe[] = animation.events.map((key) => ({
     time: key.time,
-    name: key.name,
+    name: resolveName(key.event, eventIdToName, 'animation event'),
     ...(key.int !== undefined ? { int: key.int } : {}),
     ...(key.float !== undefined ? { float: key.float } : {}),
     ...(key.string !== undefined ? { string: key.string } : {}),
@@ -370,6 +375,12 @@ export function exportDocument(model: DocumentReadModel): SkeletonDocument {
     .transformConstraints()
     .map((c) => transformConstraintToFormat(c, boneIdToName));
 
+  // Event definitions (Stage F1, PP-D9) emit in eventOrder; an event key resolves its EventDefId back to the
+  // definition's CURRENT name through this map.
+  const orderedEventDefs = model.eventDefs();
+  const eventIdToName = new Map<string, string>();
+  for (const def of orderedEventDefs) eventIdToName.set(def.id, def.name);
+
   // Animations are name-keyed on disk (the record key is the animation name) and order-insignificant.
   // model.animations() is id-sorted (deterministic); a duplicate name cannot be represented in the
   // record, so it is corrupt internal state surfaced here (fail loud), matching bone/slot name uniqueness.
@@ -385,13 +396,14 @@ export function exportDocument(model: DocumentReadModel): SkeletonDocument {
       ikIdToName,
       transformIdToName,
       skinIdToName,
+      eventIdToName,
     );
   }
 
-  // Document-level events and the optional metadata block are carried VERBATIM from preserved content
-  // (ADR-0008; PP-D9 owns event-definition authoring). `events` is REQUIRED (empty when the rig defines
-  // none); `metadata` is emitted only when present, per exactOptionalPropertyTypes.
-  const preserved = model.preserved();
+  // Document-level events emit from the first-class event definitions (Stage F1, PP-D9), in eventOrder;
+  // `events` is REQUIRED (empty when the rig defines none). The optional metadata block is emitted only when
+  // present, per exactOptionalPropertyTypes. The atlas is still carried from preserved content.
+  const metadata = model.metadata();
   const draft: SkeletonDocument = {
     formatVersion: CURRENT_FORMAT_VERSION,
     name: model.name,
@@ -401,7 +413,7 @@ export function exportDocument(model: DocumentReadModel): SkeletonDocument {
     skins,
     ikConstraints,
     transformConstraints,
-    events: preserved.events.map((event) => ({
+    events: orderedEventDefs.map((event) => ({
       name: event.name,
       ...(event.int !== undefined ? { int: event.int } : {}),
       ...(event.float !== undefined ? { float: event.float } : {}),
@@ -417,8 +429,8 @@ export function exportDocument(model: DocumentReadModel): SkeletonDocument {
         : {}),
     })),
     animations,
-    atlas: preserved.atlas,
-    ...(preserved.metadata !== undefined ? { metadata: preserved.metadata } : {}),
+    atlas: model.preserved().atlas,
+    ...(metadata !== undefined ? { metadata } : {}),
   };
   const withHash: SkeletonDocument = { ...draft, hash: computeContentHash(draft) };
 

@@ -1,4 +1,4 @@
-import type { AtlasRef } from '@marionette/format/types';
+import type { AtlasRef, SkeletonMeta } from '@marionette/format/types';
 import type {
   FeatureFlowGraph,
   GridConfig,
@@ -17,6 +17,9 @@ import type {
   BoneTimelineSet,
   DeformKeyframeEntity,
   DeformSkinKey,
+  DrawOrderKeyEntity,
+  EventDefEntity,
+  EventKeyEntity,
   IkConstraintEntity,
   IkKeyframeEntity,
   KeyframeEntity,
@@ -31,6 +34,7 @@ import type {
 import type {
   AnimationId,
   BoneId,
+  EventDefId,
   IkConstraintId,
   SkinId,
   SlotId,
@@ -120,6 +124,13 @@ export interface Mutator extends DocumentReadModel {
   patchSkin(id: SkinId, patch: { readonly name?: string }): void;
   setSkinAttachment(skinId: SkinId, slotId: SlotId, entity: AttachmentEntity): void;
   removeSkinAttachment(skinId: SkinId, slotId: SlotId, name: string): void;
+  // Event-definition + metadata + per-animation event/draw-order write surface (Stage F1, PP-D9).
+  insertEventDef(entity: EventDefEntity, index: number): void;
+  removeEventDef(id: EventDefId): void;
+  setEventDef(id: EventDefId, entity: EventDefEntity): void;
+  setMetadata(metadata: SkeletonMeta | undefined): void;
+  setEventTimeline(animId: AnimationId, keys: readonly EventKeyEntity[]): void;
+  setDrawOrderTimeline(animId: AnimationId, keys: readonly DrawOrderKeyEntity[]): void;
   // Slot-scene write surface (phase-4 WP-4.5 / WP-4.6 / WP-4.8).
   setSlotGrid(grid: GridConfig): void;
   setSymbolAnimSet(symbolId: SymbolId, set: SymbolAnimSet): void;
@@ -158,6 +169,10 @@ export function createMutator(model: DocumentModelInternal): Mutator {
     transformConstraints: () => model.transformConstraints(),
     getSkin: (id) => model.getSkin(id),
     skins: () => model.skins(),
+    getEventDef: (id) => model.getEventDef(id),
+    eventDefs: () => model.eventDefs(),
+    findEventDefByName: (name) => model.findEventDefByName(name),
+    metadata: () => model.metadata(),
     slotScene: () => model.slotScene(),
     slotGrid: () => model.slotGrid(),
     slotTumble: () => model.slotTumble(),
@@ -206,6 +221,12 @@ export function createMutator(model: DocumentModelInternal): Mutator {
     setSkinAttachment: (skinId, slotId, entity) => model.setSkinAttachment(skinId, slotId, entity),
     removeSkinAttachment: (skinId, slotId, name) =>
       model.removeSkinAttachment(skinId, slotId, name),
+    insertEventDef: (entity, index) => model.insertEventDef(entity, index),
+    removeEventDef: (id) => model.removeEventDef(id),
+    setEventDef: (id, entity) => model.setEventDef(id, entity),
+    setMetadata: (metadata) => model.setMetadata(metadata),
+    setEventTimeline: (animId, keys) => model.setEventTimeline(animId, keys),
+    setDrawOrderTimeline: (animId, keys) => model.setDrawOrderTimeline(animId, keys),
     setSlotGrid: (grid) => model.setSlotGrid(grid),
     setSymbolAnimSet: (symbolId, set) => model.setSymbolAnimSet(symbolId, set),
     removeSymbolAnimSet: (symbolId) => model.removeSymbolAnimSet(symbolId),

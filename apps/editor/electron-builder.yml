@@ -1,0 +1,93 @@
+# electron-builder configuration for Armature 2D (PP-E5 / WP-5.7).
+#
+# Why a YAML file rather than a package.json "build" block: this config carries load-bearing
+# security and product notes (local-only, no auto-update yet, per-arch mac artifacts) that must be
+# commented inline, and package.json cannot hold comments. It also keeps package.json focused on
+# scripts and dependencies, matching the repo convention of YAML for build and CI config.
+#
+# Product directives encoded here (docs/plan/pro-parity-execution-plan.md section 1): free product,
+# standalone and local-only, NO telemetry, NO network calls from the packaged app. Auto-update is a
+# later strictly-opt-in slice, so NO publish/update provider is configured (publish: null). Shipping
+# unsigned and updateless first is deliberate and recorded in docs/dev/release-and-versioning.md.
+
+appId: com.viralventures.armature2d
+productName: Armature 2D
+copyright: Copyright (c) Viral Ventures LLC (Maple Grove, MN)
+
+# electron-vite emits main, preload, and renderer under out/. The main entry is package.json "main"
+# (out/main/main.js). We ship the built bundles plus the manifest; workspace @marionette/* packages
+# and the renderer dependencies are already inlined by the electron-vite build, so the only external
+# runtime dependency the main process resolves from node_modules is zod (see electron.vite.config.ts).
+directories:
+  # buildResources defaults to build/, where icon.icns (mac) and icon.png (512, linux + win source)
+  # already live; output goes to dist/ (git-ignored).
+  output: dist
+files:
+  - 'out/**/*'
+  - 'package.json'
+  - '!**/*.map'
+asar: true
+
+# The runtime app icon the main process loads at process.resourcesPath/icon.png (see
+# src/main/main.ts resolveIconPath). extraResources copies into the platform resources directory
+# (Contents/Resources on mac, resources/ on win + linux), which is exactly process.resourcesPath, so
+# the packaged lookup resolves. It sits outside the asar and is a plain readable file.
+extraResources:
+  - from: resources/icon.png
+    to: icon.png
+
+# No publish/update provider yet: the packaged app makes no network request (local-only privacy
+# directive). Auto-update, when it lands, is strictly opt-in and integrity-checked in its own slice.
+publish: null
+
+mac:
+  # LSApplicationCategoryType. Armature 2D is a graphics and design authoring tool.
+  category: public.app-category.graphics-design
+  icon: build/icon.icns
+  # Separate per-architecture artifacts (NOT a universal binary), per the plan: Apple Silicon and
+  # Intel each get their own dmg and zip. zip is the delta-update-friendly format for a future feed;
+  # dmg is the human install artifact.
+  target:
+    - target: dmg
+      arch:
+        - arm64
+        - x64
+    - target: zip
+      arch:
+        - arm64
+        - x64
+  # Hardened runtime is required for notarization; harmless unsigned. Notarization itself is gated on
+  # signing secrets in the release workflow and skipped cleanly when they are absent.
+  hardenedRuntime: true
+
+win:
+  icon: build/icon.png
+  # NSIS x64 installer. electron-builder converts build/icon.png (512) to the .ico at package time,
+  # so no committed .ico is needed and no new dependency is introduced.
+  target:
+    - target: nsis
+      arch:
+        - x64
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+
+linux:
+  icon: build/icon.png
+  # Freedesktop menu category for a 2D graphics authoring tool.
+  category: Graphics
+  # author has no email, so set the deb/rpm maintainer explicitly (both formats require one).
+  maintainer: Viral Ventures LLC <engineering@viralventures.example>
+  synopsis: Local-only 2D skeletal animation and slot presentation authoring tool.
+  target:
+    - target: AppImage
+      arch:
+        - x64
+    - target: deb
+      arch:
+        - x64
+    - target: rpm
+      arch:
+        - x64

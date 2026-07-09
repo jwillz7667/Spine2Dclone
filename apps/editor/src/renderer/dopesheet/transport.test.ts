@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { advance, keyframeValueEquals, loopEndpointsDiffer, loopTime } from './transport';
+import {
+  advance,
+  clampPlaybackSpeed,
+  keyframeValueEquals,
+  loopEndpointsDiffer,
+  loopTime,
+} from './transport';
 import { addAnimation, addBone, createEmptyDocument, setRotateKeys } from './seed-document';
 
 describe('transport math', () => {
@@ -20,6 +26,17 @@ describe('transport math', () => {
     expect(advance(0.5, 0.25, 1.2, false)).toEqual({ playhead: 0.75, reachedEnd: false });
     expect(advance(0.1, -0.5, 1.2, false)).toEqual({ playhead: 0, reachedEnd: false });
     expect(advance(0.5, 1, 0, true)).toEqual({ playhead: 0, reachedEnd: true });
+  });
+
+  it('clampPlaybackSpeed bounds to [0.1, 2] and defaults non-finite input to real time', () => {
+    expect(clampPlaybackSpeed(1)).toBe(1);
+    expect(clampPlaybackSpeed(0.1)).toBe(0.1);
+    expect(clampPlaybackSpeed(2)).toBe(2);
+    expect(clampPlaybackSpeed(0)).toBe(0.1);
+    expect(clampPlaybackSpeed(-3)).toBe(0.1);
+    expect(clampPlaybackSpeed(5)).toBe(2);
+    expect(clampPlaybackSpeed(Number.NaN)).toBe(1);
+    expect(clampPlaybackSpeed(Number.POSITIVE_INFINITY)).toBe(1);
   });
 
   it('keyframeValueEquals compares per channel shape and rejects mismatched shapes', () => {

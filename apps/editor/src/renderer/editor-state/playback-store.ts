@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import type { AnimationId, KeyframeId } from '../document';
 import type { CopiedKeyframe } from '../dopesheet/clipboard';
 import { DEFAULT_VIEW, type DopesheetView, type WorkingFps } from '../dopesheet/timeline-math';
-import { advance } from '../dopesheet/transport';
+import { advance, clampPlaybackSpeed } from '../dopesheet/transport';
 
 export type PlaybackMode = 'setup' | 'animation';
 
@@ -18,6 +18,7 @@ interface PlaybackStore {
   readonly isPlaying: boolean;
   readonly loop: boolean;
   readonly workingFps: WorkingFps;
+  readonly playbackSpeed: number; // clock multiplier in [0.1, 2]; 1 is real time (PP-D2)
   readonly autoKey: boolean;
   readonly keySelection: readonly KeyframeId[];
   readonly keyClipboard: readonly CopiedKeyframe[];
@@ -32,6 +33,9 @@ interface PlaybackStore {
   pause(): void;
   setLoop(loop: boolean): void;
   setWorkingFps(fps: WorkingFps): void;
+  // Set the playback-speed multiplier; the value is clamped to [0.1, 2] (clampPlaybackSpeed), so an
+  // out-of-range or non-finite request can never install a stalled or reversed clock.
+  setPlaybackSpeed(speed: number): void;
   setAutoKey(autoKey: boolean): void;
 
   selectKeys(ids: readonly KeyframeId[]): void;
@@ -54,6 +58,7 @@ export const usePlaybackStore = create<PlaybackStore>((set) => ({
   isPlaying: false,
   loop: true,
   workingFps: 30,
+  playbackSpeed: 1,
   autoKey: true,
   keySelection: [],
   keyClipboard: [],
@@ -67,6 +72,7 @@ export const usePlaybackStore = create<PlaybackStore>((set) => ({
   pause: () => set({ isPlaying: false }),
   setLoop: (loop) => set({ loop }),
   setWorkingFps: (workingFps) => set({ workingFps }),
+  setPlaybackSpeed: (speed) => set({ playbackSpeed: clampPlaybackSpeed(speed) }),
   setAutoKey: (autoKey) => set({ autoKey }),
 
   selectKeys: (ids) => set({ keySelection: [...ids] }),
@@ -91,7 +97,15 @@ export const usePlaybackStore = create<PlaybackStore>((set) => ({
   tick: (deltaSeconds, duration) =>
     set((state) => {
       if (!state.isPlaying) return state;
-      const result = advance(state.playhead, deltaSeconds, duration, state.loop);
+      // Scale the real-clock delta by the playback-speed multiplier (PP-D2). This is the single point
+      // both transport clocks (the dopesheet rAF loop and the viewport ticker) route through, so speed
+      // applies uniformly without either caller knowing about it.
+      const result = advance(
+        state.playhead,
+        deltaSeconds * state.playbackSpeed,
+        duration,
+        state.loop,
+      );
       return result.reachedEnd
         ? { playhead: result.playhead, isPlaying: false }
         : { playhead: result.playhead };

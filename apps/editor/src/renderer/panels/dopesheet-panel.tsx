@@ -34,7 +34,7 @@ import {
   zoomXAround,
   type DopesheetView,
 } from '../dopesheet/timeline-math';
-import { loopEndpointsDiffer } from '../dopesheet/transport';
+import { clampPlaybackSpeed, loopEndpointsDiffer, PLAYBACK_SPEEDS } from '../dopesheet/transport';
 import {
   buildSpecialTracks,
   buildTracks,
@@ -453,9 +453,11 @@ function TransportBar({ animations, activeAnimation, advisory }: TransportBarPro
   const isPlaying = usePlaybackStore((state) => state.isPlaying);
   const loop = usePlaybackStore((state) => state.loop);
   const workingFps = usePlaybackStore((state) => state.workingFps);
+  const playbackSpeed = usePlaybackStore((state) => state.playbackSpeed);
   const setActiveAnimation = usePlaybackStore((state) => state.setActiveAnimation);
   const setLoop = usePlaybackStore((state) => state.setLoop);
   const setWorkingFps = usePlaybackStore((state) => state.setWorkingFps);
+  const setPlaybackSpeed = usePlaybackStore((state) => state.setPlaybackSpeed);
 
   const togglePlay = (): void => {
     const store = usePlaybackStore.getState();
@@ -501,6 +503,18 @@ function TransportBar({ animations, activeAnimation, advisory }: TransportBarPro
       >
         <option value={30}>30 fps</option>
         <option value={60}>60 fps</option>
+      </select>
+      <select
+        style={selectStyle}
+        value={playbackSpeed}
+        title="Playback speed (scales the transport clock only)"
+        onChange={(event) => setPlaybackSpeed(clampPlaybackSpeed(Number(event.target.value)))}
+      >
+        {PLAYBACK_SPEEDS.map((speed) => (
+          <option key={speed} value={speed}>
+            {speed}x
+          </option>
+        ))}
       </select>
       <FrameReadout />
       {advisory && <span style={advisoryStyle}>loop endpoints differ</span>}

@@ -19,6 +19,7 @@ function resetStore(): void {
     isPlaying: false,
     loop: true,
     workingFps: 30,
+    playbackSpeed: 1,
     autoKey: true,
     keySelection: [],
     keyClipboard: [],
@@ -57,6 +58,26 @@ describe('playback store', () => {
   it('does not advance while paused', () => {
     usePlaybackStore.getState().tick(0.5, 1.2);
     expect(usePlaybackStore.getState().playhead).toBe(0);
+  });
+
+  it('scales the clock delta by the playback speed and clamps the speed to [0.1, 2]', () => {
+    const store = usePlaybackStore.getState();
+    store.setLoop(false);
+    store.play();
+
+    store.setPlaybackSpeed(0.5);
+    usePlaybackStore.getState().tick(0.4, 10);
+    expect(usePlaybackStore.getState().playhead).toBeCloseTo(0.2, 12); // half speed
+
+    usePlaybackStore.getState().setPlaybackSpeed(2);
+    usePlaybackStore.getState().tick(0.4, 10);
+    expect(usePlaybackStore.getState().playhead).toBeCloseTo(1.0, 12); // 0.2 + 0.4 * 2
+
+    usePlaybackStore.getState().setPlaybackSpeed(99);
+    expect(usePlaybackStore.getState().playbackSpeed).toBe(2); // clamped to the max
+
+    usePlaybackStore.getState().setPlaybackSpeed(0);
+    expect(usePlaybackStore.getState().playbackSpeed).toBe(0.1); // clamped to the min
   });
 
   it('manages the key selection by branded id', () => {

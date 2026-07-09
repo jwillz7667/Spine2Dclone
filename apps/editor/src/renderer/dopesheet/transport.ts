@@ -12,6 +12,22 @@ export function loopTime(elapsed: number, duration: number): number {
   return ((elapsed % duration) + duration) % duration;
 }
 
+// The playback-speed multiplier bounds and the discrete steps the transport UI offers (PP-D2). Speed
+// scales the transport clock delta ONLY (LAW 1: it never touches the document, History, or the authored
+// timeline); 1 is real time, 0.1 is a tenth speed for inspecting fast motion, 2 is double speed. The
+// bounds are the product spec (0.1x to 2x); the step list is what the dropdown exposes.
+export const MIN_PLAYBACK_SPEED = 0.1;
+export const MAX_PLAYBACK_SPEED = 2;
+export const PLAYBACK_SPEEDS: readonly number[] = [0.1, 0.25, 0.5, 1, 1.5, 2];
+
+// Clamp an arbitrary speed into [MIN_PLAYBACK_SPEED, MAX_PLAYBACK_SPEED], falling back to real time (1)
+// for a non-finite input. The store clamps here so no code path can install a zero/negative/NaN speed
+// that would stall or reverse the clock unexpectedly.
+export function clampPlaybackSpeed(speed: number): number {
+  if (!Number.isFinite(speed)) return 1;
+  return Math.min(MAX_PLAYBACK_SPEED, Math.max(MIN_PLAYBACK_SPEED, speed));
+}
+
 export interface AdvanceResult {
   readonly playhead: number;
   readonly reachedEnd: boolean;

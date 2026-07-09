@@ -21,7 +21,7 @@ import {
   updateKeyframeDrag,
   type KeyframeDrag,
 } from '../dopesheet/keyframe-edit';
-import { indexKeyframes } from '../dopesheet/keyframe-index';
+import { collectKeyframeIds, deleteSelectedKeyframes } from '../dopesheet/keyframe-delete';
 import { hitTestKey, marqueeSelect, type LaidOutKey, type Rect } from '../dopesheet/selection';
 import {
   clamp,
@@ -42,12 +42,7 @@ import {
   type TrackNames,
   type TrackRow,
 } from '../dopesheet/tracks';
-import {
-  beginSpecialDrag,
-  deleteSpecialKeys,
-  updateSpecialDrag,
-  type SpecialDrag,
-} from '../dopesheet/event-track-edit';
+import { beginSpecialDrag, updateSpecialDrag, type SpecialDrag } from '../dopesheet/event-track-edit';
 
 const LABEL_WIDTH = 184;
 const ROW_HEIGHT = 22;
@@ -80,6 +75,9 @@ export function DopesheetPanel(_props: IDockviewPanelProps): ReactElement {
     () => ({
       boneName: (id) => model.getBone(id)?.name ?? String(id),
       slotName: (id) => model.getSlot(id)?.name ?? String(id),
+      ikName: (id) => model.getIkConstraint(id)?.name ?? String(id),
+      transformName: (id) => model.getTransformConstraint(id)?.name ?? String(id),
+      skinName: (key) => (key === 'default' ? 'default' : (model.getSkin(key)?.name ?? String(key))),
     }),
     [model],
   );
@@ -120,9 +118,9 @@ export function DopesheetPanel(_props: IDockviewPanelProps): ReactElement {
     if (activeAnimation === null) return;
     const animation = model.getAnimation(activeAnimation);
     if (animation === undefined) return;
-    const index = indexKeyframes(animation);
+    const ids = collectKeyframeIds(animation);
     const current = usePlaybackStore.getState().keySelection;
-    const valid = current.filter((id) => index.has(id));
+    const valid = current.filter((id) => ids.has(id));
     if (valid.length !== current.length) usePlaybackStore.getState().selectKeys(valid);
   }, [revision, activeAnimation, model]);
 
@@ -154,9 +152,15 @@ export function DopesheetPanel(_props: IDockviewPanelProps): ReactElement {
     const keys: LaidOutKey[] = [];
     for (let r = firstRow; r < lastRow; r += 1) {
       const row = rows[r];
-      // Value channels and the special (event / draw-order) rows both carry {id, time} keys, so they
-      // lay out and hit-test identically; group header rows carry no keys.
-      if (row === undefined || (row.kind !== 'channel' && row.kind !== 'special')) continue;
+      // Value channels, the special (event / draw-order) rows, and the timeline rows (attachment /
+      // deform / IK / transform) all carry {id, time} keys, so they lay out and hit-test identically;
+      // group header rows carry no keys.
+      if (
+        row === undefined ||
+        (row.kind !== 'channel' && row.kind !== 'special' && row.kind !== 'timeline')
+      ) {
+        continue;
+      }
       const y = RULER_HEIGHT + r * ROW_HEIGHT + ROW_HEIGHT / 2 - view.scrollY;
       for (const kf of row.keyframes) {
         if (kf.time < tStart || kf.time > tEnd) continue;
@@ -344,13 +348,17 @@ export function DopesheetPanel(_props: IDockviewPanelProps): ReactElement {
   function onKeyDown(event: ReactKeyboardEvent<HTMLDivElement>): void {
     if (activeAnimation === null) return;
 
-    // Delete / Backspace removes the selected event and draw-order keys in one undo step (value-channel
-    // keys in the selection are left to their own delete path). Requires no modifier.
+    // Delete / Backspace removes EVERY selected key across all row kinds (bone/slot value channels, slot
+    // attachment, deform, IK, transform, events, draw order) in one undo step. Requires no modifier.
     if (event.key === 'Delete' || event.key === 'Backspace') {
       const animation = documentHost.current().model.getAnimation(activeAnimation);
       if (animation === undefined) return;
       const store = usePlaybackStore.getState();
-      const deleted = deleteSpecialKeys(documentHost.current().history, animation, store.keySelection);
+      const deleted = deleteSelectedKeyframes(
+        documentHost.current().history,
+        animation,
+        store.keySelection,
+      );
       if (deleted.length > 0) {
         const deletedSet = new Set(deleted);
         store.selectKeys(store.keySelection.filter((id) => !deletedSet.has(id)));

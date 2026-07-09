@@ -1,11 +1,16 @@
 import {
   CreateAnimationCommand,
   CreateBoneCommand,
+  CreateIkConstraintCommand,
   CreateSlotCommand,
+  CreateTransformConstraintCommand,
   DefineEventCommand,
+  SetAttachmentKeyframeCommand,
   SetDrawOrderKeyCommand,
   SetEventKeyCommand,
+  SetIkKeyframeCommand,
   SetKeyframeCommand,
+  SetTransformKeyframeCommand,
   createDocument,
   makeIdFactory,
   newDocState,
@@ -13,10 +18,12 @@ import {
   type BoneId,
   type Document,
   type EventDefId,
+  type IkConstraintId,
   type KeyframeId,
   type KeyframeTarget,
   type KeyframeValue,
   type SlotId,
+  type TransformConstraintId,
 } from '../document';
 
 // Test-only support: builds live Documents through the real command spine so the dopesheet tests exercise
@@ -79,6 +86,21 @@ export function rotateKeyframes(
   return set ? set.rotate.map((kf) => ({ id: kf.id, time: kf.time })) : [];
 }
 
+// Key the slot color channel at each of `times` (opaque white), for the delete/prune tests.
+export function setColorKeys(
+  doc: Document,
+  animId: AnimationId,
+  slotId: SlotId,
+  times: readonly number[],
+): void {
+  const target: KeyframeTarget = { kind: 'slot', slotId, channel: 'color' };
+  for (const time of times) {
+    doc.history.execute(
+      new SetKeyframeCommand(animId, target, time, { color: { r: 1, g: 1, b: 1, a: 1 } }),
+    );
+  }
+}
+
 // Add a slot riding `boneId`, for the draw-order/special-timeline tests (a draw-order key references slots).
 export function addSlot(doc: Document, name: string, boneId: BoneId): SlotId {
   const id = doc.ids.mint('slot');
@@ -133,6 +155,92 @@ export function eventKeys(
 ): readonly { id: KeyframeId; time: number }[] {
   const animation = doc.model.getAnimation(animId);
   return animation ? animation.events.map((key) => ({ id: key.id, time: key.time })) : [];
+}
+
+// Insert stepped attachment-swap frames on `slotId`, each hiding the slot (name null, always valid without
+// a real attachment), for the dopesheet attachment-row tests.
+export function setAttachmentKeys(
+  doc: Document,
+  animId: AnimationId,
+  slotId: SlotId,
+  times: readonly number[],
+): void {
+  for (const time of times) {
+    doc.history.execute(new SetAttachmentKeyframeCommand(animId, slotId, time, null));
+  }
+}
+
+// Create a 1-bone IK constraint reaching `target`, for the dopesheet IK-row tests.
+export function addIkConstraint(
+  doc: Document,
+  name: string,
+  chain: BoneId,
+  target: BoneId,
+): IkConstraintId {
+  const id = doc.ids.mint('ikConstraint');
+  doc.history.execute(new CreateIkConstraintCommand(id, name, [chain], target, 1, true));
+  return id;
+}
+
+// Key the IK mix/bend timeline at each of `times`.
+export function setIkKeys(
+  doc: Document,
+  animId: AnimationId,
+  constraintId: IkConstraintId,
+  times: readonly number[],
+): void {
+  for (const time of times) {
+    doc.history.execute(new SetIkKeyframeCommand(animId, constraintId, time, 1, true));
+  }
+}
+
+// Create a 1-bone transform constraint driving `chain` from `target`, all channels zeroed, for the
+// dopesheet transform-row tests.
+export function addTransformConstraint(
+  doc: Document,
+  name: string,
+  chain: BoneId,
+  target: BoneId,
+): TransformConstraintId {
+  const id = doc.ids.mint('transformConstraint');
+  doc.history.execute(
+    new CreateTransformConstraintCommand(id, name, [chain], target, {
+      mixRotate: 0,
+      mixX: 0,
+      mixY: 0,
+      mixScaleX: 0,
+      mixScaleY: 0,
+      mixShearY: 0,
+      offsetRotation: 0,
+      offsetX: 0,
+      offsetY: 0,
+      offsetScaleX: 0,
+      offsetScaleY: 0,
+      offsetShearY: 0,
+    }),
+  );
+  return id;
+}
+
+// Key the transform-constraint mix timeline at each of `times` (only mixRotate present per key).
+export function setTransformKeys(
+  doc: Document,
+  animId: AnimationId,
+  constraintId: TransformConstraintId,
+  times: readonly number[],
+): void {
+  for (const time of times) {
+    doc.history.execute(
+      new SetTransformKeyframeCommand(animId, constraintId, time, {
+        mixRotate: 1,
+        mixX: undefined,
+        mixY: undefined,
+        mixScaleX: undefined,
+        mixScaleY: undefined,
+        mixShearY: undefined,
+      }),
+    );
+  }
 }
 
 // Insert a draw-order key at `time` moving `slotId` by `offset` positions from its setup index.

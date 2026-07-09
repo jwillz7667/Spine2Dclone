@@ -1,6 +1,4 @@
 import {
-  DeleteDrawOrderKeyCommand,
-  DeleteEventKeyCommand,
   KeyframeCollisionError,
   MoveDrawOrderKeyCommand,
   MoveEventKeyCommand,
@@ -110,31 +108,5 @@ export function addEventKeyAtPlayhead(
   );
 }
 
-// Delete every SELECTED special key in one interaction session, so removing several keys is ONE undo step.
-// Value-channel ids in the selection are ignored (they are not special keys). Returns the ids actually
-// deleted so the caller can prune them from the ephemeral selection; an empty result issues no command, so
-// pressing Delete with no special key selected creates no empty undo entry.
-export function deleteSpecialKeys(
-  history: History,
-  animation: AnimationEntity,
-  keyframeIds: readonly KeyframeId[],
-): KeyframeId[] {
-  const eventIds = new Set(animation.events.map((key) => key.id));
-  const drawIds = new Set(animation.drawOrder.map((key) => key.id));
-  const targets = keyframeIds.filter((id) => eventIds.has(id) || drawIds.has(id));
-  if (targets.length === 0) return [];
-
-  history.beginInteraction();
-  try {
-    for (const id of targets) {
-      if (eventIds.has(id)) {
-        history.execute(new DeleteEventKeyCommand(animation.id, id));
-      } else {
-        history.execute(new DeleteDrawOrderKeyCommand(animation.id, id));
-      }
-    }
-  } finally {
-    history.endInteraction('Delete Keys');
-  }
-  return targets;
-}
+// Deletion of event and draw-order keys is handled by the unified dopesheet delete path
+// (keyframe-delete.ts deleteSelectedKeyframes), which removes EVERY selected row kind in one undo step.

@@ -2,9 +2,12 @@ import type {
   AnimationEntity,
   BoneChannel,
   BoneId,
+  DeformSkinKey,
+  IkConstraintId,
   KeyframeId,
   KeyframeTarget,
   SlotId,
+  TransformConstraintId,
 } from '../document';
 
 // Pure track-tree derivation for the dopesheet (WP-1.6, TASK-1.6.1). The active animation's timelines
@@ -46,11 +49,27 @@ export interface SpecialRow {
   readonly keyframes: readonly ChannelKey[];
 }
 
-export type TrackRow = GroupRow | ChannelRow | SpecialRow;
+// The non-value editable timelines (PP-D2): slot attachment-swap, per-(skin, slot, attachment) deform,
+// IK-mix, and transform-constraint. Unlike ChannelRow these carry no KeyframeTarget and no interpolated
+// value, so they do not flow through the value-channel drag path (keyframe-edit.ts); the panel lays them
+// out and hit-tests them by {id, time} like every other row, and Delete removes their keys through the
+// per-timeline delete commands (keyframe-delete.ts). Keeping them a distinct kind leaves the value-channel
+// derivation and its tests untouched.
+export interface TimelineRow {
+  readonly kind: 'timeline';
+  readonly key: string;
+  readonly label: string;
+  readonly keyframes: readonly ChannelKey[];
+}
+
+export type TrackRow = GroupRow | ChannelRow | SpecialRow | TimelineRow;
 
 export interface TrackNames {
   boneName(id: BoneId): string;
   slotName(id: SlotId): string;
+  ikName(id: IkConstraintId): string;
+  transformName(id: TransformConstraintId): string;
+  skinName(key: DeformSkinKey): string;
 }
 
 const BONE_CHANNELS: readonly BoneChannel[] = ['rotate', 'translate', 'scale', 'shear'];
@@ -87,22 +106,104 @@ export function buildTracks(animation: AnimationEntity, names: TrackNames): Trac
     }
   }
 
-  const slotGroups = [...animation.slots.entries()]
-    .map(([slotId, set]) => ({ slotId, set, name: names.slotName(slotId) }))
+  // Deform timelines are keyed (skin -> slot -> attachment); collect them per SLOT so a slot's deform rows
+  // sit under the same group as its color/attachment rows. A slot may own deform rows without any color or
+  // attachment key, so the slot set below is the union of the two sources.
+  const deformBySlot = new Map<SlotId, DeformRowInfo[]>();
+  for (const [skinKey, bySlot] of animation.deform) {
+    for (const [slotId, byAttachment] of bySlot) {
+      for (const [attachmentName, keys] of byAttachment) {
+        if (keys.length === 0) continue;
+        const list = deformBySlot.get(slotId) ?? [];
+        list.push({ skinKey, attachmentName, keys: keys.map((kf) => ({ id: kf.id, time: kf.time })) });
+        deformBySlot.set(slotId, list);
+      }
+    }
+  }
+
+  const slotIds = new Set<SlotId>();
+  for (const [slotId, set] of animation.slots) {
+    if (set.color.length > 0 || set.attachment.length > 0) slotIds.add(slotId);
+  }
+  for (const slotId of deformBySlot.keys()) slotIds.add(slotId);
+
+  const slotGroups = [...slotIds]
+    .map((slotId) => ({ slotId, name: names.slotName(slotId) }))
     .sort((a, b) => compareLabel(a.name, a.slotId, b.name, b.slotId));
-  for (const { slotId, set, name } of slotGroups) {
-    if (set.color.length === 0) continue;
+  for (const { slotId, name } of slotGroups) {
+    const set = animation.slots.get(slotId);
     rows.push({ kind: 'group', key: `slot:${slotId}`, label: name });
+    if (set !== undefined && set.color.length > 0) {
+      rows.push({
+        kind: 'channel',
+        key: `slot:${slotId}:color`,
+        label: 'Color',
+        target: { kind: 'slot', slotId, channel: 'color' },
+        keyframes: set.color.map((kf) => ({ id: kf.id, time: kf.time })),
+      });
+    }
+    if (set !== undefined && set.attachment.length > 0) {
+      rows.push({
+        kind: 'timeline',
+        key: `slot:${slotId}:attachment`,
+        label: 'Attachment',
+        keyframes: set.attachment.map((kf) => ({ id: kf.id, time: kf.time })),
+      });
+    }
+    const deforms = (deformBySlot.get(slotId) ?? []).sort((a, b) =>
+      compareLabel(
+        names.skinName(a.skinKey),
+        `${a.skinKey}:${a.attachmentName}`,
+        names.skinName(b.skinKey),
+        `${b.skinKey}:${b.attachmentName}`,
+      ),
+    );
+    for (const deform of deforms) {
+      const skinSuffix = deform.skinKey === 'default' ? '' : ` (${names.skinName(deform.skinKey)})`;
+      rows.push({
+        kind: 'timeline',
+        key: `deform:${deform.skinKey}:${slotId}:${deform.attachmentName}`,
+        label: `Deform: ${deform.attachmentName}${skinSuffix}`,
+        keyframes: deform.keys,
+      });
+    }
+  }
+
+  const ikGroups = [...animation.ik.entries()]
+    .filter(([, keys]) => keys.length > 0)
+    .map(([id, keys]) => ({ id, keys, name: names.ikName(id) }))
+    .sort((a, b) => compareLabel(a.name, a.id, b.name, b.id));
+  for (const { id, keys, name } of ikGroups) {
+    rows.push({ kind: 'group', key: `ik:${id}`, label: name });
     rows.push({
-      kind: 'channel',
-      key: `slot:${slotId}:color`,
-      label: 'Color',
-      target: { kind: 'slot', slotId, channel: 'color' },
-      keyframes: set.color.map((kf) => ({ id: kf.id, time: kf.time })),
+      kind: 'timeline',
+      key: `ik:${id}:mix`,
+      label: 'Mix',
+      keyframes: keys.map((kf) => ({ id: kf.id, time: kf.time })),
+    });
+  }
+
+  const transformGroups = [...animation.transform.entries()]
+    .filter(([, keys]) => keys.length > 0)
+    .map(([id, keys]) => ({ id, keys, name: names.transformName(id) }))
+    .sort((a, b) => compareLabel(a.name, a.id, b.name, b.id));
+  for (const { id, keys, name } of transformGroups) {
+    rows.push({ kind: 'group', key: `tc:${id}`, label: name });
+    rows.push({
+      kind: 'timeline',
+      key: `tc:${id}:mix`,
+      label: 'Mix',
+      keyframes: keys.map((kf) => ({ id: kf.id, time: kf.time })),
     });
   }
 
   return rows;
+}
+
+interface DeformRowInfo {
+  readonly skinKey: DeformSkinKey;
+  readonly attachmentName: string;
+  readonly keys: readonly ChannelKey[];
 }
 
 // The two special rows for the active animation (Stage F1, PP-D9): the event timeline and the draw-order

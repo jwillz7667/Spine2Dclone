@@ -1,11 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { AnimationEntity, AnimationId, Document, KeyframeId } from '../document';
-import {
-  addEventKeyAtPlayhead,
-  beginSpecialDrag,
-  deleteSpecialKeys,
-  updateSpecialDrag,
-} from './event-track-edit';
+import type { AnimationEntity, AnimationId, Document } from '../document';
+import { addEventKeyAtPlayhead, beginSpecialDrag, updateSpecialDrag } from './event-track-edit';
 import { frameOf } from './timeline-math';
 import {
   addAnimation,
@@ -87,47 +82,6 @@ describe('dopesheet special-timeline editing', () => {
 
     expect(commits).toBe(0); // the colliding move is skipped, so the empty session commits nothing
     expect(doc.model.snapshot()).toEqual(before);
-  });
-
-  it('deletes selected event and draw-order keys in one undo step and ignores foreign ids', () => {
-    const doc = createEmptyDocument();
-    const boneId = addBone(doc, 'root');
-    addSlot(doc, 'back', boneId);
-    const front = addSlot(doc, 'front', boneId);
-    const animId = addAnimation(doc, 'idle', DURATION);
-    const eventId = defineEvent(doc, 'footstep');
-    setEventKeys(doc, animId, eventId, [0.2]);
-    setDrawOrderKey(doc, animId, 0.4, front, -1);
-    const eventId0 = eventKeys(doc, animId)[0]!.id;
-    const drawId0 = drawOrderKeys(doc, animId)[0]!.id;
-    const foreign = 'keyframe_999' as KeyframeId;
-    const before = doc.model.snapshot();
-
-    const commits = countCommits(doc, () => {
-      const removed = deleteSpecialKeys(doc.history, anim(doc, animId), [eventId0, drawId0, foreign]);
-      expect(removed).toEqual([eventId0, drawId0]);
-    });
-
-    expect(commits).toBe(1); // both deletes fold into one undo entry
-    expect(eventKeys(doc, animId)).toHaveLength(0);
-    expect(drawOrderKeys(doc, animId)).toHaveLength(0);
-
-    doc.history.undo();
-    expect(doc.model.snapshot()).toEqual(before); // one undo restores both keys
-  });
-
-  it('issues no command when the selection holds no special key', () => {
-    const doc = createEmptyDocument();
-    addBone(doc, 'root');
-    const animId = addAnimation(doc, 'idle', DURATION);
-    const foreign = 'keyframe_999' as KeyframeId;
-
-    const commits = countCommits(doc, () => {
-      const removed = deleteSpecialKeys(doc.history, anim(doc, animId), [foreign]);
-      expect(removed).toEqual([]);
-    });
-
-    expect(commits).toBe(0);
   });
 
   it('fires an event at the playhead as one undo step', () => {

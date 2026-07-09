@@ -249,6 +249,86 @@ describe('sampleMeshVertices deform', () => {
   });
 });
 
+// ADR-0011 section 1: a linked mesh reuses a parent mesh's geometry; `timelines` true shares the parent's
+// deform, false uses its own. The solve resolves both through the parent chain before skinning.
+describe('sampleMeshVertices linked mesh (ADR-0011 section 1)', () => {
+  const verts = [0, 0, 20, 0, 20, 20, 0, 20];
+  const uvs = [0, 0, 1, 0, 1, 1, 0, 1];
+  const parentMesh: Attachment = {
+    type: 'mesh',
+    path: 'm',
+    uvs,
+    triangles: [0, 1, 2, 0, 2, 3],
+    hullLength: 4,
+    width: 20,
+    height: 20,
+    color: { r: 1, g: 1, b: 1, a: 1 },
+    vertices: verts,
+  };
+  const sharedLink: Attachment = {
+    type: 'linkedmesh',
+    path: 'ls',
+    parent: 'parent',
+    timelines: true,
+    width: 20,
+    height: 20,
+    color: { r: 1, g: 1, b: 1, a: 1 },
+  };
+  const ownLink: Attachment = {
+    type: 'linkedmesh',
+    path: 'lo',
+    parent: 'parent',
+    timelines: false,
+    width: 20,
+    height: 20,
+    color: { r: 1, g: 1, b: 1, a: 1 },
+  };
+  const linkedSkin: Skin = {
+    name: skinName,
+    attachments: { [slotName]: { parent: parentMesh, shared: sharedLink, own: ownLink } },
+  };
+  const doc = fullDoc({
+    bones: [bone('b', null, { rotation: 20 })],
+    slots: [slot(slotName, 'b')],
+    skins: [linkedSkin],
+    animations: {
+      d: anim({
+        duration: 1,
+        deform: {
+          [skinName]: {
+            [slotName]: {
+              parent: [deformKey(0, [0, 0, 0, 0, 0, 0, 0, 0]), deformKey(1, [5, 0, 5, 0, 5, 0, 5, 0])],
+              own: [deformKey(0, [0, 0, 0, 0, 0, 0, 0, 0]), deformKey(1, [0, 9, 0, 9, 0, 9, 0, 9])],
+            },
+          },
+        },
+      }),
+    },
+  });
+
+  const sample = (name: string): Float32Array => {
+    const pose = buildPose(doc);
+    sampleSkeleton(doc, 'd', 1, pose);
+    const out = new Float32Array(verts.length);
+    sampleMeshVertices(doc, 'd', 1, pose, skinName, slotName, name, out);
+    return out;
+  };
+
+  it('a shared-timeline linked mesh equals its parent (geometry and deform inherited)', () => {
+    expect(Array.from(sample('shared'))).toEqual(Array.from(sample('parent')));
+  });
+
+  it('an own-timeline linked mesh inherits the geometry but uses its own deform', () => {
+    const parent = sample('parent');
+    const own = sample('own');
+    // Same geometry, so the difference is purely the deform delta: own deform [0, 9] vs parent [5, 0].
+    for (let v = 0; v < verts.length; v += 2) {
+      expect(own[v]! - parent[v]!).toBeCloseTo(-5, 5);
+      expect(own[v + 1]! - parent[v + 1]!).toBeCloseTo(9, 5);
+    }
+  });
+});
+
 describe('sampleMeshVertices errors', () => {
   const base = fullDoc({
     bones: [bone('b', null)],

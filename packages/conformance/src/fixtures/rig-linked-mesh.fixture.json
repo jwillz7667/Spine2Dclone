@@ -1,0 +1,52 @@
+{
+  "rigId": "rig-linked-mesh",
+  "rigHash": "sha256:995b5bf3716185fb206989ccac6e175c13ccaf472279738e1fba6b9596d10cf3",
+  "specHash": "sha256:325a4babab857e3f0f488497bf950cdcd26a11c509bf97a5da6d0c72057be807",
+  "coreVersion": "runtime-core@0.0.0",
+  "toolchain": "node-22.13.1-v8",
+  "generatedBy": "generate.ts",
+  "samples": [
+    {
+      "time": 0,
+      "animation": "default",
+      "loop": false,
+      "bones": {
+        "root": [1, 0, 0, 1, 0, 0],
+        "b1": [1, 0, 0, 1, 0, 0]
+      },
+      "meshes": [
+        { "skin": "default", "slot": "mesh_slot", "attachment": "body", "positions": [0, 0, 40, 0, 40, 40, 0, 40] },
+        { "skin": "default", "slot": "mesh_slot", "attachment": "bodyOwn", "positions": [0, 0, 40, 0, 40, 40, 0, 40] },
+        { "skin": "default", "slot": "mesh_slot", "attachment": "bodyShared", "positions": [0, 0, 40, 0, 40, 40, 0, 40] }
+      ]
+    },
+    {
+      "time": 0.5,
+      "animation": "default",
+      "loop": false,
+      "bones": {
+        "root": [1, 0, 0, 1, 0, 0],
+        "b1": [0.9659258262890683, 0.25881904510252074, -0.25881904510252074, 0.9659258262890683, 0, 0]
+      },
+      "meshes": [
+        { "skin": "default", "slot": "mesh_slot", "attachment": "body", "positions": [2.5, 0, 41.13703155517578, 10.352762222290039, 30.784271240234375, 48.98979568481445, -7.852762222290039, 38.63703155517578] },
+        { "skin": "default", "slot": "mesh_slot", "attachment": "bodyOwn", "positions": [0, 5, 38.63703155517578, 15.352762222290039, 28.284271240234375, 53.98979568481445, -10.352762222290039, 43.63703155517578] },
+        { "skin": "default", "slot": "mesh_slot", "attachment": "bodyShared", "positions": [2.5, 0, 41.13703155517578, 10.352762222290039, 30.784271240234375, 48.98979568481445, -7.852762222290039, 38.63703155517578] }
+      ]
+    },
+    {
+      "time": 1,
+      "animation": "default",
+      "loop": false,
+      "bones": {
+        "root": [1, 0, 0, 1, 0, 0],
+        "b1": [0.8660254037844387, 0.49999999999999994, -0.49999999999999994, 0.8660254037844387, 0, 0]
+      },
+      "meshes": [
+        { "skin": "default", "slot": "mesh_slot", "attachment": "body", "positions": [5, 0, 39.64101791381836, 20, 19.641016006469727, 54.64101791381836, -15, 34.64101791381836] },
+        { "skin": "default", "slot": "mesh_slot", "attachment": "bodyOwn", "positions": [0, 10, 34.64101791381836, 30, 14.641016006469727, 64.64102172851562, -20, 44.64101791381836] },
+        { "skin": "default", "slot": "mesh_slot", "attachment": "bodyShared", "positions": [5, 0, 39.64101791381836, 20, 19.641016006469727, 54.64101791381836, -15, 34.64101791381836] }
+      ]
+    }
+  ]
+}

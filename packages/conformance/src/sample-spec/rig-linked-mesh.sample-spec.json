@@ -1,0 +1,12 @@
+{
+  "rigId": "rig-linked-mesh",
+  "animation": "default",
+  "duration": 1.0,
+  "loop": false,
+  "poseTimes": [0.0, 0.5, 1.0],
+  "meshes": [
+    { "skin": "default", "slot": "mesh_slot", "attachment": "body" },
+    { "skin": "default", "slot": "mesh_slot", "attachment": "bodyShared" },
+    { "skin": "default", "slot": "mesh_slot", "attachment": "bodyOwn" }
+  ]
+}

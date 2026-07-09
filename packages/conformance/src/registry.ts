@@ -49,6 +49,10 @@ export const RIG_IDS = [
   // absolute/relative composition), one constrained bone per variant under a rotated parent so the local
   // and world results provably differ. Observes only the bone world-affine lane. Authored first-principles.
   'rig-transform-variants',
+  // PP-B5 slice 4 (ADR-0011 section 1): a linked mesh reusing a parent mesh's geometry, with both
+  // `timelines` values (a shared-deform link that tracks the parent, and an own-deform link that
+  // diverges). Observed on the existing mesh-vertex lane. Authored first-principles.
+  'rig-linked-mesh',
 ] as const;
 
 export type RigId = (typeof RIG_IDS)[number];
@@ -76,6 +80,7 @@ export const RIG_PHASE: Readonly<Record<RigId, number>> = {
   'rig-ik-depth': 2,
   'rig-constraint-order': 2,
   'rig-transform-variants': 2,
+  'rig-linked-mesh': 2,
 };
 
 // The committed current phase (B.2 landed-rig gating). Bumped per phase milestone in this file, NOT

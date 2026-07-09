@@ -12,7 +12,7 @@ All under `src/`:
 
 | Track | Rigs / inputs | Fixtures | Lock |
 |---|---|---|---|
-| **Skeleton** | `rigs/` (14 rigs, each committed as `.json` AND a binary `.bin` twin): rig-2bone, rig-rigid-mesh, rig-weighted-mesh, rig-one-bone-ik, rig-two-bone-ik, rig-transform-constraint, rig-deform, rig-transform-modes, rig-blendmodes, rig-events-draworder, rig-events-loop, rig-ik-depth, rig-constraint-order, rig-transform-variants | `fixtures/` (14, driven by `sample-spec/`) | `.fixtures.lock` |
+| **Skeleton** | `rigs/` (15 rigs, each committed as `.json` AND a binary `.bin` twin): rig-2bone, rig-rigid-mesh, rig-weighted-mesh, rig-one-bone-ik, rig-two-bone-ik, rig-transform-constraint, rig-deform, rig-transform-modes, rig-blendmodes, rig-events-draworder, rig-events-loop, rig-ik-depth, rig-constraint-order, rig-transform-variants, rig-linked-mesh | `fixtures/` (15, driven by `sample-spec/`) | `.fixtures.lock` |
 | **Effects / particles** | `effects-rigs/` (4): coin-burst, ribbon-trail, circle-spawn, god-rays-sprite | `effects-fixtures/` (4) | `.effects-fixtures.lock` |
 | **AnimationState** (ADR-0005) | `anim-state-rigs/anim-state-rig.json` | `anim-state-fixtures/` (4): discrete-flip, additive-layer, queue-loop-boundary, crossfade-fractions | `.anim-state-fixtures.lock` |
 | **Slot** | `slot/scenes/` (4 scenes) x `slot/spins/` (6 spins) via `slot/sample-spec/` | `slot/expected/` (6 golden `PresentationTimeline`s) | `.slot.fixtures.lock` |
@@ -58,6 +58,10 @@ they add no lanes to any other rig, so every pre-PP-B5 fixture regenerates byte-
 variants: one constrained bone per variant (world absolute, local absolute, world relative, local
 relative) under a rotated parent so the world and local results provably differ. It too observes only
 the bone world-affine lane.
+
+**rig-linked-mesh** (PP-B5 slice 4, ADR-0011 section 1) is a mesh plus two linked meshes that reuse its
+geometry: one with `timelines: true` (its vertices track the parent's deform exactly) and one with
+`timelines: false` (its own deform diverges). Observed on the existing mesh-vertex lane.
 
 ## Structure
 

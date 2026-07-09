@@ -1,0 +1,99 @@
+{
+  "formatVersion": "0.4.0",
+  "name": "rig-linked-mesh",
+  "hash": "",
+  "bones": [
+    { "name": "root", "parent": null, "length": 0, "x": 0, "y": 0, "rotation": 0, "scaleX": 1, "scaleY": 1, "shearX": 0, "shearY": 0, "transformMode": "normal" },
+    { "name": "b1", "parent": "root", "length": 40, "x": 0, "y": 0, "rotation": 0, "scaleX": 1, "scaleY": 1, "shearX": 0, "shearY": 0, "transformMode": "normal" }
+  ],
+  "slots": [
+    { "name": "mesh_slot", "bone": "b1", "color": { "r": 1, "g": 1, "b": 1, "a": 1 }, "attachment": "body", "blendMode": "normal" }
+  ],
+  "skins": [
+    {
+      "name": "default",
+      "attachments": {
+        "mesh_slot": {
+          "body": {
+            "type": "mesh",
+            "path": "body_tex",
+            "uvs": [0, 0, 1, 0, 1, 1, 0, 1],
+            "triangles": [0, 1, 2, 0, 2, 3],
+            "hullLength": 4,
+            "width": 40,
+            "height": 40,
+            "color": { "r": 1, "g": 1, "b": 1, "a": 1 },
+            "vertices": [0, 0, 40, 0, 40, 40, 0, 40]
+          },
+          "bodyShared": {
+            "type": "linkedmesh",
+            "path": "body_shared_tex",
+            "parent": "body",
+            "timelines": true,
+            "width": 40,
+            "height": 40,
+            "color": { "r": 1, "g": 1, "b": 1, "a": 1 }
+          },
+          "bodyOwn": {
+            "type": "linkedmesh",
+            "path": "body_own_tex",
+            "parent": "body",
+            "timelines": false,
+            "width": 40,
+            "height": 40,
+            "color": { "r": 1, "g": 1, "b": 1, "a": 1 }
+          }
+        }
+      }
+    }
+  ],
+  "ikConstraints": [],
+  "transformConstraints": [],
+  "animations": {
+    "default": {
+      "duration": 1,
+      "bones": {
+        "b1": {
+          "rotate": [
+            { "time": 0, "value": { "angle": 0 }, "curve": "linear" },
+            { "time": 1, "value": { "angle": 30 }, "curve": "linear" }
+          ]
+        }
+      },
+      "slots": {},
+      "ik": {},
+      "transform": {},
+      "deform": {
+        "default": {
+          "mesh_slot": {
+            "body": [
+              { "time": 0, "value": { "offsets": [0, 0, 0, 0, 0, 0, 0, 0] }, "curve": "linear" },
+              { "time": 1, "value": { "offsets": [5, 0, 5, 0, 5, 0, 5, 0] }, "curve": "linear" }
+            ],
+            "bodyOwn": [
+              { "time": 0, "value": { "offsets": [0, 0, 0, 0, 0, 0, 0, 0] }, "curve": "linear" },
+              { "time": 1, "value": { "offsets": [0, 10, 0, 10, 0, 10, 0, 10] }, "curve": "linear" }
+            ]
+          }
+        }
+      },
+      "drawOrder": [],
+      "events": []
+    }
+  },
+  "atlas": {
+    "pages": [
+      {
+        "file": "atlas.png",
+        "width": 128,
+        "height": 64,
+        "regions": [
+          { "name": "body_tex", "x": 0, "y": 0, "w": 40, "h": 40, "rotated": false, "offsetX": 0, "offsetY": 0, "originalW": 40, "originalH": 40 },
+          { "name": "body_shared_tex", "x": 40, "y": 0, "w": 40, "h": 40, "rotated": false, "offsetX": 0, "offsetY": 0, "originalW": 40, "originalH": 40 },
+          { "name": "body_own_tex", "x": 80, "y": 0, "w": 40, "h": 40, "rotated": false, "offsetX": 0, "offsetY": 0, "originalW": 40, "originalH": 40 }
+        ]
+      }
+    ]
+  },
+  "events": []
+}

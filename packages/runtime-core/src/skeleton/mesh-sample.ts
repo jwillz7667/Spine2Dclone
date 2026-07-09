@@ -1,4 +1,9 @@
-import type { MeshAttachment, SkeletonDocument } from '@marionette/format/types';
+import type {
+  Attachment,
+  LinkedMeshAttachment,
+  MeshAttachment,
+  SkeletonDocument,
+} from '@marionette/format/types';
 import { MAT2X3_STRIDE } from '../math/affine';
 import type { Mat2x3 } from '../math/affine';
 import { applyDeform, solveSkin, solveSkinUnweighted } from '../solve';
@@ -86,16 +91,23 @@ export function sampleMeshVertices(
   attachmentName: string,
   out: Float32Array,
 ): number {
-  const mesh = resolveMesh(document, skinName, slotName, attachmentName);
+  // A plain mesh resolves to itself; a linked mesh (ADR-0009 section 2, ADR-0011 section 1) resolves its
+  // geometry through the parent chain and its deform key through the `timelines`-sharing chain.
+  const resolved = resolveMeshGeometry(document, skinName, slotName, attachmentName);
   const animation = document.animations[animationId];
   if (animation === undefined) throw new AnimationNotFoundError(animationId);
 
   const slotIndex = pose.slotNames.indexOf(slotName);
   const slotBoneIndex = slotIndex >= 0 ? pose.slotBoneIndices[slotIndex]! : -1;
-  const vertexCount = skinMeshInto(mesh, pose, slotBoneIndex, out);
+  const vertexCount = skinMeshInto(resolved.geometry, pose, slotBoneIndex, out);
 
   const prepared = getPreparedAnimation(pose, animation);
-  const channel = findDeformChannel(prepared.deformChannels, skinName, slotName, attachmentName);
+  const channel = findDeformChannel(
+    prepared.deformChannels,
+    resolved.deformSkin,
+    resolved.deformSlot,
+    resolved.deformName,
+  );
   if (channel !== null) {
     // componentCount == 2 * vertexCount (the validated DEFORM_OFFSET_LENGTH invariant), so the lanes
     // sampled here are exactly the lanes applyDeform reads.
@@ -106,21 +118,83 @@ export function sampleMeshVertices(
   return vertexCount;
 }
 
-function resolveMesh(
+// The geometry mesh to skin plus the (skin, slot, name) key whose deform timeline applies (ADR-0011
+// section 1). For a plain mesh this is the identity resolution (itself, its own key); for a linked mesh it
+// is the parent-chain geometry root and the `timelines`-sharing deform source.
+interface ResolvedMeshGeometry {
+  readonly geometry: MeshAttachment;
+  readonly deformSkin: string;
+  readonly deformSlot: string;
+  readonly deformName: string;
+}
+
+function lookupAttachment(
   document: SkeletonDocument,
   skinName: string,
   slotName: string,
   attachmentName: string,
-): MeshAttachment {
+): Attachment | undefined {
   const skin = document.skins.find((candidate) => candidate.name === skinName);
-  const attachment = skin?.attachments[slotName]?.[attachmentName];
+  return skin?.attachments[slotName]?.[attachmentName];
+}
+
+// The linked-mesh chain is guaranteed acyclic by the validator (LINKED_MESH_CYCLE); this bound is a
+// defensive stop so an unvalidated document cannot spin forever (mirroring the solve's other lenience).
+const MAX_LINKED_MESH_DEPTH = 256;
+
+function resolveMeshGeometry(
+  document: SkeletonDocument,
+  skinName: string,
+  slotName: string,
+  attachmentName: string,
+): ResolvedMeshGeometry {
+  const attachment = lookupAttachment(document, skinName, slotName, attachmentName);
   if (attachment === undefined) {
     throw new MeshAttachmentError('not-found', skinName, slotName, attachmentName);
   }
-  if (attachment.type !== 'mesh') {
+  if (attachment.type === 'mesh') {
+    return { geometry: attachment, deformSkin: skinName, deformSlot: slotName, deformName: attachmentName };
+  }
+  if (attachment.type !== 'linkedmesh') {
     throw new MeshAttachmentError('not-a-mesh', skinName, slotName, attachmentName);
   }
-  return attachment;
+
+  // Deform source: walk while the current node is a linked mesh that SHARES its parent's timelines,
+  // stopping at the first node with its own timeline (a real mesh, or a linked mesh with timelines false).
+  // The slot is shared across the chain; only the skin and name change per hop.
+  let deformSkin = skinName;
+  let deformName = attachmentName;
+  let deformNode: LinkedMeshAttachment | null = attachment;
+  for (let hop = 0; hop < MAX_LINKED_MESH_DEPTH && deformNode !== null && deformNode.timelines; hop += 1) {
+    const parentSkin = deformNode.skin ?? deformSkin;
+    const parentName = deformNode.parent;
+    const parent = lookupAttachment(document, parentSkin, slotName, parentName);
+    if (parent === undefined) {
+      throw new MeshAttachmentError('not-found', parentSkin, slotName, parentName);
+    }
+    deformSkin = parentSkin;
+    deformName = parentName;
+    deformNode = parent.type === 'linkedmesh' ? parent : null;
+  }
+
+  // Geometry source: walk the parent chain (regardless of timelines) to the root mesh.
+  let geometrySkin = skinName;
+  let node: Attachment = attachment;
+  for (let hop = 0; hop < MAX_LINKED_MESH_DEPTH && node.type === 'linkedmesh'; hop += 1) {
+    const parentSkin = node.skin ?? geometrySkin;
+    const parent = lookupAttachment(document, parentSkin, slotName, node.parent);
+    if (parent === undefined) {
+      throw new MeshAttachmentError('not-found', parentSkin, slotName, node.parent);
+    }
+    geometrySkin = parentSkin;
+    node = parent;
+  }
+  if (node.type !== 'mesh') {
+    // The chain never reached a real mesh (a validator would have rejected this as LINKED_MESH_PARENT_
+    // INVALID or _CYCLE); report the origin attachment as not-a-mesh rather than skinning a non-geometry.
+    throw new MeshAttachmentError('not-a-mesh', skinName, slotName, attachmentName);
+  }
+  return { geometry: node, deformSkin, deformSlot: slotName, deformName };
 }
 
 function findDeformChannel(

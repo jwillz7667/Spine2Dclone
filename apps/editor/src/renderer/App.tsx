@@ -5,7 +5,9 @@ import {
   AssetsPanel,
   CurveEditorPanel,
   DopesheetPanel,
+  DrawOrderPanel,
   EffectsPanel,
+  EventsPanel,
   HierarchyPanel,
   InspectorPanel,
   SlotPanel,
@@ -25,6 +27,8 @@ const components = {
   animations: AnimationPanel,
   dopesheet: DopesheetPanel,
   curveeditor: CurveEditorPanel,
+  events: EventsPanel,
+  draworder: DrawOrderPanel,
 };
 
 // Default layout: hierarchy left, viewport center, inspector right, and an animation-authoring strip
@@ -79,6 +83,21 @@ function onReady(event: DockviewReadyEvent): void {
     position: { referencePanel: viewport, direction: 'below' },
     initialHeight: 240,
     initialWidth: 240,
+  });
+  // The Events panel (Stage F1 event definitions + firing) and the Draw Order panel (reorder-and-key at the
+  // playhead) tab alongside the Animations panel in the bottom strip: both author animation data the
+  // dopesheet then shows, on the same document + single undo stack.
+  event.api.addPanel({
+    id: 'events',
+    component: 'events',
+    title: 'Events',
+    position: { referencePanel: animations, direction: 'within' },
+  });
+  event.api.addPanel({
+    id: 'draworder',
+    component: 'draworder',
+    title: 'Draw Order',
+    position: { referencePanel: animations, direction: 'within' },
   });
   const dopesheet = event.api.addPanel({
     id: 'dopesheet',

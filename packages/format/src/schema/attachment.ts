@@ -10,7 +10,9 @@ import { rgbaSchema } from './color';
 // decode, weight-sum, influence cap, topology integrity) belong to the mesh validator (format-contract
 // WP-F.5). Stage F2 (ADR-0009, formatVersion 0.4.0) ADDS a sixth kind, `linkedmesh` (a mesh that reuses
 // a parent mesh's geometry), and an optional `sequence` frame-playback block on region and mesh
-// attachments. Here every numeric field is finite; the mesh arrays are shape-only.
+// attachments. Stage F3 (ADR-0011, formatVersion 0.5.0) ADDS a seventh kind, `path` (a piecewise cubic
+// Bezier spline through the slot). Here every numeric field is finite; the mesh/path arrays are
+// shape-only (the vertex-stream decode and the path-geometry checks are the semantic layer).
 
 // A frame-sequence playback block (ADR-0009 section 3): the attachment `path` is a template and frame `i`
 // is its region name with the zero-padded integer `start + i` appended to `digits` places. `count`,
@@ -111,6 +113,26 @@ export const boundingBoxAttachmentSchema = z
   })
   .strict();
 
+// A path attachment (ADR-0011 section 1): a piecewise cubic Bezier spline through the slot, used as a
+// rail that a path constraint distributes bones along. Its control points use the SAME weighted/unweighted
+// vertex encoding as a mesh (ADR-0002; `bones` present means weighted), so the vertex-stream decode is the
+// shared semantic check (validate/vertex-stream.ts) and reuses the MESH_* codec codes. `lengths` is the
+// authoring-time cumulative arc-length table (one entry per curve, non-decreasing) that runtimes consume
+// for constant-speed parametrization; `closed` selects a looped vs open spline. A path renders no pixels,
+// so it carries no atlas region, size, or color (like boundingbox). The control-point-count-vs-openness
+// rule and the lengths-table shape (PATH_VERTEX_COUNT / PATH_LENGTHS_COUNT / PATH_LENGTHS_ORDER) are the
+// semantic layer (validate/paths.ts); here every number is finite.
+export const pathAttachmentSchema = z
+  .object({
+    type: z.literal('path'),
+    closed: z.boolean(),
+    constantSpeed: z.boolean(),
+    lengths: z.array(z.number().finite()),
+    vertices: z.array(z.number().finite()),
+    bones: z.array(z.number().finite()).optional(),
+  })
+  .strict();
+
 export const attachmentSchema = z.discriminatedUnion('type', [
   regionAttachmentSchema,
   meshAttachmentSchema,
@@ -118,6 +140,7 @@ export const attachmentSchema = z.discriminatedUnion('type', [
   clippingAttachmentSchema,
   pointAttachmentSchema,
   boundingBoxAttachmentSchema,
+  pathAttachmentSchema,
 ]);
 
 export type Sequence = z.infer<typeof sequenceSchema>;
@@ -127,4 +150,5 @@ export type LinkedMeshAttachment = z.infer<typeof linkedMeshAttachmentSchema>;
 export type ClippingAttachment = z.infer<typeof clippingAttachmentSchema>;
 export type PointAttachment = z.infer<typeof pointAttachmentSchema>;
 export type BoundingBoxAttachment = z.infer<typeof boundingBoxAttachmentSchema>;
+export type PathAttachment = z.infer<typeof pathAttachmentSchema>;
 export type Attachment = z.infer<typeof attachmentSchema>;

@@ -14,10 +14,18 @@ export type {
   ClippingAttachment,
   PointAttachment,
   BoundingBoxAttachment,
+  PathAttachment,
   Sequence,
 } from './schema/attachment';
 export type { Skin } from './schema/skin';
-export type { IkConstraint, TransformConstraint } from './schema/constraint';
+export type {
+  IkConstraint,
+  TransformConstraint,
+  PathConstraint,
+  PathPositionMode,
+  PathSpacingMode,
+  PathRotateMode,
+} from './schema/constraint';
 export type {
   Animation,
   BoneTimelines,
@@ -25,6 +33,7 @@ export type {
   Keyframe,
   IkFrame,
   TransformFrame,
+  PathFrame,
   DeformTimelines,
   DrawOrderOffset,
   DrawOrderKeyframe,

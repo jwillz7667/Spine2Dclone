@@ -4,6 +4,7 @@ import {
   bendDirectionSchema,
   ikMixSchema,
   ikSoftnessSchema,
+  pathMixSchema,
   tcMixSchema,
 } from './constraint';
 import { curveSchema } from './curve';
@@ -131,6 +132,21 @@ const transformFrameSchema = z
   })
   .strict();
 
+// A keyed path-constraint frame (ADR-0011 section 3): a PARTIAL record of the path constraint's animatable
+// channels (base `position` and `spacing` along the path, and the three `mix` blend factors). A frame MAY
+// carry a subset; the meaning of an absent channel during a frame is SOLVE semantics (Lane B), not format.
+// Present mix channels are range-checked to [0, 1] (PATH_MIX_RANGE), the same refinement as the constraint
+// definition; position/spacing are unbounded finite numbers.
+const pathFrameSchema = z
+  .object({
+    position: z.number().finite().optional(),
+    spacing: z.number().finite().optional(),
+    mixRotate: pathMixSchema.optional(),
+    mixX: pathMixSchema.optional(),
+    mixY: pathMixSchema.optional(),
+  })
+  .strict();
+
 // A deform keyframe value: per-LOGICAL-vertex (dx, dy) offsets from the setup mesh, laid out flat as
 // [dx0, dy0, dx1, dy1, ...] (handoff section 6, format-contract section 4.9). The length invariant
 // (offsets.length === 2 * V) is a referential check (it needs the target mesh) and lives in the
@@ -188,8 +204,10 @@ export const eventKeyframeSchema = z
 // ik/transform/deform/drawOrder/events are REQUIRED collections, empty when an animation keys none, so
 // a pre-0.3.0 document is migrated (empties injected) rather than silently widened. Stage F2 (ADR-0009,
 // formatVersion 0.4.0) DEEPENS the existing bone/slot timeline shapes (per-component and split-color and
-// dark and sequence tracks) without adding a top-level animation key. The root stays `.strict()` and
-// closes over exactly these eight keys.
+// dark and sequence tracks) without adding a top-level animation key. Stage F3 (ADR-0011, formatVersion
+// 0.5.0) ADDS the REQUIRED `path` timeline record (empty when an animation keys no path constraint),
+// mirroring `ik`/`transform`; a pre-0.5.0 document is migrated (empty `path` injected). The root stays
+// `.strict()` and closes over exactly these nine keys.
 export const animationSchema = z
   .object({
     duration: z.number().finite().nonnegative(),
@@ -197,6 +215,7 @@ export const animationSchema = z
     slots: z.record(z.string(), slotTimelinesSchema),
     ik: z.record(z.string(), z.array(keyframeSchema(ikFrameSchema))),
     transform: z.record(z.string(), z.array(keyframeSchema(transformFrameSchema))),
+    path: z.record(z.string(), z.array(keyframeSchema(pathFrameSchema))),
     deform: deformTimelinesSchema,
     drawOrder: z.array(drawOrderKeyframeSchema),
     events: z.array(eventKeyframeSchema),
@@ -210,6 +229,7 @@ export type SequenceMode = z.infer<typeof sequenceModeSchema>;
 export type SequenceKeyframe = z.infer<typeof sequenceKeyframeSchema>;
 export type IkFrame = z.infer<typeof ikFrameSchema>;
 export type TransformFrame = z.infer<typeof transformFrameSchema>;
+export type PathFrame = z.infer<typeof pathFrameSchema>;
 export type DeformTimelines = z.infer<typeof deformTimelinesSchema>;
 export type DrawOrderOffset = z.infer<typeof drawOrderOffsetSchema>;
 export type DrawOrderKeyframe = z.infer<typeof drawOrderKeyframeSchema>;

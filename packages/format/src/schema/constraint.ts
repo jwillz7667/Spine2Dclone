@@ -3,11 +3,13 @@ import { z } from 'zod';
 // Constraints (handoff section 6, format-contract section 4.7). AUTHORED in Phase 2 (ADR-0004) and
 // DEEPENED in stage F2 (ADR-0009, formatVersion 0.4.0): IK gains softness/stretch/compress/uniform and a
 // signed bend direction that supersedes the Phase-2 `bendPositive` boolean; transform constraints gain
-// `local`/`relative` variant flags; both arrays share an optional explicit `order`. Value-range and arity
-// faults that Zod can express are reported through custom issues carrying `params.code` so the structural
-// mapper (validate/structural.ts) surfaces the exact FormatErrorCode, mirroring COLOR_RANGE. Referential
-// faults (bone/target existence, chain continuity, name uniqueness, order density) need the document graph
-// and live in the semantic layer (validate/constraints.ts).
+// `local`/`relative` variant flags; both arrays share an optional explicit `order`. Stage F3 (ADR-0011,
+// formatVersion 0.5.0) ADDS a third constraint kind, the path constraint, which joins the shared `order`
+// and name namespace. Value-range and arity faults that Zod can express are reported through custom issues
+// carrying `params.code` so the structural mapper (validate/structural.ts) surfaces the exact
+// FormatErrorCode, mirroring COLOR_RANGE. Referential faults (bone/target existence, chain continuity, name
+// uniqueness, order density) need the document graph and live in the semantic layer (validate/constraints.ts,
+// validate/paths.ts).
 
 // A constraint mix factor is a finite number in [0, 1]. IK and transform constraints carry distinct
 // codes (IK_MIX_RANGE vs TC_MIX_RANGE) so a reviewer sees which family a range fault came from. The
@@ -124,5 +126,68 @@ export const transformConstraintSchema = z
   })
   .strict();
 
+// A path-constraint mix factor is a finite number in [0, 1] (ADR-0011 section 2). It carries its own code
+// (PATH_MIX_RANGE) so a range fault is attributed to the path family, mirroring IK_MIX_RANGE / TC_MIX_RANGE.
+// The same refinement applies to the animation path FRAMES (schema/animation.ts).
+export const pathMixSchema = z
+  .number()
+  .finite()
+  .superRefine((value, ctx) => {
+    if (value < 0 || value > 1) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        params: { code: 'PATH_MIX_RANGE' },
+        message: `path-constraint mix must be in [0, 1], received ${value}`,
+      });
+    }
+  });
+
+// The path-constraint mode enums (ADR-0011 section 2). Closed literal unions, so an unknown member is
+// SCHEMA_SHAPE and needs no dedicated code. `positionMode` reads `position` as an absolute arc length
+// (fixed) or a [0,1] fraction (percent); `spacingMode` distributes bones by bone length, a fixed arc
+// distance, a fraction of total length, or a proportional stretch-to-fit; `rotateMode` orients each bone
+// to the tangent, toward the next bone (chain), or chain with length-preserving scale (chainScale).
+export const pathPositionModeSchema = z.enum(['fixed', 'percent']);
+export const pathSpacingModeSchema = z.enum(['length', 'fixed', 'percent', 'proportional']);
+export const pathRotateModeSchema = z.enum(['tangent', 'chain', 'chainScale']);
+
+// A path constraint (ADR-0011 section 2): distributes and orients a non-empty list of `bones` along the
+// path attachment carried by the target SLOT (not a bone; a path lives on a slot). `position`/`spacing`/
+// `offsetRotation` are unbounded finite values whose meaning depends on the modes; `mixRotate`/`mixX`/`mixY`
+// are the three blend channels (a path constraint writes rotation and x/y translation only). `bones` must
+// be non-empty (PATH_BONES_EMPTY); the referential checks (target slot exists and carries a path, bones
+// resolve, order density) are semantic (validate/paths.ts, validate/constraints.ts).
+export const pathConstraintSchema = z
+  .object({
+    name: z.string(),
+    target: z.string(),
+    bones: z.array(z.string()),
+    positionMode: pathPositionModeSchema,
+    spacingMode: pathSpacingModeSchema,
+    rotateMode: pathRotateModeSchema,
+    position: z.number().finite(),
+    spacing: z.number().finite(),
+    offsetRotation: z.number().finite(),
+    mixRotate: pathMixSchema,
+    mixX: pathMixSchema,
+    mixY: pathMixSchema,
+    order: constraintOrderSchema.optional(),
+  })
+  .strict()
+  .superRefine((value, ctx) => {
+    if (value.bones.length < 1) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['bones'],
+        params: { code: 'PATH_BONES_EMPTY' },
+        message: 'path constraint must drive at least one bone',
+      });
+    }
+  });
+
 export type IkConstraint = z.infer<typeof ikConstraintSchema>;
 export type TransformConstraint = z.infer<typeof transformConstraintSchema>;
+export type PathConstraint = z.infer<typeof pathConstraintSchema>;
+export type PathPositionMode = z.infer<typeof pathPositionModeSchema>;
+export type PathSpacingMode = z.infer<typeof pathSpacingModeSchema>;
+export type PathRotateMode = z.infer<typeof pathRotateModeSchema>;

@@ -78,6 +78,21 @@ export const FORMAT_ERROR_CODES = [
   'ANIM_DARK_NO_SETUP',
   'SKIN_BONE_UNKNOWN',
   'SKIN_CONSTRAINT_UNKNOWN',
+  // Stage F3 (ADR-0011, formatVersion 0.5.0): path attachments and path constraints. Families:
+  // PATH_VERTEX_COUNT / PATH_LENGTHS_COUNT / PATH_LENGTHS_ORDER are the new PATH family (path-attachment
+  // geometry); PATH_TARGET_MISSING / PATH_TARGET_NOT_PATH / PATH_BONES_EMPTY / PATH_BONE_MISSING are
+  // CONSTRAINT (path-constraint references); PATH_MIX_RANGE is SCHEMA (a structural mix refinement);
+  // ANIM_PATH_UNKNOWN is ANIM (a path timeline references a missing path constraint). The path vertex
+  // stream reuses the shared MESH_* codec codes (ADR-0011 section 1.2); no new codec codes are minted.
+  'PATH_VERTEX_COUNT',
+  'PATH_LENGTHS_COUNT',
+  'PATH_LENGTHS_ORDER',
+  'PATH_TARGET_MISSING',
+  'PATH_TARGET_NOT_PATH',
+  'PATH_BONES_EMPTY',
+  'PATH_BONE_MISSING',
+  'PATH_MIX_RANGE',
+  'ANIM_PATH_UNKNOWN',
 ] as const;
 
 export type FormatErrorCode = (typeof FORMAT_ERROR_CODES)[number];

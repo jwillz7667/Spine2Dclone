@@ -81,6 +81,16 @@ namespace Marionette.Runtime.Core.Skeleton
                 pose.SlotSetupColor[b + 1] = slot.Color.G;
                 pose.SlotSetupColor[b + 2] = slot.Color.B;
                 pose.SlotSetupColor[b + 3] = slot.Color.A;
+
+                // Setup two-color dark tint (ADR-0009 section 4.3, ADR-0011 section 3). Present only when the
+                // slot enables two-color tinting; absent slots keep an inert (0, 0, 0, 1) so the reset is
+                // well-defined but renderers skip it (SlotHasDarkColor is 0).
+                Rgba? dark = slot.DarkColor;
+                pose.SlotHasDarkColor[i] = (byte)(dark == null ? 0 : 1);
+                pose.SlotSetupDarkColor[b] = dark?.R ?? 0;
+                pose.SlotSetupDarkColor[b + 1] = dark?.G ?? 0;
+                pose.SlotSetupDarkColor[b + 2] = dark?.B ?? 0;
+                pose.SlotSetupDarkColor[b + 3] = dark?.A ?? 1;
                 pose.SlotSetupAttachment[i] = slot.Attachment;
             }
 

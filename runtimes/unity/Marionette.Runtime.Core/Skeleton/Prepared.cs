@@ -71,18 +71,40 @@ namespace Marionette.Runtime.Core.Skeleton
         public PreparedTrack? Scale { get; }
         public PreparedTrack? Shear { get; }
 
+        // Per-component split tracks (ADR-0009 section 4.1, ADR-0011 section 3). Each is a single-lane scalar
+        // track for one component. The format's coexistence ban means at most one of {Translate} /
+        // {TranslateX, TranslateY} is non-null (likewise scale, shear), so applying all present is unambiguous.
+        public PreparedTrack? TranslateX { get; }
+        public PreparedTrack? TranslateY { get; }
+        public PreparedTrack? ScaleX { get; }
+        public PreparedTrack? ScaleY { get; }
+        public PreparedTrack? ShearX { get; }
+        public PreparedTrack? ShearY { get; }
+
         public PreparedBoneChannels(
             int boneIndex,
             PreparedTrack? rotate,
             PreparedTrack? translate,
             PreparedTrack? scale,
-            PreparedTrack? shear)
+            PreparedTrack? shear,
+            PreparedTrack? translateX,
+            PreparedTrack? translateY,
+            PreparedTrack? scaleX,
+            PreparedTrack? scaleY,
+            PreparedTrack? shearX,
+            PreparedTrack? shearY)
         {
             BoneIndex = boneIndex;
             Rotate = rotate;
             Translate = translate;
             Scale = scale;
             Shear = shear;
+            TranslateX = translateX;
+            TranslateY = translateY;
+            ScaleX = scaleX;
+            ScaleY = scaleY;
+            ShearX = shearX;
+            ShearY = shearY;
         }
     }
 
@@ -92,11 +114,28 @@ namespace Marionette.Runtime.Core.Skeleton
         public PreparedTrack? Color { get; }
         public PreparedAttachmentTrack? Attachment { get; }
 
-        public PreparedSlotChannels(int slotIndex, PreparedTrack? color, PreparedAttachmentTrack? attachment)
+        // Split color tracks (ADR-0009 section 4.2): Rgb is a 3-lane track, Alpha a 1-lane track. The joint
+        // Color (RGBA) and the split Rgb/Alpha must not coexist on one slot (TIMELINE_COMPONENT_CONFLICT), so
+        // at most one form is non-null. The keyable two-color Dark tint (ADR-0009 section 4.3, a 4-lane RGBA
+        // track) is independent and blends into the pose's dark-color lane.
+        public PreparedTrack? Rgb { get; }
+        public PreparedTrack? Alpha { get; }
+        public PreparedTrack? Dark { get; }
+
+        public PreparedSlotChannels(
+            int slotIndex,
+            PreparedTrack? color,
+            PreparedAttachmentTrack? attachment,
+            PreparedTrack? rgb,
+            PreparedTrack? alpha,
+            PreparedTrack? dark)
         {
             SlotIndex = slotIndex;
             Color = color;
             Attachment = attachment;
+            Rgb = rgb;
+            Alpha = alpha;
+            Dark = dark;
         }
     }
 

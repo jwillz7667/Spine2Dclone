@@ -103,13 +103,19 @@ namespace Marionette.Runtime.Core.Document
         // Defaults to "normal" when the rig omits it. Mirrors Slot.blendMode in @marionette/format.
         public string BlendMode { get; }
 
-        public Slot(string name, string slotBone, Rgba color, string? attachment, string blendMode)
+        // The optional setup two-color DARK tint (ADR-0009 section 4.3, ADR-0011 section 3). Null when the
+        // slot does not enable two-color tinting; present sets the reset source for the keyable dark color and
+        // marks the slot's dark lane meaningful (slotHasDarkColor). Mirrors Slot.darkColor in @marionette/format.
+        public Rgba? DarkColor { get; }
+
+        public Slot(string name, string slotBone, Rgba color, string? attachment, string blendMode, Rgba? darkColor)
         {
             Name = name;
             SlotBone = slotBone;
             Color = color;
             Attachment = attachment;
             BlendMode = blendMode;
+            DarkColor = darkColor;
         }
     }
 
@@ -365,6 +371,27 @@ namespace Marionette.Runtime.Core.Document
         }
     }
 
+    // A split `rgb` slot-color keyframe (ADR-0009 section 4.2, ADR-0011 section 3): three lanes read from an
+    // `{ rgb: { r, g, b } }` keyframe. Alpha rides the separate `alpha` scalar channel. Mirrors the rgb
+    // keyframe in @marionette/format.
+    public sealed class RgbKeyframe
+    {
+        public double Time { get; }
+        public double R { get; }
+        public double G { get; }
+        public double B { get; }
+        public Curve Curve { get; }
+
+        public RgbKeyframe(double time, double r, double g, double b, Curve curve)
+        {
+            Time = time;
+            R = r;
+            G = g;
+            B = b;
+            Curve = curve;
+        }
+    }
+
     public sealed class AttachmentKeyframe
     {
         public double Time { get; }
@@ -499,16 +526,39 @@ namespace Marionette.Runtime.Core.Document
         public IReadOnlyList<Vec2Keyframe>? Scale { get; }
         public IReadOnlyList<Vec2Keyframe>? Shear { get; }
 
+        // Per-component split bone tracks (ADR-0009 section 4.1, ADR-0011 section 3). Each is a single-lane
+        // scalar timeline read from a `{ value }` keyframe. The format forbids a joint channel and its split
+        // components coexisting on one bone (TIMELINE_COMPONENT_CONFLICT), so at most one of {Translate} /
+        // {TranslateX, TranslateY} is non-null (and likewise scale, shear); applying all present is unambiguous.
+        public IReadOnlyList<ScalarKeyframe>? TranslateX { get; }
+        public IReadOnlyList<ScalarKeyframe>? TranslateY { get; }
+        public IReadOnlyList<ScalarKeyframe>? ScaleX { get; }
+        public IReadOnlyList<ScalarKeyframe>? ScaleY { get; }
+        public IReadOnlyList<ScalarKeyframe>? ShearX { get; }
+        public IReadOnlyList<ScalarKeyframe>? ShearY { get; }
+
         public BoneTimelines(
             IReadOnlyList<ScalarKeyframe>? rotate,
             IReadOnlyList<Vec2Keyframe>? translate,
             IReadOnlyList<Vec2Keyframe>? scale,
-            IReadOnlyList<Vec2Keyframe>? shear)
+            IReadOnlyList<Vec2Keyframe>? shear,
+            IReadOnlyList<ScalarKeyframe>? translateX,
+            IReadOnlyList<ScalarKeyframe>? translateY,
+            IReadOnlyList<ScalarKeyframe>? scaleX,
+            IReadOnlyList<ScalarKeyframe>? scaleY,
+            IReadOnlyList<ScalarKeyframe>? shearX,
+            IReadOnlyList<ScalarKeyframe>? shearY)
         {
             Rotate = rotate;
             Translate = translate;
             Scale = scale;
             Shear = shear;
+            TranslateX = translateX;
+            TranslateY = translateY;
+            ScaleX = scaleX;
+            ScaleY = scaleY;
+            ShearX = shearX;
+            ShearY = shearY;
         }
     }
 
@@ -521,14 +571,29 @@ namespace Marionette.Runtime.Core.Document
         // slot's active sequence attachment plays over time. Null when the slot has no sequence timeline.
         public IReadOnlyList<SequenceKeyframe>? Sequence { get; }
 
+        // Split color tracks (ADR-0009 section 4.2, ADR-0011 section 3): Rgb is a 3-lane `{ rgb }` channel,
+        // Alpha a 1-lane `{ alpha }` channel. The joint Color (RGBA) and the split Rgb/Alpha must not coexist
+        // on one slot (TIMELINE_COMPONENT_CONFLICT), so at most one form is non-null. The keyable two-color
+        // Dark tint (ADR-0009 section 4.3, an RGBA `{ color }` channel) is independent and blends into the
+        // pose's dark-color lane over the setup dark tint.
+        public IReadOnlyList<RgbKeyframe>? Rgb { get; }
+        public IReadOnlyList<ScalarKeyframe>? Alpha { get; }
+        public IReadOnlyList<ColorKeyframe>? Dark { get; }
+
         public SlotTimelines(
             IReadOnlyList<ColorKeyframe>? color,
             IReadOnlyList<AttachmentKeyframe>? attachment,
-            IReadOnlyList<SequenceKeyframe>? sequence)
+            IReadOnlyList<SequenceKeyframe>? sequence,
+            IReadOnlyList<RgbKeyframe>? rgb,
+            IReadOnlyList<ScalarKeyframe>? alpha,
+            IReadOnlyList<ColorKeyframe>? dark)
         {
             Color = color;
             Attachment = attachment;
             Sequence = sequence;
+            Rgb = rgb;
+            Alpha = alpha;
+            Dark = dark;
         }
     }
 

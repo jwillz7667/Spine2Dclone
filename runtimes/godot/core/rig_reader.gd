@@ -127,6 +127,10 @@ static func _read_slot(slot: Dictionary) -> Document.Slot:
 	s.name = _req_string(slot, "name")
 	s.slot_bone = _req_string(slot, "bone")
 	s.color = _read_color(_req_object(slot, "color"))
+	# The optional setup two-color dark tint (ADR-0009 section 4.3): an RGBA object or absent. Absent means
+	# the slot has no dark tint; the solve then keeps an inert (0, 0, 0, 1) reset and skips the dark lane.
+	var dark = slot.get("darkColor")
+	s.dark_color = _read_color(dark) if (dark != null and typeof(dark) == TYPE_DICTIONARY) else null
 	var attachment = slot.get("attachment")
 	s.attachment = null if attachment == null else str(attachment)
 	var blend_mode = slot.get("blendMode")
@@ -349,6 +353,14 @@ static func _read_bone_timelines(timelines: Dictionary) -> Document.BoneTimeline
 	t.translate = _read_vec2_channel(timelines.get("translate"))
 	t.scale = _read_vec2_channel(timelines.get("scale"))
 	t.shear = _read_vec2_channel(timelines.get("shear"))
+	# Per-component split scalar timelines (ADR-0009 section 4.1, ADR-0011 section 3): each keyframe carries a
+	# single { value } lane, so they reuse the scalar-channel reader keyed on "value".
+	t.translate_x = _read_scalar_channel(timelines.get("translateX"), "value")
+	t.translate_y = _read_scalar_channel(timelines.get("translateY"), "value")
+	t.scale_x = _read_scalar_channel(timelines.get("scaleX"), "value")
+	t.scale_y = _read_scalar_channel(timelines.get("scaleY"), "value")
+	t.shear_x = _read_scalar_channel(timelines.get("shearX"), "value")
+	t.shear_y = _read_scalar_channel(timelines.get("shearY"), "value")
 	return t
 
 
@@ -357,7 +369,32 @@ static func _read_slot_timelines(timelines: Dictionary) -> Document.SlotTimeline
 	t.color = _read_color_channel(timelines.get("color"))
 	t.attachment = _read_attachment_channel(timelines.get("attachment"))
 	t.sequence = _read_sequence_channel(timelines.get("sequence"))
+	# Split color timelines (ADR-0009 section 4.2): rgb keys carry a { rgb: {r, g, b} } value, alpha keys a
+	# single { alpha } lane (the scalar reader keyed on "alpha"). The keyable dark tint (section 4.3) keys a
+	# { color: {r, g, b, a} } value, the same shape the joint color channel reads.
+	t.rgb = _read_rgb_channel(timelines.get("rgb"))
+	t.alpha = _read_scalar_channel(timelines.get("alpha"), "alpha")
+	t.dark = _read_color_channel(timelines.get("dark"))
 	return t
+
+
+# The optional split rgb slot-color timeline (ADR-0009 section 4.2): keyframes with a { rgb: {r, g, b} }
+# value plus a curve. Null when the slot names no rgb timeline.
+static func _read_rgb_channel(channel):
+	if channel == null or typeof(channel) != TYPE_ARRAY:
+		return null
+	var keys := []
+	for frame in channel:
+		var value := _req_object(frame, "value")
+		var rgb := _req_object(value, "rgb")
+		var kf := Document.RgbKeyframe.new()
+		kf.time = _req_number(frame, "time")
+		kf.r = _req_number(rgb, "r")
+		kf.g = _req_number(rgb, "g")
+		kf.b = _req_number(rgb, "b")
+		kf.curve = _read_curve(frame)
+		keys.append(kf)
+	return keys
 
 
 # The optional per-slot sequence timeline (ADR-0009 section 3): keyframes { time, mode, index, delay }.

@@ -153,6 +153,38 @@ namespace Marionette.Runtime.Core.Tests
                             + $"expected {expectedValue:R}, actual {actualValue:R}, delta {delta:R}");
                     }
                 }
+
+                // The resolved two-color dark tint (ADR-0009 section 4.3, ADR-0011 section 3). The fixture
+                // carries a `dark` array ONLY for a slot with a setup darkColor; the pose records that in
+                // SlotHasDarkColor. Compare presence structurally (a fixture `dark` must line up with the flag),
+                // then each RGBA lane on the COLOR tolerance, exactly like the slot color.
+                bool expectedHasDark = expectedSlot.Dark != null;
+                bool actualHasDark = pose.SlotHasDarkColor[slotIndex] == 1;
+                if (expectedHasDark != actualHasDark)
+                {
+                    result.Failures.Add(
+                        $"[{rigId}] slot '{expectedSlot.Slot}' at t={sample.Time} dark presence mismatch: "
+                        + $"fixture {(expectedHasDark ? "has" : "omits")} a dark lane, pose "
+                        + $"{(actualHasDark ? "has" : "omits")} a setup dark color");
+                }
+                else if (expectedHasDark)
+                {
+                    int darkBase = slotIndex * Pose.SlotColorStride;
+                    for (int k = 0; k < Pose.SlotColorStride; k += 1)
+                    {
+                        double expectedValue = expectedSlot.Dark![k];
+                        double actualValue = pose.SlotDarkColor[darkBase + k];
+                        double delta = Math.Abs(actualValue - expectedValue);
+                        result.MaxColorError = Math.Max(result.MaxColorError, delta);
+                        result.LaneComparisons += 1;
+                        if (!Tolerances.Color.Within(actualValue, expectedValue))
+                        {
+                            result.Failures.Add(
+                                $"[{rigId}] slot '{expectedSlot.Slot}' dark lane {k} at t={sample.Time} drifts: "
+                                + $"expected {expectedValue:R}, actual {actualValue:R}, delta {delta:R}");
+                        }
+                    }
+                }
             }
         }
 
@@ -549,11 +581,18 @@ namespace Marionette.Runtime.Core.Tests
         public string BlendMode { get; }
         public IReadOnlyList<double> Color { get; }
 
-        public SlotState(string slot, string blendMode, IReadOnlyList<double> color)
+        // The resolved two-color DARK tint (ADR-0009 section 4.3, ADR-0011 section 3), RGBA, compared within
+        // the COLOR tolerance. Present ONLY for a slot with a setup darkColor; null when the fixture entry
+        // omits the `dark` lane (a slot with no two-color tinting), which the harness compares structurally
+        // against the pose's SlotHasDarkColor flag.
+        public IReadOnlyList<double>? Dark { get; }
+
+        public SlotState(string slot, string blendMode, IReadOnlyList<double> color, IReadOnlyList<double>? dark)
         {
             Slot = slot;
             BlendMode = blendMode;
             Color = color;
+            Dark = dark;
         }
     }
 
@@ -676,6 +715,14 @@ namespace Marionette.Runtime.Core.Tests
             "time", "animation", "loop", "bones", "meshes", "slots", "drawOrder", "sequences",
         };
 
+        // The exhaustive member allowlist for a captured slot entry (mirrors the .strict() slotStateSchema in
+        // schema/fixture.ts). `dark` is the optional two-color tint lane (ADR-0011 section 3); any member
+        // outside this set fails loudly so a future capture lane forces a comparison rather than being skipped.
+        private static readonly HashSet<string> AllowedSlot = new HashSet<string>
+        {
+            "slot", "blendMode", "color", "dark",
+        };
+
         private static void RequireKnownMembers(JsonValue obj, HashSet<string> allowed, string context)
         {
             foreach (KeyValuePair<string, JsonValue> member in obj.Members())
@@ -736,16 +783,31 @@ namespace Marionette.Runtime.Core.Tests
                 {
                     foreach (JsonValue slot in slotsValue.AsArray())
                     {
+                        RequireKnownMembers(slot, AllowedSlot, "slot");
                         var color = new List<double>();
                         foreach (JsonValue channel in slot.Member("color")!.AsArray())
                         {
                             color.Add(channel.AsNumber());
                         }
 
+                        // The optional resolved dark tint (ADR-0009 section 4.3, ADR-0011 section 3), present
+                        // only for a slot with a setup darkColor. Null when absent (compared structurally).
+                        List<double>? dark = null;
+                        JsonValue? darkValue = slot.Member("dark");
+                        if (darkValue != null && darkValue.Kind == JsonKind.Array)
+                        {
+                            dark = new List<double>();
+                            foreach (JsonValue channel in darkValue.AsArray())
+                            {
+                                dark.Add(channel.AsNumber());
+                            }
+                        }
+
                         slots.Add(new SlotState(
                             slot.Member("slot")!.AsString(),
                             slot.Member("blendMode")!.AsString(),
-                            color));
+                            color,
+                            dark));
                     }
                 }
 

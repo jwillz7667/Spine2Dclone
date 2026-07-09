@@ -36,12 +36,29 @@ class PreparedBoneChannels:
 	var translate = null
 	var scale = null
 	var shear = null
+	# Per-component split tracks (ADR-0009 section 4.1, ADR-0011 section 3). Each is a single-lane scalar
+	# track for one component. The format forbids a joint channel and its split components coexisting on one
+	# bone (TIMELINE_COMPONENT_CONFLICT), so at most one of {translate} / {translate_x, translate_y} is
+	# non-null (and likewise scale, shear); applying all present tracks is therefore unambiguous.
+	var translate_x = null  # PreparedTrack or null
+	var translate_y = null
+	var scale_x = null
+	var scale_y = null
+	var shear_x = null
+	var shear_y = null
 
 
 class PreparedSlotChannels:
 	var slot_index: int
 	var color = null  # PreparedTrack or null
 	var attachment = null  # PreparedAttachmentTrack or null
+	# Split color tracks (ADR-0009 section 4.2): rgb is a 3-lane track, alpha a 1-lane track. The joint color
+	# (RGBA) and the split rgb/alpha must not coexist on one slot (TIMELINE_COMPONENT_CONFLICT), so at most
+	# one form is non-null. The keyable two-color dark tint (ADR-0009 section 4.3, RGBA) is independent and
+	# blends into the pose's dark-color lane.
+	var rgb = null  # PreparedTrack or null
+	var alpha = null  # PreparedTrack or null
+	var dark = null  # PreparedTrack or null
 
 
 class PreparedIkChannel:

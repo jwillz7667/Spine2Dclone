@@ -60,6 +60,9 @@ class Slot:
 	var name: String
 	var slot_bone: String
 	var color: Rgba
+	# The setup two-color DARK tint (ADR-0009 section 4.3), an Rgba or null. Present only when the slot
+	# enables two-color tinting; null means no dark tint (an inert (0, 0, 0, 1) reset, renderers skip it).
+	var dark_color = null  # Rgba or null
 	# active setup attachment name (String) or null.
 	var attachment = null
 	# Static per slot blend mode (solve order step 6); the fixture asserts it EXACTLY. Defaults to
@@ -165,6 +168,16 @@ class ColorKeyframe:
 	var curve: TimelineCurve
 
 
+# A split rgb slot-color keyframe (ADR-0009 section 4.2): three channels read from a { rgb: {r, g, b} }
+# value. Alpha rides the separate alpha timeline (a ScalarKeyframe), so this carries no alpha.
+class RgbKeyframe:
+	var time: float
+	var r: float
+	var g: float
+	var b: float
+	var curve: TimelineCurve
+
+
 class AttachmentKeyframe:
 	var time: float
 	var name = null  # attachment name (String) or null
@@ -216,12 +229,26 @@ class BoneTimelines:
 	var translate = null  # Array[Vec2Keyframe] or null
 	var scale = null  # Array[Vec2Keyframe] or null
 	var shear = null  # Array[Vec2Keyframe] or null
+	# Per-component split scalar timelines (ADR-0009 section 4.1, ADR-0011 section 3). Each is an
+	# Array[ScalarKeyframe] (a single { value } lane) or null. Never coexist with the joint channel above.
+	var translate_x = null  # Array[ScalarKeyframe] or null
+	var translate_y = null
+	var scale_x = null
+	var scale_y = null
+	var shear_x = null
+	var shear_y = null
 
 
 class SlotTimelines:
 	var color = null  # Array[ColorKeyframe] or null
 	var attachment = null  # Array[AttachmentKeyframe] or null
 	var sequence = null  # Array[SequenceKeyframe] or null
+	# Split color timelines (ADR-0009 section 4.2): rgb is an Array[RgbKeyframe], alpha an Array[ScalarKeyframe]
+	# (a single { alpha } lane); at most one of {color} / {rgb, alpha} is non-null. The keyable two-color dark
+	# tint (ADR-0009 section 4.3) is an Array[ColorKeyframe] (a { color } RGBA value) and is independent.
+	var rgb = null  # Array[RgbKeyframe] or null
+	var alpha = null  # Array[ScalarKeyframe] or null
+	var dark = null  # Array[ColorKeyframe] or null
 
 
 class DeformEntry:

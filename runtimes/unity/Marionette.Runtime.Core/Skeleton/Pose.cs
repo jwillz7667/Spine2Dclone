@@ -136,6 +136,20 @@ namespace Marionette.Runtime.Core.Skeleton
         public int[] SlotBoneIndices { get; }
         public double[] SlotSetupColor { get; }
         public double[] SlotColor { get; }
+
+        // SlotColorStride lanes per slot: the setup two-color DARK tint (ADR-0009 section 4.3, ADR-0011
+        // section 3), the reset source for the keyable dark color. A slot with no setup darkColor keeps
+        // (0, 0, 0, 1) here (inert). SlotHasDarkColor records which slots declared one, so a renderer /
+        // fixture reads the dark lane only where two-color tinting is enabled.
+        public double[] SlotSetupDarkColor { get; }
+
+        // SlotColorStride lanes per slot: the resolved dark tint written by the sampler (reset to
+        // SlotSetupDarkColor each frame in step 1, blended by the `dark` timeline in step 2).
+        public double[] SlotDarkColor { get; }
+
+        // One flag per slot: 1 when the slot declared a setup darkColor (two-color tinting enabled). The
+        // format guarantees a slot that keys a `dark` timeline has a setup darkColor (ANIM_DARK_NO_SETUP).
+        public byte[] SlotHasDarkColor { get; }
         public double[] SlotAttachmentWinWeight { get; }
         public double[] IkBendWinWeight { get; }
 
@@ -196,6 +210,9 @@ namespace Marionette.Runtime.Core.Skeleton
             SlotBoneIndices = new int[slotCount];
             SlotSetupColor = new double[slotCount * SlotColorStride];
             SlotColor = new double[slotCount * SlotColorStride];
+            SlotSetupDarkColor = new double[slotCount * SlotColorStride];
+            SlotDarkColor = new double[slotCount * SlotColorStride];
+            SlotHasDarkColor = new byte[slotCount];
             SlotAttachmentWinWeight = new double[slotCount];
             IkBendWinWeight = new double[ikConstraints.Count];
             IkStretchWinWeight = new double[ikConstraints.Count];

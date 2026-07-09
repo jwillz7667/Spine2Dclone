@@ -127,12 +127,19 @@ namespace Marionette.Runtime.Core.Document
         {
             JsonValue? attachment = slot.Member("attachment");
             string? attachmentName = attachment == null || attachment.IsNull ? null : attachment.AsString();
+            // Optional setup two-color dark tint (ADR-0009 section 4.3, ADR-0011 section 3): an RGBA color
+            // object, present only when the slot enables two-color tinting. Absent stays null (inert).
+            JsonValue? darkValue = slot.Member("darkColor");
+            Rgba? darkColor = darkValue != null && darkValue.Kind == JsonKind.Object
+                ? ReadColor(darkValue)
+                : (Rgba?)null;
             return new Slot(
                 ReqString(slot, "name"),
                 ReqString(slot, "bone"),
                 ReadColor(ReqMember(slot, "color", JsonKind.Object)),
                 attachmentName,
-                OptString(slot, "blendMode") ?? "normal");
+                OptString(slot, "blendMode") ?? "normal",
+                darkColor);
         }
 
         private static Skin ReadSkin(JsonValue skin)
@@ -420,7 +427,15 @@ namespace Marionette.Runtime.Core.Document
                 ReadScalarChannel(timelines.Member("rotate"), "angle"),
                 ReadVec2Channel(timelines.Member("translate")),
                 ReadVec2Channel(timelines.Member("scale")),
-                ReadVec2Channel(timelines.Member("shear")));
+                ReadVec2Channel(timelines.Member("shear")),
+                // Per-component split tracks (ADR-0009 section 4.1, ADR-0011 section 3): each keyframe carries
+                // its scalar under `value.value`.
+                ReadScalarChannel(timelines.Member("translateX"), "value"),
+                ReadScalarChannel(timelines.Member("translateY"), "value"),
+                ReadScalarChannel(timelines.Member("scaleX"), "value"),
+                ReadScalarChannel(timelines.Member("scaleY"), "value"),
+                ReadScalarChannel(timelines.Member("shearX"), "value"),
+                ReadScalarChannel(timelines.Member("shearY"), "value"));
         }
 
         private static SlotTimelines ReadSlotTimelines(JsonValue timelines)
@@ -428,7 +443,37 @@ namespace Marionette.Runtime.Core.Document
             return new SlotTimelines(
                 ReadColorChannel(timelines.Member("color")),
                 ReadAttachmentChannel(timelines.Member("attachment")),
-                ReadSequenceChannel(timelines.Member("sequence")));
+                ReadSequenceChannel(timelines.Member("sequence")),
+                // Split color tracks (ADR-0009 section 4.2, ADR-0011 section 3): rgb reads `value.rgb.{r,g,b}`,
+                // alpha reads `value.alpha`. The keyable dark tint reads `value.color.{r,g,b,a}`, structurally
+                // identical to the joint color channel, so it reuses ReadColorChannel.
+                ReadRgbChannel(timelines.Member("rgb")),
+                ReadScalarChannel(timelines.Member("alpha"), "alpha"),
+                ReadColorChannel(timelines.Member("dark")));
+        }
+
+        private static List<RgbKeyframe>? ReadRgbChannel(JsonValue? channel)
+        {
+            if (channel == null || channel.Kind != JsonKind.Array)
+            {
+                return null;
+            }
+
+            var keys = new List<RgbKeyframe>();
+            foreach (JsonValue frame in channel.AsArray())
+            {
+                JsonValue value = ReqMember(frame, "value", JsonKind.Object);
+                JsonValue rgb = ReqMember(value, "rgb", JsonKind.Object);
+                keys.Add(
+                    new RgbKeyframe(
+                        ReqNumber(frame, "time"),
+                        ReqNumber(rgb, "r"),
+                        ReqNumber(rgb, "g"),
+                        ReqNumber(rgb, "b"),
+                        ReadCurve(frame)));
+            }
+
+            return keys;
         }
 
         private static List<SequenceKeyframe>? ReadSequenceChannel(JsonValue? channel)

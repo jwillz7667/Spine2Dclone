@@ -160,6 +160,58 @@ static func build_color_track(keys: Array) -> Prepared.PreparedTrack:
 	return _build_track(key_count, 4, times, curves, values)
 
 
+# One split component bone track (ADR-0009 section 4.1): a single scalar lane read from a { value }
+# keyframe (translateX/Y, scaleX/Y, shearX/Y). The apply layer composes it as add (translate, shear) or
+# multiply (scale) onto the setup lane, matching the joint channel's per-component math. Mirrors
+# buildComponentTrack in curve.ts.
+static func build_component_track(keys: Array) -> Prepared.PreparedTrack:
+	var key_count := keys.size()
+	var times := PackedFloat64Array()
+	times.resize(key_count)
+	var values := PackedFloat64Array()
+	values.resize(key_count)
+	var curves := []
+	for i in range(key_count):
+		times[i] = keys[i].time
+		values[i] = keys[i].value
+		curves.append(keys[i].curve)
+	return _build_track(key_count, 1, times, curves, values)
+
+
+# The split rgb slot color track (ADR-0009 section 4.2): three lanes from an { rgb } keyframe. Alpha rides
+# the separate alpha track (build_alpha_track), so this writes only lanes 0..2. Mirrors buildRgbTrack.
+static func build_rgb_track(keys: Array) -> Prepared.PreparedTrack:
+	var key_count := keys.size()
+	var times := PackedFloat64Array()
+	times.resize(key_count)
+	var values := PackedFloat64Array()
+	values.resize(key_count * 3)
+	var curves := []
+	for i in range(key_count):
+		times[i] = keys[i].time
+		values[i * 3] = keys[i].r
+		values[(i * 3) + 1] = keys[i].g
+		values[(i * 3) + 2] = keys[i].b
+		curves.append(keys[i].curve)
+	return _build_track(key_count, 3, times, curves, values)
+
+
+# The split alpha slot color track (ADR-0009 section 4.2): one lane from an { alpha } keyframe (read into
+# a ScalarKeyframe.value by the reader). Mirrors buildAlphaTrack in curve.ts.
+static func build_alpha_track(keys: Array) -> Prepared.PreparedTrack:
+	var key_count := keys.size()
+	var times := PackedFloat64Array()
+	times.resize(key_count)
+	var values := PackedFloat64Array()
+	values.resize(key_count)
+	var curves := []
+	for i in range(key_count):
+		times[i] = keys[i].time
+		values[i] = keys[i].value
+		curves.append(keys[i].curve)
+	return _build_track(key_count, 1, times, curves, values)
+
+
 static func build_ik_mix_track(frames: Array) -> Prepared.PreparedTrack:
 	var key_count := frames.size()
 	var times := PackedFloat64Array()

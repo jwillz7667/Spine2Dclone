@@ -162,6 +162,12 @@ var slot_names: Array
 var slot_bone_indices: PackedInt32Array
 var slot_setup_color: PackedFloat64Array
 var slot_color: PackedFloat64Array
+# SLOT_COLOR_STRIDE lanes per slot: the setup two-color DARK tint (ADR-0009 section 4.3), the reset source
+# for the keyable dark color. A slot with no setup darkColor keeps (0, 0, 0, 1) here (inert). slot_dark_color
+# is the resolved dark tint written by the solve; slot_has_dark_color is 1 for slots that declared one.
+var slot_setup_dark_color: PackedFloat64Array
+var slot_dark_color: PackedFloat64Array
+var slot_has_dark_color: PackedByteArray
 var slot_attachment_win_weight: PackedFloat64Array
 var ik_bend_win_weight: PackedFloat64Array
 # One f64 per IK constraint each: the discrete greater-weight-wins winner weights for that constraint's
@@ -221,6 +227,9 @@ func _init(
 	slot_bone_indices = _int_buffer(slot_count)
 	slot_setup_color = _float_buffer(slot_count * SLOT_COLOR_STRIDE)
 	slot_color = _float_buffer(slot_count * SLOT_COLOR_STRIDE)
+	slot_setup_dark_color = _float_buffer(slot_count * SLOT_COLOR_STRIDE)
+	slot_dark_color = _float_buffer(slot_count * SLOT_COLOR_STRIDE)
+	slot_has_dark_color = _byte_buffer(slot_count)
 	slot_attachment_win_weight = _float_buffer(slot_count)
 	ik_bend_win_weight = _float_buffer(the_ik_constraints.size())
 	ik_stretch_win_weight = _float_buffer(the_ik_constraints.size())

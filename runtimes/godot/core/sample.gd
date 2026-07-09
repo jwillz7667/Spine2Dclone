@@ -218,6 +218,9 @@ static func _sample_scalar_track(track: Prepared.PreparedTrack, t: float) -> flo
 static func reset_slots_to_setup(pose: Pose) -> void:
 	for i in range(pose.slot_setup_color.size()):
 		pose.slot_color[i] = pose.slot_setup_color[i]
+	# Reset the two-color dark tint to its setup (ADR-0009 section 4.3).
+	for i in range(pose.slot_setup_dark_color.size()):
+		pose.slot_dark_color[i] = pose.slot_setup_dark_color[i]
 	for i in range(pose.slot_count):
 		pose.slot_attachment[i] = pose.slot_setup_attachment[i]
 	# Step 1 also resets the render order to the setup (identity) draw order (ADR-0008, PP-B4).
@@ -330,14 +333,53 @@ static func _apply_bone_entry(pose: Pose, prepared: Prepared.PreparedAnimation, 
 			)
 			touched = true
 
+		# Per-component split tracks (ADR-0009 section 4.1). Each writes ONE local component with the same
+		# math as the corresponding joint component (translate/shear are setup + value, scale is setup *
+		# value). The format's coexistence ban guarantees a channel's joint and split forms never both key,
+		# so applying every present track cannot double-write a component.
+		if _apply_bone_scalar(channels.translate_x, blend_local, setup, s, false, t, alpha, additive):
+			touched = true
+		if _apply_bone_scalar(channels.translate_y, blend_local, setup, s + 1, false, t, alpha, additive):
+			touched = true
+		if _apply_bone_scalar(channels.scale_x, blend_local, setup, s + 3, true, t, alpha, additive):
+			touched = true
+		if _apply_bone_scalar(channels.scale_y, blend_local, setup, s + 4, true, t, alpha, additive):
+			touched = true
+		if _apply_bone_scalar(channels.shear_x, blend_local, setup, s + 5, false, t, alpha, additive):
+			touched = true
+		if _apply_bone_scalar(channels.shear_y, blend_local, setup, s + 6, false, t, alpha, additive):
+			touched = true
+
 		if touched:
 			bone_touched[bone_index] = 1
+
+
+# Apply one split scalar bone track to a single local-component lane, matching the joint channel's math:
+# multiplicative (scale) composes as setup * value, else (translate, shear) as setup + value; the result
+# blends onto blend_local by alpha (additive adds the delta from setup). Returns whether the track applied
+# (null tracks are absent). Shaped like the joint blend so a split-keyed bone produces the identical world
+# affine a joint-keyed one would for equivalent values. Mirrors applyBoneScalar in sample.ts.
+static func _apply_bone_scalar(track, blend_local: PackedFloat64Array, setup: PackedFloat64Array, lane: int, multiplicative: bool, t: float, alpha: float, additive: bool) -> bool:
+	if track == null:
+		return false
+	var i := Curves.find_segment_index(track.times, track.key_count, t)
+	var f := Curves.segment_fraction(track, i, t)
+	var raw := Curves.segment_component(track, i, f, 0)
+	var sampled := setup[lane] * raw if multiplicative else setup[lane] + raw
+	blend_local[lane] = (
+		_blend_add_linear(blend_local[lane], setup[lane], sampled, alpha)
+		if additive
+		else _blend_replace_linear(blend_local[lane], sampled, alpha)
+	)
+	return true
 
 
 static func _apply_slot_entry(pose: Pose, prepared: Prepared.PreparedAnimation, t: float, alpha: float, additive: bool, discrete_wins: bool) -> void:
 	var slot_channels := prepared.slot_channels
 	var slot_color := pose.slot_color
 	var slot_setup_color := pose.slot_setup_color
+	var slot_dark_color := pose.slot_dark_color
+	var slot_setup_dark_color := pose.slot_setup_dark_color
 	var slot_attachment := pose.slot_attachment
 	var slot_attachment_win_weight := pose.slot_attachment_win_weight
 	for sc in range(slot_channels.size()):
@@ -357,6 +399,47 @@ static func _apply_slot_entry(pose: Pose, prepared: Prepared.PreparedAnimation, 
 					_blend_add_linear(slot_color[base_index + k], slot_setup_color[base_index + k], sampled, alpha)
 					if additive
 					else _blend_replace_linear(slot_color[base_index + k], sampled, alpha)
+				)
+
+		# Split color (ADR-0009 section 4.2): rgb writes lanes 0..2, alpha lane 3. The coexistence ban means
+		# these never run alongside the joint color on the same slot.
+		var rgb = channels.rgb
+		if rgb != null:
+			var i := Curves.find_segment_index(rgb.times, rgb.key_count, t)
+			var f := Curves.segment_fraction(rgb, i, t)
+			var base_rgb := slot_index * Pose.SLOT_COLOR_STRIDE
+			for k in range(3):
+				var sampled := Curves.segment_component(rgb, i, f, k)
+				slot_color[base_rgb + k] = (
+					_blend_add_linear(slot_color[base_rgb + k], slot_setup_color[base_rgb + k], sampled, alpha)
+					if additive
+					else _blend_replace_linear(slot_color[base_rgb + k], sampled, alpha)
+				)
+		var alpha_track = channels.alpha
+		if alpha_track != null:
+			var i := Curves.find_segment_index(alpha_track.times, alpha_track.key_count, t)
+			var f := Curves.segment_fraction(alpha_track, i, t)
+			var lane := (slot_index * Pose.SLOT_COLOR_STRIDE) + 3
+			var sampled := Curves.segment_component(alpha_track, i, f, 0)
+			slot_color[lane] = (
+				_blend_add_linear(slot_color[lane], slot_setup_color[lane], sampled, alpha)
+				if additive
+				else _blend_replace_linear(slot_color[lane], sampled, alpha)
+			)
+
+		# Keyable two-color dark tint (ADR-0009 section 4.3): blends into the pose's dark-color lane like the
+		# RGBA color, over the setup dark tint. Renderers read slot_dark_color for the two-color draw.
+		var dark = channels.dark
+		if dark != null:
+			var i := Curves.find_segment_index(dark.times, dark.key_count, t)
+			var f := Curves.segment_fraction(dark, i, t)
+			var base_dark := slot_index * Pose.SLOT_COLOR_STRIDE
+			for k in range(Pose.SLOT_COLOR_STRIDE):
+				var sampled := Curves.segment_component(dark, i, f, k)
+				slot_dark_color[base_dark + k] = (
+					_blend_add_linear(slot_dark_color[base_dark + k], slot_setup_dark_color[base_dark + k], sampled, alpha)
+					if additive
+					else _blend_replace_linear(slot_dark_color[base_dark + k], sampled, alpha)
 				)
 
 		var attachment = channels.attachment
@@ -460,6 +543,13 @@ static func _prepare_animation(pose: Pose, animation) -> Prepared.PreparedAnimat
 		channels.translate = Curves.build_vec2_track(timelines.translate) if _has_keys(timelines.translate) else null
 		channels.scale = Curves.build_vec2_track(timelines.scale) if _has_keys(timelines.scale) else null
 		channels.shear = Curves.build_vec2_track(timelines.shear) if _has_keys(timelines.shear) else null
+		# Per-component split scalar tracks (ADR-0009 section 4.1): each null when absent/empty.
+		channels.translate_x = Curves.build_component_track(timelines.translate_x) if _has_keys(timelines.translate_x) else null
+		channels.translate_y = Curves.build_component_track(timelines.translate_y) if _has_keys(timelines.translate_y) else null
+		channels.scale_x = Curves.build_component_track(timelines.scale_x) if _has_keys(timelines.scale_x) else null
+		channels.scale_y = Curves.build_component_track(timelines.scale_y) if _has_keys(timelines.scale_y) else null
+		channels.shear_x = Curves.build_component_track(timelines.shear_x) if _has_keys(timelines.shear_x) else null
+		channels.shear_y = Curves.build_component_track(timelines.shear_y) if _has_keys(timelines.shear_y) else null
 		result.bone_channels.append(channels)
 
 	for slot_name in animation.slots:
@@ -468,6 +558,11 @@ static func _prepare_animation(pose: Pose, animation) -> Prepared.PreparedAnimat
 		channels.slot_index = _lookup(slot_index_by_name, slot_name)
 		channels.color = Curves.build_color_track(timelines.color) if _has_keys(timelines.color) else null
 		channels.attachment = Curves.build_attachment_track(timelines.attachment) if _has_keys(timelines.attachment) else null
+		# Split color (ADR-0009 section 4.2): rgb 3-lane, alpha 1-lane; dark (section 4.3) is a 4-lane RGBA
+		# track built with the existing color-track builder.
+		channels.rgb = Curves.build_rgb_track(timelines.rgb) if _has_keys(timelines.rgb) else null
+		channels.alpha = Curves.build_alpha_track(timelines.alpha) if _has_keys(timelines.alpha) else null
+		channels.dark = Curves.build_color_track(timelines.dark) if _has_keys(timelines.dark) else null
 		result.slot_channels.append(channels)
 
 	var ik_index_by_name := _name_index_of(pose.ik_constraints)

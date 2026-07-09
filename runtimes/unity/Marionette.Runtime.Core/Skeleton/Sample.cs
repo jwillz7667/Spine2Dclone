@@ -317,6 +317,8 @@ namespace Marionette.Runtime.Core.Skeleton
         public static void ResetSlotsToSetup(Pose pose)
         {
             Array.Copy(pose.SlotSetupColor, pose.SlotColor, pose.SlotSetupColor.Length);
+            // Reset the two-color dark tint to its setup (ADR-0009 section 4.3, ADR-0011 section 3).
+            Array.Copy(pose.SlotSetupDarkColor, pose.SlotDarkColor, pose.SlotSetupDarkColor.Length);
             // Step 1 also resets the render order to the setup (identity) draw order (ADR-0008, PP-B4).
             Array.Copy(pose.SlotSetupDrawOrder, pose.DrawOrder, pose.SlotSetupDrawOrder.Length);
             for (int i = 0; i < pose.SlotCount; i += 1)
@@ -454,11 +456,74 @@ namespace Marionette.Runtime.Core.Skeleton
                     touched = true;
                 }
 
+                // Per-component split tracks (ADR-0009 section 4.1, ADR-0011 section 3). Each writes ONE local
+                // component with the same math as the corresponding joint component (translate/shear are
+                // setup + value, scale is setup * value). The format's coexistence ban guarantees a channel's
+                // joint and split forms never both key, so applying every present track cannot double-write.
+                if (ApplyBoneScalar(channels.TranslateX, blendLocal, setup, s, false, t, alpha, additive))
+                {
+                    touched = true;
+                }
+
+                if (ApplyBoneScalar(channels.TranslateY, blendLocal, setup, s + 1, false, t, alpha, additive))
+                {
+                    touched = true;
+                }
+
+                if (ApplyBoneScalar(channels.ScaleX, blendLocal, setup, s + 3, true, t, alpha, additive))
+                {
+                    touched = true;
+                }
+
+                if (ApplyBoneScalar(channels.ScaleY, blendLocal, setup, s + 4, true, t, alpha, additive))
+                {
+                    touched = true;
+                }
+
+                if (ApplyBoneScalar(channels.ShearX, blendLocal, setup, s + 5, false, t, alpha, additive))
+                {
+                    touched = true;
+                }
+
+                if (ApplyBoneScalar(channels.ShearY, blendLocal, setup, s + 6, false, t, alpha, additive))
+                {
+                    touched = true;
+                }
+
                 if (touched)
                 {
                     boneTouched[boneIndex] = 1;
                 }
             }
+        }
+
+        // Apply one split scalar bone track to a single local-component lane, matching the joint channel's
+        // math: multiplicative (scale) composes as setup * value, else (translate, shear) as setup + value;
+        // the result blends onto blendLocal by alpha (additive adds the delta from setup). Returns whether the
+        // track applied (null tracks are absent). Mirrors applyBoneScalar in sample.ts.
+        private static bool ApplyBoneScalar(
+            PreparedTrack? track,
+            double[] blendLocal,
+            double[] setup,
+            int lane,
+            bool multiplicative,
+            double t,
+            double alpha,
+            bool additive)
+        {
+            if (track == null)
+            {
+                return false;
+            }
+
+            int i = Curves.FindSegmentIndex(track.Times, track.KeyCount, t);
+            double f = Curves.SegmentFraction(track, i, t);
+            double raw = Curves.SegmentComponent(track, i, f, 0);
+            double sampled = multiplicative ? setup[lane] * raw : setup[lane] + raw;
+            blendLocal[lane] = additive
+                ? BlendAddLinear(blendLocal[lane], setup[lane], sampled, alpha)
+                : BlendReplaceLinear(blendLocal[lane], sampled, alpha);
+            return true;
         }
 
         private static void ApplySlotEntry(
@@ -472,6 +537,8 @@ namespace Marionette.Runtime.Core.Skeleton
             IReadOnlyList<PreparedSlotChannels> slotChannels = prepared.SlotChannels;
             double[] slotColor = pose.SlotColor;
             double[] slotSetupColor = pose.SlotSetupColor;
+            double[] slotDarkColor = pose.SlotDarkColor;
+            double[] slotSetupDarkColor = pose.SlotSetupDarkColor;
             string?[] slotAttachment = pose.SlotAttachment;
             double[] slotAttachmentWinWeight = pose.SlotAttachmentWinWeight;
             for (int sc = 0; sc < slotChannels.Count; sc += 1)
@@ -483,18 +550,62 @@ namespace Marionette.Runtime.Core.Skeleton
                     continue;
                 }
 
+                int baseIndex = slotIndex * Pose.SlotColorStride;
+
                 PreparedTrack? color = channels.Color;
                 if (color != null)
                 {
                     int i = Curves.FindSegmentIndex(color.Times, color.KeyCount, t);
                     double f = Curves.SegmentFraction(color, i, t);
-                    int baseIndex = slotIndex * Pose.SlotColorStride;
                     for (int k = 0; k < Pose.SlotColorStride; k += 1)
                     {
                         double sampled = Curves.SegmentComponent(color, i, f, k);
                         slotColor[baseIndex + k] = additive
                             ? BlendAddLinear(slotColor[baseIndex + k], slotSetupColor[baseIndex + k], sampled, alpha)
                             : BlendReplaceLinear(slotColor[baseIndex + k], sampled, alpha);
+                    }
+                }
+
+                // Split color (ADR-0009 section 4.2, ADR-0011 section 3): rgb writes lanes 0..2, alpha lane 3.
+                // The coexistence ban means these never run alongside the joint color on the same slot.
+                PreparedTrack? rgb = channels.Rgb;
+                if (rgb != null)
+                {
+                    int i = Curves.FindSegmentIndex(rgb.Times, rgb.KeyCount, t);
+                    double f = Curves.SegmentFraction(rgb, i, t);
+                    for (int k = 0; k < 3; k += 1)
+                    {
+                        double sampled = Curves.SegmentComponent(rgb, i, f, k);
+                        slotColor[baseIndex + k] = additive
+                            ? BlendAddLinear(slotColor[baseIndex + k], slotSetupColor[baseIndex + k], sampled, alpha)
+                            : BlendReplaceLinear(slotColor[baseIndex + k], sampled, alpha);
+                    }
+                }
+
+                PreparedTrack? alphaTrack = channels.Alpha;
+                if (alphaTrack != null)
+                {
+                    int i = Curves.FindSegmentIndex(alphaTrack.Times, alphaTrack.KeyCount, t);
+                    double f = Curves.SegmentFraction(alphaTrack, i, t);
+                    double sampled = Curves.SegmentComponent(alphaTrack, i, f, 0);
+                    slotColor[baseIndex + 3] = additive
+                        ? BlendAddLinear(slotColor[baseIndex + 3], slotSetupColor[baseIndex + 3], sampled, alpha)
+                        : BlendReplaceLinear(slotColor[baseIndex + 3], sampled, alpha);
+                }
+
+                // Keyable two-color dark tint (ADR-0009 section 4.3, ADR-0011 section 3): blends into the
+                // pose's dark-color lane like the RGBA color, over the setup dark tint.
+                PreparedTrack? dark = channels.Dark;
+                if (dark != null)
+                {
+                    int i = Curves.FindSegmentIndex(dark.Times, dark.KeyCount, t);
+                    double f = Curves.SegmentFraction(dark, i, t);
+                    for (int k = 0; k < Pose.SlotColorStride; k += 1)
+                    {
+                        double sampled = Curves.SegmentComponent(dark, i, f, k);
+                        slotDarkColor[baseIndex + k] = additive
+                            ? BlendAddLinear(slotDarkColor[baseIndex + k], slotSetupDarkColor[baseIndex + k], sampled, alpha)
+                            : BlendReplaceLinear(slotDarkColor[baseIndex + k], sampled, alpha);
                     }
                 }
 
@@ -657,7 +768,15 @@ namespace Marionette.Runtime.Core.Skeleton
                     HasKeys(timelines.Rotate) ? Curves.BuildScalarTrack(timelines.Rotate!) : null,
                     HasKeys(timelines.Translate) ? Curves.BuildVec2Track(timelines.Translate!) : null,
                     HasKeys(timelines.Scale) ? Curves.BuildVec2Track(timelines.Scale!) : null,
-                    HasKeys(timelines.Shear) ? Curves.BuildVec2Track(timelines.Shear!) : null));
+                    HasKeys(timelines.Shear) ? Curves.BuildVec2Track(timelines.Shear!) : null,
+                    // Per-component split tracks (ADR-0009 section 4.1, ADR-0011 section 3): each is one scalar
+                    // lane, so it reuses BuildScalarTrack (matching the TS buildComponentTrack, `{ value }`).
+                    HasKeys(timelines.TranslateX) ? Curves.BuildScalarTrack(timelines.TranslateX!) : null,
+                    HasKeys(timelines.TranslateY) ? Curves.BuildScalarTrack(timelines.TranslateY!) : null,
+                    HasKeys(timelines.ScaleX) ? Curves.BuildScalarTrack(timelines.ScaleX!) : null,
+                    HasKeys(timelines.ScaleY) ? Curves.BuildScalarTrack(timelines.ScaleY!) : null,
+                    HasKeys(timelines.ShearX) ? Curves.BuildScalarTrack(timelines.ShearX!) : null,
+                    HasKeys(timelines.ShearY) ? Curves.BuildScalarTrack(timelines.ShearY!) : null));
             }
 
             var slotChannels = new List<PreparedSlotChannels>();
@@ -667,7 +786,12 @@ namespace Marionette.Runtime.Core.Skeleton
                 slotChannels.Add(new PreparedSlotChannels(
                     LookupOrMinusOne(slotIndexByName, entry.Key),
                     HasKeys(timelines.Color) ? Curves.BuildColorTrack(timelines.Color!) : null,
-                    HasKeys(timelines.Attachment) ? Curves.BuildAttachmentTrack(timelines.Attachment!) : null));
+                    HasKeys(timelines.Attachment) ? Curves.BuildAttachmentTrack(timelines.Attachment!) : null,
+                    // Split color (ADR-0009 section 4.2): rgb is a 3-lane track, alpha reuses BuildScalarTrack
+                    // (1 lane), dark reuses BuildColorTrack (4-lane RGBA over the setup dark tint).
+                    HasKeys(timelines.Rgb) ? Curves.BuildRgbTrack(timelines.Rgb!) : null,
+                    HasKeys(timelines.Alpha) ? Curves.BuildScalarTrack(timelines.Alpha!) : null,
+                    HasKeys(timelines.Dark) ? Curves.BuildColorTrack(timelines.Dark!) : null));
             }
 
             Dictionary<string, int> ikIndexByName = NameIndexOf(pose.IkConstraints);

@@ -191,6 +191,29 @@ namespace Marionette.Runtime.Core.Skeleton
             return BuildTrack(keyCount, 4, times, curves, values);
         }
 
+        // The split `rgb` slot color track (ADR-0009 section 4.2, ADR-0011 section 3): three lanes from an
+        // `{ rgb }` keyframe. Alpha rides the separate `alpha` scalar track (BuildScalarTrack), so this writes
+        // only lanes 0..2. Mirrors buildRgbTrack in curve.ts. The split `translateX`/etc component tracks and
+        // the `alpha` track are single scalar lanes, so they reuse BuildScalarTrack (identical to the TS
+        // buildComponentTrack / buildAlphaTrack), and the `dark` track reuses BuildColorTrack (4-lane RGBA).
+        public static PreparedTrack BuildRgbTrack(IReadOnlyList<RgbKeyframe> keys)
+        {
+            int keyCount = keys.Count;
+            var times = new double[keyCount];
+            var values = new double[keyCount * 3];
+            var curves = new Curve[keyCount];
+            for (int i = 0; i < keyCount; i += 1)
+            {
+                times[i] = keys[i].Time;
+                values[i * 3] = keys[i].R;
+                values[(i * 3) + 1] = keys[i].G;
+                values[(i * 3) + 2] = keys[i].B;
+                curves[i] = keys[i].Curve;
+            }
+
+            return BuildTrack(keyCount, 3, times, curves, values);
+        }
+
         public static PreparedTrack BuildIkMixTrack(IReadOnlyList<IkKeyframe> frames)
         {
             int keyCount = frames.Count;

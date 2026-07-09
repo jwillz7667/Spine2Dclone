@@ -333,6 +333,31 @@ static func _compare_slots(result: Result, rig_id: String, time: float, sample: 
 					% [rig_id, slot_name, k, time, str(expected_value), str(actual_value), String.num_scientific(delta)]
 				)
 
+		# Keyable two-color dark tint (ADR-0009 section 4.3, ADR-0011 section 3): the fixture carries a `dark`
+		# RGBA array ONLY for a slot with a setup darkColor. Compare presence (structural) against the pose's
+		# slot_has_dark_color flag, then each resolved dark lane on the COLOR tolerance. Absent-on-both (every
+		# pre-existing rig) is a no-op, so untouched rigs behave exactly as before.
+		var expected_has_dark: bool = expected_slot.has("dark")
+		var actual_has_dark: bool = pose.slot_has_dark_color[slot_index] == 1
+		if expected_has_dark != actual_has_dark:
+			result.failures.append(
+				"[%s] slot '%s' at t=%s dark presence mismatch: fixture %s, pose %s"
+				% [rig_id, slot_name, time, str(expected_has_dark), str(actual_has_dark)]
+			)
+		elif expected_has_dark:
+			var expected_dark: Array = expected_slot["dark"]
+			for k in range(Pose.SLOT_COLOR_STRIDE):
+				var expected_dark_value := float(expected_dark[k])
+				var actual_dark_value := pose.slot_dark_color[base_index + k]
+				var dark_delta := absf(actual_dark_value - expected_dark_value)
+				result.max_color_error = max(result.max_color_error, dark_delta)
+				result.lane_comparisons += 1
+				if not Tolerance.COLOR.within(actual_dark_value, expected_dark_value):
+					result.failures.append(
+						"[%s] slot '%s' dark lane %d at t=%s drifts: expected %s, actual %s, delta %s"
+						% [rig_id, slot_name, k, time, str(expected_dark_value), str(actual_dark_value), String.num_scientific(dark_delta)]
+					)
+
 
 static func _max_mesh_lanes(samples: Array) -> int:
 	var m := 0

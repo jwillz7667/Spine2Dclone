@@ -61,6 +61,15 @@ static func build(document: Document.SkeletonDocument) -> Pose:
 		pose.slot_setup_color[b + 1] = slot.color.g
 		pose.slot_setup_color[b + 2] = slot.color.b
 		pose.slot_setup_color[b + 3] = slot.color.a
+		# Setup two-color dark tint (ADR-0009 section 4.3). Present only when the slot enables two-color
+		# tinting; absent slots keep an inert (0, 0, 0, 1) so the reset is well-defined but renderers skip it
+		# (slot_has_dark_color is 0). The dark tint's alpha channel is inert but carried for a total RGBA lane.
+		var dark = slot.dark_color
+		pose.slot_has_dark_color[i] = 0 if dark == null else 1
+		pose.slot_setup_dark_color[b] = 0.0 if dark == null else dark.r
+		pose.slot_setup_dark_color[b + 1] = 0.0 if dark == null else dark.g
+		pose.slot_setup_dark_color[b + 2] = 0.0 if dark == null else dark.b
+		pose.slot_setup_dark_color[b + 3] = 1.0 if dark == null else dark.a
 		pose.slot_setup_attachment[i] = slot.attachment
 
 	return pose

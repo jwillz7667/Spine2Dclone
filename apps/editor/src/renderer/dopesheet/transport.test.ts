@@ -51,6 +51,21 @@ describe('transport math', () => {
       ),
     ).toBe(true);
     expect(keyframeValueEquals({ angle: 1 }, { x: 1, y: 1 })).toBe(false);
+    // Stage F2 (ADR-0009) scalar/rgb/alpha split shapes.
+    expect(keyframeValueEquals({ value: 3 }, { value: 3 })).toBe(true);
+    expect(keyframeValueEquals({ value: 3 }, { value: 4 })).toBe(false);
+    expect(keyframeValueEquals({ rgb: { r: 1, g: 0, b: 0 } }, { rgb: { r: 1, g: 0, b: 0 } })).toBe(
+      true,
+    );
+    expect(keyframeValueEquals({ rgb: { r: 1, g: 0, b: 0 } }, { rgb: { r: 1, g: 1, b: 0 } })).toBe(
+      false,
+    );
+    expect(keyframeValueEquals({ alpha: 0.5 }, { alpha: 0.5 })).toBe(true);
+    expect(keyframeValueEquals({ alpha: 0.5 }, { alpha: 0.6 })).toBe(false);
+    // Mismatched shapes across the new members are unequal (never confused with vec2).
+    expect(keyframeValueEquals({ value: 1 }, { x: 1, y: 1 })).toBe(false);
+    expect(keyframeValueEquals({ x: 1, y: 1 }, { value: 1 })).toBe(false);
+    expect(keyframeValueEquals({ rgb: { r: 1, g: 1, b: 1 } }, { alpha: 1 })).toBe(false);
   });
 
   it('flags loop-endpoint mismatch only when a channel first and last differ', () => {

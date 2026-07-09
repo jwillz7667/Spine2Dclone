@@ -6,6 +6,7 @@ import type {
   BoneTimelines,
   CurveType,
   RegionAttachment,
+  RGB,
   RGBA,
   SequenceMode,
   SkeletonMeta,
@@ -215,8 +216,12 @@ export type BoneChannel = 'rotate' | 'translate' | 'scale' | 'shear';
 
 // Keyframe value shapes, mirroring the format keyframe value types BY VALUE (handoff section 6): a
 // rotate value is an angle, translate/scale/shear values are a vec2, a slot color value wraps an RGBA.
-// The members are structurally distinct (disjoint keys), so a value narrows to its channel with `in`,
-// no tag and no `as` (matching the on-disk shape exactly, which carries no discriminant).
+// Stage F2 (ADR-0009, PP-D10) ADDS three scalar/split shapes for the per-component bone tracks and the
+// split slot-color tracks: a lone scalar (`value`, the per-component bone channels translateX/Y, scaleX/Y,
+// shearX/Y), an RGB triple (`rgb`, the split slot-color track), and a lone alpha (`alpha`, the split
+// slot-alpha track). The members are structurally distinct (disjoint keys `angle`/`x`/`color`/`value`/
+// `rgb`/`alpha`), so a value narrows to its channel with `in`, no tag and no `as` (matching the on-disk
+// shape exactly, which carries no discriminant).
 export interface RotateValue {
   readonly angle: number;
 }
@@ -227,7 +232,22 @@ export interface Vec2Value {
 export interface ColorValue {
   readonly color: RGBA;
 }
-export type KeyframeValue = RotateValue | Vec2Value | ColorValue;
+export interface ScalarValue {
+  readonly value: number;
+}
+export interface RgbValue {
+  readonly rgb: RGB;
+}
+export interface AlphaValue {
+  readonly alpha: number;
+}
+export type KeyframeValue =
+  | RotateValue
+  | Vec2Value
+  | ColorValue
+  | ScalarValue
+  | RgbValue
+  | AlphaValue;
 
 // An editable keyframe: an internal `id` (so a sibling insert/delete never invalidates a reference),
 // a `time` in seconds, a channel value, and an outgoing interpolation `curve` (the format Keyframe<T>
@@ -590,6 +610,12 @@ export function cloneKeyframeValue(value: KeyframeValue): KeyframeValue {
     const { r, g, b, a } = value.color;
     return { color: { r, g, b, a } };
   }
+  if ('value' in value) return { value: value.value };
+  if ('rgb' in value) {
+    const { r, g, b } = value.rgb;
+    return { rgb: { r, g, b } };
+  }
+  if ('alpha' in value) return { alpha: value.alpha };
   return { x: value.x, y: value.y };
 }
 

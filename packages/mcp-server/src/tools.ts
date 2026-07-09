@@ -862,12 +862,27 @@ const weightDabSchema = z
 // with boneId/slotId into a branded KeyframeTarget and validates the pairing (resolveTarget).
 const channelSchema = z.enum(['rotate', 'translate', 'scale', 'shear', 'color', 'dark']);
 
-// A keyframe value: one of the three disjoint channel value shapes. The handler checks the value shape
-// matches the channel (checkValueShape); the union here keeps a malformed shape (e.g. extra keys) out.
+// A keyframe value: one of the disjoint channel value shapes. The handler checks the value shape matches
+// the channel (checkValueShape); the union here keeps a malformed shape (e.g. extra keys) out. Stage F2
+// (ADR-0009, PP-D10) ADDS the scalar shape (`value`, the per-component bone tracks translateX/Y, scaleX/Y,
+// shearX/Y) and the split slot-color shapes (`rgb`, an RGB triple; `alpha`, a lone channel in [0, 1]).
+const rgbSchema = z
+  .object({ r: colorComponent, g: colorComponent, b: colorComponent })
+  .strict();
 const rotateValueSchema = z.object({ angle: z.number().finite() }).strict();
 const vec2ValueSchema = z.object({ x: z.number().finite(), y: z.number().finite() }).strict();
 const colorValueSchema = z.object({ color: rgbaSchema }).strict();
-const keyframeValueSchema = z.union([rotateValueSchema, vec2ValueSchema, colorValueSchema]);
+const scalarValueSchema = z.object({ value: z.number().finite() }).strict();
+const rgbValueSchema = z.object({ rgb: rgbSchema }).strict();
+const alphaValueSchema = z.object({ alpha: colorComponent }).strict();
+const keyframeValueSchema = z.union([
+  rotateValueSchema,
+  vec2ValueSchema,
+  colorValueSchema,
+  scalarValueSchema,
+  rgbValueSchema,
+  alphaValueSchema,
+]);
 
 // A curve: 'linear' / 'stepped' / a cubic bezier. The value is stored AS GIVEN (clamping bezier x into
 // [0, 1] is the WP-1.7 curve editor's job; the format validator rejects out-of-range x on export).

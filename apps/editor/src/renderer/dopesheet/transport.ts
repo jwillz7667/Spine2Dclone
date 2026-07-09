@@ -49,8 +49,9 @@ export function advance(
   return { playhead: raw, reachedEnd: false };
 }
 
-// Structural equality of two keyframe values across the three channel shapes (rotate angle, vec2,
-// color). Mismatched shapes are unequal. Used by the loop-endpoint advisory.
+// Structural equality of two keyframe values across the channel shapes (rotate angle, vec2, color, and the
+// Stage F2 (ADR-0009) scalar/rgb/alpha split shapes). Mismatched shapes are unequal. Used by the loop-
+// endpoint advisory.
 export function keyframeValueEquals(a: KeyframeValue, b: KeyframeValue): boolean {
   if ('angle' in a) return 'angle' in b && a.angle === b.angle;
   if ('color' in a) {
@@ -62,7 +63,13 @@ export function keyframeValueEquals(a: KeyframeValue, b: KeyframeValue): boolean
       a.color.a === b.color.a
     );
   }
-  if ('angle' in b || 'color' in b) return false;
+  if ('value' in a) return 'value' in b && a.value === b.value;
+  if ('rgb' in a) {
+    if (!('rgb' in b)) return false;
+    return a.rgb.r === b.rgb.r && a.rgb.g === b.rgb.g && a.rgb.b === b.rgb.b;
+  }
+  if ('alpha' in a) return 'alpha' in b && a.alpha === b.alpha;
+  if ('angle' in b || 'color' in b || 'value' in b || 'rgb' in b || 'alpha' in b) return false;
   return a.x === b.x && a.y === b.y;
 }
 

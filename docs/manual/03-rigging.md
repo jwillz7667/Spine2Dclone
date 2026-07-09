@@ -167,6 +167,15 @@ skin, then `skin.create` and `skin.setAttachment` the variant art at the same ad
 
 Deleting a skin cascades its deform timelines; the default skin cannot be renamed or deleted.
 
+In the editor, the Skins panel manages this: create, rename, duplicate, or delete named skins, and
+assign a per-slot region override for each slot's active attachment (the override is keyed by the
+slot's placeholder name, so a live switch swaps that geometry in and inherits the rest from the
+default skin). Duplicating a skin copies its assignments in one undo step. Selecting a skin also
+PREVIEWS it in the viewport: the previewed skin is editor state, not part of the document, so
+switching costumes to check them is never an undoable change and is never saved. The default skin is
+listed for preview but is edited through the Inspector (its attachments are the default-slot
+attachments).
+
 ## 3.9 A rigging order that works
 
 For a typical character:

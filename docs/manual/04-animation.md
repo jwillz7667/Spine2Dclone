@@ -147,7 +147,40 @@ slots landing on the same position, or a slot pushed past the ends) before it is
 changes are discrete (stepped, no curve); keys are draggable and deletable like keyframes. Deleting a
 slot drops it from every draw-order key automatically.
 
-## 4.10 Workflow advice
+## 4.10 The dopesheet: editing keys
+
+The dopesheet shows every keyed timeline of the active animation as a row: a group row per
+animated bone, slot, or constraint, then one row per channel under it. Bone rows show
+`Rotate`/`Translate`/`Scale`/`Shear`; a slot shows `Color`, its `Attachment` swap timeline, and a
+`Deform` row per meshed attachment (with the skin in parentheses for a non-default skin); an IK or
+transform constraint shows a `Mix` row; and every animation always shows the `Events` and
+`Draw Order` rows so their keys stay addable even when empty. Rows appear only when they hold keys
+(except the two always-on special rows), and they sort by name so they do not jump around as you
+edit.
+
+Working with keys:
+
+- **Select** by clicking a key diamond, shift-clicking to toggle, or dragging a marquee. Selection
+  is by identity, so it survives edits, renames, and reorders.
+- **Move** the selected value, event, and draw-order keys by dragging (hold Alt to bypass frame
+  snapping); the whole drag is one undo step, and a move onto another key is rejected rather than
+  overwriting it.
+- **Delete** with the Delete or Backspace key. This removes every selected key across every row
+  kind (bone and slot channels, attachment, deform, IK, transform, events, draw order) in a single
+  undo step.
+- **Scrub** by dragging in the ruler; the transport bar plays, loops, and reports the frame.
+
+**Playback speed.** The transport bar carries a speed control from 0.1x to 2x. Speed scales the
+playback clock only; it never changes the authored timing, the keys, or the exported data, so it is
+a preview aid for inspecting fast motion or checking slow ease, not an animation property.
+
+**Manual keys.** Auto-key writes a key only when a value changes. To plant a key at the current
+value without nudging it (holding a pose or a color across a span), use the inspector's `Key`
+button: the bone-transform section keys all four bone channels at the playhead in one undo step, and
+the slot color row keys the current color. Both work regardless of the auto-key toggle and are
+disabled when no animation is active.
+
+## 4.11 Workflow advice
 
 - Block first: key only the storytelling poses with stepped curves, get the timing right,
   then convert to beziers and add breakdowns. Timing errors are cheap to fix before polish.

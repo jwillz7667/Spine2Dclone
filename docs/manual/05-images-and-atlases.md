@@ -52,6 +52,22 @@ duplicate names (`ATLAS_REGION_DUPLICATE`).
 If you pack with an external tool instead, install the result with `atlas.set` using the same
 pages-and-regions shape (Chapter 10.1).
 
+In the editor, the Assets panel offers three ways to feed the same pack: **Import sprites** picks a
+folder, **Add images** picks one or more PNG files, and **dragging** PNGs onto the panel imports
+them directly. All three route through the identical deterministic pipeline, so the resulting atlas
+is the same however the images arrived. Every imported region shows a thumbnail in the panel,
+decoded once per page and cached, so you can see what you are attaching.
+
+## 5.2a Textures across save and load
+
+The atlas metadata (pages and region rectangles) lives in the document, but the page PIXELS do not:
+they are editor state. When you save a project, the editor writes the atlas page PNGs into a sibling
+`<project>.textures` directory next to the project file, and opening the project reads them back and
+restores the textures automatically, so a saved-and-reopened project shows its art rather than
+placeholders. Keep that textures directory alongside the project file when you move or copy a
+project; if it is missing, the document still opens (the regions render as placeholders until you
+re-import).
+
 ## 5.3 How runtimes resolve textures
 
 The document's atlas reference describes pages and regions; the HOST owns loading page images

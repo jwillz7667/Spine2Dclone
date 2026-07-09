@@ -5,12 +5,14 @@ extends RefCounted
 # object member insertion order, so the ordered maps (skin attachments, animation channels, deform
 # triples) iterate exactly as the TS solve's Object.keys() order.
 #
-# Format compatibility (PP-E2 contract): the reader accepts BOTH formatVersion 0.2.0 (current) and 0.3.0
-# (the additive-empty-collections revision: document events, animation drawOrder/events, optional
-# metadata). It REQUIRES every field the solve consumes and PERMITS unknown/additive members (so a 0.3.0
-# rig with the new empty collections reads unchanged), and it FAILS LOUDLY on a missing required field, a
-# wrong type for a consumed field, or an unsupported format major. A parse failure returns a RigReadError
-# carrying the first offending member, never a half-built document.
+# Format compatibility (PP-E2 contract): the reader accepts every formatVersion of MAJOR 0 (0.2.0 through
+# 0.4.0). The additive revisions are 0.3.0 (document events, animation drawOrder/events, optional metadata)
+# and 0.4.0 (ADR-0009: IK constraints carry a signed `bend` in place of the bendPositive boolean plus
+# additive depth fields, transform constraints gain local/relative, and linked meshes / sequences / split
+# timelines / skin scoping are additive). It REQUIRES every field the solve consumes, reads the signed bend
+# (mapping it to the same sign the solve keys on), and PERMITS unknown/additive members, so a 0.4.0 rig
+# reads unchanged. It FAILS LOUDLY on a missing required field, a wrong type for a consumed field, or an
+# unsupported format major. A parse failure returns a RigReadError carrying the first offending member.
 
 const Document = preload("res://core/document.gd")
 
@@ -169,7 +171,10 @@ static func _read_ik_constraint(ik: Dictionary) -> Document.IkConstraint:
 	c.bones = _read_string_array(_req_array(ik, "bones"))
 	c.target = _req_string(ik, "target")
 	c.mix = _req_number(ik, "mix")
-	c.bend_positive = _req_bool(ik, "bendPositive")
+	# Format 0.4.0 (ADR-0009) carries the signed bend direction (+1 / -1) in place of the pre-0.4.0
+	# bendPositive boolean; the solve keys on the same sign, so bend > 0 reproduces it exactly. The F2
+	# depth fields (softness/stretch/compress/uniform) are additive and permitted-but-unread (PP-B5).
+	c.bend_positive = _req_number(ik, "bend") > 0.0
 	return c
 
 
@@ -216,7 +221,8 @@ static func _read_animation(animation: Dictionary) -> Document.AnimationDef:
 				var kf := Document.IkKeyframe.new()
 				kf.time = _req_number(frame, "time")
 				kf.mix = _req_number(value, "mix")
-				kf.bend_positive = _req_bool(value, "bendPositive")
+				# Signed bend direction (ADR-0009); bend > 0 reproduces the pre-0.4.0 bendPositive boolean.
+				kf.bend_positive = _req_number(value, "bend") > 0.0
 				kf.curve = _read_curve(frame)
 				frames.append(kf)
 			a.ik[ik_name] = frames

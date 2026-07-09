@@ -181,12 +181,15 @@ namespace Marionette.Runtime.Core.Document
 
         private static IkConstraint ReadIkConstraint(JsonValue ik)
         {
+            // Format 0.4.0 (ADR-0009) carries the signed bend direction (+1 / -1) in place of the pre-0.4.0
+            // bendPositive boolean; the solve keys on the same sign, so bend > 0 reproduces it exactly. The
+            // additive F2 depth fields (softness/stretch/compress/uniform) are permitted-but-unread (PP-B5).
             return new IkConstraint(
                 ReqString(ik, "name"),
                 ReadStringArray(ReqMember(ik, "bones", JsonKind.Array)),
                 ReqString(ik, "target"),
                 ReqNumber(ik, "mix"),
-                ReqBool(ik, "bendPositive"));
+                ReqNumber(ik, "bend") > 0.0);
         }
 
         private static TransformConstraint ReadTransformConstraint(JsonValue tc)
@@ -249,7 +252,8 @@ namespace Marionette.Runtime.Core.Document
                             new IkKeyframe(
                                 ReqNumber(frame, "time"),
                                 ReqNumber(value, "mix"),
-                                ReqBool(value, "bendPositive"),
+                                // Signed bend (ADR-0009); bend > 0 reproduces the pre-0.4.0 bendPositive.
+                                ReqNumber(value, "bend") > 0.0,
                                 ReadCurve(frame)));
                     }
 

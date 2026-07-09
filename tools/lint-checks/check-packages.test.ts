@@ -19,10 +19,12 @@ describe('findForbiddenPackages (LAW 5)', () => {
     root = mkdtempSync(join(tmpdir(), 'mc-package-guard-'));
     mkdirSync(join(root, 'packages', 'format'), { recursive: true });
     // A package not in the allowed set is flagged. math-bridge is now ALLOWED (it landed in Phase 4,
-    // WP-4.1), so a still-forbidden name is used as the example. runtimes/unity is now ALLOWED (it
-    // landed with PP-E1, the shared C# solve core), so a still-forbidden runtime name is the example.
+    // WP-4.1), so a still-forbidden name is used as the example. runtimes/unity (PP-E1, the shared C#
+    // solve core) and runtimes/godot (PP-E2, the GDScript solve core) are now ALLOWED, so a
+    // still-forbidden runtime name is the example.
     mkdirSync(join(root, 'packages', 'not-a-real-package'), { recursive: true });
     mkdirSync(join(root, 'runtimes', 'unity'), { recursive: true });
+    mkdirSync(join(root, 'runtimes', 'godot'), { recursive: true });
     mkdirSync(join(root, 'runtimes', 'not-a-real-runtime'), { recursive: true });
 
     const violations = findForbiddenPackages(root);
@@ -30,6 +32,7 @@ describe('findForbiddenPackages (LAW 5)', () => {
     expect(violations).toContain('packages/not-a-real-package');
     expect(violations).toContain('runtimes/not-a-real-runtime');
     expect(violations).not.toContain('runtimes/unity');
+    expect(violations).not.toContain('runtimes/godot');
     expect(violations).not.toContain('packages/format');
   });
 
@@ -55,8 +58,10 @@ describe('findForbiddenPackages (LAW 5)', () => {
       mkdirSync(join(root, 'packages', pkg), { recursive: true });
     }
     mkdirSync(join(root, 'apps', 'editor'), { recursive: true });
-    // runtimes/unity is the shared C# solve core (PP-E1, ADR-0001), the one runtime allowed so far.
+    // The two native runtimes: unity (shared C# solve core, PP-E1, ADR-0001) and godot (GDScript solve
+    // core, PP-E2). Both are allowed once landed.
     mkdirSync(join(root, 'runtimes', 'unity'), { recursive: true });
+    mkdirSync(join(root, 'runtimes', 'godot'), { recursive: true });
 
     expect(findForbiddenPackages(root)).toEqual([]);
   });

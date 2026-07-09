@@ -1,0 +1,18 @@
+; Armature 2D Godot runtime core (PP-E2). A Godot 4 project whose core/ is pure GDScript
+; (Node free, no rendering, no scene tree dependency); tests/ hosts the headless conformance
+; harness. See README.md for the exact headless run command and the parity contract.
+
+config_version=5
+
+[application]
+
+config/name="Marionette Runtime Core (Godot)"
+config/description="Fixture driven GDScript port of packages/runtime-core; PP-E2 Lane E."
+config/features=PackedStringArray("4.6")
+
+[debug]
+
+; Warnings stay on for signal, but they are NOT fatal: Godot's standalone script mode otherwise
+; promotes benign warnings (Variant inference, unused parameter) to load errors. The core is written
+; warning clean; this switch only guards the harness entry from an incidental warning aborting a run.
+gdscript/warnings/treat_warnings_as_errors=false

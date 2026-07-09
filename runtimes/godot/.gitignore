@@ -1,0 +1,6 @@
+# Godot import cache and editor state. The core and harness are pure GDScript read directly by the
+# headless binary; nothing generated here is committed.
+/.godot/
+/.import/
+export_presets.cfg
+*.translation

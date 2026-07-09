@@ -1,5 +1,6 @@
 import type { Texture } from 'pixi.js';
 import type { RegionTextureResolver } from '@marionette/runtime-web';
+import type { AtlasImportPage } from '../../shared';
 
 // Ephemeral editor state (the document/editor wall): the loaded atlas page textures and the region
 // resolver the viewport binds into its SkeletonView. The DocumentModel holds only the AtlasRef METADATA
@@ -20,10 +21,19 @@ class AtlasTextureStore {
   private resolver: RegionTextureResolver | null = null;
   // The page base textures this store owns and is responsible for destroying on replace/clear.
   private ownedPages: readonly Texture[] = [];
+  // The raw page PNG bytes behind the current resolver (PP-D5). Retained so a save can persist them next to
+  // the project for later texture restore; the renderer discards them from the GPU path but keeps the bytes
+  // here (ephemeral editor state, never in the document). Empty when no atlas is loaded.
+  private pageBytes: readonly AtlasImportPage[] = [];
   private readonly listeners = new Set<Listener>();
 
   getResolver(): RegionTextureResolver | null {
     return this.resolver;
+  }
+
+  // The atlas page PNG bytes to persist on save (empty when no atlas is loaded).
+  getPageBytes(): readonly AtlasImportPage[] {
+    return this.pageBytes;
   }
 
   // Replace the current resolver and the page textures it was built from. The PREVIOUS owned pages are
@@ -31,10 +41,15 @@ class AtlasTextureStore {
   // sub-textures are views over those sources and are dropped together with the old resolver. The viewport
   // re-syncs its SkeletonView (which rebuilds its scene against the new resolver before the next Pixi draw,
   // see viewport-panel-content.tsx) so the destroyed old source is never rendered.
-  setResolver(resolver: RegionTextureResolver, ownedPages: readonly Texture[]): void {
+  setResolver(
+    resolver: RegionTextureResolver,
+    ownedPages: readonly Texture[],
+    pageBytes: readonly AtlasImportPage[],
+  ): void {
     this.destroyOwned();
     this.resolver = resolver;
     this.ownedPages = ownedPages;
+    this.pageBytes = pageBytes;
     this.emit();
   }
 
@@ -46,6 +61,7 @@ class AtlasTextureStore {
     this.destroyOwned();
     this.resolver = null;
     this.ownedPages = [];
+    this.pageBytes = [];
     this.emit();
   }
 

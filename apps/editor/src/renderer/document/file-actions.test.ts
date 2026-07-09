@@ -99,7 +99,10 @@ describe('WP-0.8 renderer file actions', () => {
 
     // Open returns the document main just "wrote"; the host rebuilds and swaps it in atomically.
     installApi({
-      open: () => ({ ok: true, data: { status: 'opened', name: 'rig.json', document: exported } }),
+      open: () => ({
+        ok: true,
+        data: { status: 'opened', name: 'rig.json', document: exported, pages: [] },
+      }),
     });
     const openResult = await openDocumentFromDialog();
     expect(openResult).toEqual({ kind: 'opened', name: 'rig.json' });

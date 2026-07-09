@@ -8,7 +8,7 @@ import { IpcChannel, isMenuActionId, type MarionetteApi } from '../shared';
 
 const api: MarionetteApi = {
   getVersion: () => ipcRenderer.invoke(IpcChannel.getVersion),
-  saveDocument: (document) => ipcRenderer.invoke(IpcChannel.fileSave, { document }),
+  saveDocument: (document, pages) => ipcRenderer.invoke(IpcChannel.fileSave, { document, pages }),
   openDocument: () => ipcRenderer.invoke(IpcChannel.fileOpen, undefined),
   importAtlas: () => ipcRenderer.invoke(IpcChannel.atlasImport, undefined),
   onMenuAction: (callback) => {

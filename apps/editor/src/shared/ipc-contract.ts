@@ -59,12 +59,28 @@ export const getVersionResponseSchema = z.object({ version: z.string().min(1) })
 
 export type GetVersionResponse = z.infer<typeof getVersionResponseSchema>;
 
+// One packed atlas page's bytes crossing the sandbox boundary. The renderer cannot read the app-owned
+// output dir itself (no filesystem in the sandbox), so the main process ships raw PNG bytes on import and
+// on restore, and the renderer ships them back on save. Transport is a Uint8Array: Electron's structured
+// clone preserves it end to end (a Node Buffer is a Uint8Array and arrives as a plain Uint8Array), and
+// z.instanceof validates it without the base64 size bloat and extra decode step. `file` is the
+// AtlasPage.file basename, the key runtime-web's buildRegionTextures resolves each page texture by.
+export const atlasImportPageSchema = z
+  .object({ file: z.string().min(1), data: z.instanceof(Uint8Array) })
+  .strict();
+
+export type AtlasImportPage = z.infer<typeof atlasImportPageSchema>;
+
 // file:save. The renderer sends an already-exported document (validated by document-core); the main
 // process deep-validates it with @marionette/format before any disk write, then shows a save dialog
 // (the renderer never supplies an arbitrary filesystem path, which is the path-injection defense). A
 // user cancel is a normal outcome (status 'canceled'), not an IPC error. The document is opaque at the
-// transport layer (z.unknown); the format validator in main is the real gate.
-export const fileSaveRequestSchema = z.object({ document: z.unknown() }).strict();
+// transport layer (z.unknown); the format validator in main is the real gate. `pages` carries the atlas
+// page PNG bytes (empty when no atlas is loaded); main persists them next to the project so a later open
+// can restore the textures (PP-D5) instead of falling back to placeholders.
+export const fileSaveRequestSchema = z
+  .object({ document: z.unknown(), pages: z.array(atlasImportPageSchema) })
+  .strict();
 export const fileSaveResponseSchema = z.discriminatedUnion('status', [
   z.object({ status: z.literal('saved'), path: z.string().min(1) }).strict(),
   z.object({ status: z.literal('canceled') }).strict(),
@@ -74,28 +90,23 @@ export type FileSaveResponse = z.infer<typeof fileSaveResponseSchema>;
 
 // file:open. No request payload; the main process shows an open dialog, reads and validates the file,
 // and returns the parsed document (the renderer re-validates via loadDocument and mints internal ids).
+// `pages` carries the atlas page PNG bytes read back from the project-relative textures directory (PP-D5),
+// so the renderer restores the atlas textures on load instead of clearing to placeholders; it is empty
+// when the project has no atlas or its textures directory is absent (a partial or missing set is fine).
 export const fileOpenRequestSchema = z.undefined();
 export const fileOpenResponseSchema = z.discriminatedUnion('status', [
   z
-    .object({ status: z.literal('opened'), name: z.string().min(1), document: z.unknown() })
+    .object({
+      status: z.literal('opened'),
+      name: z.string().min(1),
+      document: z.unknown(),
+      pages: z.array(atlasImportPageSchema),
+    })
     .strict(),
   z.object({ status: z.literal('canceled') }).strict(),
 ]);
 
 export type FileOpenResponse = z.infer<typeof fileOpenResponseSchema>;
-
-// One packed atlas page's bytes, carried back to the sandboxed renderer alongside the AtlasRef. The
-// renderer cannot read the app-owned output dir itself (no filesystem in the sandbox), so the main process
-// reads each page PNG it just wrote and ships the raw bytes here. Transport is a Uint8Array: Electron's
-// structured clone preserves it end to end (a Node Buffer is a Uint8Array and arrives in the renderer as a
-// plain Uint8Array), and z.instanceof validates it without the ~33% size bloat and extra decode step of a
-// base64 string. `file` is the AtlasPage.file basename, the key runtime-web's buildRegionTextures resolves
-// each page texture by, so the renderer can map bytes -> Texture -> region sub-textures.
-export const atlasImportPageSchema = z
-  .object({ file: z.string().min(1), data: z.instanceof(Uint8Array) })
-  .strict();
-
-export type AtlasImportPage = z.infer<typeof atlasImportPageSchema>;
 
 // atlas:import. No request payload (the renderer supplies NO filesystem path, the path-injection
 // defense): the main process shows the directory dialog, runs the deterministic pack pipeline, reads the
@@ -154,9 +165,10 @@ export function validateWith<T>(
 // type (from editor-shared), never on the preload module, so the process split holds.
 export interface MarionetteApi {
   getVersion(): Promise<IpcResult<GetVersionResponse>>;
-  // Save an exported format document; main shows the dialog and writes it. Returns the written path
-  // or a canceled status.
-  saveDocument(document: unknown): Promise<IpcResult<FileSaveResponse>>;
+  // Save an exported format document plus its atlas page bytes; main shows the dialog, writes the JSON,
+  // and persists the pages next to it for later texture restore. Returns the written path or a canceled
+  // status.
+  saveDocument(document: unknown, pages: readonly AtlasImportPage[]): Promise<IpcResult<FileSaveResponse>>;
   // Open a document; main shows the dialog, reads and validates the file. Returns the parsed document
   // or a canceled status.
   openDocument(): Promise<IpcResult<FileOpenResponse>>;

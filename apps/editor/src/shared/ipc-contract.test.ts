@@ -48,10 +48,16 @@ describe('ipc-contract validation', () => {
     expect(isAllowedChannel('app:malicious')).toBe(false);
   });
 
-  it('accepts a file:save request carrying a document and rejects a malformed one', () => {
+  it('accepts a file:save request carrying a document and page bytes, rejects a malformed one', () => {
     expect(
-      validateWith(fileSaveRequestSchema, { document: { any: 'shape' } }, 'IPC_BAD_REQUEST').ok,
+      validateWith(
+        fileSaveRequestSchema,
+        { document: { any: 'shape' }, pages: [{ file: 'p0.png', data: new Uint8Array([1]) }] },
+        'IPC_BAD_REQUEST',
+      ).ok,
     ).toBe(true);
+    // pages is required (an empty array when no atlas is loaded); omitting it is malformed.
+    expect(validateWith(fileSaveRequestSchema, { document: {} }, 'IPC_BAD_REQUEST').ok).toBe(false);
     const bad = validateWith(fileSaveRequestSchema, { wrongKey: 1 }, 'IPC_BAD_REQUEST');
     expect(bad.ok).toBe(false);
   });
@@ -72,20 +78,30 @@ describe('ipc-contract validation', () => {
     );
   });
 
-  it('accepts opened and canceled file:open responses', () => {
+  it('accepts opened and canceled file:open responses, opened carrying page bytes', () => {
     expect(
       validateWith(
         fileOpenResponseSchema,
-        { status: 'opened', name: 'rig.json', document: { a: 1 } },
+        {
+          status: 'opened',
+          name: 'rig.json',
+          document: { a: 1 },
+          pages: [{ file: 'p0.png', data: new Uint8Array([137, 80, 78, 71]) }],
+        },
         'IPC_BAD_RESPONSE',
       ).ok,
     ).toBe(true);
     expect(
       validateWith(fileOpenResponseSchema, { status: 'canceled' }, 'IPC_BAD_RESPONSE').ok,
     ).toBe(true);
-    expect(validateWith(fileOpenResponseSchema, { status: 'opened' }, 'IPC_BAD_RESPONSE').ok).toBe(
-      false,
-    );
+    // pages is required on an opened response (empty when the project has no restorable textures).
+    expect(
+      validateWith(
+        fileOpenResponseSchema,
+        { status: 'opened', name: 'rig.json', document: { a: 1 } },
+        'IPC_BAD_RESPONSE',
+      ).ok,
+    ).toBe(false);
   });
 
   it('accepts the empty (undefined) atlas:import request and rejects any payload', () => {

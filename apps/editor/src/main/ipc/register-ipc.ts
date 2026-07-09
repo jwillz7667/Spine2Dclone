@@ -39,7 +39,7 @@ export function registerIpc(): void {
     async (_event, payload: unknown): Promise<IpcResult<FileSaveResponse>> => {
       const request = validateWith(fileSaveRequestSchema, payload, 'IPC_BAD_REQUEST');
       if (!request.ok) return request;
-      return saveDocumentToFile(request.data.document);
+      return saveDocumentToFile(request.data.document, request.data.pages);
     },
   );
 

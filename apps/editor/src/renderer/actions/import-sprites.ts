@@ -44,7 +44,8 @@ export async function runSpriteImport(): Promise<SpriteImportOutcome> {
     try {
       const pageTextures = await loadPageTextures(pages);
       const resolver = makeRegionTextureResolver(buildRegionTextures(atlas, pageTextures));
-      atlasTextureStore.setResolver(resolver, [...pageTextures.values()]);
+      // Retain the page bytes alongside the textures so a save can persist them next to the project (PP-D5).
+      atlasTextureStore.setResolver(resolver, [...pageTextures.values()], pages);
     } catch (error) {
       // The document still has the atlas (regions render as the placeholder); only the textures failed.
       return { kind: 'error', message: messageOf(error, 'failed to load atlas page textures') };

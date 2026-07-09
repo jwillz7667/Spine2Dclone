@@ -8,6 +8,7 @@ export * from '@marionette/document-core';
 
 import { exportDocument, loadDocument, type Document } from '@marionette/document-core';
 import { createInitialDocument, createProductionEnvironment } from '../composition-root';
+import { restoreAtlasTextures } from '../actions/restore-atlas';
 import { atlasTextureStore } from '../editor-state/atlas-texture-store';
 import { useSelectionStore } from '../editor-state/selection-store';
 import { useSkinPreviewStore } from '../editor-state/skin-preview-store';
@@ -43,10 +44,9 @@ class DocumentHost {
   // History subscription is detached and the reconciler is re-attached to the new History; selection is
   // cleared because loaded entities carry freshly minted BoneIds that no prior selection can reference.
   // Load is not a command and resets undo/redo: the new Document starts with empty history. The atlas
-  // page textures are ephemeral editor state belonging to the previous import session, so they are cleared
-  // too: this piece does NOT restore textures for a loaded document (the pages live in userData keyed by
-  // the import session, so doc-relative atlas loading is a later packaging concern). The viewport renders
-  // the 1x1 placeholder until sprites are re-imported.
+  // page textures are ephemeral editor state belonging to the previous session, so they are cleared here;
+  // openDocumentFromDialog then RESTORES them from the project-relative textures directory the main process
+  // read back (PP-D5), so a saved-and-reopened project shows its textures rather than the placeholder.
   load(json: unknown): void {
     const next = loadDocument(json, createProductionEnvironment());
     this.detachReconciler();
@@ -103,7 +103,9 @@ export async function saveCurrentDocument(): Promise<FileActionOutcome> {
     return { kind: 'error', message: messageOf(error, 'export failed') };
   }
   try {
-    const result = await bridge().saveDocument(exported);
+    // Send the atlas page bytes alongside the document so main persists them next to the project for a
+    // later texture restore (PP-D5); the array is empty when no atlas is loaded.
+    const result = await bridge().saveDocument(exported, atlasTextureStore.getPageBytes());
     if (!result.ok) return { kind: 'error', message: result.error.message };
     if (result.data.status === 'canceled') return { kind: 'canceled' };
     return { kind: 'saved', path: result.data.path };
@@ -126,6 +128,17 @@ export async function openDocumentFromDialog(): Promise<FileActionOutcome> {
       documentHost.load(result.data.document);
     } catch (error) {
       return { kind: 'error', message: messageOf(error, 'load failed') };
+    }
+    // Restore the atlas textures from the page bytes main read back from the project-relative textures
+    // directory (PP-D5). A restore failure is non-fatal: the document opened, so keep the placeholder
+    // rather than failing the open. load() cleared the previous session's textures, so this repopulates.
+    try {
+      await restoreAtlasTextures(
+        documentHost.current().model.preserved().atlas,
+        result.data.pages,
+      );
+    } catch (error) {
+      console.error(`[marionette] atlas texture restore failed: ${messageOf(error, 'unknown error')}`);
     }
     return { kind: 'opened', name: result.data.name };
   } catch (error) {

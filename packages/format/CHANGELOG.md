@@ -3,6 +3,46 @@
 The `formatVersion` is the semver of THE FORMAT (Law 3), independent of the package/app version. Pre-1.0,
 breaking changes bump MINOR and ship a tested migration (format-contract.md section 10.3).
 
+## 0.5.0 (2026-07-09)
+
+Stage F3 presentation additions (ADR-0011): path attachments and path constraints. Additive and backward
+compatible via a migration; no existing field is removed or repurposed.
+
+Added (schema):
+
+- Path attachment. A seventh closed attachment kind `path` (a piecewise cubic Bezier spline through a slot):
+  `closed`, `constantSpeed`, `lengths` (the cumulative per-curve arc-length table for constant-speed
+  parametrization), and `vertices` with an optional `bones` manifest reusing the mesh weighted-vertex codec
+  (ADR-0002). A path renders no pixels, so it carries no atlas region, size, or color.
+- Path constraint. A new `SkeletonDocument.pathConstraints: PathConstraint[]` (required array, empty when a
+  rig has none): a `target` SLOT whose active attachment is a path, a non-empty `bones` list, `positionMode`
+  (`fixed`/`percent`), `spacingMode` (`length`/`fixed`/`percent`/`proportional`), `rotateMode`
+  (`tangent`/`chain`/`chainScale`), `position`/`spacing`/`offsetRotation`, and `mixRotate`/`mixX`/`mixY`.
+  Path constraints join the existing constraint name and optional `order` namespace, which now spans the ik,
+  transform, and path arrays.
+- Path timeline. A new required `Animation.path` record keying path-constraint `position`, `spacing`, and
+  the three `mix` channels (partial per frame).
+
+Added (validation):
+
+- PATH family: `PATH_VERTEX_COUNT` (control-point count invalid for the declared open/closed cubic spline),
+  `PATH_LENGTHS_COUNT` (arc-length table length != curve count), `PATH_LENGTHS_ORDER` (table not a
+  non-negative non-decreasing cumulative sequence). The path vertex stream reuses the shared `MESH_*` codec
+  codes.
+- CONSTRAINT family: `PATH_TARGET_MISSING`, `PATH_TARGET_NOT_PATH` (checked against the setup attachment
+  where statically decidable), `PATH_BONES_EMPTY` (structural), `PATH_BONE_MISSING`. Name uniqueness and the
+  dense `order` permutation (`CONSTRAINT_NAME_DUPLICATE`, `CONSTRAINT_ORDER_INVALID`) now span all three
+  constraint arrays; skin scoping (`SKIN_CONSTRAINT_UNKNOWN`) resolves path constraints too.
+- SCHEMA family: `PATH_MIX_RANGE` (a path mix channel, definition or frame, outside `[0, 1]`).
+- ANIM family: `ANIM_PATH_UNKNOWN` (a path timeline references a missing path constraint).
+
+Migration:
+
+- Registered the `0.4.x -> 0.5.0` step: inject the empty root `pathConstraints` array and the per-animation
+  `path` record, stamp `formatVersion`, and recompute the content hash when the source carried one. Every
+  other F3 addition is new-and-unreferenced by a 0.4.0 document, so nothing else is injected. A `0.1.0`
+  document still loads through the full five-step chain (backward compatibility suite in `migrate.test.ts`).
+
 ## 0.4.0 (2026-07-08)
 
 Stage F2 presentation additions (ADR-0009). Additive plus one lossless rename (`bendPositive` to a signed

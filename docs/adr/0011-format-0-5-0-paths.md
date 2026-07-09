@@ -303,7 +303,7 @@ the 0.5.0 result is validated.
 This ADR covers items 1 to 2 (necessity, classification). The implementing commits complete items 3 to 14:
 the Zod schemas (`schema/attachment.ts` path kind, `schema/constraint.ts` path constraint,
 `schema/animation.ts` path timeline, `schema/document.ts` root array), the nine new codes assigned to
-families with tests, the semantic and structural validators (`validate/path.ts`, the extended
+families with tests, the semantic and structural validators (`validate/paths.ts`, the extended
 `validate/constraints.ts` order/name checks, `validate/semantic.ts` skin/anim extensions, the extracted
 `validate/vertex-stream.ts`), the migration plus its tests, the golden corpus (an F3 positive completeness
 fixture `f3-complete.json` plus one negative fixture per new code, named by the code), the

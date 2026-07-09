@@ -4,9 +4,12 @@ import {
   SetIkBendPositiveCommand,
   SetIkDepthParamsCommand,
   SetIkMixCommand,
+  SetTransformConstraintVariantsCommand,
   documentHost,
   type IkConstraintEntity,
   type IkConstraintId,
+  type TransformConstraintEntity,
+  type TransformConstraintId,
 } from '../document';
 import { useDocumentRevision } from '../editor-state/use-document-revision';
 import {
@@ -30,33 +33,44 @@ export function ConstraintsPanel(_props: IDockviewPanelProps): ReactElement {
   const selection = useConstraintSelectionStore((state) => state.selection);
 
   const ikConstraints = useMemo(() => model.ikConstraints(), [model, revision]);
+  const transformConstraints = useMemo(() => model.transformConstraints(), [model, revision]);
   const ikIds = useMemo(() => ikConstraints.map((c) => c.id), [ikConstraints]);
+  const transformIds = useMemo(() => transformConstraints.map((c) => c.id), [transformConstraints]);
 
   // Clear a dangling selection when its constraint no longer resolves (a delete/undo the panel did not drive).
   useEffect(() => {
-    const next = reconcileConstraintSelection(selection, ikIds, []);
+    const next = reconcileConstraintSelection(selection, ikIds, transformIds);
     if (next !== selection) useConstraintSelectionStore.getState().select(next);
-  }, [selection, ikIds]);
+  }, [selection, ikIds, transformIds]);
 
   const selectedIk = useMemo(
     () =>
       selection?.kind === 'ik' ? ikConstraints.find((c) => c.id === selection.id) : undefined,
     [selection, ikConstraints],
   );
+  const selectedTransform = useMemo(
+    () =>
+      selection?.kind === 'transform'
+        ? transformConstraints.find((c) => c.id === selection.id)
+        : undefined,
+    [selection, transformConstraints],
+  );
+
+  const total = ikConstraints.length + transformConstraints.length;
 
   return (
     <div style={rootStyle}>
       <div style={toolbarStyle}>
-        <span style={headerStyle}>IK Constraints</span>
+        <span style={headerStyle}>Constraints</span>
         <span style={countStyle}>
-          {ikConstraints.length} {ikConstraints.length === 1 ? 'constraint' : 'constraints'}
+          {total} {total === 1 ? 'constraint' : 'constraints'}
         </span>
       </div>
 
       <div style={listStyle}>
-        {ikConstraints.length === 0 && (
+        {total === 0 && (
           <div style={emptyStyle}>
-            No IK constraints. Create one from the viewport IK tool or the MCP surface.
+            No constraints. Create one from the viewport IK tool or the MCP surface.
           </div>
         )}
         {ikConstraints.map((c) => (
@@ -73,13 +87,29 @@ export function ConstraintsPanel(_props: IDockviewPanelProps): ReactElement {
             <span style={badgeStyle}>IK</span>
           </div>
         ))}
+        {transformConstraints.map((c) => (
+          <div
+            key={c.id}
+            style={
+              selection?.kind === 'transform' && selection.id === c.id
+                ? { ...rowStyle, ...rowActiveStyle }
+                : rowStyle
+            }
+            onClick={() => selectConstraint({ kind: 'transform', id: c.id })}
+          >
+            <span style={nameStyle}>{c.name}</span>
+            <span style={badgeStyle}>TR</span>
+          </div>
+        ))}
       </div>
 
       <div style={detailStyle}>
-        {selectedIk === undefined ? (
-          <div style={emptyStyle}>Select an IK constraint to edit its blend and depth.</div>
-        ) : (
+        {selectedIk !== undefined ? (
           <IkConstraintDetail constraint={selectedIk} />
+        ) : selectedTransform !== undefined ? (
+          <TransformConstraintDetail constraint={selectedTransform} />
+        ) : (
+          <div style={emptyStyle}>Select a constraint to edit it.</div>
         )}
       </div>
     </div>
@@ -115,6 +145,16 @@ function setIkCompress(id: IkConstraintId, compress: boolean): void {
 
 function setIkUniform(id: IkConstraintId, uniform: boolean): void {
   documentHost.current().history.execute(new SetIkDepthParamsCommand(id, { uniform }));
+}
+
+function setTransformLocal(id: TransformConstraintId, local: boolean): void {
+  documentHost.current().history.execute(new SetTransformConstraintVariantsCommand(id, { local }));
+}
+
+function setTransformRelative(id: TransformConstraintId, relative: boolean): void {
+  documentHost
+    .current()
+    .history.execute(new SetTransformConstraintVariantsCommand(id, { relative }));
 }
 
 function IkConstraintDetail(props: { readonly constraint: IkConstraintEntity }): ReactElement {
@@ -196,6 +236,41 @@ function IkConstraintDetail(props: { readonly constraint: IkConstraintEntity }):
         />
         <span>Uniform (scale both bones when stretching)</span>
       </label>
+    </div>
+  );
+}
+
+function TransformConstraintDetail(props: {
+  readonly constraint: TransformConstraintEntity;
+}): ReactElement {
+  const c = props.constraint;
+  return (
+    <div style={detailBodyStyle}>
+      <div style={subHeaderStyle}>{c.name}</div>
+
+      <div style={sectionLabelStyle}>Variants (Stage F2)</div>
+
+      <label style={checkRowStyle}>
+        <input
+          type="checkbox"
+          checked={c.local}
+          onChange={(event) => setTransformLocal(c.id, event.currentTarget.checked)}
+        />
+        <span>Local (local-space read/write)</span>
+      </label>
+
+      <label style={checkRowStyle}>
+        <input
+          type="checkbox"
+          checked={c.relative}
+          onChange={(event) => setTransformRelative(c.id, event.currentTarget.checked)}
+        />
+        <span>Relative (offset from the bone current value)</span>
+      </label>
+
+      <div style={noteStyle}>
+        Mix and offset channels are authored over the MCP transform.setParams surface.
+      </div>
     </div>
   );
 }
@@ -303,3 +378,5 @@ const checkRowStyle: CSSProperties = {
   color: '#cccccc',
   cursor: 'pointer',
 };
+
+const noteStyle: CSSProperties = { color: '#777777', fontSize: 11, paddingTop: 6 };

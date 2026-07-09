@@ -168,6 +168,24 @@ static func _read_attachment(attachment: Dictionary) -> Document.Attachment:
 		a.linked_skin = _opt_string(attachment, "skin")
 		a.timelines = _req_bool(attachment, "timelines")
 		return a
+	if a.type == "clipping":
+		# A clipping attachment (ADR-0012 PP-B2): the `end` slot name plus a flat local polygon stream.
+		a.mesh = null
+		a.clip_end = _req_string(attachment, "end")
+		a.clip_vertices = _read_number_array(_req_array(attachment, "vertices"))
+		return a
+	if a.type == "boundingbox":
+		# A bounding-box attachment (ADR-0012 PP-B2): a flat local polygon stream for hit testing.
+		a.mesh = null
+		a.box_vertices = _read_number_array(_req_array(attachment, "vertices"))
+		return a
+	if a.type == "point":
+		# A point attachment (ADR-0012 PP-B2): a single local (x, y, rotation) anchor.
+		a.mesh = null
+		a.point_x = _req_number(attachment, "x")
+		a.point_y = _req_number(attachment, "y")
+		a.point_rotation = _req_number(attachment, "rotation")
+		return a
 	if a.type != "mesh":
 		# A region attachment may carry an optional sequence block (ADR-0009 section 3, ADR-0011 section 2).
 		a.mesh = null

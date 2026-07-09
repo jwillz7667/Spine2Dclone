@@ -11,6 +11,7 @@ extends SceneTree
 
 const ConformanceHarness = preload("res://tests/conformance_harness.gd")
 const CrossLanguageVectors = preload("res://tests/cross_language_vectors.gd")
+const ClipGeometryVectors = preload("res://tests/clip_geometry_vectors.gd")
 const RigReaderBoundary = preload("res://tests/rig_reader_boundary.gd")
 const RepoPaths = preload("res://tests/repo_paths.gd")
 
@@ -66,6 +67,17 @@ func _init() -> void:
 		print("  vector failures:")
 		for i in range(min(vectors.failures.size(), MAX_FAILURES_SHOWN)):
 			print("       %s" % vectors.failures[i])
+
+	print("")
+	print("-- clip-geometry vectors (Sutherland-Hodgman, PP-B2) --")
+	var clip_vectors = ClipGeometryVectors.run()
+	if clip_vectors.ok():
+		print("PASS clip-geometry vectors  %d case(s)" % clip_vectors.checked)
+	else:
+		all_ok = false
+		print("FAIL clip-geometry vectors  %d failure(s):" % clip_vectors.failures.size())
+		for i in range(min(clip_vectors.failures.size(), MAX_FAILURES_SHOWN)):
+			print("       %s" % clip_vectors.failures[i])
 
 	print("")
 	print("-- rig reader boundary (validate on import, Law 3) --")

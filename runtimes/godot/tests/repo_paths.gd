@@ -45,6 +45,12 @@ static func cross_language_vectors() -> String:
 	return _conformance_src.path_join("cross-language/seed-prng-crc-vectors.json")
 
 
+# The clip-geometry cross-language golden (PP-B2, ADR-0012 section 3): input polygon + triangle -> expected
+# output rings + barycentrics the Sutherland-Hodgman clipper must reproduce across TS / C# / GDScript.
+static func clip_geometry_vectors() -> String:
+	return _conformance_src.path_join("cross-language/clip-geometry-vectors.json")
+
+
 # Every committed skeleton rig, discovered from the fixtures directory rather than a hardcoded list, so
 # the harness runs EXACTLY the landed corpus (the materialized projection of registry.ts LANDED_RIG_IDS:
 # the generator writes one <rigId>.fixture.json per landed rig and the .fixtures.lock gate enforces the

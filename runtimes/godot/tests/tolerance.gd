@@ -33,6 +33,11 @@ static var COLOR: Tolerance = Tolerance.new(1e-5, 0.0)
 # Event float payloads (authored values, low noise): mirrors EVENT_FLOAT in tolerance.ts.
 static var EVENT_FLOAT: Tolerance = Tolerance.new(1e-5, 1e-6)
 
+# World rotation in DEGREES for a point attachment (ADR-0012 section 2): point.rotation plus the bone's
+# world x-axis angle (an atan2). A small absolute band with a light relative term, mirrors ANGLE in
+# tolerance.ts. Point world x/y ride the VERTEX class like every other world position.
+static var ANGLE: Tolerance = Tolerance.new(1e-4, 1e-6)
+
 
 # Affine lanes [a, b, c, d, tx, ty]: 0..3 are the basis class, 4..5 the translation class.
 static func for_lane(lane: int) -> Tolerance:

@@ -10,6 +10,7 @@ const Sample = preload("res://core/sample.gd")
 const MeshSample = preload("res://core/mesh_sample.gd")
 const Sequence = preload("res://core/sequence.gd")
 const EventFire = preload("res://core/event_fire.gd")
+const AttachmentGeometry = preload("res://core/attachment_geometry.gd")
 const Affine = preload("res://core/affine.gd")
 const Pose = preload("res://core/pose.gd")
 const Tolerance = preload("res://tests/tolerance.gd")
@@ -19,7 +20,7 @@ const RepoPaths = preload("res://tests/repo_paths.gd")
 # sample carrying any member outside these sets is rejected: a NEW capture lane (future corpus growth)
 # then fails LOUDLY here instead of being silently skipped, forcing the harness to grow a comparison.
 const ALLOWED_TOP_LEVEL := ["rigId", "rigHash", "specHash", "coreVersion", "toolchain", "generatedBy", "samples", "events"]
-const ALLOWED_SAMPLE := ["time", "animation", "loop", "bones", "meshes", "slots", "drawOrder", "sequences"]
+const ALLOWED_SAMPLE := ["time", "animation", "loop", "bones", "meshes", "slots", "drawOrder", "sequences", "clips", "boxes", "points"]
 
 
 class Result:
@@ -88,6 +89,17 @@ static func run(rig_id: String) -> Result:
 	if max_mesh_lanes > 0:
 		vertex_scratch.resize(max_mesh_lanes)
 
+	# PP-B2 geometry-attachment capture targets (ADR-0012), resolved once from the sample-spec. Each list is
+	# empty unless the spec opts in (rig-clipping / rig-hit-point), so every other rig is a no-op here.
+	var clip_targets := _resolve_clip_targets(result, rig_id, document, spec, slot_index_by_name)
+	var box_targets := _resolve_box_targets(result, rig_id, document, spec, slot_index_by_name)
+	var point_targets := _resolve_point_targets(result, rig_id, document, spec, slot_index_by_name)
+	var hit_probes: Array = spec.get("hitProbes", [])
+	var clipped_scratch := PackedInt32Array()
+	clipped_scratch.resize(pose.slot_count)
+	if not result.ok():
+		return result
+
 	for s in range(samples.size()):
 		var sample: Dictionary = samples[s]
 		var time: float = sample["time"]
@@ -119,6 +131,9 @@ static func run(rig_id: String) -> Result:
 		_compare_slots(result, rig_id, time, sample, pose, slot_index_by_name, slot_blend_by_name)
 		_compare_draw_order(result, rig_id, time, sample, pose)
 		_compare_sequences(result, rig_id, document, animation_id, time, sample, pose, capture_sequences)
+		_compare_clips(result, rig_id, time, sample, pose, clip_targets, clipped_scratch)
+		_compare_boxes(result, rig_id, time, sample, pose, box_targets, hit_probes)
+		_compare_points(result, rig_id, time, sample, pose, point_targets)
 
 	_compare_events(result, rig_id, document, animation_id, spec, fixture)
 
@@ -374,3 +389,255 @@ static func _max_mesh_lanes(samples: Array) -> int:
 			if positions.size() > m:
 				m = positions.size()
 	return m
+
+
+# ---------------------------------------------------------------------------------------------------
+# PP-B2 geometry attachments (ADR-0012): clipping, bounding-box hit testing, point resolution
+# ---------------------------------------------------------------------------------------------------
+
+# Look up an attachment by (skin, slot, attachment), or null when the rig does not define it.
+static func _lookup_attachment(document, skin_name: String, slot_name: String, attachment_name: String):
+	for i in range(document.skins.size()):
+		if document.skins[i].name == skin_name:
+			var per_slot = document.skins[i].attachments.get(slot_name, null)
+			if per_slot == null:
+				return null
+			return per_slot.get(attachment_name, null)
+	return null
+
+
+# Resolve the clip-capture targets named by the sample-spec (mirrors build-fixture.ts resolveClipTargets):
+# the clip attachment plus its slot index and its `end` slot index, with a reused world-polygon scratch.
+# A bad capture request fails loudly here (Law 3), matching the TS builder.
+static func _resolve_clip_targets(result: Result, rig_id: String, document, spec: Dictionary, slot_index_by_name: Dictionary) -> Array:
+	var targets := []
+	for entry in spec.get("clips", []):
+		var skin_name := String(entry["skin"])
+		var slot_name := String(entry["slot"])
+		var attachment_name := String(entry["attachment"])
+		var attachment = _lookup_attachment(document, skin_name, slot_name, attachment_name)
+		if attachment == null or attachment.type != "clipping":
+			result.failures.append(
+				"[%s] sample-spec captures clip '%s/%s/%s', but it is not a clipping attachment"
+				% [rig_id, skin_name, slot_name, attachment_name]
+			)
+			continue
+		if not slot_index_by_name.has(slot_name) or not slot_index_by_name.has(String(attachment.clip_end)):
+			result.failures.append(
+				"[%s] clip '%s/%s/%s' names a slot the rig lacks (slot or end slot)"
+				% [rig_id, skin_name, slot_name, attachment_name]
+			)
+			continue
+		var polygon_scratch := PackedFloat64Array()
+		polygon_scratch.resize(attachment.clip_vertices.size())
+		targets.append({
+			"slot": slot_name,
+			"attachment": attachment_name,
+			"clip": attachment,
+			"clip_slot_index": int(slot_index_by_name[slot_name]),
+			"end_slot_index": int(slot_index_by_name[String(attachment.clip_end)]),
+			"polygon_scratch": polygon_scratch,
+		})
+	return targets
+
+
+static func _resolve_box_targets(result: Result, rig_id: String, document, spec: Dictionary, slot_index_by_name: Dictionary) -> Array:
+	var targets := []
+	for entry in spec.get("boxes", []):
+		var skin_name := String(entry["skin"])
+		var slot_name := String(entry["slot"])
+		var attachment_name := String(entry["attachment"])
+		var attachment = _lookup_attachment(document, skin_name, slot_name, attachment_name)
+		if attachment == null or attachment.type != "boundingbox":
+			result.failures.append(
+				"[%s] sample-spec captures box '%s/%s/%s', but it is not a boundingbox attachment"
+				% [rig_id, skin_name, slot_name, attachment_name]
+			)
+			continue
+		if not slot_index_by_name.has(slot_name):
+			result.failures.append("[%s] box '%s/%s/%s' names a slot the rig lacks" % [rig_id, skin_name, slot_name, attachment_name])
+			continue
+		var vertex_scratch := PackedFloat64Array()
+		vertex_scratch.resize(attachment.box_vertices.size())
+		targets.append({
+			"slot": slot_name,
+			"attachment": attachment_name,
+			"box": attachment,
+			"slot_index": int(slot_index_by_name[slot_name]),
+			"vertex_scratch": vertex_scratch,
+		})
+	return targets
+
+
+static func _resolve_point_targets(result: Result, rig_id: String, document, spec: Dictionary, slot_index_by_name: Dictionary) -> Array:
+	var targets := []
+	for entry in spec.get("points", []):
+		var skin_name := String(entry["skin"])
+		var slot_name := String(entry["slot"])
+		var attachment_name := String(entry["attachment"])
+		var attachment = _lookup_attachment(document, skin_name, slot_name, attachment_name)
+		if attachment == null or attachment.type != "point":
+			result.failures.append(
+				"[%s] sample-spec captures point '%s/%s/%s', but it is not a point attachment"
+				% [rig_id, skin_name, slot_name, attachment_name]
+			)
+			continue
+		if not slot_index_by_name.has(slot_name):
+			result.failures.append("[%s] point '%s/%s/%s' names a slot the rig lacks" % [rig_id, skin_name, slot_name, attachment_name])
+			continue
+		targets.append({
+			"slot": slot_name,
+			"attachment": attachment_name,
+			"point": attachment,
+			"slot_index": int(slot_index_by_name[slot_name]),
+		})
+	return targets
+
+
+# Compare one sample's resolved clip state (ADR-0012 section 3): the world clip polygon (VERTEX) and the
+# clipped-slot list (draw-order membership, EXACT in order), captured over the CURRENT draw order exactly as
+# build-fixture.ts does. Present only when the spec captures clips; a rig without clips short-circuits.
+static func _compare_clips(result: Result, rig_id: String, time: float, sample: Dictionary, pose: Pose, clip_targets: Array, clipped_scratch: PackedInt32Array) -> void:
+	var expected: Array = sample["clips"] if sample.has("clips") else []
+	if clip_targets.size() != expected.size():
+		result.failures.append(
+			"[%s] clip lane length mismatch at t=%s: spec captures %d, fixture has %d"
+			% [rig_id, time, clip_targets.size(), expected.size()]
+		)
+		return
+	for i in range(clip_targets.size()):
+		var target: Dictionary = clip_targets[i]
+		var want: Dictionary = expected[i]
+		var key := "%s/%s" % [target["slot"], target["attachment"]]
+		var polygon_scratch: PackedFloat64Array = target["polygon_scratch"]
+		var vertex_count := AttachmentGeometry.resolve_clip_world_polygon_for_slot(pose, target["clip_slot_index"], target["clip"], polygon_scratch)
+		var clipped_count := AttachmentGeometry.compute_clipped_slot_range(pose, target["clip_slot_index"], target["end_slot_index"], clipped_scratch)
+
+		# Clipped-slot membership is DISCRETE: compare EXACT in ascending render-position order.
+		var want_clipped: Array = want["clippedSlots"]
+		var clipped_ok := clipped_count == want_clipped.size()
+		if clipped_ok:
+			for j in range(clipped_count):
+				result.lane_comparisons += 1
+				if String(pose.slot_names[clipped_scratch[j]]) != String(want_clipped[j]):
+					clipped_ok = false
+					break
+		if not clipped_ok:
+			var actual_names := []
+			for j in range(clipped_count):
+				actual_names.append(pose.slot_names[clipped_scratch[j]])
+			result.failures.append(
+				"[%s] clip '%s' clipped-slot mismatch at t=%s: expected %s, actual %s"
+				% [rig_id, key, time, str(want_clipped), str(actual_names)]
+			)
+
+		# The world polygon rides the VERTEX tolerance, its length compared EXACT.
+		var want_poly: Array = want["worldPolygon"]
+		if want_poly.size() != vertex_count * 2:
+			result.failures.append(
+				"[%s] clip '%s' world-polygon length mismatch at t=%s: expected %d lanes, actual %d"
+				% [rig_id, key, time, want_poly.size(), vertex_count * 2]
+			)
+			continue
+		for lane in range(want_poly.size()):
+			var expected_value := float(want_poly[lane])
+			var actual_value := polygon_scratch[lane]
+			var delta := absf(actual_value - expected_value)
+			result.max_vertex_error = max(result.max_vertex_error, delta)
+			result.lane_comparisons += 1
+			if not Tolerance.VERTEX.within(actual_value, expected_value):
+				result.failures.append(
+					"[%s] clip '%s' world-polygon lane %d at t=%s drifts: expected %s, actual %s, delta %s"
+					% [rig_id, key, lane, time, str(expected_value), str(actual_value), String.num_scientific(delta)]
+				)
+
+
+# Compare one sample's resolved bounding-box hit-test state (ADR-0012 section 4): the box world vertices
+# (VERTEX) and the per-probe even-odd hit booleans (EXACT). Present only when the spec captures boxes.
+static func _compare_boxes(result: Result, rig_id: String, time: float, sample: Dictionary, pose: Pose, box_targets: Array, hit_probes: Array) -> void:
+	var expected: Array = sample["boxes"] if sample.has("boxes") else []
+	if box_targets.size() != expected.size():
+		result.failures.append(
+			"[%s] box lane length mismatch at t=%s: spec captures %d, fixture has %d"
+			% [rig_id, time, box_targets.size(), expected.size()]
+		)
+		return
+	for i in range(box_targets.size()):
+		var target: Dictionary = box_targets[i]
+		var want: Dictionary = expected[i]
+		var key := "%s/%s" % [target["slot"], target["attachment"]]
+		var vertex_scratch: PackedFloat64Array = target["vertex_scratch"]
+		var vertex_count := AttachmentGeometry.bounding_box_world_vertices_for_slot(pose, target["slot_index"], target["box"], vertex_scratch)
+
+		# Per-probe even-odd hits are DISCRETE: compare EXACT, in the sample-spec probe order.
+		var want_hits: Array = want["hits"]
+		if want_hits.size() != hit_probes.size():
+			result.failures.append(
+				"[%s] box '%s' hit-count mismatch at t=%s: fixture has %d, spec has %d probes"
+				% [rig_id, key, time, want_hits.size(), hit_probes.size()]
+			)
+		else:
+			for k in range(hit_probes.size()):
+				var probe: Array = hit_probes[k]
+				var actual_hit := AttachmentGeometry.hit_test_polygon(vertex_scratch, vertex_count, float(probe[0]), float(probe[1]))
+				result.lane_comparisons += 1
+				if actual_hit != bool(want_hits[k]):
+					result.failures.append(
+						"[%s] box '%s' hit %d at t=%s mismatch: expected %s, actual %s"
+						% [rig_id, key, k, time, str(bool(want_hits[k])), str(actual_hit)]
+					)
+
+		var want_verts: Array = want["worldVertices"]
+		if want_verts.size() != vertex_count * 2:
+			result.failures.append(
+				"[%s] box '%s' world-vertex length mismatch at t=%s: expected %d lanes, actual %d"
+				% [rig_id, key, time, want_verts.size(), vertex_count * 2]
+			)
+			continue
+		for lane in range(want_verts.size()):
+			var expected_value := float(want_verts[lane])
+			var actual_value := vertex_scratch[lane]
+			var delta := absf(actual_value - expected_value)
+			result.max_vertex_error = max(result.max_vertex_error, delta)
+			result.lane_comparisons += 1
+			if not Tolerance.VERTEX.within(actual_value, expected_value):
+				result.failures.append(
+					"[%s] box '%s' world-vertex lane %d at t=%s drifts: expected %s, actual %s, delta %s"
+					% [rig_id, key, lane, time, str(expected_value), str(actual_value), String.num_scientific(delta)]
+				)
+
+
+# Compare one sample's resolved point world state (ADR-0012 section 2): world x/y ride the VERTEX tolerance,
+# world rotation (degrees) rides the ANGLE tolerance. Present only when the spec captures points.
+static func _compare_points(result: Result, rig_id: String, time: float, sample: Dictionary, pose: Pose, point_targets: Array) -> void:
+	var expected: Array = sample["points"] if sample.has("points") else []
+	if point_targets.size() != expected.size():
+		result.failures.append(
+			"[%s] point lane length mismatch at t=%s: spec captures %d, fixture has %d"
+			% [rig_id, time, point_targets.size(), expected.size()]
+		)
+		return
+	for i in range(point_targets.size()):
+		var target: Dictionary = point_targets[i]
+		var want: Dictionary = expected[i]
+		var key := "%s/%s" % [target["slot"], target["attachment"]]
+		var world = AttachmentGeometry.resolve_point_world_for_slot(pose, target["slot_index"], target["point"])
+		if world == null:
+			result.failures.append("[%s] point '%s' at t=%s has no resolvable slot bone" % [rig_id, key, time])
+			continue
+		_compare_scalar(result, rig_id, "point '%s' world x" % key, time, world.x, float(want["x"]), Tolerance.VERTEX, true)
+		_compare_scalar(result, rig_id, "point '%s' world y" % key, time, world.y, float(want["y"]), Tolerance.VERTEX, true)
+		_compare_scalar(result, rig_id, "point '%s' world rotation" % key, time, world.rotation_deg, float(want["rotation"]), Tolerance.ANGLE, false)
+
+
+# Compare one scalar within a tolerance, recording the max vertex error for VERTEX-class lanes.
+static func _compare_scalar(result: Result, rig_id: String, label: String, time: float, actual_value: float, expected_value: float, tol, track_vertex: bool) -> void:
+	var delta := absf(actual_value - expected_value)
+	if track_vertex:
+		result.max_vertex_error = max(result.max_vertex_error, delta)
+	result.lane_comparisons += 1
+	if not tol.within(actual_value, expected_value):
+		result.failures.append(
+			"[%s] %s at t=%s drifts: expected %s, actual %s, delta %s"
+			% [rig_id, label, time, str(expected_value), str(actual_value), String.num_scientific(delta)]
+		)

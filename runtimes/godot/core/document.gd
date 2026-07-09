@@ -99,6 +99,16 @@ class Attachment:
 	# null. The solve reads count + setupIndex to resolve a discrete frame; start/digits are render-only
 	# (atlas region naming) and carried for completeness.
 	var sequence = null
+	# Non-drawing geometry attachments (ADR-0012, PP-B2). Present only for the matching `type`.
+	# clipping: the name of the slot at which clipping ENDS plus the flat LOCAL polygon [x0, y0, ...].
+	var clip_end = null  # String or null (type == "clipping")
+	var clip_vertices = null  # PackedFloat64Array or null (type == "clipping")
+	# boundingbox: the flat LOCAL polygon [x0, y0, ...] used for hit testing (no drawing).
+	var box_vertices = null  # PackedFloat64Array or null (type == "boundingbox")
+	# point: a single LOCAL (x, y, rotation) anchor (rotation in degrees). type == "point".
+	var point_x: float = 0.0
+	var point_y: float = 0.0
+	var point_rotation: float = 0.0
 
 
 # Named SkinDef (not Skin) because Skin is a native Godot class.

@@ -150,6 +150,15 @@ static func _read_skin(skin: Dictionary) -> Document.SkinDef:
 static func _read_attachment(attachment: Dictionary) -> Document.Attachment:
 	var a := Document.Attachment.new()
 	a.type = _req_string(attachment, "type")
+	if a.type == "linkedmesh":
+		# A linked mesh (ADR-0011 section 1) carries no geometry: it names a parent attachment (on the same
+		# slot, in skin `skin ?? this skin`) and a `timelines` flag selecting shared vs own deform. The
+		# solve resolves geometry and the deform key through the parent chain in mesh_sample.gd.
+		a.mesh = null
+		a.linked_parent = _req_string(attachment, "parent")
+		a.linked_skin = _opt_string(attachment, "skin")
+		a.timelines = _req_bool(attachment, "timelines")
+		return a
 	if a.type != "mesh":
 		a.mesh = null
 		return a

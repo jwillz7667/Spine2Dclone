@@ -83,6 +83,14 @@ class MeshAttachment:
 class Attachment:
 	var type: String
 	var mesh = null  # MeshAttachment or null
+	# Linked-mesh fields (ADR-0011 section 1), present only when type == "linkedmesh". A linked mesh has
+	# no geometry of its own: it reuses a parent mesh's geometry (uvs/triangles/vertices/weights) and,
+	# depending on `timelines`, either its own deform or the shared parent's. `linked_parent` names the
+	# parent attachment on the SAME slot in skin `linked_skin ?? this skin`; `timelines` false = own
+	# deform, true = share the parent's.
+	var linked_parent = null  # String or null
+	var linked_skin = null  # String or null (skin override for the parent lookup)
+	var timelines: bool = false
 
 
 # Named SkinDef (not Skin) because Skin is a native Godot class.

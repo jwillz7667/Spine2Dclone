@@ -135,15 +135,37 @@ namespace Marionette.Runtime.Core.Document
         }
     }
 
+    // A linked mesh (ADR-0009 section 2, ADR-0011 section 1): a mesh with NO geometry of its own that
+    // reuses a parent mesh's geometry and optionally its deform. Parent names an attachment on the SAME
+    // slot in skin (Skin ?? this linked mesh's skin). Timelines true == share the parent's deform timeline;
+    // false == this linked mesh carries its own deform under its own (skin, slot, name). Path/width/height/
+    // color are render inputs the solve ignores, so they are not read here. Mirrors LinkedMeshAttachment in
+    // @marionette/format.
+    public sealed class LinkedMeshAttachment
+    {
+        public string Parent { get; }
+        public string? Skin { get; }
+        public bool Timelines { get; }
+
+        public LinkedMeshAttachment(string parent, string? skin, bool timelines)
+        {
+            Parent = parent;
+            Skin = skin;
+            Timelines = timelines;
+        }
+    }
+
     public sealed class Attachment
     {
         public string Type { get; }
         public MeshAttachment? Mesh { get; }
+        public LinkedMeshAttachment? Linked { get; }
 
-        public Attachment(string type, MeshAttachment? mesh)
+        public Attachment(string type, MeshAttachment? mesh, LinkedMeshAttachment? linked)
         {
             Type = type;
             Mesh = mesh;
+            Linked = linked;
         }
     }
 

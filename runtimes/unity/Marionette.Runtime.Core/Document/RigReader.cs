@@ -162,9 +162,26 @@ namespace Marionette.Runtime.Core.Document
         private static Attachment ReadAttachment(JsonValue attachment)
         {
             string type = ReqString(attachment, "type");
+
+            // A linked mesh (ADR-0011 section 1) carries no geometry: read the parent reference, the optional
+            // parent-skin override, and the required timelines-sharing flag. Path/width/height/color are
+            // render inputs the solve ignores, so they are not read.
+            if (type == "linkedmesh")
+            {
+                JsonValue? skinValue = attachment.Member("skin");
+                string? skin = skinValue == null || skinValue.IsNull ? null : skinValue.AsString();
+                return new Attachment(
+                    type,
+                    null,
+                    new LinkedMeshAttachment(
+                        ReqString(attachment, "parent"),
+                        skin,
+                        ReqBool(attachment, "timelines")));
+            }
+
             if (type != "mesh")
             {
-                return new Attachment(type, null);
+                return new Attachment(type, null, null);
             }
 
             double[] uvs = ReadNumberArray(ReqMember(attachment, "uvs", JsonKind.Array));
@@ -176,7 +193,7 @@ namespace Marionette.Runtime.Core.Document
                 bones = ReadIntArray(bonesValue);
             }
 
-            return new Attachment(type, new MeshAttachment(uvs, vertices, bones));
+            return new Attachment(type, new MeshAttachment(uvs, vertices, bones), null);
         }
 
         private static IkConstraint ReadIkConstraint(JsonValue ik)

@@ -72,7 +72,9 @@ namespace Marionette.Runtime.Core.Skeleton
             string attachmentName,
             float[] output)
         {
-            MeshAttachment mesh = ResolveMesh(document, skinName, slotName, attachmentName);
+            // A plain mesh resolves to itself; a linked mesh (ADR-0011 section 1) resolves its geometry through
+            // the parent chain and its deform key through the timelines-sharing chain.
+            ResolvedMeshGeometry resolved = ResolveMeshGeometry(document, skinName, slotName, attachmentName);
             Animation? animation = document.FindAnimation(animationId);
             if (animation == null)
             {
@@ -81,11 +83,14 @@ namespace Marionette.Runtime.Core.Skeleton
 
             int slotIndex = IndexOf(pose.SlotNames, slotName);
             int slotBoneIndex = slotIndex >= 0 ? pose.SlotBoneIndices[slotIndex] : -1;
-            int vertexCount = SkinMeshInto(mesh, pose, slotBoneIndex, output);
+            int vertexCount = SkinMeshInto(resolved.Geometry, pose, slotBoneIndex, output);
 
             PreparedAnimation prepared = Sample.GetPreparedAnimation(pose, animation);
-            PreparedDeformChannel? channel =
-                FindDeformChannel(prepared.DeformChannels, skinName, slotName, attachmentName);
+            PreparedDeformChannel? channel = FindDeformChannel(
+                prepared.DeformChannels,
+                resolved.DeformSkin,
+                resolved.DeformSlot,
+                resolved.DeformName);
             if (channel != null)
             {
                 double[] offsets = EnsureDeformScratch(pose, channel.Track.ComponentCount);
@@ -96,7 +101,125 @@ namespace Marionette.Runtime.Core.Skeleton
             return vertexCount;
         }
 
-        private static MeshAttachment ResolveMesh(
+        // The geometry mesh to skin plus the (skin, slot, name) key whose deform timeline applies (ADR-0011
+        // section 1). For a plain mesh this is the identity resolution (itself, its own key); for a linked mesh
+        // it is the parent-chain geometry root and the timelines-sharing deform source.
+        private readonly struct ResolvedMeshGeometry
+        {
+            public readonly MeshAttachment Geometry;
+            public readonly string DeformSkin;
+            public readonly string DeformSlot;
+            public readonly string DeformName;
+
+            public ResolvedMeshGeometry(
+                MeshAttachment geometry,
+                string deformSkin,
+                string deformSlot,
+                string deformName)
+            {
+                Geometry = geometry;
+                DeformSkin = deformSkin;
+                DeformSlot = deformSlot;
+                DeformName = deformName;
+            }
+        }
+
+        // The linked-mesh chain is guaranteed acyclic by the validator (LINKED_MESH_CYCLE); this bound is a
+        // defensive stop so an unvalidated document cannot spin forever (mirroring the TS solve's lenience).
+        private const int MaxLinkedMeshDepth = 256;
+
+        private static ResolvedMeshGeometry ResolveMeshGeometry(
+            SkeletonDocument document,
+            string skinName,
+            string slotName,
+            string attachmentName)
+        {
+            Attachment? attachment = LookupAttachment(document, skinName, slotName, attachmentName);
+            if (attachment == null)
+            {
+                throw new MeshAttachmentException(
+                    MeshAttachmentErrorReason.NotFound,
+                    skinName,
+                    slotName,
+                    attachmentName);
+            }
+
+            if (attachment.Type == "mesh" && attachment.Mesh != null)
+            {
+                return new ResolvedMeshGeometry(attachment.Mesh, skinName, slotName, attachmentName);
+            }
+
+            if (attachment.Type != "linkedmesh" || attachment.Linked == null)
+            {
+                throw new MeshAttachmentException(
+                    MeshAttachmentErrorReason.NotAMesh,
+                    skinName,
+                    slotName,
+                    attachmentName);
+            }
+
+            // Deform source: walk while the current node is a linked mesh that SHARES its parent's timelines,
+            // stopping at the first node with its own timeline (a real mesh, or a linked mesh with timelines
+            // false). The slot is shared across the chain; only the skin and name change per hop.
+            string deformSkin = skinName;
+            string deformName = attachmentName;
+            LinkedMeshAttachment? deformNode = attachment.Linked;
+            for (int hop = 0; hop < MaxLinkedMeshDepth && deformNode != null && deformNode.Timelines; hop += 1)
+            {
+                string parentSkin = deformNode.Skin ?? deformSkin;
+                string parentName = deformNode.Parent;
+                Attachment? parent = LookupAttachment(document, parentSkin, slotName, parentName);
+                if (parent == null)
+                {
+                    throw new MeshAttachmentException(
+                        MeshAttachmentErrorReason.NotFound,
+                        parentSkin,
+                        slotName,
+                        parentName);
+                }
+
+                deformSkin = parentSkin;
+                deformName = parentName;
+                deformNode = parent.Type == "linkedmesh" ? parent.Linked : null;
+            }
+
+            // Geometry source: walk the parent chain (regardless of timelines) to the root mesh.
+            string geometrySkin = skinName;
+            Attachment node = attachment;
+            for (int hop = 0;
+                hop < MaxLinkedMeshDepth && node.Type == "linkedmesh" && node.Linked != null;
+                hop += 1)
+            {
+                string parentSkin = node.Linked.Skin ?? geometrySkin;
+                Attachment? parent = LookupAttachment(document, parentSkin, slotName, node.Linked.Parent);
+                if (parent == null)
+                {
+                    throw new MeshAttachmentException(
+                        MeshAttachmentErrorReason.NotFound,
+                        parentSkin,
+                        slotName,
+                        node.Linked.Parent);
+                }
+
+                geometrySkin = parentSkin;
+                node = parent;
+            }
+
+            if (node.Type != "mesh" || node.Mesh == null)
+            {
+                // The chain never reached a real mesh (a validator would have rejected this as LINKED_MESH_
+                // PARENT_INVALID or _CYCLE); report the origin as not-a-mesh rather than skinning non-geometry.
+                throw new MeshAttachmentException(
+                    MeshAttachmentErrorReason.NotAMesh,
+                    skinName,
+                    slotName,
+                    attachmentName);
+            }
+
+            return new ResolvedMeshGeometry(node.Mesh, deformSkin, slotName, deformName);
+        }
+
+        private static Attachment? LookupAttachment(
             SkeletonDocument document,
             string skinName,
             string slotName,
@@ -112,26 +235,7 @@ namespace Marionette.Runtime.Core.Skeleton
                 }
             }
 
-            Attachment? attachment = skin == null ? null : FindAttachment(skin, slotName, attachmentName);
-            if (attachment == null)
-            {
-                throw new MeshAttachmentException(
-                    MeshAttachmentErrorReason.NotFound,
-                    skinName,
-                    slotName,
-                    attachmentName);
-            }
-
-            if (attachment.Type != "mesh" || attachment.Mesh == null)
-            {
-                throw new MeshAttachmentException(
-                    MeshAttachmentErrorReason.NotAMesh,
-                    skinName,
-                    slotName,
-                    attachmentName);
-            }
-
-            return attachment.Mesh;
+            return skin == null ? null : FindAttachment(skin, slotName, attachmentName);
         }
 
         private static Attachment? FindAttachment(Skin skin, string slotName, string attachmentName)

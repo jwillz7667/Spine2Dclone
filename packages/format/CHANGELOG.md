@@ -3,6 +3,48 @@
 The `formatVersion` is the semver of THE FORMAT (Law 3), independent of the package/app version. Pre-1.0,
 breaking changes bump MINOR and ship a tested migration (format-contract.md section 10.3).
 
+## 0.4.0 (2026-07-08)
+
+Stage F2 presentation additions (ADR-0009). Additive plus one lossless rename (`bendPositive` to a signed
+`bend`), backward-compatible via a migration.
+
+Added (schema):
+
+- Constraint depth. `IkConstraint` gains `softness` (>= 0), `stretch`, `compress`, `uniform`, and replaces
+  `bendPositive` with a signed `bend` (`1 | -1`). `TransformConstraint` gains `local` and `relative`
+  variant flags. Both constraint arrays share an optional explicit `order` (a dense, unique permutation of
+  `[0, N)` when present; omitted means the default IK-then-transform document order). The animation
+  `IkFrame` replaces `bendPositive` with `bend` and gains optional `softness`/`stretch`/`compress`.
+- Linked meshes. A new closed attachment kind `linkedmesh` (`type`, `path`, `parent`, optional `skin`,
+  `timelines`, `color`, `width`, `height`) reuses a parent mesh's geometry; it may itself be a deform
+  target (its V resolved through the parent chain).
+- Sequence attachments. An optional `sequence` block (`count`, `start`, `digits`, `setupIndex`) on region
+  and mesh attachments, and a per-slot `sequence` timeline keyed by `mode` (hold/once/loop/pingpong plus
+  the three reverse variants), `index`, and `delay`.
+- Timeline granularity. Per-component bone tracks (`translateX/Y`, `scaleX/Y`, `shearX/Y`, each scalar with
+  its own curve) alongside the joint tracks; split slot color tracks (`rgb`, `alpha`); a keyable two-color
+  `dark` track. A joint track and its split components must not coexist on one bone or slot.
+- Skin scoping. Optional `bones` and `constraints` name lists on a skin (active while the skin is active).
+
+Added (validation):
+
+- SCHEMA family: `IK_SOFTNESS_RANGE` (negative softness), `SEQUENCE_SETUP_RANGE` (setupIndex outside
+  `[0, count)`). Split color channels reuse `COLOR_RANGE`.
+- CONSTRAINT family: `CONSTRAINT_ORDER_INVALID` (order partial, duplicated, gapped, or out of range).
+- MESH family: `LINKED_MESH_PARENT_MISSING`, `LINKED_MESH_PARENT_INVALID`, `LINKED_MESH_CYCLE`.
+- ANIM family: `TIMELINE_COMPONENT_CONFLICT` (joint vs split coexistence), `ANIM_DARK_NO_SETUP` (dark
+  timeline without a setup `darkColor`).
+- SKIN family: `SKIN_BONE_UNKNOWN`, `SKIN_CONSTRAINT_UNKNOWN`.
+
+Migration:
+
+- Registered the `0.3.x -> 0.4.0` step: map `bendPositive` to the signed `bend` losslessly (in both IK
+  constraints and IK frames), inject the IK depth defaults (`softness` 0, `stretch`/`compress`/`uniform`
+  false) and the transform variant flags (`local`/`relative` false), stamp `formatVersion`, and recompute
+  the content hash when the source carried one. Every other F2 addition is optional or new, so nothing else
+  is injected. A `0.1.0` document still loads through the full four-step chain (backward compatibility suite
+  in `migrate.test.ts`).
+
 ## 0.3.0 (2026-07-08)
 
 Stage F1 presentation additions (ADR-0008). Additive and backward-compatible via a migration; no existing

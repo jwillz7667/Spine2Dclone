@@ -193,7 +193,7 @@ static func _solve_one_transform_constraint(pose: Pose, constraint) -> void:
 		var bone_index := bone_indices[b]
 		if bone_index < 0:
 			continue
-		TransformConstraint.solve(pose, bone_index, target_index, constraint.sampled_mix, constraint.offset)
+		TransformConstraint.solve(pose, bone_index, target_index, constraint.sampled_mix, constraint.offset, constraint.local, constraint.relative)
 
 
 static func reset_constraints_to_base(pose: Pose) -> void:

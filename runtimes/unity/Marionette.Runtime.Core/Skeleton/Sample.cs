@@ -280,7 +280,9 @@ namespace Marionette.Runtime.Core.Skeleton
                     boneIndex,
                     targetIndex,
                     constraint.SampledMix,
-                    constraint.Offset);
+                    constraint.Offset,
+                    constraint.Local,
+                    constraint.Relative);
             }
         }
 

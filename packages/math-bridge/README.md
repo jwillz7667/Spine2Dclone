@@ -159,8 +159,6 @@ Until then the mock is the driver of record, and the swap-in guarantee is proven
 (`test/real-conformance.test.ts`): for every committed scenario, the real HTTP adapter and `MockMathEngine`
 produce a deep-equal, identically-validated `SpinResult` for the same input.
 
-## Boundary contract version
-
 ## Run
 
 ```sh

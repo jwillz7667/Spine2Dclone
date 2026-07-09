@@ -62,14 +62,49 @@ One logical change per commit; a refactor and a behavior change never share one.
 `feat/<slug>`, `fix/<ticket>-<slug>`; one subsystem per branch; a phase branch does not open until
 its predecessor milestone is green (LAW 5).
 
-## The release pipeline (status: not built yet)
+## The release pipeline (status: built, unsigned first release)
 
-Phase 5 WP-5.7 owns it. Today `pnpm --filter editor build` produces an electron-vite bundle but no
-installer; there is no code signing, notarization, or auto-update. The planned pipeline: signed
-macOS (arm64 + x64) and Windows artifacts, notarization, an integrity-checked update feed, and a
-GitHub Actions release workflow keyed to tags, gated on the full `ci-pass` set plus (once native
-runtimes exist) `conformance-native-pass`. The two-edition split (Essentials/Pro) is a Phase 4/5
-packaging concern tracked in `docs/plan/product-editions.md`; no edition gating exists in code yet,
+Phase 5 WP-5.7 / PP-E5 owns it. It is now built with electron-builder; the configuration lives in
+`apps/editor/electron-builder.yml` and two scripts drive it:
+
+- `pnpm --filter editor package` runs `electron-vite build` then `electron-builder --dir` and
+  produces an UNPACKED app for the host platform (fast local smoke check, no installer).
+- `pnpm --filter editor package:dist` runs `electron-vite build` then `electron-builder` and
+  produces the platform installers.
+
+Artifacts per operating system (all x64 unless noted; the mac targets ship as separate per-arch
+artifacts, NOT a universal binary):
+
+| OS | Artifacts |
+|---|---|
+| macOS | `.dmg` and `.zip` for arm64 AND x64 (four files) |
+| Windows | NSIS `.exe` installer (x64) |
+| Linux | `.AppImage`, `.deb`, and `.rpm` (x64) |
+
+App identity: appId `com.viralventures.armature2d`, productName "Armature 2D". The mac icon comes
+from `apps/editor/build/icon.icns`, Windows and Linux from `apps/editor/build/icon.png` (512 px;
+electron-builder generates the Windows `.ico` from it at package time, so no `.ico` is committed and
+no extra dependency is added). The runtime app icon the main process loads at
+`process.resourcesPath/icon.png` (see `src/main/main.ts`) is carried as an `extraResources` copy of
+`apps/editor/resources/icon.png`.
+
+The tag-triggered workflow is `.github/workflows/release.yml`: on a `v*` tag it runs the full local
+gate inline (`pnpm ci:local`, the `ci-pass` set) because a tag push carries no PR context, then
+packages on a `macos-latest` / `windows-latest` / `ubuntu-latest` matrix and uploads each OS's
+installers to the tag's draft GitHub Release. Tag only a commit already merged green on `main`
+(where `ci-pass` and `conformance-native-pass` ran); the inline gate is the release-time backstop.
+
+Deliberately not built yet (recorded, not hidden): code signing, notarization, and auto-update. The
+first release ships UNSIGNED and updateless. The workflow already contains signing and notarization
+steps that are gated on their secrets existing and skip cleanly when absent; the exact secret names
+to configure later are listed in the workflow header (`CSC_LINK`, `CSC_KEY_PASSWORD`, `APPLE_ID`,
+`APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID`, `WIN_CSC_LINK`, `WIN_CSC_KEY_PASSWORD`). No publish
+or update provider is configured (`publish: null`): consistent with the local-only privacy
+directive, the packaged app makes no network request, and auto-update, when it lands, will be
+strictly opt-in and integrity-checked.
+
+The two-edition split (Essentials/Pro) is superseded by the free-product directive
+(`docs/plan/pro-parity-execution-plan.md` section 1); no edition gating or licensing exists in code,
 deliberately.
 
 ## Definition of a shippable build (Phase 5 exit)

@@ -35,8 +35,12 @@ Configured in `apps/editor/src/main/window-options.ts` (unit-tested) and `csp.ts
   Production: `script-src 'self'`, `connect-src 'self'`, `object-src 'none'`, `base-uri 'none'`,
   `frame-src 'none'`, no unsafe-eval, no remote origins (`worker-src 'self' blob:` for the PixiJS
   texture worker). Dev mode adds only what Vite HMR requires.
-- The app makes no network requests; there is no telemetry, no auto-update endpoint yet
-  (auto-update arrives with the signed release pipeline, WP-5.7, and must be feed-signed).
+- The app makes no network requests; there is no telemetry and no auto-update endpoint. The release
+  pipeline (WP-5.7 / PP-E5, `.github/workflows/release.yml` + `apps/editor/electron-builder.yml`) is
+  built but ships an UNSIGNED, updateless first release: no publish or update provider is configured
+  (`publish: null`), so packaging adds no network surface. Auto-update, when it lands, will be
+  strictly OPT-IN and integrity-checked (feed-signed); until then the packaged app's only trust
+  inputs remain the local files it opens.
 
 ## 3. IPC: allowlist + schema validation, deny by default
 
@@ -88,7 +92,9 @@ integrity boundary as much as a product law: the certified engine remains the on
 
 ## Known gaps (tracked, not hidden)
 
-- No code signing, notarization, or auto-update integrity chain yet (Phase 5 WP-5.7).
+- No code signing, notarization, or auto-update integrity chain yet: the release pipeline (WP-5.7)
+  is built and packages all three platforms, but the first release is unsigned and updateless by
+  design; signing/notarization steps are present in the workflow and gated on secrets.
 - No GUI e2e security tests; the Electron posture is enforced by unit tests on the option and CSP
   factories.
 - The MCP server trusts its host for authentication; it has no client identity model of its own

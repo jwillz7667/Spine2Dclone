@@ -1,0 +1,145 @@
+# Tag-triggered release pipeline (PP-E5 / WP-5.7, conformance-and-ci.md D.10).
+#
+# Packages Armature 2D into installers for every supported platform and uploads them to the tag's
+# draft GitHub Release. Runs ONLY on a `v*` tag push.
+#
+# Gate semantics: a tag push carries no pull-request context, so the required `ci-pass` /
+# `conformance-native-pass` status checks (branch protection) cannot be read here. Instead the `gate`
+# job re-runs the full local CI gate (`pnpm ci:local` = typecheck + lint + test + build +
+# check:packages + check:dashes) inline, and the per-OS `package` jobs depend on it. Tag only a commit
+# that already merged green on `main` (where ci.yml and conformance-native.yml both ran); this job is
+# the release-time backstop, not a substitute for those checks.
+#
+# Signing and notarization: every signing step is GATED on its secrets existing and skips cleanly when
+# they are absent, so this workflow produces UNSIGNED installers today (deliberate: the first release is
+# unsigned and updateless, recorded in docs/dev/release-and-versioning.md). To enable signing later,
+# configure these repository secrets (nothing else in the workflow changes):
+#   macOS code signing + notarization:
+#     CSC_LINK                     base64 of the Developer ID Application .p12
+#     CSC_KEY_PASSWORD             password for that .p12
+#     APPLE_ID                     Apple ID email for notarytool
+#     APPLE_APP_SPECIFIC_PASSWORD  app-specific password for that Apple ID
+#     APPLE_TEAM_ID                Apple Developer Team ID
+#   Windows code signing:
+#     WIN_CSC_LINK                 base64 of the Authenticode .pfx
+#     WIN_CSC_KEY_PASSWORD         password for that .pfx
+# electron-builder reads CSC_LINK / CSC_KEY_PASSWORD and the APPLE_* vars from the environment; when
+# CSC_LINK is empty the mac job sets CSC_IDENTITY_AUTO_DISCOVERY=false so electron-builder does not try
+# (and fail on) local-keychain discovery. Auto-update is a separate opt-in slice and is NOT configured
+# here: no publish provider, and the packaged app makes no network request.
+
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+# Never cancel an in-flight release build (artifact integrity); one run per tag.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  TURBO_TELEMETRY_DISABLED: '1'
+
+permissions:
+  contents: write
+
+jobs:
+  # Inline CI gate (ci-pass semantics for a tag) plus creation of the draft release the package jobs
+  # upload into. Kept on one job so the draft exists before any matrix job starts uploading.
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Full local CI gate (typecheck + lint + test + build + package-guard + dash guard)
+        run: pnpm ci:local
+      - name: Ensure a draft release exists for this tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if ! gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
+            gh release create "${GITHUB_REF_NAME}" \
+              --draft \
+              --title "${GITHUB_REF_NAME}" \
+              --notes "Armature 2D ${GITHUB_REF_NAME}. Installers are attached below. This build is unsigned; see docs/dev/release-and-versioning.md."
+          fi
+
+  package:
+    needs: gate
+    strategy:
+      # Never cancel the other OS builds if one fails; a maintainer can re-run a single leg.
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      # rpmbuild is not present on ubuntu-latest by default and electron-builder needs it for the .rpm
+      # target (AppImage and .deb build without it). Installed only on Linux.
+      - name: Install rpm tooling (Linux only)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends rpm
+
+      # Skip mac signing cleanly when no certificate secret is configured: without this electron-builder
+      # would try local-keychain identity discovery and fail on a hosted runner.
+      - name: Configure mac signing skip when unsigned (macOS only)
+        if: runner.os == 'macOS' && env.CSC_LINK == ''
+        run: echo "CSC_IDENTITY_AUTO_DISCOVERY=false" >> "$GITHUB_ENV"
+        env:
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+
+      - name: Build and package installers
+        run: pnpm --filter editor package:dist
+        env:
+          # Present only when the secrets are configured; empty otherwise (signing skipped, above).
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+          # electron-builder auto-notarizes the mac build when all three are set; absent means no notarize.
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
+      # Upload the installer artifacts to the tag's draft release. The glob per OS covers exactly the
+      # electron-builder outputs (installers plus their update-metadata sidecars); unpacked dirs are left
+      # behind. --clobber lets a re-run of one OS leg replace its own artifacts.
+      - name: Upload installers to the draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd apps/editor/dist
+          shopt -s nullglob
+          files=()
+          for pattern in \
+            '*.dmg' '*.dmg.blockmap' \
+            '*.zip' '*.zip.blockmap' \
+            '*.exe' '*.exe.blockmap' \
+            '*.AppImage' '*.deb' '*.rpm' \
+            'latest*.yml'; do
+            for f in $pattern; do files+=("$f"); done
+          done
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "No installer artifacts found in apps/editor/dist" >&2
+            exit 1
+          fi
+          printf 'Uploading:\n'; printf '  %s\n' "${files[@]}"
+          gh release upload "${GITHUB_REF_NAME}" "${files[@]}" --clobber

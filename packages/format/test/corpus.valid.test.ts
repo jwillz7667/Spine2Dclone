@@ -3,6 +3,7 @@ import { parseDocument, validateDocument } from '../src/validate';
 import minimal from './fixtures/minimal.json';
 import eventsDrawOrder from './fixtures/events-draworder.json';
 import f2Complete from './fixtures/f2-complete.json';
+import f3Complete from './fixtures/f3-complete.json';
 
 // WP-0.3: the canonical valid fixture passes clean under the default (verifyHash: true) path, with
 // zero errors and zero warnings, so its committed content hash is correct.
@@ -92,5 +93,42 @@ describe('valid corpus', () => {
     expect(idle?.slots['body']?.alpha).toBeDefined();
     expect(idle?.slots['body']?.dark).toBeDefined();
     expect(idle?.slots['body']?.sequence).toBeDefined();
+  });
+
+  // Stage F3 (ADR-0011) positive completeness fixture: exercises the new 0.5.0 shapes end to end.
+  it('f3-complete.json validates with zero errors and zero warnings', () => {
+    const report = validateDocument(f3Complete);
+
+    expect(report.ok).toBe(true);
+    expect(report.errors).toEqual([]);
+    expect(report.warnings).toEqual([]);
+  });
+
+  it('f3-complete.json authors every new 0.5.0 shape', () => {
+    const doc = parseDocument(f3Complete);
+
+    // Three path attachments: open, closed, and weighted splines.
+    const rail = doc.skins[0]?.attachments['rail'];
+    const openP = rail?.['railPath'];
+    const closedP = rail?.['loopPath'];
+    const weightedP = rail?.['weightedPath'];
+    expect(openP?.type === 'path' ? openP.closed : undefined).toBe(false);
+    expect(closedP?.type === 'path' ? closedP.closed : undefined).toBe(true);
+    expect(weightedP?.type === 'path' ? weightedP.bones : undefined).toEqual([0]);
+
+    // A path constraint with position/spacing/rotate modes and a per-channel mix.
+    const pc = doc.pathConstraints[0];
+    expect(pc?.name).toBe('pc1');
+    expect(pc?.target).toBe('rail');
+    expect(pc?.bones).toEqual(['followerA', 'followerB']);
+    expect([pc?.positionMode, pc?.spacingMode, pc?.rotateMode]).toEqual([
+      'percent',
+      'length',
+      'tangent',
+    ]);
+
+    // Skin scoping resolves the path constraint, and the animation keys the path timeline.
+    expect(doc.skins[0]?.constraints).toEqual(['pc1']);
+    expect(doc.animations['idle']?.path['pc1']).toBeDefined();
   });
 });

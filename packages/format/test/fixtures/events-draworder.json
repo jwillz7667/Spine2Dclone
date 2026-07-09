@@ -1,7 +1,7 @@
 {
-  "formatVersion": "0.4.0",
+  "formatVersion": "0.5.0",
   "name": "events-draworder",
-  "hash": "d0b8fd67bce78fab2dcbfabab72701a05055611484b815e0743c87fcad74fc7c",
+  "hash": "9f163e47e97381c2c551af2ee69f0a57a396a0bb517060fd3bfcdbbe06ff0e78",
   "bones": [
     {
       "name": "root",
@@ -90,6 +90,7 @@
   ],
   "ikConstraints": [],
   "transformConstraints": [],
+  "pathConstraints": [],
   "events": [
     {
       "name": "footstep",
@@ -113,6 +114,7 @@
       "slots": {},
       "ik": {},
       "transform": {},
+      "path": {},
       "deform": {},
       "drawOrder": [
         {

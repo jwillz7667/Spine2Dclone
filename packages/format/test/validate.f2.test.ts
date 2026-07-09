@@ -168,6 +168,7 @@ describe('linked meshes (ADR-0009 section 2)', () => {
       slots: {},
       ik: {},
       transform: {},
+      path: {},
       deform: {
         default: {
           limb: {

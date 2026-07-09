@@ -59,6 +59,7 @@
   ],
   "ikConstraints": [],
   "transformConstraints": [],
+  "pathConstraints": [],
   "events": [],
   "animations": {
     "idle": {
@@ -86,6 +87,7 @@
       "slots": {},
       "ik": {},
       "transform": {},
+      "path": {},
       "deform": {},
       "drawOrder": [],
       "events": []

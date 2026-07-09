@@ -20,7 +20,7 @@
   "slots": [
     {
       "name": "body",
-      "bone": "ghost",
+      "bone": "root",
       "color": {
         "r": 1,
         "g": 1,
@@ -28,6 +28,18 @@
         "a": 1
       },
       "attachment": "body",
+      "blendMode": "normal"
+    },
+    {
+      "name": "rail",
+      "bone": "root",
+      "color": {
+        "r": 1,
+        "g": 1,
+        "b": 1,
+        "a": 1
+      },
+      "attachment": "railPath",
       "blendMode": "normal"
     }
   ],
@@ -53,13 +65,51 @@
               "a": 1
             }
           }
+        },
+        "rail": {
+          "railPath": {
+            "type": "path",
+            "closed": false,
+            "constantSpeed": true,
+            "lengths": [
+              50,
+              100
+            ],
+            "vertices": [
+              0,
+              0,
+              33,
+              0,
+              66,
+              0,
+              100,
+              0
+            ]
+          }
         }
       }
     }
   ],
   "ikConstraints": [],
   "transformConstraints": [],
-  "pathConstraints": [],
+  "pathConstraints": [
+    {
+      "name": "pc",
+      "target": "rail",
+      "bones": [
+        "root"
+      ],
+      "positionMode": "percent",
+      "spacingMode": "length",
+      "rotateMode": "tangent",
+      "position": 0,
+      "spacing": 0,
+      "offsetRotation": 0,
+      "mixRotate": 1,
+      "mixX": 1,
+      "mixY": 1
+    }
+  ],
   "events": [],
   "animations": {
     "idle": {

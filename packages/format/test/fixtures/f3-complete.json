@@ -1,0 +1,195 @@
+{
+  "formatVersion": "0.5.0",
+  "name": "f3-complete",
+  "hash": "d61e9da5d6e6febbe6fde73095ad8ee2dc831af0931ac7656a27dad57ec09142",
+  "bones": [
+    {
+      "name": "root",
+      "parent": null,
+      "length": 100,
+      "x": 0,
+      "y": 0,
+      "rotation": 0,
+      "scaleX": 1,
+      "scaleY": 1,
+      "shearX": 0,
+      "shearY": 0,
+      "transformMode": "normal"
+    },
+    {
+      "name": "followerA",
+      "parent": "root",
+      "length": 100,
+      "x": 20,
+      "y": 0,
+      "rotation": 0,
+      "scaleX": 1,
+      "scaleY": 1,
+      "shearX": 0,
+      "shearY": 0,
+      "transformMode": "normal"
+    },
+    {
+      "name": "followerB",
+      "parent": "root",
+      "length": 100,
+      "x": 40,
+      "y": 0,
+      "rotation": 0,
+      "scaleX": 1,
+      "scaleY": 1,
+      "shearX": 0,
+      "shearY": 0,
+      "transformMode": "normal"
+    }
+  ],
+  "slots": [
+    {
+      "name": "rail",
+      "bone": "root",
+      "color": {
+        "r": 1,
+        "g": 1,
+        "b": 1,
+        "a": 1
+      },
+      "attachment": "railPath",
+      "blendMode": "normal"
+    }
+  ],
+  "skins": [
+    {
+      "name": "default",
+      "attachments": {
+        "rail": {
+          "railPath": {
+            "type": "path",
+            "closed": false,
+            "constantSpeed": true,
+            "lengths": [
+              100
+            ],
+            "vertices": [
+              0,
+              0,
+              33,
+              0,
+              66,
+              0,
+              100,
+              0
+            ]
+          },
+          "loopPath": {
+            "type": "path",
+            "closed": true,
+            "constantSpeed": false,
+            "lengths": [
+              200
+            ],
+            "vertices": [
+              0,
+              0,
+              50,
+              50,
+              -50,
+              50
+            ]
+          },
+          "weightedPath": {
+            "type": "path",
+            "closed": false,
+            "constantSpeed": true,
+            "lengths": [
+              100
+            ],
+            "bones": [
+              0
+            ],
+            "vertices": [
+              1,
+              0,
+              0,
+              0,
+              1,
+              1,
+              0,
+              33,
+              0,
+              1,
+              1,
+              0,
+              66,
+              0,
+              1,
+              1,
+              0,
+              100,
+              0,
+              1
+            ]
+          }
+        }
+      },
+      "constraints": [
+        "pc1"
+      ]
+    }
+  ],
+  "ikConstraints": [],
+  "transformConstraints": [],
+  "pathConstraints": [
+    {
+      "name": "pc1",
+      "target": "rail",
+      "bones": [
+        "followerA",
+        "followerB"
+      ],
+      "positionMode": "percent",
+      "spacingMode": "length",
+      "rotateMode": "tangent",
+      "position": 0,
+      "spacing": 0,
+      "offsetRotation": 0,
+      "mixRotate": 1,
+      "mixX": 1,
+      "mixY": 1
+    }
+  ],
+  "events": [],
+  "animations": {
+    "idle": {
+      "duration": 1,
+      "bones": {},
+      "slots": {},
+      "ik": {},
+      "transform": {},
+      "path": {
+        "pc1": [
+          {
+            "time": 0,
+            "value": {
+              "position": 0,
+              "mixRotate": 1
+            },
+            "curve": "linear"
+          },
+          {
+            "time": 1,
+            "value": {
+              "position": 1
+            },
+            "curve": "linear"
+          }
+        ]
+      },
+      "deform": {},
+      "drawOrder": [],
+      "events": []
+    }
+  },
+  "atlas": {
+    "pages": []
+  }
+}

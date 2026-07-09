@@ -20,7 +20,7 @@
   "slots": [
     {
       "name": "body",
-      "bone": "ghost",
+      "bone": "root",
       "color": {
         "r": 1,
         "g": 1,
@@ -87,7 +87,17 @@
       "slots": {},
       "ik": {},
       "transform": {},
-      "path": {},
+      "path": {
+        "ghost": [
+          {
+            "time": 0,
+            "value": {
+              "position": 0
+            },
+            "curve": "linear"
+          }
+        ]
+      },
       "deform": {},
       "drawOrder": [],
       "events": []

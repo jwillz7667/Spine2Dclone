@@ -58,7 +58,7 @@ function baseDoc(mesh: MeshAttachment = unweightedMesh()): SkeletonDocument {
     transformMode: 'normal' as const,
   });
   return {
-    formatVersion: '0.4.0',
+    formatVersion: '0.5.0',
     name: 'rig',
     hash: '',
     bones: [bone('root', null, 0), bone('child', 'root', 100)],
@@ -66,6 +66,7 @@ function baseDoc(mesh: MeshAttachment = unweightedMesh()): SkeletonDocument {
     skins: [{ name: 'default', attachments: { limb: { limb: mesh } } }],
     ikConstraints: [],
     transformConstraints: [],
+    pathConstraints: [],
     events: [],
     animations: {},
     atlas: {
@@ -322,6 +323,7 @@ describe('animation ik/transform/deform validation (ADR-0004)', () => {
           slots: {},
           ik: { ghost: [{ time: 0, value: { mix: 1, bend: 1 }, curve: 'stepped' }] },
           transform: {},
+          path: {},
           deform: {},
           drawOrder: [],
           events: [],
@@ -342,6 +344,7 @@ describe('animation ik/transform/deform validation (ADR-0004)', () => {
           slots: {},
           ik: {},
           transform: { ghost: [{ time: 0, value: { mixRotate: 1 }, curve: 'linear' }] },
+          path: {},
           deform: {},
           drawOrder: [],
           events: [],
@@ -362,6 +365,7 @@ describe('animation ik/transform/deform validation (ADR-0004)', () => {
           slots: {},
           ik: {},
           transform: {},
+          path: {},
           deform,
           drawOrder: [],
           events: [],
@@ -455,6 +459,7 @@ describe('animation ik/transform/deform validation (ADR-0004)', () => {
           slots: {},
           ik: {},
           transform: {},
+          path: {},
           deform: {
             default: { limb: { limb: [{ time: 0, value: { offsets: [0, 0] }, curve: 'linear' }] } },
           },

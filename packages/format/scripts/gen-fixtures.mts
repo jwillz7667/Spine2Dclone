@@ -4,7 +4,9 @@
 // completeness fixture `phase1-complete.json`, the stage F1 (ADR-0008) positive completeness fixture
 // `events-draworder.json` (event definitions, event and draw-order timelines, metadata), and the stage
 // F2 (ADR-0009) positive completeness fixture `f2-complete.json` (constraint depth and order, a linked
-// mesh, a sequence attachment, per-component and split-color and dark timelines, and skin scoping). The
+// mesh, a sequence attachment, per-component and split-color and dark timelines, and skin scoping), plus the
+// stage F3 (ADR-0011) positive completeness fixture `f3-complete.json` (open/closed/weighted path
+// attachments, a path constraint with position/spacing/rotate modes, skin scoping, and a path timeline). The
 // corpus is committed; this script is its provenance, so a reviewer can see precisely which single field
 // each fixture breaks. Run: pnpm gen:fixtures.
 //
@@ -27,7 +29,7 @@ const invalidDir = join(fixturesDir, 'invalid');
 // computed and embedded below.
 function minimalDraft(): SkeletonDocument {
   return {
-    formatVersion: '0.4.0',
+    formatVersion: '0.5.0',
     name: 'minimal',
     hash: '',
     bones: [
@@ -77,6 +79,7 @@ function minimalDraft(): SkeletonDocument {
     ],
     ikConstraints: [],
     transformConstraints: [],
+    pathConstraints: [],
     events: [],
     animations: {
       idle: {
@@ -92,6 +95,7 @@ function minimalDraft(): SkeletonDocument {
         slots: {},
         ik: {},
         transform: {},
+        path: {},
         deform: {},
         drawOrder: [],
         events: [],
@@ -140,7 +144,7 @@ function minimalValid(): SkeletonDocument {
 // so the fixture validates with zero errors and zero warnings.
 function phase1CompleteDraft(): SkeletonDocument {
   return {
-    formatVersion: '0.4.0',
+    formatVersion: '0.5.0',
     name: 'phase1-complete',
     hash: '',
     bones: [
@@ -203,6 +207,7 @@ function phase1CompleteDraft(): SkeletonDocument {
     ],
     ikConstraints: [],
     transformConstraints: [],
+    pathConstraints: [],
     events: [],
     animations: {
       idle: {
@@ -244,6 +249,7 @@ function phase1CompleteDraft(): SkeletonDocument {
         },
         ik: {},
         transform: {},
+        path: {},
         deform: {},
         drawOrder: [],
         events: [],
@@ -322,7 +328,7 @@ function eventsDrawOrderDraft(): SkeletonDocument {
     originalH: 64,
   });
   return {
-    formatVersion: '0.4.0',
+    formatVersion: '0.5.0',
     name: 'events-draworder',
     hash: '',
     bones: [
@@ -352,6 +358,7 @@ function eventsDrawOrderDraft(): SkeletonDocument {
     ],
     ikConstraints: [],
     transformConstraints: [],
+    pathConstraints: [],
     events: [
       { name: 'footstep', audio: { path: 'sfx/step.wav', volume: 0.8, balance: 0 } },
       { name: 'spawn', int: 3, float: 1.5, string: 'hero' },
@@ -363,6 +370,7 @@ function eventsDrawOrderDraft(): SkeletonDocument {
         slots: {},
         ik: {},
         transform: {},
+        path: {},
         deform: {},
         drawOrder: [
           { time: 0, offsets: [] },
@@ -438,7 +446,7 @@ function f2CompleteDraft(): SkeletonDocument {
   });
   const white = { r: 1, g: 1, b: 1, a: 1 };
   return {
-    formatVersion: '0.4.0',
+    formatVersion: '0.5.0',
     name: 'f2-complete',
     hash: '',
     bones: [bone('root', null, 0), bone('child', 'root', 100), bone('target', 'root', 200)],
@@ -540,6 +548,7 @@ function f2CompleteDraft(): SkeletonDocument {
         order: 2,
       },
     ],
+    pathConstraints: [],
     events: [],
     animations: {
       idle: {
@@ -596,6 +605,7 @@ function f2CompleteDraft(): SkeletonDocument {
         transform: {
           tc1: [{ time: 0, value: { mixRotate: 1 }, curve: 'linear' }],
         },
+        path: {},
         deform: {
           default: {
             limb: {
@@ -626,6 +636,121 @@ function f2CompleteDraft(): SkeletonDocument {
 // Build the stage F2 completeness document with its real content hash embedded.
 function f2CompleteValid(): SkeletonDocument {
   const draft = f2CompleteDraft();
+  return { ...draft, hash: computeContentHash(draft) };
+}
+
+// The stage F3 (ADR-0011) positive COMPLETENESS fixture: a rig that exercises every new 0.5.0 shape end to
+// end. A `rail` slot carries three path attachments: an OPEN unweighted spline (1 cubic curve, 4 control
+// points, the constraint target), a CLOSED unweighted spline (1 wrapping curve, 3 control points), and an
+// OPEN WEIGHTED spline (4 control points bound to the root bone, exercising the shared weighted-vertex
+// codec). A path constraint `pc1` distributes two follower bones along the rail with percent position and
+// length spacing and a tangent rotate mode, and the default skin scopes it. The idle animation keys the
+// path timeline (position and a mix channel). No atlas regions are needed (paths render no pixels), so the
+// atlas is empty. Authored with an empty hash; the real hash is embedded in f3CompleteValid below.
+function f3CompleteDraft(): SkeletonDocument {
+  const bone = (name: string, parent: string | null, x: number) => ({
+    name,
+    parent,
+    length: 100,
+    x,
+    y: 0,
+    rotation: 0,
+    scaleX: 1,
+    scaleY: 1,
+    shearX: 0,
+    shearY: 0,
+    transformMode: 'normal' as const,
+  });
+  return {
+    formatVersion: '0.5.0',
+    name: 'f3-complete',
+    hash: '',
+    bones: [bone('root', null, 0), bone('followerA', 'root', 20), bone('followerB', 'root', 40)],
+    slots: [
+      {
+        name: 'rail',
+        bone: 'root',
+        color: { r: 1, g: 1, b: 1, a: 1 },
+        attachment: 'railPath',
+        blendMode: 'normal',
+      },
+    ],
+    skins: [
+      {
+        name: 'default',
+        attachments: {
+          rail: {
+            railPath: {
+              type: 'path',
+              closed: false,
+              constantSpeed: true,
+              lengths: [100],
+              vertices: [0, 0, 33, 0, 66, 0, 100, 0],
+            },
+            loopPath: {
+              type: 'path',
+              closed: true,
+              constantSpeed: false,
+              lengths: [200],
+              vertices: [0, 0, 50, 50, -50, 50],
+            },
+            weightedPath: {
+              type: 'path',
+              closed: false,
+              constantSpeed: true,
+              lengths: [100],
+              bones: [0],
+              vertices: [1, 0, 0, 0, 1, 1, 0, 33, 0, 1, 1, 0, 66, 0, 1, 1, 0, 100, 0, 1],
+            },
+          },
+        },
+        constraints: ['pc1'],
+      },
+    ],
+    ikConstraints: [],
+    transformConstraints: [],
+    pathConstraints: [
+      {
+        name: 'pc1',
+        target: 'rail',
+        bones: ['followerA', 'followerB'],
+        positionMode: 'percent',
+        spacingMode: 'length',
+        rotateMode: 'tangent',
+        position: 0,
+        spacing: 0,
+        offsetRotation: 0,
+        mixRotate: 1,
+        mixX: 1,
+        mixY: 1,
+      },
+    ],
+    events: [],
+    animations: {
+      idle: {
+        duration: 1,
+        bones: {},
+        slots: {},
+        ik: {},
+        transform: {},
+        path: {
+          pc1: [
+            { time: 0, value: { position: 0, mixRotate: 1 }, curve: 'linear' },
+            { time: 1, value: { position: 1 }, curve: 'linear' },
+          ],
+        },
+        deform: {},
+        drawOrder: [],
+        events: [],
+      },
+    },
+    atlas: { pages: [] },
+  };
+}
+
+// Build the stage F3 completeness document with its real content hash embedded.
+function f3CompleteValid(): SkeletonDocument {
+  const draft = f3CompleteDraft();
   return { ...draft, hash: computeContentHash(draft) };
 }
 
@@ -688,6 +813,44 @@ function linkedMeshBase(): SkeletonDocument {
     },
   };
   doc.atlas.pages[0]!.regions.push(region('baseRegion', 64), region('linkedRegion', 128));
+  return doc;
+}
+
+// A base with a `rail` slot carrying a valid OPEN path attachment `railPath` (1 curve, 4 control points)
+// and a path constraint `pc` targeting that slot and driving the root bone. Valid until a path case mutates
+// the attachment geometry or the constraint references.
+function pathBase(): SkeletonDocument {
+  const doc = draft();
+  doc.slots.push({
+    name: 'rail',
+    bone: 'root',
+    color: { r: 1, g: 1, b: 1, a: 1 },
+    attachment: 'railPath',
+    blendMode: 'normal',
+  });
+  doc.skins[0]!.attachments['rail'] = {
+    railPath: {
+      type: 'path',
+      closed: false,
+      constantSpeed: true,
+      lengths: [100],
+      vertices: [0, 0, 33, 0, 66, 0, 100, 0],
+    },
+  };
+  doc.pathConstraints.push({
+    name: 'pc',
+    target: 'rail',
+    bones: ['root'],
+    positionMode: 'percent',
+    spacingMode: 'length',
+    rotateMode: 'tangent',
+    position: 0,
+    spacing: 0,
+    offsetRotation: 0,
+    mixRotate: 1,
+    mixX: 1,
+    mixY: 1,
+  });
   return doc;
 }
 
@@ -1030,6 +1193,150 @@ const invalidCases: readonly InvalidCase[] = [
     },
   },
   {
+    code: 'PATH_VERTEX_COUNT',
+    build: () => {
+      // A closed path needs V divisible by 3; 4 control points (8 numbers) fits neither a closed nor a
+      // valid layout for the declared openness. curveCount is undefined, so the lengths checks are skipped.
+      const doc = pathBase();
+      const railPath = doc.skins[0]!.attachments['rail']!['railPath']!;
+      if (railPath.type === 'path') {
+        railPath.closed = true;
+        railPath.vertices = [0, 0, 33, 0, 66, 0, 100, 0];
+        railPath.lengths = [];
+      }
+      return doc;
+    },
+  },
+  {
+    code: 'PATH_LENGTHS_COUNT',
+    build: () => {
+      // A valid open 1-curve path (4 control points) but a 2-entry lengths table (expected 1).
+      const doc = pathBase();
+      const railPath = doc.skins[0]!.attachments['rail']!['railPath']!;
+      if (railPath.type === 'path') railPath.lengths = [50, 100];
+      return doc;
+    },
+  },
+  {
+    code: 'PATH_LENGTHS_ORDER',
+    build: () => {
+      // A valid open 1-curve path with a single, correctly-counted lengths entry that is negative, so the
+      // cumulative table is not non-negative non-decreasing.
+      const doc = pathBase();
+      const railPath = doc.skins[0]!.attachments['rail']!['railPath']!;
+      if (railPath.type === 'path') railPath.lengths = [-1];
+      return doc;
+    },
+  },
+  {
+    code: 'PATH_TARGET_MISSING',
+    build: () => {
+      // The path constraint targets a slot that does not exist.
+      const doc = draft();
+      doc.pathConstraints.push({
+        name: 'pc',
+        target: 'ghostSlot',
+        bones: ['root'],
+        positionMode: 'percent',
+        spacingMode: 'length',
+        rotateMode: 'tangent',
+        position: 0,
+        spacing: 0,
+        offsetRotation: 0,
+        mixRotate: 1,
+        mixX: 1,
+        mixY: 1,
+      });
+      return doc;
+    },
+  },
+  {
+    code: 'PATH_TARGET_NOT_PATH',
+    build: () => {
+      // The target slot `body` exists, but its setup attachment is a region, not a path.
+      const doc = draft();
+      doc.pathConstraints.push({
+        name: 'pc',
+        target: 'body',
+        bones: ['root'],
+        positionMode: 'percent',
+        spacingMode: 'length',
+        rotateMode: 'tangent',
+        position: 0,
+        spacing: 0,
+        offsetRotation: 0,
+        mixRotate: 1,
+        mixX: 1,
+        mixY: 1,
+      });
+      return doc;
+    },
+  },
+  {
+    code: 'PATH_BONES_EMPTY',
+    build: () => {
+      // An empty bone list is a structural refinement fault; semantic checks never run.
+      const doc = draft();
+      doc.pathConstraints.push({
+        name: 'pc',
+        target: 'body',
+        bones: [],
+        positionMode: 'percent',
+        spacingMode: 'length',
+        rotateMode: 'tangent',
+        position: 0,
+        spacing: 0,
+        offsetRotation: 0,
+        mixRotate: 1,
+        mixX: 1,
+        mixY: 1,
+      });
+      return doc;
+    },
+  },
+  {
+    code: 'PATH_BONE_MISSING',
+    build: () => {
+      // A valid path target, but the constraint drives a bone that does not exist.
+      const doc = pathBase();
+      doc.pathConstraints[0]!.bones = ['ghost'];
+      return doc;
+    },
+  },
+  {
+    code: 'PATH_MIX_RANGE',
+    build: () => {
+      // A mix channel outside [0, 1] is a structural refinement fault.
+      const doc = draft();
+      doc.pathConstraints.push({
+        name: 'pc',
+        target: 'body',
+        bones: ['root'],
+        positionMode: 'percent',
+        spacingMode: 'length',
+        rotateMode: 'tangent',
+        position: 0,
+        spacing: 0,
+        offsetRotation: 0,
+        mixRotate: 2,
+        mixX: 1,
+        mixY: 1,
+      });
+      return doc;
+    },
+  },
+  {
+    code: 'ANIM_PATH_UNKNOWN',
+    build: () => {
+      // The idle animation keys a path timeline on a constraint the document does not define.
+      const doc = draft();
+      doc.animations.idle!.path = {
+        ghost: [{ time: 0, value: { position: 0 }, curve: 'linear' }],
+      };
+      return doc;
+    },
+  },
+  {
     code: 'HASH_MISMATCH',
     build: () => {
       const doc = minimalValid();
@@ -1083,6 +1390,15 @@ function main(): void {
     );
   }
 
+  const f3Complete = f3CompleteValid();
+  writeJson(join(fixturesDir, 'f3-complete.json'), f3Complete);
+  const f3Report = validateDocument(f3Complete);
+  if (!f3Report.ok || f3Report.warnings.length > 0) {
+    throw new Error(
+      `f3-complete.json did not validate clean: ok=${f3Report.ok}, errors=${f3Report.errors.length}, warnings=${f3Report.warnings.length}, codes=[${f3Report.errors.map((e) => e.code).join(', ')}]`,
+    );
+  }
+
   for (const testCase of invalidCases) {
     const document = testCase.build();
     writeJson(join(invalidDir, `${testCase.code}.json`), document);
@@ -1096,7 +1412,7 @@ function main(): void {
   }
 
   console.log(
-    `generated minimal.json + phase1-complete.json + events-draworder.json + f2-complete.json + ${invalidCases.length} invalid fixtures`,
+    `generated minimal.json + phase1-complete.json + events-draworder.json + f2-complete.json + f3-complete.json + ${invalidCases.length} invalid fixtures`,
   );
 }
 

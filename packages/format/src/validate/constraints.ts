@@ -19,34 +19,33 @@ function boneByName(doc: SkeletonDocument): Map<string, Bone> {
   return map;
 }
 
+// Constraint names are unique across ALL THREE arrays (ik, transform, path share one namespace, ADR-0004,
+// ADR-0011 section 2.3). The arrays are checked in that fixed order so a duplicate is reported at its
+// second (or later) occurrence.
 function checkConstraintNames(doc: SkeletonDocument, errors: FormatError[]): void {
   const seen = new Set<string>();
-  for (const [index, constraint] of doc.ikConstraints.entries()) {
-    if (seen.has(constraint.name)) {
-      errors.push(
-        formatError(
-          'CONSTRAINT_NAME_DUPLICATE',
-          jsonPointer(['ikConstraints', index, 'name']),
-          `constraint name "${constraint.name}" is not unique`,
-          { name: constraint.name },
-        ),
-      );
-    } else {
-      seen.add(constraint.name);
-    }
-  }
-  for (const [index, constraint] of doc.transformConstraints.entries()) {
-    if (seen.has(constraint.name)) {
-      errors.push(
-        formatError(
-          'CONSTRAINT_NAME_DUPLICATE',
-          jsonPointer(['transformConstraints', index, 'name']),
-          `constraint name "${constraint.name}" is not unique`,
-          { name: constraint.name },
-        ),
-      );
-    } else {
-      seen.add(constraint.name);
+  const arrays: ReadonlyArray<{
+    readonly key: 'ikConstraints' | 'transformConstraints' | 'pathConstraints';
+    readonly constraints: ReadonlyArray<{ readonly name: string }>;
+  }> = [
+    { key: 'ikConstraints', constraints: doc.ikConstraints },
+    { key: 'transformConstraints', constraints: doc.transformConstraints },
+    { key: 'pathConstraints', constraints: doc.pathConstraints },
+  ];
+  for (const { key, constraints } of arrays) {
+    for (const [index, constraint] of constraints.entries()) {
+      if (seen.has(constraint.name)) {
+        errors.push(
+          formatError(
+            'CONSTRAINT_NAME_DUPLICATE',
+            jsonPointer([key, index, 'name']),
+            `constraint name "${constraint.name}" is not unique`,
+            { name: constraint.name },
+          ),
+        );
+      } else {
+        seen.add(constraint.name);
+      }
     }
   }
 }
@@ -124,11 +123,12 @@ function checkTransform(
   }
 }
 
-// Explicit constraint order (ADR-0009 section 1.3): `order` is a single ordering over the combined
-// ikConstraints + transformConstraints set. Omitted everywhere means the default IK-then-transform
-// document order (ADR-0003); present anywhere it must be present EVERYWHERE and be a dense, unique
-// permutation of [0, N). A partial assignment, a duplicate, a gap, or an out-of-range value is
-// CONSTRAINT_ORDER_INVALID: the ordering is not a well-formed total order the runtime can sort by.
+// Explicit constraint order (ADR-0009 section 1.3, ADR-0011 section 2.3): `order` is a single ordering
+// over the combined ikConstraints + transformConstraints + pathConstraints set. Omitted everywhere means
+// the default IK-then-transform-then-path document order (ADR-0003); present anywhere it must be present
+// EVERYWHERE and be a dense, unique permutation of [0, N). A partial assignment, a duplicate, a gap, or an
+// out-of-range value is CONSTRAINT_ORDER_INVALID: the ordering is not a well-formed total order the runtime
+// can sort by.
 function checkConstraintOrder(doc: SkeletonDocument, errors: FormatError[]): void {
   const entries: ReadonlyArray<{
     readonly order: number | undefined;
@@ -144,6 +144,11 @@ function checkConstraintOrder(doc: SkeletonDocument, errors: FormatError[]): voi
       order: c.order,
       nodePath: ['transformConstraints', index],
       orderPath: ['transformConstraints', index, 'order'],
+    })),
+    ...doc.pathConstraints.map((c, index) => ({
+      order: c.order,
+      nodePath: ['pathConstraints', index],
+      orderPath: ['pathConstraints', index, 'order'],
     })),
   ];
   const present = entries.filter((entry) => entry.order !== undefined);

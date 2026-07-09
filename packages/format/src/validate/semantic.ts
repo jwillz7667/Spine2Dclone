@@ -3,6 +3,7 @@ import { checkConstraints } from './constraints';
 import { formatError } from './errors';
 import type { FormatError } from './errors';
 import { checkLinkedMeshes, checkMeshes, resolveGeometrySource } from './mesh';
+import { checkPathConstraints, checkPaths } from './paths';
 import { jsonPointer } from './structural';
 
 // Semantic (graph) layer: referential integrity and the invariants Zod cannot express
@@ -211,6 +212,7 @@ function checkSkins(doc: SkeletonDocument): FormatError[] {
   const constraintNames = new Set([
     ...doc.ikConstraints.map((c) => c.name),
     ...doc.transformConstraints.map((c) => c.name),
+    ...doc.pathConstraints.map((c) => c.name),
   ]);
   for (const [index, skin] of doc.skins.entries()) {
     for (const slotName of Object.keys(skin.attachments)) {
@@ -549,6 +551,7 @@ function checkAnimations(doc: SkeletonDocument): FormatError[] {
   const slotIndexByName = new Map(doc.slots.map((slot, index) => [slot.name, index]));
   const ikNames = new Set(doc.ikConstraints.map((c) => c.name));
   const transformNames = new Set(doc.transformConstraints.map((c) => c.name));
+  const pathNames = new Set(doc.pathConstraints.map((c) => c.name));
   const eventNames = new Set(doc.events.map((event) => event.name));
   for (const [animName, animation] of Object.entries(doc.animations)) {
     const duration = animation.duration;
@@ -694,6 +697,21 @@ function checkAnimations(doc: SkeletonDocument): FormatError[] {
       recordFrames(frames);
       maxTime = Math.max(maxTime, checkFrameTimes(frames, basePath, duration, 'strict', errors));
     }
+    for (const [constraintName, frames] of Object.entries(animation.path)) {
+      const basePath = ['animations', animName, 'path', constraintName];
+      if (!pathNames.has(constraintName)) {
+        errors.push(
+          formatError(
+            'ANIM_PATH_UNKNOWN',
+            jsonPointer(basePath),
+            `animation "${animName}" keys a path timeline on constraint "${constraintName}", which does not exist`,
+            { constraint: constraintName, animation: animName },
+          ),
+        );
+      }
+      recordFrames(frames);
+      maxTime = Math.max(maxTime, checkFrameTimes(frames, basePath, duration, 'strict', errors));
+    }
     maxTime = Math.max(
       maxTime,
       checkDeform(doc, animName, animation.deform, duration, recordFrames, errors),
@@ -737,7 +755,9 @@ function checkAnimations(doc: SkeletonDocument): FormatError[] {
 }
 
 // Run every semantic family over a structurally valid document and collect all errors. Phase 2
-// (ADR-0004) adds the MESH and CONSTRAINT families and extends ANIM with ik/transform/deform.
+// (ADR-0004) adds the MESH and CONSTRAINT families and extends ANIM with ik/transform/deform. Stage F3
+// (ADR-0011) adds the PATH family (path-attachment geometry and path-constraint references) and extends
+// ANIM with the path timeline (ANIM_PATH_UNKNOWN).
 export function validateSemantic(doc: SkeletonDocument): FormatError[] {
   return [
     ...checkBones(doc),
@@ -746,7 +766,9 @@ export function validateSemantic(doc: SkeletonDocument): FormatError[] {
     ...checkAtlas(doc),
     ...checkMeshes(doc),
     ...checkLinkedMeshes(doc),
+    ...checkPaths(doc),
     ...checkConstraints(doc),
+    ...checkPathConstraints(doc),
     ...checkEvents(doc),
     ...checkAnimations(doc),
   ];

@@ -162,7 +162,7 @@ serialized, and is never undoable. Selecting a bone is not a command; moving one
 
 ## The format (LAW 3)
 
-`packages/format` owns three document families (`SkeletonDocument` 0.2.0, `EffectsDocument` 1.0.0,
+`packages/format` owns three document families (`SkeletonDocument` 0.3.0, `EffectsDocument` 1.0.0,
 `SlotSceneDocument` 0.1.0), each with strict Zod schemas, collect-all validators with typed error
 codes, SHA-256 content hashing over canonical JSON, a migration framework (currently one step,
 0.1.x to 0.2.0), and the MRNT deterministic binary container (magic `MRNT`, string table, tagged

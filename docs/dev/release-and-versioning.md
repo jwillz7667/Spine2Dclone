@@ -6,7 +6,7 @@ How versions work in this repository, what gates a change, and where the release
 
 | Line | Where | Current | Policy |
 |---|---|---|---|
-| Skeleton format (`formatVersion`) | `packages/format/src/version/constants.ts` | `0.2.0` | `format-contract.md` section 10 |
+| Skeleton format (`formatVersion`) | `packages/format/src/version/constants.ts` | `0.3.0` | `format-contract.md` section 10 |
 | Effects format (`effectsFormatVersion`) | same file | `1.0.0` | same document |
 | Slot-scene format | same file | `0.1.0` | same document |
 | Shared format primitives | same file | `1.0.0` | frozen; a change here is a MAJOR event |
@@ -23,8 +23,8 @@ migrations), regardless of app release cadence.
 1. Classify the change MAJOR/MINOR/PATCH per `docs/plan/cross-cutting/format-contract.md`
    section 10. Pre-1.0, a breaking skeleton-format change bumps MINOR.
 2. Bump the right constant in `version/constants.ts`, write the migration step in
-   `src/version/migrations/`, test it (the registry currently holds `0.1.x -> 0.2.0` as the
-   pattern to follow), and add a `CHANGELOG.md` entry in the format package.
+   `src/version/migrations/`, test it (the registry holds `0.1.x -> 0.2.0` and `0.2.x -> 0.3.0`
+   as the pattern to follow), and add a `CHANGELOG.md` entry in the format package.
 3. A non-schema change (validator refactor, error wording, comments) must NOT bump the version.
 4. CI enforces both directions: `check:format-semver` fails a PR that touches
    `packages/format/src` without touching the constants file, and `check:format-version-stable`

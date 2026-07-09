@@ -10,7 +10,7 @@ independent document formats plus project manifests, each with its own version l
 
 | Format | Version constant | Current |
 |---|---|---|
-| Skeletal (`SkeletonDocument`) | `CURRENT_FORMAT_VERSION` | `0.2.0` |
+| Skeletal (`SkeletonDocument`) | `CURRENT_FORMAT_VERSION` | `0.3.0` |
 | Effects (`EffectsDocument`) | `EFFECTS_FORMAT_VERSION` | `1.0.0` |
 | Slot scene (`SlotSceneDocument`) | `SLOT_SCENE_FORMAT_VERSION` | `0.1.0` |
 | Shared primitives (blend modes, atlas, curves) | `FORMAT_COMMON_VERSION` | `1.0.0` |
@@ -26,7 +26,7 @@ error, not a warning.
 
 ```jsonc
 {
-  "formatVersion": "0.2.0",
+  "formatVersion": "0.3.0",
   "name": "my-character",
   "hash": "…64 lowercase hex, or empty for an unhashed draft…",
   "bones": [ … ],                 // at least one bone
@@ -34,8 +34,10 @@ error, not a warning.
   "skins": [ … ],                 // must include a skin named "default"
   "ikConstraints": [ … ],         // required, may be empty
   "transformConstraints": [ … ],  // required, may be empty
+  "events": [ … ],                // required, may be empty (event definitions)
   "animations": { "walk": { … } },
-  "atlas": { "pages": [ … ] }
+  "atlas": { "pages": [ … ] },
+  "metadata": { … }               // optional (fps, imagesPath, audioPath)
 }
 ```
 
@@ -146,15 +148,18 @@ first, then all transform constraints, each in array order.
   },
   "ik":        { "leg-ik": [ { "time": 0, "value": { "mix": 1, "bendPositive": true }, "curve": "linear" } ] },
   "transform": { "follow": [ { "time": 0, "value": { "mixRotate": 0.5 }, "curve": "linear" } ] },
-  "deform":    { "default": { "front-leg": { "leg-mesh": [ { "time": 0, "value": { "offsets": [dx0, dy0, …] }, "curve": "linear" } ] } } }
+  "deform":    { "default": { "front-leg": { "leg-mesh": [ { "time": 0, "value": { "offsets": [dx0, dy0, …] }, "curve": "linear" } ] } } },
+  "drawOrder": [ { "time": 0.5, "offsets": [ { "slot": "front-leg", "offset": 1 } ] } ],   // required, may be empty
+  "events":    [ { "time": 0.5, "name": "footstep", "int": 3 } ]                            // required, may be empty
 }
 ```
 
 Rules the validator enforces:
-- Keyframe times must be within `[0, duration]` and strictly ascending per timeline.
+- Keyframe times must be within `[0, duration]` and strictly ascending per timeline (except `events`, whose times are non-decreasing: coincident events are legal).
 - `duration` must be at least the last keyframe time, and positive when any keyframes exist.
-- Every timeline key must name a real bone, slot, or constraint.
+- Every timeline key must name a real bone, slot, or constraint; every `events` key must name a defined `EventDef` (`ANIM_EVENT_UNKNOWN`).
 - Deform offsets must target a mesh attachment and have length `2 * vertexCount`.
+- A `drawOrder` key's `offsets` describe a consistent reordering: each named slot exists, appears once, and its derived target index (setup index + offset) is unique and in range (`DRAWORDER_INCOMPLETE`).
 - The `curve` on a timeline's last keyframe is ignored by the runtime (there is nothing after
   it to ease into).
 - The IK `bendPositive` boolean channel is sampled stepped regardless of curve.
@@ -227,9 +232,12 @@ negative test fixture per code, so every code is provably reachable.
 
 `formatVersion` is the semver of the FORMAT, independent of the app version. While the major
 is 0, the MINOR digit is the compatibility key. Migrations are forward-only steps
-(`fromKey`, `toKey`, `migrate`), each re-validated structurally after it runs. Example: the
-`0.1.x` to `0.2.0` migration injects empty `ikConstraints`/`transformConstraints` arrays and
-empty `ik`/`transform`/`deform` timeline maps, then recomputes the hash if one was present.
+(`fromKey`, `toKey`, `migrate`), the full contiguous chain runs and only the final document is
+re-validated structurally. Examples: the `0.1.x` to `0.2.0` migration injects empty
+`ikConstraints`/`transformConstraints` arrays and empty `ik`/`transform`/`deform` timeline maps;
+the `0.2.x` to `0.3.0` migration (ADR-0008) injects the empty document `events` collection and
+the empty per-animation `drawOrder`/`events` timelines. Each recomputes the hash if one was
+present (an unhashed draft stays a draft).
 
 Policy (see `docs/plan/cross-cutting/format-contract.md` section 10): a schema or semantic
 change bumps `formatVersion` with a tested migration; a validator refactor or error-message

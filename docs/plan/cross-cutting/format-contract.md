@@ -247,9 +247,9 @@ Open solve-semantics question (NOT decided here, flagged for the `runtime-core` 
 
 ### 4.10 Draw order and events
 
-- `DrawOrderKeyframe.order` is a FULL permutation of all slot names: same length as `slots`, no duplicates, every slot present exactly once (`DRAWORDER_INCOMPLETE`). Partial reorders are not representable; a draw-order key always specifies the complete order. Draw-order keys are strictly ascending in time (section 4.8).
-- `EventKeyframe.name` must reference an existing `EventDef` (`ANIM_EVENT_UNKNOWN`). Coincident event keyframes are permitted (section 4.8). Event firing during a frame is solve behavior owned by `runtime-core`.
-- `EventDef` names unique (`EVENT_NAME_DUPLICATE`).
+- `DrawOrderKeyframe.offsets` is a COMPACT LIST OF SIGNED OFFSETS from the setup draw order (the `slots` array order, index 0 furthest back), not a full permutation (ADR-0008, which supersedes an earlier full-permutation sketch here). Each `{ slot, offset }` moves one named slot by a signed integer number of positions; an EMPTY `offsets` list is the identity (setup order), so a key can restore the setup order after an earlier reorder. Each listed slot must exist (`ANIM_SLOT_UNKNOWN`); within one key a slot appears at most once, every derived target index (setup index + offset) is in `[0, slotCount)`, and no two listed slots resolve to the same target index, or the key is an inconsistent (incomplete) reordering (`DRAWORDER_INCOMPLETE`). The FULL per-frame order is DERIVED from the setup order plus the offsets, a solve concern owned by `runtime-core`; the format validates only the listed entries' internal consistency. Draw-order keys are strictly ascending in time (section 4.8).
+- `EventKeyframe.name` must reference an existing `EventDef` (`ANIM_EVENT_UNKNOWN`). The optional `int`/`float`/`string` override the event's payload defaults for that firing. Coincident event keyframes are permitted (event times are NON-decreasing; only a strictly decreasing adjacent pair is `ANIM_TIME_ORDER`, section 4.8). Event firing during a frame is solve behavior owned by `runtime-core`.
+- `EventDef` names unique (`EVENT_NAME_DUPLICATE`). Optional `audio` carries a nonempty `path`, a `volume` in `[0, 1]`, and a stereo `balance` in `[-1, 1]`; an out-of-range volume or balance is `EVENT_AUDIO_RANGE`.
 
 ### 4.11 Atlas
 

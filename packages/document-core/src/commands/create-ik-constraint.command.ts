@@ -33,6 +33,12 @@ export class CreateIkConstraintCommand implements Command {
         target: this.target,
         mix: this.mix,
         bendPositive: this.bendPositive,
+        // Stage F2 (ADR-0009 section 1.1) IK depth defaults: softness 0 and the three booleans false
+        // reproduce the pre-0.4.0 hard, fixed-length solve. An authoring surface for them is PP-D10.
+        softness: 0,
+        stretch: false,
+        compress: false,
+        uniform: false,
       },
       ctx.mutate.ikConstraints().length,
     );

@@ -150,6 +150,8 @@ function freezeAttachment(att: AttachmentEntity): AttachmentEntity {
       vertices: Object.freeze(att.vertices.slice()),
       ...(att.edges !== undefined ? { edges: Object.freeze(att.edges.slice()) } : {}),
       ...(att.bones !== undefined ? { bones: Object.freeze(att.bones.slice()) } : {}),
+      // Stage F2 (ADR-0009) carried frame-sequence (deep-frozen at load), shared by reference.
+      ...(att.sequence !== undefined ? { sequence: att.sequence } : {}),
     });
   }
   return Object.freeze({ ...att });
@@ -233,16 +235,50 @@ function remapAttachmentMapWeighted(
 // Internal mutable bone timeline set: same channels as BoneTimelineSet but with writable arrays so the
 // mutator can replace a channel wholesale. Keyframe OBJECTS are immutable (replaced, never patched), so
 // the arrays carry shared frozen refs safely.
-interface MutableBoneTimelineSet {
+// The carried Stage F2 (ADR-0009) tracks projected out of a timeline set (exactly the optional-readonly
+// channels of the entity, so Pick preserves optionality without widening to `| undefined`).
+type CarriedBoneTracks = Pick<
+  BoneTimelineSet,
+  'translateX' | 'translateY' | 'scaleX' | 'scaleY' | 'shearX' | 'shearY'
+>;
+type CarriedSlotTracks = Pick<SlotTimelineSet, 'rgb' | 'alpha' | 'dark' | 'sequence'>;
+
+interface MutableBoneTimelineSet extends CarriedBoneTracks {
   rotate: KeyframeEntity[];
   translate: KeyframeEntity[];
   scale: KeyframeEntity[];
   shear: KeyframeEntity[];
+  // The carried split tracks (from CarriedBoneTracks) are immutable frozen refs shared by reference through
+  // every copy; no command mutates them (PP-D10). Present only when the loaded document supplied them.
 }
 
-interface MutableSlotTimelineSet {
+interface MutableSlotTimelineSet extends CarriedSlotTracks {
   color: KeyframeEntity[];
   attachment: AttachmentFrameEntity[];
+  // The carried rgb/alpha/dark/sequence tracks (from CarriedSlotTracks) are immutable frozen refs.
+}
+
+// Spread only the PRESENT carried F2 tracks (exactOptionalPropertyTypes) so an absent track stays absent
+// through a mutable/frozen copy. The tracks are immutable, so sharing them by reference across copies is
+// safe; a mutating command only ever replaces the joint channels (rotate/translate/scale/shear, color).
+function carriedBoneTracks(set: BoneTimelineSet): CarriedBoneTracks {
+  return {
+    ...(set.translateX !== undefined ? { translateX: set.translateX } : {}),
+    ...(set.translateY !== undefined ? { translateY: set.translateY } : {}),
+    ...(set.scaleX !== undefined ? { scaleX: set.scaleX } : {}),
+    ...(set.scaleY !== undefined ? { scaleY: set.scaleY } : {}),
+    ...(set.shearX !== undefined ? { shearX: set.shearX } : {}),
+    ...(set.shearY !== undefined ? { shearY: set.shearY } : {}),
+  };
+}
+
+function carriedSlotTracks(set: SlotTimelineSet): CarriedSlotTracks {
+  return {
+    ...(set.rgb !== undefined ? { rgb: set.rgb } : {}),
+    ...(set.alpha !== undefined ? { alpha: set.alpha } : {}),
+    ...(set.dark !== undefined ? { dark: set.dark } : {}),
+    ...(set.sequence !== undefined ? { sequence: set.sequence } : {}),
+  };
 }
 
 // Internal mutable deform map: skin -> slot -> attachment name -> keyframe array. The keyframe OBJECTS are
@@ -273,11 +309,12 @@ function toMutableBoneSet(set: BoneTimelineSet): MutableBoneTimelineSet {
     translate: set.translate.slice(),
     scale: set.scale.slice(),
     shear: set.shear.slice(),
+    ...carriedBoneTracks(set),
   };
 }
 
 function toMutableSlotSet(set: SlotTimelineSet): MutableSlotTimelineSet {
-  return { color: set.color.slice(), attachment: set.attachment.slice() };
+  return { color: set.color.slice(), attachment: set.attachment.slice(), ...carriedSlotTracks(set) };
 }
 
 // Deep-copy a deform map (fresh nested maps and sliced keyframe arrays) so an in-place edit to one copy
@@ -356,11 +393,16 @@ function cloneMutableAnimation(a: MutableAnimation): MutableAnimation {
       translate: set.translate.slice(),
       scale: set.scale.slice(),
       shear: set.shear.slice(),
+      ...carriedBoneTracks(set),
     });
   }
   const slots = new Map<SlotId, MutableSlotTimelineSet>();
   for (const [id, set] of a.slots) {
-    slots.set(id, { color: set.color.slice(), attachment: set.attachment.slice() });
+    slots.set(id, {
+      color: set.color.slice(),
+      attachment: set.attachment.slice(),
+      ...carriedSlotTracks(set),
+    });
   }
   const ik = new Map<IkConstraintId, IkKeyframeEntity[]>();
   for (const [id, frames] of a.ik) ik.set(id, frames.slice());
@@ -392,6 +434,7 @@ function freezeAnimation(a: MutableAnimation): AnimationEntity {
         translate: Object.freeze(set.translate.slice()),
         scale: Object.freeze(set.scale.slice()),
         shear: Object.freeze(set.shear.slice()),
+        ...carriedBoneTracks(set),
       }),
     );
   }
@@ -402,6 +445,7 @@ function freezeAnimation(a: MutableAnimation): AnimationEntity {
       Object.freeze({
         color: Object.freeze(set.color.slice()),
         attachment: Object.freeze(set.attachment.slice()),
+        ...carriedSlotTracks(set),
       }),
     );
   }
@@ -441,6 +485,12 @@ interface MutableIkConstraint {
   target: BoneId;
   mix: number;
   bendPositive: boolean;
+  // Stage F2 (ADR-0009) carried IK depth + optional order (see IkConstraintEntity).
+  softness: number;
+  stretch: boolean;
+  compress: boolean;
+  uniform: boolean;
+  order?: number;
 }
 
 interface MutableTransformConstraint {
@@ -460,6 +510,10 @@ interface MutableTransformConstraint {
   offsetScaleX: number;
   offsetScaleY: number;
   offsetShearY: number;
+  // Stage F2 (ADR-0009) carried variant flags + optional order (see TransformConstraintEntity).
+  local: boolean;
+  relative: boolean;
+  order?: number;
 }
 
 // Internal mutable named skin: its own attachment map (slotId -> name -> entity), the same shape as the
@@ -468,6 +522,18 @@ interface MutableSkin {
   id: SkinId;
   name: string;
   attachments: Map<SlotId, Map<string, AttachmentEntity>>;
+  // Stage F2 (ADR-0009 section 5) carried skin-scoping name lists: immutable, shared by reference.
+  bones?: readonly string[];
+  constraints?: readonly string[];
+}
+
+// Spread only the PRESENT carried skin-scoping lists (exactOptionalPropertyTypes) so an unscoped skin stays
+// unscoped through a copy. The lists are immutable name references, safely shared by reference.
+function skinScoping(skin: SkinEntity | MutableSkin): Pick<SkinEntity, 'bones' | 'constraints'> {
+  return {
+    ...(skin.bones !== undefined ? { bones: skin.bones } : {}),
+    ...(skin.constraints !== undefined ? { constraints: skin.constraints } : {}),
+  };
 }
 
 function toMutableIk(c: IkConstraintEntity): MutableIkConstraint {
@@ -487,7 +553,12 @@ function freezeTransform(c: MutableTransformConstraint): TransformConstraintEnti
 }
 
 function toMutableSkin(skin: SkinEntity): MutableSkin {
-  return { id: skin.id, name: skin.name, attachments: cloneAttachments(skin.attachments) };
+  return {
+    id: skin.id,
+    name: skin.name,
+    attachments: cloneAttachments(skin.attachments),
+    ...skinScoping(skin),
+  };
 }
 
 function freezeSkin(skin: MutableSkin): SkinEntity {
@@ -497,13 +568,18 @@ function freezeSkin(skin: MutableSkin): SkinEntity {
     for (const [name, att] of inner) frozen.set(name, freezeAttachment(att));
     attachments.set(slotId, frozen);
   }
-  return Object.freeze({ id: skin.id, name: skin.name, attachments });
+  return Object.freeze({ id: skin.id, name: skin.name, attachments, ...skinScoping(skin) });
 }
 
 function cloneSkins(source: ReadonlyMap<SkinId, MutableSkin>): Map<SkinId, MutableSkin> {
   const out = new Map<SkinId, MutableSkin>();
   for (const [id, skin] of source) {
-    out.set(id, { id: skin.id, name: skin.name, attachments: cloneAttachments(skin.attachments) });
+    out.set(id, {
+      id: skin.id,
+      name: skin.name,
+      attachments: cloneAttachments(skin.attachments),
+      ...skinScoping(skin),
+    });
   }
   return out;
 }
@@ -1066,6 +1142,9 @@ export class DocumentModelInternal implements DocumentReadModel {
       vertices: geometry.vertices.slice(),
       ...(geometry.edges !== undefined ? { edges: geometry.edges.slice() } : {}),
       ...(geometry.bones !== undefined ? { bones: geometry.bones.slice() } : {}),
+      // A geometry edit replaces only the six geometry fields; the carried F2 sequence (ADR-0009) is a
+      // stable non-geometry field and survives, like path/width/height/color.
+      ...(current.sequence !== undefined ? { sequence: current.sequence } : {}),
     };
     if (this.batching) {
       inner0.set(name, updated);

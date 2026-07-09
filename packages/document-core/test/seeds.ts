@@ -154,7 +154,17 @@ function riggedDoc(): SkeletonDocument {
     bone('follower', 'root', { x: 0, y: -80, length: 20 }),
   ];
   const ikConstraints: IkConstraint[] = [
-    { name: 'limb-ik', bones: ['upper', 'lower'], target: 'target', mix: 1, bendPositive: true },
+    {
+      name: 'limb-ik',
+      bones: ['upper', 'lower'],
+      target: 'target',
+      mix: 1,
+      bend: 1,
+      softness: 0,
+      stretch: false,
+      compress: false,
+      uniform: false,
+    },
   ];
   const transformConstraints: TransformConstraint[] = [
     {
@@ -173,6 +183,8 @@ function riggedDoc(): SkeletonDocument {
       offsetScaleX: 0,
       offsetScaleY: 0,
       offsetShearY: 0,
+      local: false,
+      relative: false,
     },
   ];
   const moveAnimation: Animation = {
@@ -198,8 +210,8 @@ function riggedDoc(): SkeletonDocument {
     },
     ik: {
       'limb-ik': [
-        { time: 0, value: { mix: 0, bendPositive: true }, curve: 'linear' },
-        { time: 1, value: { mix: 1, bendPositive: false }, curve: 'stepped' },
+        { time: 0, value: { mix: 0, bend: 1 }, curve: 'linear' },
+        { time: 1, value: { mix: 1, bend: -1 }, curve: 'stepped' },
       ],
     },
     transform: {

@@ -5,10 +5,12 @@ import { assertConstraintNameFree, assertValidTransformConstraint } from './cons
 import type { CommandSpec } from './spec';
 
 // The twelve mix/offset channels a transform constraint carries, supplied as one params object (the id,
-// name, bones, and target are passed separately).
+// name, bones, and target are passed separately). The Stage F2 (ADR-0009 section 1.2) variant flags and
+// optional order are NOT part of the authored params; the command injects their no-op defaults (an
+// authoring surface for them is PP-D10), so every existing caller stays at the Phase-2 twelve channels.
 export type TransformConstraintParams = Omit<
   TransformConstraintEntity,
-  'id' | 'name' | 'bones' | 'target'
+  'id' | 'name' | 'bones' | 'target' | 'local' | 'relative' | 'order'
 >;
 
 // Create a transform constraint (command-history catalog CreateTransformConstraint, `transform.create`;
@@ -34,7 +36,17 @@ export class CreateTransformConstraintCommand implements Command {
     assertValidTransformConstraint(ctx.mutate, this.bones, this.target);
     assertConstraintNameFree(ctx.mutate, this.name);
     ctx.mutate.insertTransformConstraint(
-      { id: this.id, name: this.name, bones: this.bones, target: this.target, ...this.params },
+      {
+        id: this.id,
+        name: this.name,
+        bones: this.bones,
+        target: this.target,
+        ...this.params,
+        // Stage F2 (ADR-0009 section 1.2) variant defaults: both false reproduce the ADR-0003 world,
+        // absolute behavior. `order` stays absent (the ADR-0003 default IK-then-transform order).
+        local: false,
+        relative: false,
+      },
       ctx.mutate.transformConstraints().length,
     );
   }

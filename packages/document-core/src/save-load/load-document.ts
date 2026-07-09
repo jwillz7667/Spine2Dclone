@@ -76,10 +76,25 @@ function resolveId<T extends string>(
   return id;
 }
 
+// Deep-copy and deep-freeze a carried Stage F2 (ADR-0009) value (a keyframe track array or a sequence
+// block) so the model neither aliases the parsed document nor exposes a mutable structure. Document-core
+// does not author these yet (PP-D10); it carries them verbatim, so a structural clone is exactly right.
+function carry<T>(value: T): T {
+  if (Array.isArray(value)) {
+    return Object.freeze(value.map((item) => carry(item))) as unknown as T;
+  }
+  if (value !== null && typeof value === 'object') {
+    const out: Record<string, unknown> = {};
+    for (const [key, inner] of Object.entries(value)) out[key] = carry(inner);
+    return Object.freeze(out) as T;
+  }
+  return value;
+}
+
 // Convert one format attachment to its editable entity (region/mesh promoted, everything else preserved
 // verbatim). Shared by the default skin and every named skin so both load identically. Arrays are copied
 // so the model never aliases the parsed document; edges/bones stay omitted when absent
-// (exactOptionalPropertyTypes).
+// (exactOptionalPropertyTypes). A Stage F2 (ADR-0009) region/mesh `sequence` is carried verbatim.
 function attachmentToEntity(attachmentName: string, attachment: Attachment): AttachmentEntity {
   if (attachment.type === 'region') {
     return {
@@ -94,6 +109,7 @@ function attachmentToEntity(attachmentName: string, attachment: Attachment): Att
       width: attachment.width,
       height: attachment.height,
       color: attachment.color,
+      ...(attachment.sequence !== undefined ? { sequence: carry(attachment.sequence) } : {}),
     };
   }
   if (attachment.type === 'mesh') {
@@ -110,6 +126,7 @@ function attachmentToEntity(attachmentName: string, attachment: Attachment): Att
       vertices: attachment.vertices.slice(),
       ...(attachment.edges !== undefined ? { edges: attachment.edges.slice() } : {}),
       ...(attachment.bones !== undefined ? { bones: attachment.bones.slice() } : {}),
+      ...(attachment.sequence !== undefined ? { sequence: carry(attachment.sequence) } : {}),
     };
   }
   return { kind: 'preserved', name: attachmentName, value: attachment };
@@ -144,7 +161,13 @@ function ikConstraintToEntity(
     bones: c.bones.map((boneName) => resolveId(boneName, boneNameToId, 'ik constraint bone')),
     target: resolveId(c.target, boneNameToId, 'ik constraint target'),
     mix: c.mix,
-    bendPositive: c.bendPositive,
+    // Map the signed format `bend` (ADR-0009) to the model's boolean losslessly (+1 -> true, -1 -> false).
+    bendPositive: c.bend > 0,
+    softness: c.softness,
+    stretch: c.stretch,
+    compress: c.compress,
+    uniform: c.uniform,
+    ...(c.order !== undefined ? { order: c.order } : {}),
   };
 }
 
@@ -172,6 +195,9 @@ function transformConstraintToEntity(
     offsetScaleX: c.offsetScaleX,
     offsetScaleY: c.offsetScaleY,
     offsetShearY: c.offsetShearY,
+    local: c.local,
+    relative: c.relative,
+    ...(c.order !== undefined ? { order: c.order } : {}),
   };
 }
 
@@ -245,6 +271,9 @@ function formatToDocState(document: SkeletonDocument, ids: IdFactory): DocState 
       id,
       name: skin.name,
       attachments: buildSkinAttachments(skin.attachments, slotNameToId),
+      // Stage F2 (ADR-0009 section 5) skin scoping, carried verbatim as on-disk names (PP-D10).
+      ...(skin.bones !== undefined ? { bones: carry(skin.bones) } : {}),
+      ...(skin.constraints !== undefined ? { constraints: carry(skin.constraints) } : {}),
     });
   }
 
@@ -446,11 +475,19 @@ function loadBoneTimelines(
   timelines: SkeletonDocument['animations'][string]['bones'][string],
   ids: IdFactory,
 ): BoneTimelineSet {
+  // The joint channels become first-class id-keyed keyframes; the Stage F2 (ADR-0009 section 4.1) split
+  // component tracks are carried verbatim (no command authors them yet, PP-D10).
   return {
     rotate: loadKeyframes(timelines.rotate, ids),
     translate: loadKeyframes(timelines.translate, ids),
     scale: loadKeyframes(timelines.scale, ids),
     shear: loadKeyframes(timelines.shear, ids),
+    ...(timelines.translateX !== undefined ? { translateX: carry(timelines.translateX) } : {}),
+    ...(timelines.translateY !== undefined ? { translateY: carry(timelines.translateY) } : {}),
+    ...(timelines.scaleX !== undefined ? { scaleX: carry(timelines.scaleX) } : {}),
+    ...(timelines.scaleY !== undefined ? { scaleY: carry(timelines.scaleY) } : {}),
+    ...(timelines.shearX !== undefined ? { shearX: carry(timelines.shearX) } : {}),
+    ...(timelines.shearY !== undefined ? { shearY: carry(timelines.shearY) } : {}),
   };
 }
 
@@ -458,9 +495,15 @@ function loadSlotTimelines(
   timelines: SkeletonDocument['animations'][string]['slots'][string],
   ids: IdFactory,
 ): SlotTimelineSet {
+  // The joint color and attachment channels become first-class; the Stage F2 (ADR-0009 sections 4.2, 4.3,
+  // 3) split rgb/alpha, keyable dark, and sequence tracks are carried verbatim (PP-D10).
   return {
     color: loadKeyframes(timelines.color, ids),
     attachment: loadAttachmentFrames(timelines.attachment, ids),
+    ...(timelines.rgb !== undefined ? { rgb: carry(timelines.rgb) } : {}),
+    ...(timelines.alpha !== undefined ? { alpha: carry(timelines.alpha) } : {}),
+    ...(timelines.dark !== undefined ? { dark: carry(timelines.dark) } : {}),
+    ...(timelines.sequence !== undefined ? { sequence: carry(timelines.sequence) } : {}),
   };
 }
 
@@ -473,8 +516,10 @@ function loadIkFrames(
       ids.mint('keyframe'),
       frame.time,
       frame.value.mix,
-      frame.value.bendPositive,
+      // Map the signed format `bend` (ADR-0009) to the model's boolean losslessly (+1 -> true, -1 -> false).
+      frame.value.bend > 0,
       frame.curve,
+      { softness: frame.value.softness, stretch: frame.value.stretch, compress: frame.value.compress },
     ),
   );
 }

@@ -470,3 +470,215 @@ describe('save / load seam', () => {
     expect(second.history.canRedo).toBe(false);
   });
 });
+
+// A document that exercises EVERY Stage F2 (ADR-0009, formatVersion 0.4.0) shape at once: IK depth
+// (signed bend, softness, stretch/compress/uniform) and explicit constraint `order`; transform local /
+// relative variants; a linked mesh; region and mesh frame `sequence`; per-component split bone tracks;
+// split slot rgb/alpha, keyable dark, and sequence timelines; and skin-scoped bones/constraints. Carried
+// verbatim by document-core (no authoring command yet, PP-D10), so exportDocument(loadDocument(R)) === R.
+function f2Document(): SkeletonDocument {
+  const white = { r: 1, g: 1, b: 1, a: 1 } as const;
+  const draft: SkeletonDocument = {
+    formatVersion: CURRENT_FORMAT_VERSION,
+    name: 'f2',
+    hash: '',
+    bones: [
+      { name: 'root', parent: null, ...GEOM },
+      { name: 'upper', parent: 'root', ...GEOM },
+      { name: 'lower', parent: 'upper', ...GEOM },
+      { name: 'target', parent: 'root', ...GEOM },
+      { name: 'driver', parent: 'root', ...GEOM },
+      { name: 'follower', parent: 'root', ...GEOM },
+    ],
+    slots: [
+      { name: 'slot_a', bone: 'root', color: white, attachment: 'reg', blendMode: 'normal' },
+      // slot_body carries a setup darkColor so the animation may key a `dark` (two-color) track.
+      {
+        name: 'slot_body',
+        bone: 'root',
+        color: white,
+        darkColor: { r: 0, g: 0, b: 0, a: 1 },
+        attachment: 'body',
+        blendMode: 'normal',
+      },
+    ],
+    skins: [
+      {
+        name: 'default',
+        attachments: {
+          slot_a: {
+            // A region attachment with a frame sequence (ADR-0009 section 3).
+            reg: {
+              type: 'region',
+              path: 'reg',
+              x: 0,
+              y: 0,
+              rotation: 0,
+              scaleX: 1,
+              scaleY: 1,
+              width: 32,
+              height: 32,
+              color: white,
+              sequence: { count: 4, start: 0, digits: 2, setupIndex: 1 },
+            },
+          },
+          slot_body: {
+            // A mesh with its own sequence, plus a linked mesh that reuses its geometry.
+            body: {
+              type: 'mesh',
+              path: 'body',
+              uvs: [0, 0, 1, 0, 1, 1, 0, 1],
+              triangles: [0, 1, 2, 0, 2, 3],
+              hullLength: 4,
+              width: 32,
+              height: 32,
+              color: white,
+              vertices: [0, 0, 32, 0, 32, 32, 0, 32],
+              sequence: { count: 2, start: 3, digits: 1, setupIndex: 0 },
+            },
+            bodyLink: {
+              type: 'linkedmesh',
+              path: 'bodyLink',
+              parent: 'body',
+              timelines: false,
+              width: 32,
+              height: 32,
+              color: white,
+            },
+          },
+        },
+      },
+      // A named skin with scoped bones and constraints (ADR-0009 section 5).
+      { name: 'variant', attachments: {}, bones: ['upper'], constraints: ['ik1', 'tc1'] },
+    ],
+    ikConstraints: [
+      {
+        name: 'ik1',
+        bones: ['upper', 'lower'],
+        target: 'target',
+        mix: 1,
+        bend: -1,
+        softness: 5,
+        stretch: true,
+        compress: true,
+        uniform: true,
+        order: 0,
+      },
+    ],
+    transformConstraints: [
+      {
+        name: 'tc1',
+        bones: ['follower'],
+        target: 'driver',
+        mixRotate: 1,
+        mixX: 0,
+        mixY: 0,
+        mixScaleX: 0,
+        mixScaleY: 0,
+        mixShearY: 0,
+        offsetRotation: 0,
+        offsetX: 0,
+        offsetY: 0,
+        offsetScaleX: 0,
+        offsetScaleY: 0,
+        offsetShearY: 0,
+        local: true,
+        relative: true,
+        order: 1,
+      },
+    ],
+    events: [],
+    animations: {
+      a1: {
+        duration: 1,
+        bones: {
+          // A joint channel (rotate) on one bone and per-component SPLIT tracks on another (ADR-0009 4.1).
+          upper: {
+            rotate: [
+              { time: 0, value: { angle: 0 }, curve: 'linear' },
+              { time: 0.5, value: { angle: 20 }, curve: 'linear' },
+            ],
+          },
+          lower: {
+            translateX: [
+              { time: 0, value: { value: 0 }, curve: 'linear' },
+              { time: 0.5, value: { value: 4 }, curve: { type: 'bezier', cx1: 0.25, cy1: 0, cx2: 0.75, cy2: 1 } },
+            ],
+            scaleY: [{ time: 0, value: { value: 1 }, curve: 'stepped' }],
+            shearX: [{ time: 0, value: { value: 2 }, curve: 'linear' }],
+          },
+        },
+        slots: {
+          // Split rgb/alpha on one slot (ADR-0009 4.2); keyable dark + sequence on another (4.3, 3).
+          slot_a: {
+            rgb: [{ time: 0, value: { rgb: { r: 1, g: 0.5, b: 0 } }, curve: 'linear' }],
+            alpha: [{ time: 0, value: { alpha: 0.5 }, curve: 'linear' }],
+          },
+          slot_body: {
+            dark: [{ time: 0, value: { color: { r: 0.1, g: 0.2, b: 0.3, a: 1 } }, curve: 'linear' }],
+            sequence: [{ time: 0, mode: 'loop', index: 0, delay: 0.1 }],
+          },
+        },
+        ik: {
+          // A keyed IK frame carries the signed bend plus optional depth channels (ADR-0009 section 1).
+          ik1: [{ time: 0, value: { mix: 1, bend: -1, softness: 5, stretch: true, compress: false }, curve: 'stepped' }],
+        },
+        transform: {
+          tc1: [{ time: 0, value: { mixRotate: 1 }, curve: 'linear' }],
+        },
+        deform: {},
+        drawOrder: [],
+        events: [],
+      },
+    },
+    atlas: {
+      pages: [
+        {
+          file: 'atlas.png',
+          width: 128,
+          height: 128,
+          regions: (['reg', 'body', 'bodyLink'] as const).map((name, index) => ({
+            name,
+            x: index * 32,
+            y: 0,
+            w: 32,
+            h: 32,
+            rotated: false,
+            offsetX: 0,
+            offsetY: 0,
+            originalW: 32,
+            originalH: 32,
+          })),
+        },
+      ],
+    },
+  };
+  return { ...draft, hash: computeContentHash(draft) };
+}
+
+describe('Stage F2 (0.4.0) carry through load and export', () => {
+  it('round-trips every new F2 shape deep-equal (hash included)', () => {
+    const original = f2Document();
+
+    const doc = loadDocument(original, makeTestEnv().env);
+    const exported = exportDocument(doc.model);
+
+    // Lossless: the projection reproduces the source byte for byte (content hash included).
+    expect(exported).toEqual(original);
+    expect(exported.formatVersion).toBe('0.4.0');
+    expect(verifyContentHash(exported)).toBe(true);
+  });
+
+  it('survives a History snapshot round-trip without dropping carried F2 data', () => {
+    const original = f2Document();
+    const doc = loadDocument(original, makeTestEnv().env);
+
+    // A non-F2 edit forces a full-state snapshot/restore; undo must return the carried data intact.
+    const before = doc.model.snapshot();
+    doc.history.execute(new CreateBoneCommand(doc.ids.mint('bone'), null, { name: 'tmp', ...GEOM }));
+    doc.history.undo();
+
+    expect(doc.model.snapshot()).toEqual(before);
+    expect(exportDocument(doc.model)).toEqual(original);
+  });
+});

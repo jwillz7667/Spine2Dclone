@@ -1,7 +1,7 @@
 {
-  "formatVersion": "0.3.0",
+  "formatVersion": "0.4.0",
   "name": "mesh-limb-rig",
-  "hash": "4588bf9cbb5de44872cbaa1e000ab5a19bc826d02cabb5fe423d1de062160a1c",
+  "hash": "f11ff5cce37606b9d16b0c2153e4b7adaf0f98b60890730284095b151783c46a",
   "bones": [
     {
       "name": "root",
@@ -91,8 +91,24 @@
           "limb": {
             "type": "mesh",
             "path": "limb",
-            "uvs": [0, 0, 1, 0, 1, 1, 0, 1],
-            "triangles": [0, 1, 2, 0, 2, 3],
+            "uvs": [
+              0,
+              0,
+              1,
+              0,
+              1,
+              1,
+              0,
+              1
+            ],
+            "triangles": [
+              0,
+              1,
+              2,
+              0,
+              2,
+              3
+            ],
             "hullLength": 4,
             "width": 64,
             "height": 128,
@@ -103,12 +119,47 @@
               "a": 1
             },
             "vertices": [
-              2, 3, 0, 0, 0.9999999800000009, 4, -50, 0, 1.9999999200000033e-8, 2, 4, 14, 0,
-              0.9999999285714388, 3, 64, 0, 7.142856122449127e-8, 2, 4, 14, 128, 0.5014864832152127,
-              3, 64, 128, 0.4985135167847874, 2, 3, 0, 128, 0.5177437648370443, 4, -50, 128,
+              2,
+              3,
+              0,
+              0,
+              0.9999999800000009,
+              4,
+              -50,
+              0,
+              1.9999999200000033e-8,
+              2,
+              4,
+              14,
+              0,
+              0.9999999285714388,
+              3,
+              64,
+              0,
+              7.142856122449127e-8,
+              2,
+              4,
+              14,
+              128,
+              0.5014864832152127,
+              3,
+              64,
+              128,
+              0.4985135167847874,
+              2,
+              3,
+              0,
+              128,
+              0.5177437648370443,
+              4,
+              -50,
+              128,
               0.48225623516295574
             ],
-            "bones": [3, 4]
+            "bones": [
+              3,
+              4
+            ]
           }
         }
       }
@@ -117,10 +168,17 @@
   "ikConstraints": [
     {
       "name": "limb-ik",
-      "bones": ["upper", "lower"],
+      "bones": [
+        "upper",
+        "lower"
+      ],
       "target": "target",
       "mix": 1,
-      "bendPositive": true
+      "bend": 1,
+      "softness": 0,
+      "stretch": false,
+      "compress": false,
+      "uniform": false
     }
   ],
   "transformConstraints": [],
@@ -187,7 +245,7 @@
             "time": 0,
             "value": {
               "mix": 0,
-              "bendPositive": true
+              "bend": 1
             },
             "curve": "linear"
           },
@@ -195,7 +253,7 @@
             "time": 0.5,
             "value": {
               "mix": 1,
-              "bendPositive": true
+              "bend": 1
             },
             "curve": "linear"
           },
@@ -203,7 +261,7 @@
             "time": 1,
             "value": {
               "mix": 0,
-              "bendPositive": true
+              "bend": 1
             },
             "curve": "linear"
           }
@@ -217,21 +275,48 @@
               {
                 "time": 0,
                 "value": {
-                  "offsets": [0, 0, 0, 0, 0, 0, 0, 0]
+                  "offsets": [
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0
+                  ]
                 },
                 "curve": "linear"
               },
               {
                 "time": 0.5,
                 "value": {
-                  "offsets": [0, 4, 6, 0, 6, 0, 0, 4]
+                  "offsets": [
+                    0,
+                    4,
+                    6,
+                    0,
+                    6,
+                    0,
+                    0,
+                    4
+                  ]
                 },
                 "curve": "linear"
               },
               {
                 "time": 1,
                 "value": {
-                  "offsets": [0, 0, 0, 0, 0, 0, 0, 0]
+                  "offsets": [
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0
+                  ]
                 },
                 "curve": "linear"
               }

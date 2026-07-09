@@ -64,6 +64,7 @@ function attachmentToFormat(att: AttachmentEntity): Attachment {
       width: att.width,
       height: att.height,
       color: att.color,
+      ...(att.sequence !== undefined ? { sequence: att.sequence } : {}),
     };
     return region;
   }
@@ -83,6 +84,7 @@ function attachmentToFormat(att: AttachmentEntity): Attachment {
       vertices: [...att.vertices],
       ...(att.edges !== undefined ? { edges: [...att.edges] } : {}),
       ...(att.bones !== undefined ? { bones: [...att.bones] } : {}),
+      ...(att.sequence !== undefined ? { sequence: att.sequence } : {}),
     };
     return mesh;
   }
@@ -126,29 +128,52 @@ function colorKeyframes(channel: readonly KeyframeEntity[]): NonNullable<SlotTim
 // Project a bone timeline set, emitting only the non-empty channels (the format channels are optional;
 // an empty channel is OMITTED rather than emitted as undefined or [], per exactOptionalPropertyTypes).
 function boneTimelinesToFormat(set: BoneTimelineSet): BoneTimelines {
+  // The joint channels project from the id-keyed keyframes; the carried Stage F2 (ADR-0009 section 4.1)
+  // split tracks are emitted verbatim (they are already the on-disk shape). A joint channel and its split
+  // components never coexist (the format's TIMELINE_COMPONENT_CONFLICT), so at most one form per channel.
   return {
     ...(set.rotate.length > 0 ? { rotate: rotateKeyframes(set.rotate) } : {}),
     ...(set.translate.length > 0 ? { translate: vec2Keyframes(set.translate) } : {}),
     ...(set.scale.length > 0 ? { scale: vec2Keyframes(set.scale) } : {}),
     ...(set.shear.length > 0 ? { shear: vec2Keyframes(set.shear) } : {}),
+    ...(set.translateX !== undefined ? { translateX: set.translateX } : {}),
+    ...(set.translateY !== undefined ? { translateY: set.translateY } : {}),
+    ...(set.scaleX !== undefined ? { scaleX: set.scaleX } : {}),
+    ...(set.scaleY !== undefined ? { scaleY: set.scaleY } : {}),
+    ...(set.shearX !== undefined ? { shearX: set.shearX } : {}),
+    ...(set.shearY !== undefined ? { shearY: set.shearY } : {}),
   };
 }
 
 function slotTimelinesToFormat(set: SlotTimelineSet): SlotTimelines {
+  // The joint color and attachment channels project from the id-keyed entries; the carried Stage F2
+  // (ADR-0009 sections 4.2, 4.3, 3) rgb/alpha/dark/sequence tracks are emitted verbatim.
   return {
     ...(set.attachment.length > 0
       ? { attachment: set.attachment.map((frame) => ({ time: frame.time, name: frame.name })) }
       : {}),
     ...(set.color.length > 0 ? { color: colorKeyframes(set.color) } : {}),
+    ...(set.rgb !== undefined ? { rgb: set.rgb } : {}),
+    ...(set.alpha !== undefined ? { alpha: set.alpha } : {}),
+    ...(set.dark !== undefined ? { dark: set.dark } : {}),
+    ...(set.sequence !== undefined ? { sequence: set.sequence } : {}),
   };
 }
 
-// Project an IK timeline (Keyframe<IkFrame>[]). bendPositive and mix are both carried; the runtime samples
-// bendPositive stepped regardless of the curve (ADR-0003 section 7).
+// Project an IK timeline (Keyframe<IkFrame>[]). The model's boolean `bendPositive` maps to the signed
+// format `bend` losslessly (ADR-0009: true -> +1, false -> -1); the runtime samples it stepped regardless
+// of the curve (ADR-0003 section 7). The OPTIONAL F2 depth channels are emitted only when the loaded frame
+// carried them (exactOptionalPropertyTypes), so an authored frame stays at the Phase-2 shape.
 function ikFramesToFormat(frames: readonly IkKeyframeEntity[]): Keyframe<IkFrame>[] {
   return frames.map((kf) => ({
     time: kf.time,
-    value: { mix: kf.mix, bendPositive: kf.bendPositive },
+    value: {
+      mix: kf.mix,
+      bend: kf.bendPositive ? 1 : -1,
+      ...(kf.softness !== undefined ? { softness: kf.softness } : {}),
+      ...(kf.stretch !== undefined ? { stretch: kf.stretch } : {}),
+      ...(kf.compress !== undefined ? { compress: kf.compress } : {}),
+    },
     curve: kf.curve,
   }));
 }
@@ -272,7 +297,13 @@ function ikConstraintToFormat(
     bones: c.bones.map((boneId) => resolveName(boneId, boneIdToName, 'ik constraint bone')),
     target: resolveName(c.target, boneIdToName, 'ik constraint target'),
     mix: c.mix,
-    bendPositive: c.bendPositive,
+    // The model's boolean maps to the signed format `bend` losslessly (ADR-0009: true -> +1, false -> -1).
+    bend: c.bendPositive ? 1 : -1,
+    softness: c.softness,
+    stretch: c.stretch,
+    compress: c.compress,
+    uniform: c.uniform,
+    ...(c.order !== undefined ? { order: c.order } : {}),
   };
 }
 
@@ -296,10 +327,14 @@ function transformConstraintToFormat(
     offsetScaleX: c.offsetScaleX,
     offsetScaleY: c.offsetScaleY,
     offsetShearY: c.offsetShearY,
+    local: c.local,
+    relative: c.relative,
+    ...(c.order !== undefined ? { order: c.order } : {}),
   };
 }
 
 // Materialize a named skin's attachments to the format record, keyed by each owning slot's CURRENT name.
+// The Stage F2 (ADR-0009 section 5) scoping lists are carried verbatim (as on-disk names) when present.
 function skinToFormat(skin: SkinEntity, slotIdToName: ReadonlyMap<string, string>): Skin {
   const attachments: Record<string, Record<string, Attachment>> = {};
   for (const [slotId, inner] of skin.attachments) {
@@ -308,7 +343,12 @@ function skinToFormat(skin: SkinEntity, slotIdToName: ReadonlyMap<string, string
     for (const [name, att] of inner) record[name] = attachmentToFormat(att);
     attachments[resolveName(slotId, slotIdToName, 'skin slot')] = record;
   }
-  return { name: skin.name, attachments };
+  return {
+    name: skin.name,
+    attachments,
+    ...(skin.bones !== undefined ? { bones: [...skin.bones] } : {}),
+    ...(skin.constraints !== undefined ? { constraints: [...skin.constraints] } : {}),
+  };
 }
 
 export function exportDocument(model: DocumentReadModel): SkeletonDocument {

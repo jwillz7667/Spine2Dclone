@@ -3,11 +3,25 @@ import type {
   Attachment,
   AtlasRef,
   BlendMode,
+  BoneTimelines,
   CurveType,
+  RegionAttachment,
   RGBA,
   SkeletonMeta,
+  SlotTimelines,
   TransformMode,
 } from '@marionette/format/types';
+
+// Stage F2 (ADR-0009) carried timeline tracks, held VERBATIM as the format keyframe arrays. Document-core
+// has no command that authors them yet (that is PP-D10); it carries them losslessly through load and export
+// so a 0.4.0 document round-trips. They are non-empty arrays of the exact on-disk shape (a NonNullable of
+// the optional format channel), deep-frozen and shared by reference (never mutated in place).
+type CarriedScalarTrack = NonNullable<BoneTimelines['translateX']>;
+type CarriedRgbTrack = NonNullable<SlotTimelines['rgb']>;
+type CarriedAlphaTrack = NonNullable<SlotTimelines['alpha']>;
+type CarriedDarkTrack = NonNullable<SlotTimelines['dark']>;
+type CarriedSequenceTrack = NonNullable<SlotTimelines['sequence']>;
+type CarriedSequence = NonNullable<RegionAttachment['sequence']>;
 import type {
   AnimationId,
   BoneId,
@@ -69,6 +83,8 @@ export interface RegionAttachmentEntity {
   readonly width: number;
   readonly height: number;
   readonly color: RGBA;
+  // Stage F2 (ADR-0009 section 3) frame-sequence playback, carried verbatim; no command authors it (PP-D10).
+  readonly sequence?: CarriedSequence;
 }
 
 // An editable mesh attachment in the default skin (WP-2.1), mirroring the format MeshAttachment BY VALUE
@@ -93,6 +109,8 @@ export interface MeshAttachmentEntity {
   readonly edges?: readonly number[];
   readonly vertices: readonly number[];
   readonly bones?: readonly number[];
+  // Stage F2 (ADR-0009 section 3) frame-sequence playback, carried verbatim; no command authors it (PP-D10).
+  readonly sequence?: CarriedSequence;
 }
 
 // The six geometry fields a mesh edit overwrites WHOLESALE (the setMeshGeometry mutator replaces all of
@@ -195,6 +213,15 @@ export interface BoneTimelineSet {
   readonly translate: readonly KeyframeEntity[];
   readonly scale: readonly KeyframeEntity[];
   readonly shear: readonly KeyframeEntity[];
+  // Stage F2 (ADR-0009 section 4.1) per-component split tracks, carried verbatim (no command authors them
+  // yet, PP-D10). A joint channel and its split components never coexist on one bone (the format's
+  // TIMELINE_COMPONENT_CONFLICT), so these are present only for bones the joint channels leave untouched.
+  readonly translateX?: CarriedScalarTrack;
+  readonly translateY?: CarriedScalarTrack;
+  readonly scaleX?: CarriedScalarTrack;
+  readonly scaleY?: CarriedScalarTrack;
+  readonly shearX?: CarriedScalarTrack;
+  readonly shearY?: CarriedScalarTrack;
 }
 
 // Per-slot timelines (Phase 1 subset): the color tint timeline (interpolated, curved) and the stepped
@@ -202,6 +229,13 @@ export interface BoneTimelineSet {
 export interface SlotTimelineSet {
   readonly color: readonly KeyframeEntity[];
   readonly attachment: readonly AttachmentFrameEntity[];
+  // Stage F2 (ADR-0009 sections 4.2, 4.3, 3) split rgb/alpha color tracks, the keyable two-color `dark`
+  // tint, and the frame-`sequence` track, carried verbatim (no command authors them yet, PP-D10). The joint
+  // `color` and the split `rgb`/`alpha` never coexist on one slot (the format's TIMELINE_COMPONENT_CONFLICT).
+  readonly rgb?: CarriedRgbTrack;
+  readonly alpha?: CarriedAlphaTrack;
+  readonly dark?: CarriedDarkTrack;
+  readonly sequence?: CarriedSequenceTrack;
 }
 
 // A keyed IK-constraint frame (WP-2.6, format IkFrame): an internal `id`, a `time`, a `mix` blend, a
@@ -215,6 +249,12 @@ export interface IkKeyframeEntity {
   readonly mix: number;
   readonly bendPositive: boolean;
   readonly curve: CurveType;
+  // Stage F2 (ADR-0009 section 1) OPTIONAL keyed depth channels, carried verbatim (no command authors them
+  // yet, PP-D10). `bendPositive` remains the model's bend representation; the load/export seam maps it to
+  // and from the signed format `bend` losslessly (true <-> +1, false <-> -1).
+  readonly softness?: number;
+  readonly stretch?: boolean;
+  readonly compress?: boolean;
 }
 
 // A keyed transform-constraint frame (WP-2.7, format TransformFrame): a PARTIAL record of the six
@@ -341,7 +381,17 @@ export interface IkConstraintEntity {
   readonly bones: readonly BoneId[];
   readonly target: BoneId;
   readonly mix: number;
+  // `bendPositive` is the model's bend representation; the load/export seam maps it to and from the signed
+  // format `bend` losslessly (true <-> +1, false <-> -1, ADR-0009 section 1.4).
   readonly bendPositive: boolean;
+  // Stage F2 (ADR-0009 section 1.1) IK depth, carried at its no-op default until an authoring command lands
+  // (PP-D10). softness 0 and the three booleans false reproduce the pre-0.4.0 hard, fixed-length solve.
+  readonly softness: number;
+  readonly stretch: boolean;
+  readonly compress: boolean;
+  readonly uniform: boolean;
+  // OPTIONAL explicit solve order across both constraint arrays (ADR-0009 section 1.3); absent by default.
+  readonly order?: number;
 }
 
 // A transform constraint (WP-2.7, format TransformConstraint): drives a bone's six world channels from a
@@ -364,6 +414,12 @@ export interface TransformConstraintEntity {
   readonly offsetScaleX: number;
   readonly offsetScaleY: number;
   readonly offsetShearY: number;
+  // Stage F2 (ADR-0009 section 1.2) transform-constraint variant flags, carried at their no-op default
+  // (both false reproduce the ADR-0003 world, absolute behavior) until an authoring command lands (PP-D10).
+  readonly local: boolean;
+  readonly relative: boolean;
+  // OPTIONAL explicit solve order across both constraint arrays (ADR-0009 section 1.3); absent by default.
+  readonly order?: number;
 }
 
 // A named (NON-default) skin (WP-2.8, format Skin): its own `attachments` map keyed by owning SlotId then
@@ -374,6 +430,11 @@ export interface SkinEntity {
   readonly id: SkinId;
   readonly name: string;
   readonly attachments: ReadonlyMap<SlotId, ReadonlyMap<string, AttachmentEntity>>;
+  // Stage F2 (ADR-0009 section 5) skin-scoped bone/constraint NAME lists, carried verbatim (no command
+  // authors them yet, PP-D10). Kept as on-disk names rather than ids because there is no scoping-aware
+  // rename cascade until PP-D10; a load/export round-trip preserves them exactly.
+  readonly bones?: readonly string[];
+  readonly constraints?: readonly string[];
 }
 
 // Preserved content: the document body not yet promoted to editable id-keyed entities. The only remaining
@@ -511,13 +572,24 @@ export function makeIkKeyframe(
   mix: number,
   bendPositive: boolean,
   curve: CurveType,
+  depth?: {
+    readonly softness?: number | undefined;
+    readonly stretch?: boolean | undefined;
+    readonly compress?: boolean | undefined;
+  },
 ): IkKeyframeEntity {
+  // The OPTIONAL F2 depth channels (ADR-0009) are carried only when the loaded frame supplies them, per
+  // exactOptionalPropertyTypes; an authored frame (set-ik-keyframe) passes no depth and stays at the
+  // Phase-2 shape.
   return Object.freeze({
     id,
     time,
     mix,
     bendPositive,
     curve: typeof curve === 'string' ? curve : Object.freeze(cloneCurve(curve)),
+    ...(depth?.softness !== undefined ? { softness: depth.softness } : {}),
+    ...(depth?.stretch !== undefined ? { stretch: depth.stretch } : {}),
+    ...(depth?.compress !== undefined ? { compress: depth.compress } : {}),
   });
 }
 
@@ -648,19 +720,34 @@ export function emptyBoneTimelineSet(): BoneTimelineSet {
   return { rotate: [], translate: [], scale: [], shear: [] };
 }
 
-// True when a bone timeline set carries no keyframes on any channel (the prune condition).
+// True when a bone timeline set carries no keyframes on any channel (the prune condition). A carried F2
+// split track (ADR-0009) counts as content so a mutator never prunes a bone whose only tracks are carried.
 export function isBoneTimelineSetEmpty(set: BoneTimelineSet): boolean {
   return (
     set.rotate.length === 0 &&
     set.translate.length === 0 &&
     set.scale.length === 0 &&
-    set.shear.length === 0
+    set.shear.length === 0 &&
+    set.translateX === undefined &&
+    set.translateY === undefined &&
+    set.scaleX === undefined &&
+    set.scaleY === undefined &&
+    set.shearX === undefined &&
+    set.shearY === undefined
   );
 }
 
 // True when a slot timeline set carries no color keyframes and no attachment frames (the prune condition).
+// A carried F2 rgb/alpha/dark/sequence track (ADR-0009) counts as content so it is never pruned.
 export function isSlotTimelineSetEmpty(set: SlotTimelineSet): boolean {
-  return set.color.length === 0 && set.attachment.length === 0;
+  return (
+    set.color.length === 0 &&
+    set.attachment.length === 0 &&
+    set.rgb === undefined &&
+    set.alpha === undefined &&
+    set.dark === undefined &&
+    set.sequence === undefined
+  );
 }
 
 // The empty ik/transform/deform timeline maps a fresh animation starts with (Phase 2). They stay empty

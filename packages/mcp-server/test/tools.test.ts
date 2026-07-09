@@ -109,7 +109,7 @@ describe('MCP tools', () => {
 
     const exported = asRecord(await call(deps, 'document.export', { documentId }));
     const doc = asRecord(exported.document);
-    expect(doc.formatVersion).toBe('0.3.0'); // stage F1 bump (ADR-0008): exports stamp the current version
+    expect(doc.formatVersion).toBe('0.4.0'); // stage F2 bump (ADR-0009): exports stamp the current version
     expect((doc.bones as unknown[]).length).toBe(2);
 
     const validation = asRecord(await call(deps, 'document.validate', { documentId }));

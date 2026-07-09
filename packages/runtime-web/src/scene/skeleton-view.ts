@@ -36,6 +36,7 @@ import {
   type RegionTrim,
 } from './attachment-sprites';
 import { createMeshDisplay, markMeshPositionsDirty, type MeshDisplay } from './mesh-display';
+import { TwoColorFilter, updateTwoColorFilter } from './two-color-filter';
 import { computeRegionSized, placeRegion } from './region-placement';
 import type { RegionTextureResolver } from './region-textures';
 import { loopTime } from '../transport';
@@ -54,8 +55,12 @@ export interface AttachmentRender {
   readonly attachment: string;
   readonly width: number;
   readonly height: number;
-  readonly tint: number; // 0xRRGGBB
+  readonly tint: number; // 0xRRGGBB, the LIGHT color (slot x attachment)
   readonly alpha: number;
+  // The two-color DARK tint (0xRRGGBB, pose.slotDarkColor rgb) when the slot enables two-color tinting,
+  // else null. Reported so a headless snapshot verifies the dark lane is read (the GPU shades it via the
+  // two-color filter; PP-C8). Null means the single-color path.
+  readonly dark: number | null;
   readonly transform: DisplayTransform;
   // The sprite center in world space (the attachment origin), equal to the transform translation.
   readonly worldPosition: readonly [number, number];
@@ -69,8 +74,11 @@ export interface MeshRender {
   readonly slot: string;
   readonly attachment: string;
   readonly vertexCount: number;
-  readonly tint: number; // 0xRRGGBB
+  readonly tint: number; // 0xRRGGBB, the LIGHT color (slot x attachment)
   readonly alpha: number;
+  // The two-color DARK tint (0xRRGGBB) when the slot enables two-color tinting, else null (see
+  // AttachmentRender.dark).
+  readonly dark: number | null;
   readonly vertices: readonly number[];
 }
 
@@ -120,12 +128,25 @@ interface AttachmentRecord {
   readonly meshEntries: ReadonlyMap<Attachment, MeshDisplay>;
   readonly meshList: readonly MeshDisplay[];
   activeMesh: MeshDisplay | null;
+  // Whether this slot enables two-color tinting (its setup slot carries a `darkColor`). Fixed per document
+  // (a slot's dark-ness is setup state), so it is decided at build time. When true the record owns a
+  // two-color filter (below) attached to its sprite and every mesh display, and the per-frame path updates
+  // the filter's uLight/uDark uniforms instead of the display's plain tint.
+  readonly hasDark: boolean;
+  // The shared two-color filter for this slot (one instance per dark-color record, attached to the sprite
+  // and all mesh displays), or null when the slot has no dark color OR the filter has not been created yet.
+  // It is created LAZILY on the first render in a DOM-backed rendering environment (constructing a GL filter
+  // needs a rendering context), so the headless describe() path never touches GL; uniforms then update per
+  // frame. `hasDark` (not this field) is the source of truth for whether the slot is two-color.
+  twoColorFilter: TwoColorFilter | null;
   kind: 'region' | 'mesh';
   visible: boolean;
   attachment: string;
   width: number;
   height: number;
   tint: number;
+  // The resolved two-color dark tint (0xRRGGBB) this frame, or null when the slot has no dark color.
+  dark: number | null;
   alpha: number;
   spriteWorld: Mat2x3;
 }
@@ -338,6 +359,7 @@ export class SkeletonView {
           vertexCount: active.vertexCount,
           tint: record.tint,
           alpha: record.alpha,
+          dark: record.dark,
           vertices: Array.from(active.positions),
         });
         continue;
@@ -350,6 +372,7 @@ export class SkeletonView {
         height: record.height,
         tint: record.tint,
         alpha: record.alpha,
+        dark: record.dark,
         transform,
         worldPosition: [transform.x, transform.y],
       });
@@ -492,6 +515,10 @@ export class SkeletonView {
       // A slot with no region / mesh in any skin renders nothing (a clipping / point / bone-only slot).
       if (regionEntries.size === 0 && meshEntries.size === 0) continue;
 
+      // Two-color tinting is enabled iff the slot declares a setup darkColor (PP-C8). This is fixed per
+      // document; the GPU filter itself is created lazily on the first DOM-backed render (see applyTwoColor).
+      const hasDark = slot.darkColor !== undefined;
+
       drafts.push({
         slot: slot.name,
         slotIndex,
@@ -500,12 +527,15 @@ export class SkeletonView {
         meshEntries,
         meshList,
         activeMesh: null,
+        hasDark,
+        twoColorFilter: null,
         kind: 'region',
         visible: false,
         attachment: '',
         width: 0,
         height: 0,
         tint: 0xffffff,
+        dark: null,
         alpha: 1,
         spriteWorld: [1, 0, 0, 1, 0, 0],
       });
@@ -522,6 +552,9 @@ export class SkeletonView {
     for (const record of records) {
       const pixiBlend = blendModeToPixi(document.slots[record.slotIndex]!.blendMode);
       record.sprite.blendMode = pixiBlend;
+      // Sprites are pooled across documents, so clear any two-color filter a previous scene left on this
+      // pooled sprite. A dark-color slot re-attaches its filter lazily on first render (applyTwoColor).
+      record.sprite.filters = [];
       this.attachmentsLayer.addChild(record.sprite);
       for (const entry of record.meshList) {
         entry.display.blendMode = pixiBlend;
@@ -588,12 +621,13 @@ export class SkeletonView {
       const activeName = resolved.name;
       const region = entry.region;
       const colorBase = record.slotIndex * SLOT_COLOR_STRIDE;
-      const tint = packTint(
-        slotColor[colorBase]! * region.color.r,
-        slotColor[colorBase + 1]! * region.color.g,
-        slotColor[colorBase + 2]! * region.color.b,
-      );
+      // LIGHT color (straight [0, 1]) = slot color x attachment color.
+      const lightR = slotColor[colorBase]! * region.color.r;
+      const lightG = slotColor[colorBase + 1]! * region.color.g;
+      const lightB = slotColor[colorBase + 2]! * region.color.b;
+      const tint = packTint(lightR, lightG, lightB);
       const alpha = slotColor[colorBase + 3]! * region.color.a;
+      const dark = this.applyTwoColor(scene.pose, record, lightR, lightG, lightB, alpha);
 
       const boneBase = record.boneIndex * MAT2X3_STRIDE;
       scratch[0] = world[boneBase]!;
@@ -622,8 +656,12 @@ export class SkeletonView {
         spriteWorld[4],
         spriteWorld[5],
       );
-      sprite.tint = tint;
-      sprite.alpha = alpha;
+      // With the two-color filter active, draw the raw texture (tint white, alpha 1) and let the filter do
+      // the entire light+dark tint from its uniforms (set by applyTwoColor). Otherwise (single-color slot, or
+      // a dark slot in a context where the GPU filter could not be built) tint directly with the light color.
+      const filtered = record.twoColorFilter !== null;
+      sprite.tint = filtered ? 0xffffff : tint;
+      sprite.alpha = filtered ? 1 : alpha;
 
       record.kind = 'region';
       record.visible = true;
@@ -631,6 +669,7 @@ export class SkeletonView {
       record.width = region.width;
       record.height = region.height;
       record.tint = tint;
+      record.dark = dark;
       record.alpha = alpha;
       record.spriteWorld = spriteWorld;
     }
@@ -703,17 +742,20 @@ export class SkeletonView {
     const slotColor = scene.pose.slotColor;
     const colorBase = record.slotIndex * SLOT_COLOR_STRIDE;
     const meshColor = entry.mesh.color;
-    const tint = packTint(
-      slotColor[colorBase]! * meshColor.r,
-      slotColor[colorBase + 1]! * meshColor.g,
-      slotColor[colorBase + 2]! * meshColor.b,
-    );
+    const lightR = slotColor[colorBase]! * meshColor.r;
+    const lightG = slotColor[colorBase + 1]! * meshColor.g;
+    const lightB = slotColor[colorBase + 2]! * meshColor.b;
+    const tint = packTint(lightR, lightG, lightB);
     const alpha = slotColor[colorBase + 3]! * meshColor.a;
+    const dark = this.applyTwoColor(scene.pose, record, lightR, lightG, lightB, alpha);
 
     record.sprite.visible = false;
     entry.display.visible = true;
-    entry.display.tint = tint;
-    entry.display.alpha = alpha;
+    // With the two-color filter active, draw the raw texture and let the filter tint it; otherwise tint the
+    // mesh directly with the light color (single-color slot, or a context without a buildable GPU filter).
+    const filtered = record.twoColorFilter !== null;
+    entry.display.tint = filtered ? 0xffffff : tint;
+    entry.display.alpha = filtered ? 1 : alpha;
     record.activeMesh = entry;
 
     record.kind = 'mesh';
@@ -722,7 +764,44 @@ export class SkeletonView {
     record.width = entry.mesh.width;
     record.height = entry.mesh.height;
     record.tint = tint;
+    record.dark = dark;
     record.alpha = alpha;
+  }
+
+  // Resolve a slot's two-color state for this frame: return the packed dark tint (0xRRGGBB) when the slot
+  // enables two-color tinting (its setup slot carried a darkColor), else null. For a dark-color slot in a
+  // DOM-backed rendering environment this also LAZILY creates the GPU filter (once) and attaches it to the
+  // slot's sprite and mesh displays, then updates its uLight/uDark uniforms in place (allocation-free after
+  // the one-time create). Reporting the dark tint is decoupled from the filter so the HEADLESS describe()
+  // path (no rendering context) still reports it; the GPU tint simply falls back to the single-color light
+  // path where a filter cannot be built (see canBuildGpuFilter). `lightR/G/B/A` are the resolved LIGHT color
+  // (slot x attachment, straight [0, 1]); the filter folds lightA as the output alpha.
+  private applyTwoColor(
+    pose: Pose,
+    record: AttachmentRecord,
+    lightR: number,
+    lightG: number,
+    lightB: number,
+    lightA: number,
+  ): number | null {
+    if (!record.hasDark) return null;
+    const base = record.slotIndex * SLOT_COLOR_STRIDE;
+    const darkR = pose.slotDarkColor[base]!;
+    const darkG = pose.slotDarkColor[base + 1]!;
+    const darkB = pose.slotDarkColor[base + 2]!;
+
+    if (record.twoColorFilter === null && canBuildGpuFilter()) {
+      const filter = new TwoColorFilter();
+      record.twoColorFilter = filter;
+      // Attach to the sprite and every mesh display of the slot; only the visible one renders, so the shared
+      // filter's uniforms (set just below) apply to whichever display is shown this frame.
+      record.sprite.filters = filter;
+      for (const entry of record.meshList) entry.display.filters = filter;
+    }
+    if (record.twoColorFilter !== null) {
+      updateTwoColorFilter(record.twoColorFilter, lightR, lightG, lightB, lightA, darkR, darkG, darkB);
+    }
+    return packTint(darkR, darkG, darkB);
   }
 
   // Remove and destroy the current scene's mesh displays (scene teardown / rebuild). The geometry is
@@ -767,6 +846,17 @@ export class SkeletonView {
   }
 }
 
+// Whether a GPU tint filter can be constructed here. Building a PixiJS GlProgram probes a rendering context
+// (it queries fragment precision via a throwaway canvas), which throws in a pure headless environment with no
+// DOM (the vitest node runner, where SkeletonView.describe() runs). A DOM is the reliable signal that a
+// rendering context is obtainable, so the two-color filter is created only when one exists; without it the
+// render falls back to the single-color light tint and describe() still reports the dark tint (it does not
+// depend on the filter). Web-worker rendering (OffscreenCanvas, no `document`) therefore also takes the
+// single-color fallback for now, which is an accepted, documented limitation (README) rather than a crash.
+function canBuildGpuFilter(): boolean {
+  return typeof document !== 'undefined';
+}
+
 // Reset every slot's resolved color to its setup color and its active attachment to its setup name, so
 // the setup-pose render reads the same pose fields the animated render does. This mirrors runtime-core's
 // internal slot reset (sample.ts); it is a setup-snapshot copy, NOT solve math (no curves, no affine),
@@ -774,6 +864,9 @@ export class SkeletonView {
 // copy reuses slotColor and the name loop writes string refs in place.
 function resetSlotsToSetup(pose: Pose): void {
   pose.slotColor.set(pose.slotSetupColor);
+  // Reset the two-color dark lane too (mirrors sampleSkeleton's step-1 slotDarkColor reset), so the
+  // setup-pose two-color render reads the setup dark tint, not the zeroed allocation default.
+  pose.slotDarkColor.set(pose.slotSetupDarkColor);
   for (let i = 0; i < pose.slotCount; i += 1) {
     pose.slotAttachment[i] = pose.slotSetupAttachment[i] ?? null;
   }

@@ -28,6 +28,6 @@ export function rasterizeWorldItem(fb: Framebuffer, item: DrawItem, transform: W
       u2: uvs[i2 * 2]!,
       v2: uvs[i2 * 2 + 1]!,
     };
-    rasterizeTriangle(fb, tri, item.sampler, item.tint, item.alpha, item.blend);
+    rasterizeTriangle(fb, tri, item.sampler, item.tint, item.alpha, item.blend, item.dark);
   }
 }

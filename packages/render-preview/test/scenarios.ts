@@ -44,7 +44,18 @@ export function regionDocument(params: {
   readonly regionColor: Color;
   readonly slotColor: Color;
   readonly blendMode: BlendMode;
+  // Optional setup two-color DARK tint on the slot (PP-C8). Present enables two-color tinting; absent
+  // (the default) keeps the single-color path. darkColor is a Phase-0 optional field, valid at 0.2.0.
+  readonly slotDarkColor?: Color;
 }): unknown {
+  const slot: Record<string, unknown> = {
+    name: 's',
+    bone: 'root',
+    color: params.slotColor,
+    attachment: 'img',
+    blendMode: params.blendMode,
+  };
+  if (params.slotDarkColor !== undefined) slot.darkColor = params.slotDarkColor;
   return {
     formatVersion: '0.2.0',
     name: 'preview-region',
@@ -64,15 +75,7 @@ export function regionDocument(params: {
         transformMode: 'normal',
       },
     ],
-    slots: [
-      {
-        name: 's',
-        bone: 'root',
-        color: params.slotColor,
-        attachment: 'img',
-        blendMode: params.blendMode,
-      },
-    ],
+    slots: [slot],
     skins: [
       {
         name: 'default',
@@ -190,6 +193,32 @@ export function blendScenario(mode: BlendMode): RenderFrameOptions {
 
 export const BLEND_MODES: readonly BlendMode[] = ['normal', 'additive', 'multiply', 'screen'];
 
+// A two-color (light + dark) tint region (PP-C8): a mid-gray page (every interior texel is 0.5), a WHITE
+// light (slot x attachment color), and a pure-RED dark tint. The shared two-color combine yields the
+// interior straight color out = 0.5*white + (1 - 0.5)*red = (1, 0.5, 0.5), a fully predictable pixel that
+// the pixel-assertion test checks and the golden byte-locks. Framed to content, transparent background.
+export const TWO_COLOR_TEXEL: Color = { r: 0.5, g: 0.5, b: 0.5, a: 1 };
+export const TWO_COLOR_DARK: Color = { r: 1, g: 0, b: 0, a: 1 };
+const TWO_COLOR_PAGE = solidPage(8, 8, TWO_COLOR_TEXEL);
+const TWO_COLOR_ATLAS = pageSource('page.png', TWO_COLOR_PAGE);
+
+export function twoColorRegionScenario(): RenderFrameOptions {
+  return {
+    document: regionDocument({
+      boneRotation: 0,
+      regionWidth: 40,
+      regionHeight: 40,
+      regionColor: WHITE,
+      slotColor: WHITE,
+      blendMode: 'normal',
+      slotDarkColor: TWO_COLOR_DARK,
+    }),
+    atlas: TWO_COLOR_ATLAS,
+    viewport: { width: 64, height: 64, fit: 'content' },
+    background: { r: 0, g: 0, b: 0, a: 0 },
+  };
+}
+
 // The committed conformance rig (read-only): a weighted mesh limb with an ik chain and a deform timeline.
 export function meshLimbDocument(): unknown {
   const path = fileURLToPath(
@@ -227,6 +256,7 @@ export function goldenScenarios(): readonly {
     { name: 'tinted-region', options: tintedRegionScenario() },
     { name: 'rotated-region', options: rotatedRegionScenario() },
     { name: 'mesh-limb-deformed', options: meshScenario() },
+    { name: 'two-color-region', options: twoColorRegionScenario() },
     ...BLEND_MODES.map((mode) => ({ name: `blend-${mode}`, options: blendScenario(mode) })),
   ];
 }

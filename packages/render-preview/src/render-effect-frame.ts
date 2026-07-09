@@ -218,7 +218,9 @@ export function rasterizeEffectItem(
       u2: uvs[i2 * 2]!,
       v2: uvs[i2 * 2 + 1]!,
     };
-    rasterizeTriangle(fb, tri, item.sampler, item.tint, item.alpha, item.blend);
+    // Particles carry a single (light) color; two-color tinting is a slot-attachment concept, so the dark
+    // term is always null on the effect path.
+    rasterizeTriangle(fb, tri, item.sampler, item.tint, item.alpha, item.blend, null);
   }
 }
 

@@ -38,11 +38,16 @@ export interface DrawItem {
   readonly worldPositions: readonly number[];
   readonly uvs: readonly number[];
   readonly triangles: readonly number[];
-  // rgb is the slot color x attachment color tint (a is unused: `alpha` below is authoritative).
+  // rgb is the slot color x attachment color tint (a is unused: `alpha` below is authoritative). This is
+  // the LIGHT color of the two-color model (two-color.ts).
   readonly tint: Color;
   readonly alpha: number;
   readonly blend: BlendMode;
   readonly sampler: TextureSampler;
+  // The two-color DARK tint (pose.slotDarkColor rgb; alpha inert, unused), or null when the slot declared
+  // no setup darkColor (pose.slotHasDarkColor == 0). Null takes the byte-identical single-color raster
+  // path; non-null fills the texel's shadow term through the shared two-color combine (raster.ts).
+  readonly dark: Color | null;
 }
 
 // Reset every slot's resolved color to its setup color and its active attachment to its setup name, so
@@ -51,6 +56,9 @@ export interface DrawItem {
 // setup-snapshot copy, NOT solve math, and lives here because runtime-core does not export the internal.
 function resetSlotsToSetup(pose: Pose): void {
   pose.slotColor.set(pose.slotSetupColor);
+  // Reset the two-color dark lane too (mirrors sampleSkeleton's step-1 slotDarkColor reset), so the
+  // setup-pose two-color render reads the setup dark tint, not the zeroed allocation default.
+  pose.slotDarkColor.set(pose.slotSetupDarkColor);
   for (let i = 0; i < pose.slotCount; i += 1) {
     pose.slotAttachment[i] = pose.slotSetupAttachment[i] ?? null;
   }
@@ -133,6 +141,8 @@ export function gatherDrawItemsFromPose(
 
   const items: DrawItem[] = [];
   const slotColor = pose.slotColor;
+  const slotDarkColor = pose.slotDarkColor;
+  const slotHasDarkColor = pose.slotHasDarkColor;
   for (let slotIndex = 0; slotIndex < document.slots.length; slotIndex += 1) {
     const slot = document.slots[slotIndex]!;
     const boneIndex = pose.slotBoneIndices[slotIndex]!;
@@ -155,11 +165,24 @@ export function gatherDrawItemsFromPose(
     const color = attachment.color;
     const tint: Color = { r: sr * color.r, g: sg * color.g, b: sb * color.b, a: 1 };
     const alpha = saChannel * color.a;
+    // The two-color dark tint, or null when this slot declared no setup darkColor. Only rgb is read (the
+    // dark alpha is inert, ADR-0009 4.3); there is no attachment-side dark factor.
+    const dark: Color | null =
+      slotHasDarkColor[slotIndex] === 1
+        ? {
+            r: slotDarkColor[colorBase]!,
+            g: slotDarkColor[colorBase + 1]!,
+            b: slotDarkColor[colorBase + 2]!,
+            a: 1,
+          }
+        : null;
     const sampler = atlas.resolve(attachment.path);
 
     if (attachment.type === 'region') {
       const trim = atlas.regionTrim(attachment.path) ?? undefined;
-      items.push(regionItem(pose, boneIndex, attachment, tint, alpha, slot.blendMode, sampler, trim));
+      items.push(
+        regionItem(pose, boneIndex, attachment, tint, alpha, slot.blendMode, sampler, trim, dark),
+      );
     } else {
       items.push(
         meshItem(
@@ -175,6 +198,7 @@ export function gatherDrawItemsFromPose(
           alpha,
           slot.blendMode,
           sampler,
+          dark,
         ),
       );
     }
@@ -191,6 +215,7 @@ function regionItem(
   blend: BlendMode,
   sampler: TextureSampler,
   trim: RegionTrim | undefined,
+  dark: Color | null,
 ): DrawItem {
   const corners = regionWorldCorners(readBoneWorld(pose, boneIndex), region, trim);
   const worldPositions: number[] = [];
@@ -205,6 +230,7 @@ function regionItem(
     alpha,
     blend,
     sampler,
+    dark,
   };
 }
 
@@ -221,6 +247,7 @@ function meshItem(
   alpha: number,
   blend: BlendMode,
   sampler: TextureSampler,
+  dark: Color | null,
 ): DrawItem {
   const vertexCount = mesh.uvs.length / 2;
   const out = new Float32Array(vertexCount * 2);
@@ -248,5 +275,6 @@ function meshItem(
     alpha,
     blend,
     sampler,
+    dark,
   };
 }

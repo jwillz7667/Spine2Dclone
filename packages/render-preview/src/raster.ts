@@ -1,5 +1,6 @@
 import type { BlendMode } from '@marionette/format/types';
 import { clamp01, to8Bit, type Color } from './color';
+import { combineTwoColor } from './two-color';
 import type { TextureSampler } from './atlas';
 
 // The CPU rasterizer: a premultiplied-alpha float framebuffer plus a deterministic scanline triangle
@@ -169,8 +170,11 @@ function isTopLeftEdge(ax: number, ay: number, bx: number, by: number): boolean 
 
 // Rasterize one triangle into the framebuffer: for each pixel center inside the triangle (per the pinned
 // top-left rule), interpolate (u, v) with barycentric weights, bilinear-sample the texture, apply the tint
-// and alpha, and composite under the blend mode. Fixed loop order (rows then columns). `tint` multiplies
-// the sampled rgb; `alpha` multiplies the sampled alpha.
+// and alpha, and composite under the blend mode. Fixed loop order (rows then columns). `tint` is the LIGHT
+// color and multiplies the sampled rgb; `alpha` multiplies the sampled alpha. `dark` is the two-color DARK
+// tint (null when the slot has no dark color): when present the sampled rgb runs through the shared
+// two-color combine (two-color.ts) instead of the plain light multiply, so a dark-tinted slot fills its
+// shadow term. `dark == null` takes the byte-identical single-color path (unchanged from before two-color).
 export function rasterizeTriangle(
   fb: Framebuffer,
   tri: RasterTriangle,
@@ -178,6 +182,7 @@ export function rasterizeTriangle(
   tint: Color,
   alpha: number,
   mode: BlendMode,
+  dark: Color | null,
 ): void {
   // Normalize winding so the area is positive; swap v1 and v2 (and their uvs) when it is negative.
   let x1 = tri.x1;
@@ -234,12 +239,12 @@ export function rasterizeTriangle(
       const v = l0 * v0 + l1 * v1 + l2 * v2;
 
       const texel = sampler.sample(u, v);
-      const src: Color = {
-        r: texel.r * tint.r,
-        g: texel.g * tint.g,
-        b: texel.b * tint.b,
-        a: texel.a,
-      };
+      // dark == null keeps the exact single-color expression (byte-identical to the pre-two-color path);
+      // dark != null routes the rgb through the shared two-color combine so the two renderers agree.
+      const src: Color =
+        dark === null
+          ? { r: texel.r * tint.r, g: texel.g * tint.g, b: texel.b * tint.b, a: texel.a }
+          : combineTwoColor(texel, tint, dark);
       const srcAlpha = texel.a * alpha;
       // A fully transparent source changes no blend mode's destination (S and Sa are both 0), so skip.
       if (srcAlpha <= 0) continue;

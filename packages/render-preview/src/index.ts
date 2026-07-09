@@ -12,9 +12,10 @@
 // v1 scope (ADR-0006): region + mesh attachments, per-slot blend modes (normal/additive/multiply/screen),
 // slot x attachment tint/alpha, bilinear sampling, straight-alpha OVER compositing. The effects extension
 // (renderEffectFrame / renderComposedFrame) adds particle/bundle frames and composed skeleton+effect
-// frames through the SAME rasterizer. OUT OF SCOPE and documented (not silently missing): clipping masks,
-// tint-black (slot darkColor), point/boundingbox attachments, and the slot-scene composition. Each lands
-// as a follow-up extension.
+// frames through the SAME rasterizer. Stage-F2 (PP-C8) adds the two-color dark tint (two-color.ts), linked
+// meshes (rendered as their resolved parent geometry), and sequence attachments (per-sample atlas frame
+// selection). OUT OF SCOPE and documented (not silently missing): clipping masks (pending PP-B2),
+// point/boundingbox attachments, and the slot-scene composition. Each lands as a follow-up extension.
 //
 // DETERMINISM CONTRACT: same document + same inputs => byte-identical PNG on a given platform/Node
 // version. No wall clock, no randomness, no platform text rendering. Every loop (draw order, scanlines,
@@ -70,6 +71,11 @@ export { CONTENT_PAD_FRACTION } from './viewport';
 
 export type { Color } from './color';
 export { TRANSPARENT } from './color';
+
+// The shared two-color (light + dark) tint combine (PP-C8), the single definition both this CPU rasterizer
+// and the runtime-web GPU shader implement identically. Exported so parity tests can assert both renderers
+// produce the same straight-alpha output for the same inputs.
+export { combineTwoColor } from './two-color';
 
 // Placement parity primitives: the world-space region quad geometry, reproducing the runtime-web
 // region-placement math against runtime-core only (see geometry.ts). Exported so tooling and parity tests

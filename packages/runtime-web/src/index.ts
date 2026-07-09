@@ -30,6 +30,11 @@ export type { RegionTextureResolver } from './scene/region-textures';
 // path), and the pure SoA -> render-instance bridge that turns an EffectSystem emitter view into the
 // flat per-instance arrays a pooled ParticleContainer uploads (TASK-3.5.2, allocation-free after warmup).
 export { blendModeToPixi } from './scene/blend-mode';
+// Two-color (light + dark) tint (PP-C8): the shared pure combine (the twin of render-preview's, asserted by
+// the same parity vectors) and the PixiJS v8 filter that applies it on the GPU to dark-color slot displays.
+export { combineTwoColor } from './scene/two-color';
+export type { StraightColor } from './scene/two-color';
+export { TwoColorFilter, updateTwoColorFilter } from './scene/two-color-filter';
 export { makeParticleRenderBatch, fillEmitterBatch } from './scene/particle-render-batch';
 export type { ParticleRenderBatch } from './scene/particle-render-batch';
 // The pure triangle-strip geometry bridge for ribbon trails (PP-C3): strip index / UV construction (once

@@ -94,6 +94,31 @@ export function setComponentKeys(
   }
 }
 
+// Key a slot split color channel (Stage F2, ADR-0009 section 4.2): rgb takes an RGB triple, alpha a scalar.
+export function setSlotRgbKeys(
+  doc: Document,
+  animId: AnimationId,
+  slotId: SlotId,
+  keys: readonly { readonly time: number; readonly rgb: { r: number; g: number; b: number } }[],
+): void {
+  const target: KeyframeTarget = { kind: 'slot', slotId, channel: 'rgb' };
+  for (const key of keys) {
+    doc.history.execute(new SetKeyframeCommand(animId, target, key.time, { rgb: key.rgb }));
+  }
+}
+
+export function setSlotAlphaKeys(
+  doc: Document,
+  animId: AnimationId,
+  slotId: SlotId,
+  keys: readonly { readonly time: number; readonly alpha: number }[],
+): void {
+  const target: KeyframeTarget = { kind: 'slot', slotId, channel: 'alpha' };
+  for (const key of keys) {
+    doc.history.execute(new SetKeyframeCommand(animId, target, key.time, { alpha: key.alpha }));
+  }
+}
+
 export function rotateKeyframes(
   doc: Document,
   animId: AnimationId,

@@ -97,6 +97,27 @@ export function buildSlotColorKeyCommand(
   return new SetKeyframeCommand(animationId, target, time, { color });
 }
 
+// The split-color (Stage F2, ADR-0009 section 4.2) analogue of buildSlotColorKeyCommand: one SetKeyframe for
+// the `rgb` track and one for the `alpha` track, keying the slot's current color split into its RGB triple
+// and its alpha channel at `time`. A slot keys the joint `color` OR the split `rgb`/`alpha` (never both,
+// TIMELINE_COMPONENT_CONFLICT); the commands reject a conflicting mix, so the panel wraps the pair in one
+// interaction and rolls it back on conflict.
+export function buildSlotColorSplitKeyCommands(
+  animationId: AnimationId,
+  slotId: SlotId,
+  color: RGBA,
+  time: number,
+): SetKeyframeCommand[] {
+  const rgbTarget: KeyframeTarget = { kind: 'slot', slotId, channel: 'rgb' };
+  const alphaTarget: KeyframeTarget = { kind: 'slot', slotId, channel: 'alpha' };
+  return [
+    new SetKeyframeCommand(animationId, rgbTarget, time, {
+      rgb: { r: color.r, g: color.g, b: color.b },
+    }),
+    new SetKeyframeCommand(animationId, alphaTarget, time, { alpha: color.a }),
+  ];
+}
+
 // A single SetKeyframe keying the slot's current two-color DARK tint at `time` (PP-D10). The command rejects
 // keying a slot with no setup dark color (ANIM_DARK_NO_SETUP), so the panel offers this only when the slot
 // has one; the value is the dark color as-is (stored absolutely, like the joint color).

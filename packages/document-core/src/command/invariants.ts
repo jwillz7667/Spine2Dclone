@@ -78,12 +78,19 @@ function checkFrameTimes(
 // Channel -> the value-shape predicate it must carry, so a track never holds a value of the wrong shape
 // (a rotate keyframe with a color value is corrupt internal state). The `in` checks match the disjoint
 // keyframe value shapes (doc-state.ts) with no `as`.
-function valueMatchesChannel(channel: BoneChannel | 'color', value: KeyframeValue): boolean {
+function valueMatchesChannel(
+  channel: BoneChannel | 'color' | 'rgb' | 'alpha',
+  value: KeyframeValue,
+): boolean {
   switch (channel) {
     case 'rotate':
       return 'angle' in value;
     case 'color':
       return 'color' in value;
+    case 'rgb':
+      return 'rgb' in value;
+    case 'alpha':
+      return 'alpha' in value;
     case 'translate':
     case 'scale':
     case 'shear':
@@ -125,7 +132,7 @@ const BONE_COMPONENT_GROUPS: readonly {
 function checkValueChannel(
   animation: AnimationEntity,
   label: string,
-  channel: BoneChannel | 'color',
+  channel: BoneChannel | 'color' | 'rgb' | 'alpha',
   frames: readonly KeyframeEntity[],
   duration: number,
 ): number {
@@ -471,14 +478,30 @@ export function assertInvariants(model: DocumentReadModel): void {
       }
       for (const kf of set.color) noteKeyframeId(kf.id, animation.name);
       for (const frame of set.attachment) noteKeyframeId(frame.id, animation.name);
+      for (const kf of set.rgb) noteKeyframeId(kf.id, animation.name);
+      for (const kf of set.alpha) noteKeyframeId(kf.id, animation.name);
       maxTime = Math.max(
         maxTime,
         checkValueChannel(animation, 'color', 'color', set.color, duration),
+      );
+      // Stage F2 (ADR-0009 section 4.2) split color tracks: strict time order and the split value shapes.
+      maxTime = Math.max(maxTime, checkValueChannel(animation, 'rgb', 'rgb', set.rgb, duration));
+      maxTime = Math.max(
+        maxTime,
+        checkValueChannel(animation, 'alpha', 'alpha', set.alpha, duration),
       );
       maxTime = Math.max(
         maxTime,
         checkAttachmentFrames(animation, 'attachment', set.attachment, duration),
       );
+      // Stage F2 (ADR-0009 section 4.2) coexistence ban (the format's TIMELINE_COMPONENT_CONFLICT): a slot
+      // keys the joint `color` OR the split `rgb`/`alpha`, never both. SetKeyframe rejects introducing the
+      // conflict; this asserts no state reaches here with both non-empty.
+      if (set.color.length > 0 && (set.rgb.length > 0 || set.alpha.length > 0)) {
+        throw new DocumentInvariantError(
+          `animation "${animation.name}" slot ${slotId} keys both the joint "color" channel and a split rgb/alpha channel`,
+        );
+      }
     }
     // Phase 2 timelines: ik keyed by a live IK constraint, transform by a live transform constraint, and
     // deform by a live skin key + live slot. Every frame keeps a unique KeyframeId and strict time order.

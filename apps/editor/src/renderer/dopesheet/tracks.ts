@@ -147,7 +147,9 @@ export function buildTracks(animation: AnimationEntity, names: TrackNames): Trac
       set.color.length > 0 ||
       set.attachment.length > 0 ||
       set.sequence.length > 0 ||
-      set.dark.length > 0
+      set.dark.length > 0 ||
+      set.rgb.length > 0 ||
+      set.alpha.length > 0
     ) {
       slotIds.add(slotId);
     }
@@ -176,6 +178,26 @@ export function buildTracks(animation: AnimationEntity, names: TrackNames): Trac
         label: 'Dark',
         target: { kind: 'slot', slotId, channel: 'dark' },
         keyframes: set.dark.map((kf) => ({ id: kf.id, time: kf.time })),
+      });
+    }
+    // Stage F2 (ADR-0009 section 4.2) split color tracks: an alternative to the joint Color channel (never
+    // both, TIMELINE_COMPONENT_CONFLICT), each its own row.
+    if (set !== undefined && set.rgb.length > 0) {
+      rows.push({
+        kind: 'channel',
+        key: `slot:${slotId}:rgb`,
+        label: 'RGB',
+        target: { kind: 'slot', slotId, channel: 'rgb' },
+        keyframes: set.rgb.map((kf) => ({ id: kf.id, time: kf.time })),
+      });
+    }
+    if (set !== undefined && set.alpha.length > 0) {
+      rows.push({
+        kind: 'channel',
+        key: `slot:${slotId}:alpha`,
+        label: 'Alpha',
+        target: { kind: 'slot', slotId, channel: 'alpha' },
+        keyframes: set.alpha.map((kf) => ({ id: kf.id, time: kf.time })),
       });
     }
     if (set !== undefined && set.attachment.length > 0) {

@@ -6,9 +6,10 @@ import {
   buildBoneComponentKeyCommands,
   buildBoneKeyCommands,
   buildSlotColorKeyCommand,
+  buildSlotColorSplitKeyCommands,
   buildSlotDarkKeyCommand,
 } from './manual-key';
-import { addAnimation, addBone, createEmptyDocument } from '../dopesheet/seed-document';
+import { addAnimation, addBone, addSlot, createEmptyDocument } from '../dopesheet/seed-document';
 
 // A non-identity setup pose: keying its current values must reproduce it, so every delta is identity.
 const pose: SetupTransform = {
@@ -95,5 +96,26 @@ describe('manual keyframe commands (PP-D2)', () => {
     const commands = buildBoneComponentKeyCommands(animId, 'bone_1' as BoneId, pose, 0, ['scaleX']);
     expect(commands).toHaveLength(1);
     expect(commands[0]!.kind).toBe('kf.set');
+  });
+
+  it('keys the slot color as split rgb + alpha SetKeyframes (Stage F2)', () => {
+    const doc = createEmptyDocument();
+    const bone = addBone(doc, 'root');
+    const slot = addSlot(doc, 'body', bone);
+    const animId = addAnimation(doc, 'idle', 2);
+
+    const commands = buildSlotColorSplitKeyCommands(
+      animId,
+      slot,
+      { r: 0.2, g: 0.4, b: 0.6, a: 0.8 },
+      1,
+    );
+    expect(commands).toHaveLength(2);
+    for (const command of commands) doc.history.execute(command);
+
+    const set = doc.model.getAnimation(animId)!.slots.get(slot)!;
+    expect(set.rgb[0]!.value).toEqual({ rgb: { r: 0.2, g: 0.4, b: 0.6 } });
+    expect(set.alpha[0]!.value).toEqual({ alpha: 0.8 });
+    expect(set.color).toHaveLength(0);
   });
 });

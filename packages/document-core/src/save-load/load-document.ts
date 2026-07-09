@@ -513,16 +513,16 @@ function loadSlotTimelines(
   timelines: SkeletonDocument['animations'][string]['slots'][string],
   ids: IdFactory,
 ): SlotTimelineSet {
-  // The joint color/attachment channels, the frame-sequence channel, and the two-color dark channel become
-  // first-class id-keyed entities; the Stage F2 (ADR-0009 section 4.2) split rgb/alpha tracks are carried
-  // verbatim (PP-D10).
+  // Every channel loads as first-class id-keyed entities (PP-D10): the joint color/attachment channels, the
+  // frame-sequence channel, the two-color dark channel, and the Stage F2 (ADR-0009 section 4.2) split
+  // rgb/alpha tracks (the format `{ rgb }` / `{ alpha }` values are RgbValue / AlphaValue by shape).
   return {
     color: loadKeyframes(timelines.color, ids),
     attachment: loadAttachmentFrames(timelines.attachment, ids),
     sequence: loadSequenceKeyframes(timelines.sequence, ids),
     dark: loadKeyframes(timelines.dark, ids),
-    ...(timelines.rgb !== undefined ? { rgb: carry(timelines.rgb) } : {}),
-    ...(timelines.alpha !== undefined ? { alpha: carry(timelines.alpha) } : {}),
+    rgb: loadKeyframes(timelines.rgb, ids),
+    alpha: loadKeyframes(timelines.alpha, ids),
   };
 }
 

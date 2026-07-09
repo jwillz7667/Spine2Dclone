@@ -541,18 +541,20 @@ function channelKeyframes(
   if (target.kind === 'bone') {
     return animation.bones.get(target.boneId)?.[target.channel] ?? [];
   }
-  return animation.slots.get(target.slotId)?.color ?? [];
+  // The slot value channels (color/dark and the Stage F2 split rgb/alpha) all read by channel key, so the
+  // keyed move/delete tools resolve the right track (not just color).
+  return animation.slots.get(target.slotId)?.[target.channel] ?? [];
 }
 
 // Resolve a channel + bone/slot id into a KeyframeTarget, validating that the channel/id pair is
 // consistent and the referenced bone/slot exists (a typed boundary check, not a silent no-op).
 function resolveTarget(
   session: Session,
-  channel: BoneChannel | 'color' | 'dark',
+  channel: BoneChannel | 'color' | 'dark' | 'rgb' | 'alpha',
   boneId: string | undefined,
   slotId: string | undefined,
 ): KeyframeTarget {
-  if (channel === 'color' || channel === 'dark') {
+  if (channel === 'color' || channel === 'dark' || channel === 'rgb' || channel === 'alpha') {
     if (slotId === undefined) {
       throw new McpToolError('INVALID_INPUT', `the ${channel} channel requires slotId`);
     }
@@ -578,16 +580,24 @@ const COMPONENT_CHANNELS = new Set<BoneChannel>([
 
 // Validate that a keyframe value's shape matches its channel (the model stores it as given, so the
 // boundary is where a mismatch must be rejected before it reaches the document). The two-color `dark` tint
-// is an RGBA color value like `color`; the split component channels carry a scalar `value`.
-function checkValueShape(channel: BoneChannel | 'color' | 'dark', value: KeyframeValue): KeyframeValue {
+// is an RGBA color value like `color`; the split component channels carry a scalar `value`; the Stage F2
+// split slot-color channels carry an `rgb` triple or a lone `alpha`.
+function checkValueShape(
+  channel: BoneChannel | 'color' | 'dark' | 'rgb' | 'alpha',
+  value: KeyframeValue,
+): KeyframeValue {
   const ok =
     channel === 'rotate'
       ? 'angle' in value
       : channel === 'color' || channel === 'dark'
         ? 'color' in value
-        : COMPONENT_CHANNELS.has(channel)
-          ? 'value' in value
-          : 'x' in value && 'y' in value;
+        : channel === 'rgb'
+          ? 'rgb' in value
+          : channel === 'alpha'
+            ? 'alpha' in value
+            : COMPONENT_CHANNELS.has(channel)
+              ? 'value' in value
+              : 'x' in value && 'y' in value;
   if (!ok) {
     throw new McpToolError('INVALID_INPUT', `value shape does not match channel "${channel}"`);
   }
@@ -771,6 +781,9 @@ function animationView(animation: AnimationEntity): Record<string, unknown> {
       slotId: slotIdKey,
       color: set.color.map(keyframeView),
       dark: set.dark.map(keyframeView),
+      // Stage F2 (ADR-0009 section 4.2) split color tracks (rgb carries an `rgb` triple, alpha a lone value).
+      rgb: set.rgb.map(keyframeView),
+      alpha: set.alpha.map(keyframeView),
       attachment: set.attachment.map((frame) => ({
         id: frame.id,
         time: frame.time,
@@ -894,6 +907,8 @@ const channelSchema = z.enum([
   'shearY',
   'color',
   'dark',
+  'rgb',
+  'alpha',
 ]);
 
 // A keyframe value: one of the disjoint channel value shapes. The handler checks the value shape matches

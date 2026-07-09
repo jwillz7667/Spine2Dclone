@@ -2,9 +2,10 @@ import type { AnimationEntity, BoneChannel, KeyframeEntity } from '../model/doc-
 import type { AnimationId, BoneId, SlotId } from '../model/ids';
 import type { Mutator } from '../model/mutator';
 
-// A slot's value channel: the joint `color` (RGBA) tint, or the Stage F2 two-color `dark` tint (PP-D10),
-// both RGBA ColorValue channels served by the same keyframe commands.
-export type SlotValueChannel = 'color' | 'dark';
+// A slot's value channel: the joint `color` (RGBA) tint, the Stage F2 two-color `dark` tint, or the Stage F2
+// split `rgb`/`alpha` color tracks (PP-D10), all served by the same keyframe commands. The joint `color` and
+// the split `rgb`/`alpha` MUST NOT coexist on one slot (TIMELINE_COMPONENT_CONFLICT); `dark` is independent.
+export type SlotValueChannel = 'color' | 'dark' | 'rgb' | 'alpha';
 
 // A keyframe channel address: a bone transform channel or a slot value channel. The keyframe commands
 // (SetKeyframe / MoveKeyframe / DeleteKeyframe / SetCurve) target a channel through this discriminated
@@ -40,6 +41,10 @@ export function writeChannel(
     mutate.setBoneChannel(animId, target.boneId, target.channel, keyframes);
   } else if (target.channel === 'dark') {
     mutate.setSlotDarkChannel(animId, target.slotId, keyframes);
+  } else if (target.channel === 'rgb') {
+    mutate.setSlotRgbChannel(animId, target.slotId, keyframes);
+  } else if (target.channel === 'alpha') {
+    mutate.setSlotAlphaChannel(animId, target.slotId, keyframes);
   } else {
     mutate.setSlotColorChannel(animId, target.slotId, keyframes);
   }
@@ -80,6 +85,15 @@ const BONE_JOINT_TO_COMPONENTS: Readonly<Record<BoneChannel, readonly BoneChanne
   shearY: ['shear'],
 };
 
+// The slot color coexistence groups (ADR-0009 section 4.2): the joint `color` conflicts with the split
+// `rgb`/`alpha`, and each split conflicts with the joint. `dark` is independent (no conflict).
+const SLOT_COLOR_CONFLICTS: Readonly<Record<SlotValueChannel, readonly SlotValueChannel[]>> = {
+  color: ['rgb', 'alpha'],
+  rgb: ['color'],
+  alpha: ['color'],
+  dark: [],
+};
+
 export function conflictingChannels(target: KeyframeTarget): KeyframeTarget[] {
   if (target.kind === 'bone') {
     return BONE_JOINT_TO_COMPONENTS[target.channel].map((channel) => ({
@@ -88,7 +102,11 @@ export function conflictingChannels(target: KeyframeTarget): KeyframeTarget[] {
       channel,
     }));
   }
-  return [];
+  return SLOT_COLOR_CONFLICTS[target.channel].map((channel) => ({
+    kind: 'slot',
+    slotId: target.slotId,
+    channel,
+  }));
 }
 
 // Sort keyframes by ascending time, returning a NEW array (the channel invariant is strictly ascending;

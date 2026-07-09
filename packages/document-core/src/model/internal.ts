@@ -249,10 +249,6 @@ function remapAttachmentMapWeighted(
 // Internal mutable bone timeline set: same channels as BoneTimelineSet but with writable arrays so the
 // mutator can replace a channel wholesale. Keyframe OBJECTS are immutable (replaced, never patched), so
 // the arrays carry shared frozen refs safely.
-// The carried Stage F2 (ADR-0009) split slot-color tracks projected out of a timeline set (exactly the
-// optional-readonly channels of the entity, so Pick preserves optionality without widening to `| undefined`).
-type CarriedSlotTracks = Pick<SlotTimelineSet, 'rgb' | 'alpha'>;
-
 interface MutableBoneTimelineSet {
   rotate: KeyframeEntity[];
   translate: KeyframeEntity[];
@@ -268,23 +264,15 @@ interface MutableBoneTimelineSet {
   shearY: KeyframeEntity[];
 }
 
-interface MutableSlotTimelineSet extends CarriedSlotTracks {
+interface MutableSlotTimelineSet {
   color: KeyframeEntity[];
   attachment: AttachmentFrameEntity[];
-  // The sequence and dark timelines (PP-D10) are first-class editable channels like color/attachment. The
-  // carried rgb/alpha tracks (from CarriedSlotTracks) are immutable frozen refs.
+  // The sequence, dark, and Stage F2 (ADR-0009 section 4.2) split rgb/alpha timelines (PP-D10) are all
+  // first-class editable channels like color/attachment, replaced wholesale; keyframe objects stay immutable.
   sequence: SequenceKeyframeEntity[];
   dark: KeyframeEntity[];
-}
-
-// Spread only the PRESENT carried slot F2 tracks (exactOptionalPropertyTypes) so an absent track stays
-// absent through a mutable/frozen copy. The tracks are immutable, so sharing them by reference across copies
-// is safe; a mutating command only ever replaces the first-class channels.
-function carriedSlotTracks(set: SlotTimelineSet): CarriedSlotTracks {
-  return {
-    ...(set.rgb !== undefined ? { rgb: set.rgb } : {}),
-    ...(set.alpha !== undefined ? { alpha: set.alpha } : {}),
-  };
+  rgb: KeyframeEntity[];
+  alpha: KeyframeEntity[];
 }
 
 // Internal mutable deform map: skin -> slot -> attachment name -> keyframe array. The keyframe OBJECTS are
@@ -330,7 +318,8 @@ function toMutableSlotSet(set: SlotTimelineSet): MutableSlotTimelineSet {
     attachment: set.attachment.slice(),
     sequence: set.sequence.slice(),
     dark: set.dark.slice(),
-    ...carriedSlotTracks(set),
+    rgb: set.rgb.slice(),
+    alpha: set.alpha.slice(),
   };
 }
 
@@ -353,7 +342,7 @@ function newMutableBoneSet(): MutableBoneTimelineSet {
 
 // A fresh empty mutable slot timeline set (the create-on-write base for the slot channel writers).
 function newMutableSlotSet(): MutableSlotTimelineSet {
-  return { color: [], attachment: [], sequence: [], dark: [] };
+  return { color: [], attachment: [], sequence: [], dark: [], rgb: [], alpha: [] };
 }
 
 // Deep-copy a deform map (fresh nested maps and sliced keyframe arrays) so an in-place edit to one copy
@@ -428,15 +417,7 @@ function cloneMutableAnimation(a: MutableAnimation): MutableAnimation {
   const bones = new Map<BoneId, MutableBoneTimelineSet>();
   for (const [id, set] of a.bones) bones.set(id, toMutableBoneSet(set));
   const slots = new Map<SlotId, MutableSlotTimelineSet>();
-  for (const [id, set] of a.slots) {
-    slots.set(id, {
-      color: set.color.slice(),
-      attachment: set.attachment.slice(),
-      sequence: set.sequence.slice(),
-      dark: set.dark.slice(),
-      ...carriedSlotTracks(set),
-    });
-  }
+  for (const [id, set] of a.slots) slots.set(id, toMutableSlotSet(set));
   const ik = new Map<IkConstraintId, IkKeyframeEntity[]>();
   for (const [id, frames] of a.ik) ik.set(id, frames.slice());
   const transform = new Map<TransformConstraintId, TransformKeyframeEntity[]>();
@@ -485,7 +466,8 @@ function freezeAnimation(a: MutableAnimation): AnimationEntity {
         attachment: Object.freeze(set.attachment.slice()),
         sequence: Object.freeze(set.sequence.slice()),
         dark: Object.freeze(set.dark.slice()),
-        ...carriedSlotTracks(set),
+        rgb: Object.freeze(set.rgb.slice()),
+        alpha: Object.freeze(set.alpha.slice()),
       }),
     );
   }
@@ -1370,6 +1352,48 @@ export class DocumentModelInternal implements DocumentReadModel {
         animation.slots.set(slotId, set);
       }
       set.dark = keyframes.slice();
+    });
+  }
+
+  // Replace a slot's split rgb-color keyframes (Stage F2, ADR-0009 section 4.2, PP-D10). Same create-on-write
+  // / prune-on-empty contract as the other slot channels; the caller passes an already-time-sorted array.
+  setSlotRgbChannel(animId: AnimationId, slotId: SlotId, keyframes: readonly KeyframeEntity[]): void {
+    this.writeAnimation(animId, (animation) => {
+      let set = animation.slots.get(slotId);
+      if (keyframes.length === 0) {
+        if (!set) return;
+        set.rgb = [];
+        if (isSlotTimelineSetEmpty(set)) animation.slots.delete(slotId);
+        return;
+      }
+      if (!set) {
+        set = newMutableSlotSet();
+        animation.slots.set(slotId, set);
+      }
+      set.rgb = keyframes.slice();
+    });
+  }
+
+  // Replace a slot's split alpha-color keyframes (Stage F2, ADR-0009 section 4.2, PP-D10). Same
+  // create-on-write / prune-on-empty contract as the other slot channels.
+  setSlotAlphaChannel(
+    animId: AnimationId,
+    slotId: SlotId,
+    keyframes: readonly KeyframeEntity[],
+  ): void {
+    this.writeAnimation(animId, (animation) => {
+      let set = animation.slots.get(slotId);
+      if (keyframes.length === 0) {
+        if (!set) return;
+        set.alpha = [];
+        if (isSlotTimelineSetEmpty(set)) animation.slots.delete(slotId);
+        return;
+      }
+      if (!set) {
+        set = newMutableSlotSet();
+        animation.slots.set(slotId, set);
+      }
+      set.alpha = keyframes.slice();
     });
   }
 

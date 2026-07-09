@@ -154,6 +154,27 @@ function colorKeyframes(channel: readonly KeyframeEntity[]): NonNullable<SlotTim
   });
 }
 
+// Project a slot split rgb channel to `{ time, value: { rgb }, curve }` (Stage F2, ADR-0009 section 4.2).
+function rgbKeyframes(channel: readonly KeyframeEntity[]): NonNullable<SlotTimelines['rgb']> {
+  return channel.map((kf) => {
+    if (!('rgb' in kf.value)) {
+      throw new DocumentInvariantError('an rgb keyframe carries a non-rgb value');
+    }
+    const { r, g, b } = kf.value.rgb;
+    return { time: kf.time, value: { rgb: { r, g, b } }, curve: kf.curve };
+  });
+}
+
+// Project a slot split alpha channel to `{ time, value: { alpha }, curve }` (Stage F2, ADR-0009 section 4.2).
+function alphaKeyframes(channel: readonly KeyframeEntity[]): NonNullable<SlotTimelines['alpha']> {
+  return channel.map((kf) => {
+    if (!('alpha' in kf.value)) {
+      throw new DocumentInvariantError('an alpha keyframe carries a non-alpha value');
+    }
+    return { time: kf.time, value: { alpha: kf.value.alpha }, curve: kf.curve };
+  });
+}
+
 // Project a bone timeline set, emitting only the non-empty channels (the format channels are optional;
 // an empty channel is OMITTED rather than emitted as undefined or [], per exactOptionalPropertyTypes).
 function boneTimelinesToFormat(set: BoneTimelineSet): BoneTimelines {
@@ -176,9 +197,10 @@ function boneTimelinesToFormat(set: BoneTimelineSet): BoneTimelines {
 }
 
 function slotTimelinesToFormat(set: SlotTimelineSet): SlotTimelines {
-  // The joint color/attachment channels and the frame-sequence channel project from the id-keyed entries
-  // (emitted only when non-empty, dropping the internal id); the carried Stage F2 (ADR-0009 sections 4.2,
-  // 4.3) rgb/alpha/dark tracks are emitted verbatim.
+  // Every channel projects from its id-keyed entries, emitted only when non-empty (dropping the internal id):
+  // the joint color/attachment/sequence/dark channels, and the Stage F2 (ADR-0009 section 4.2) split
+  // rgb/alpha tracks (via rgbKeyframes/alphaKeyframes). The joint `color` and the split `rgb`/`alpha` never
+  // coexist (the format's TIMELINE_COMPONENT_CONFLICT).
   return {
     ...(set.attachment.length > 0
       ? { attachment: set.attachment.map((frame) => ({ time: frame.time, name: frame.name })) }
@@ -195,8 +217,8 @@ function slotTimelinesToFormat(set: SlotTimelineSet): SlotTimelines {
           })),
         }
       : {}),
-    ...(set.rgb !== undefined ? { rgb: set.rgb } : {}),
-    ...(set.alpha !== undefined ? { alpha: set.alpha } : {}),
+    ...(set.rgb.length > 0 ? { rgb: rgbKeyframes(set.rgb) } : {}),
+    ...(set.alpha.length > 0 ? { alpha: alphaKeyframes(set.alpha) } : {}),
   };
 }
 

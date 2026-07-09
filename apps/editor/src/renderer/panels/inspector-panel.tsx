@@ -44,6 +44,7 @@ import {
   buildBoneComponentKeyCommands,
   buildBoneKeyCommands,
   buildSlotColorKeyCommand,
+  buildSlotColorSplitKeyCommands,
   buildSlotDarkKeyCommand,
 } from './manual-key';
 import { MeshError } from '../modules/mesh/mesh-error';
@@ -579,6 +580,19 @@ function SlotDetail(props: SlotDetailProps): ReactElement {
           onClick={() => keySlotColorAtPlayhead(slot.id)}
         >
           Key
+        </button>
+        <button
+          type="button"
+          style={canKey ? smallButtonStyle : { ...smallButtonStyle, ...buttonDisabledStyle }}
+          disabled={!canKey}
+          title={
+            canKey
+              ? 'Key this color as split RGB + Alpha tracks at the playhead'
+              : 'Select an animation in the dopesheet to key'
+          }
+          onClick={() => keySlotColorSplitAtPlayhead(slot.id)}
+        >
+          Key Split
         </button>
       </div>
 
@@ -1292,6 +1306,30 @@ function keySlotColorAtPlayhead(slotId: SlotId): void {
   doc.history.execute(
     buildSlotColorKeyCommand(state.activeAnimation, slotId, slot.color, state.playhead),
   );
+}
+
+// Key the slot's current color as split RGB + Alpha tracks (Stage F2, ADR-0009 section 4.2) at the playhead
+// in ONE undo step. The joint `color` and the split `rgb`/`alpha` must not coexist; if the slot already keys
+// `color`, the split commands throw and the whole interaction is rolled back (cancelInteraction). Use "Key"
+// OR "Key Split" on a given slot, not both.
+function keySlotColorSplitAtPlayhead(slotId: SlotId): void {
+  const doc = documentHost.current();
+  const slot = doc.model.getSlot(slotId);
+  const state = usePlaybackStore.getState();
+  if (slot === undefined || state.activeAnimation === null) return;
+  const commands = buildSlotColorSplitKeyCommands(
+    state.activeAnimation,
+    slotId,
+    slot.color,
+    state.playhead,
+  );
+  doc.history.beginInteraction();
+  try {
+    for (const command of commands) doc.history.execute(command);
+    doc.history.endInteraction('Key Slot Color Split');
+  } catch {
+    doc.history.cancelInteraction();
+  }
 }
 
 // Set or clear a slot's setup DARK color (PP-D10) inside a coalescing session (mirrors commitSlotColor).

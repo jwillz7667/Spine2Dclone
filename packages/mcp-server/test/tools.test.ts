@@ -780,6 +780,72 @@ describe('MCP animation + keyframe tools', () => {
       'TIMELINE',
     );
   });
+
+  it('keys split slot color channels and enforces the joint-color/split coexistence ban', async () => {
+    const deps = makeDeps();
+    const { documentId } = asRecord(await call(deps, 'document.new', { name: 'split-color' }));
+    const { boneId } = asRecord(
+      await call(deps, 'bone.create', { documentId, name: 'root', length: 100 }),
+    );
+    const { slotId } = asRecord(
+      await call(deps, 'slot.create', { documentId, boneId, name: 'body' }),
+    );
+    const { animationId } = asRecord(
+      await call(deps, 'anim.create', { documentId, name: 'idle', duration: 1 }),
+    );
+
+    // The split rgb and alpha channels key their own value shapes and read back on anim.get.
+    await call(deps, 'kf.set', {
+      documentId,
+      animationId,
+      channel: 'rgb',
+      slotId,
+      time: 0.5,
+      value: { rgb: { r: 1, g: 0, b: 0 } },
+    });
+    await call(deps, 'kf.set', {
+      documentId,
+      animationId,
+      channel: 'alpha',
+      slotId,
+      time: 0.5,
+      value: { alpha: 0.5 },
+    });
+    const animGet = asRecord(await call(deps, 'anim.get', { documentId, animationId }));
+    const slots = asRecord(animGet.animation).slots as Array<{
+      rgb: Array<{ value: { rgb: { r: number } } }>;
+      alpha: Array<{ value: { alpha: number } }>;
+    }>;
+    expect(slots[0]!.rgb).toHaveLength(1);
+    expect(slots[0]!.rgb[0]!.value).toEqual({ rgb: { r: 1, g: 0, b: 0 } });
+    expect(slots[0]!.alpha[0]!.value).toEqual({ alpha: 0.5 });
+
+    // A color value on the alpha channel is rejected at the boundary.
+    await expectToolError(
+      call(deps, 'kf.set', {
+        documentId,
+        animationId,
+        channel: 'alpha',
+        slotId,
+        time: 0.75,
+        value: { color: { r: 1, g: 1, b: 1, a: 1 } },
+      }),
+      'INVALID_INPUT',
+    );
+
+    // Keying the JOINT color channel while rgb (a split track) is keyed is a TIMELINE conflict.
+    await expectToolError(
+      call(deps, 'kf.set', {
+        documentId,
+        animationId,
+        channel: 'color',
+        slotId,
+        time: 0.5,
+        value: { color: { r: 1, g: 1, b: 1, a: 1 } },
+      }),
+      'TIMELINE',
+    );
+  });
 });
 
 // A two-bone rig with an UNWEIGHTED mesh, built through the MCP tools, so the WP-2.3/2.4 binding + weight

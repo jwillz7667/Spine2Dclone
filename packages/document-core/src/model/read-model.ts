@@ -243,6 +243,10 @@ export interface SlotTimelineSnapshot {
   readonly attachment: readonly AttachmentFrameSnapshot[];
   readonly sequence: readonly SequenceKeyframeSnapshot[];
   readonly dark: readonly KeyframeSnapshot[];
+  // Stage F2 (ADR-0009 section 4.2, PP-D10) split color tracks, promoted into the snapshot so the round-trip
+  // harness deep-compares them (rgb carries an RgbValue, alpha an AlphaValue).
+  readonly rgb: readonly KeyframeSnapshot[];
+  readonly alpha: readonly KeyframeSnapshot[];
 }
 
 // Plain IK / transform / deform keyframe projections (WP-2.6/2.7/2.9), value copies in time order.
@@ -651,6 +655,8 @@ export function animationToSnapshot(animation: AnimationEntity): AnimationSnapsh
       attachment: set.attachment.map(attachmentFrameToSnapshot),
       sequence: set.sequence.map(sequenceKeyframeToSnapshot),
       dark: set.dark.map(keyframeToSnapshot),
+      rgb: set.rgb.map(keyframeToSnapshot),
+      alpha: set.alpha.map(keyframeToSnapshot),
     });
   }
   slots.sort((a, b) => (a.slotId < b.slotId ? -1 : a.slotId > b.slotId ? 1 : 0));

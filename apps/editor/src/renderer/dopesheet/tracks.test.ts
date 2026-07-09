@@ -13,6 +13,8 @@ import {
   setIkKeys,
   setRotateKeys,
   setSequenceKeys,
+  setSlotAlphaKeys,
+  setSlotRgbKeys,
   setTransformKeys,
 } from './seed-document';
 
@@ -65,6 +67,23 @@ describe('dopesheet tracks', () => {
       expect(channel.target).toEqual({ kind: 'bone', boneId: bone, channel: 'scaleX' });
       expect(channel.keyframes).toHaveLength(2);
     }
+  });
+
+  it('emits split rgb and alpha channel rows under a slot group (Stage F2)', () => {
+    const doc = createEmptyDocument();
+    const bone = addBone(doc, 'root');
+    const slot = addSlot(doc, 'body', bone);
+    const anim = addAnimation(doc, 'idle', 2);
+    setSlotRgbKeys(doc, anim, slot, [{ time: 0, rgb: { r: 1, g: 0, b: 0 } }]);
+    setSlotAlphaKeys(doc, anim, slot, [{ time: 0, alpha: 0.5 }]);
+
+    const rows = buildTracks(doc.model.getAnimation(anim)!, names(doc));
+
+    expect(rows.map((row) => `${row.kind}:${row.label}`)).toEqual([
+      'group:body',
+      'channel:RGB',
+      'channel:Alpha',
+    ]);
   });
 
   it('emits a sequence timeline row under its slot group', () => {

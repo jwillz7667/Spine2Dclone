@@ -89,6 +89,8 @@ export interface Mutator extends DocumentReadModel {
     keyframes: readonly KeyframeEntity[],
   ): void;
   setSlotDarkChannel(animId: AnimationId, slotId: SlotId, keyframes: readonly KeyframeEntity[]): void;
+  setSlotRgbChannel(animId: AnimationId, slotId: SlotId, keyframes: readonly KeyframeEntity[]): void;
+  setSlotAlphaChannel(animId: AnimationId, slotId: SlotId, keyframes: readonly KeyframeEntity[]): void;
   setSlotAttachmentChannel(
     animId: AnimationId,
     slotId: SlotId,
@@ -213,6 +215,10 @@ export function createMutator(model: DocumentModelInternal): Mutator {
       model.setSlotColorChannel(animId, slotId, keyframes),
     setSlotDarkChannel: (animId, slotId, keyframes) =>
       model.setSlotDarkChannel(animId, slotId, keyframes),
+    setSlotRgbChannel: (animId, slotId, keyframes) =>
+      model.setSlotRgbChannel(animId, slotId, keyframes),
+    setSlotAlphaChannel: (animId, slotId, keyframes) =>
+      model.setSlotAlphaChannel(animId, slotId, keyframes),
     setSlotAttachmentChannel: (animId, slotId, frames) =>
       model.setSlotAttachmentChannel(animId, slotId, frames),
     setSlotSequenceChannel: (animId, slotId, keys) =>

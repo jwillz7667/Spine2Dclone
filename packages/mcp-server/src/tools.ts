@@ -78,6 +78,7 @@ import {
   SetSlotBlendModeCommand,
   SetSlotColorCommand,
   SetTransformConstraintParamsCommand,
+  SetTransformConstraintVariantsCommand,
   SetTransformKeyframeCommand,
   SkinError,
   UnbindMeshCommand,
@@ -165,6 +166,7 @@ import {
   type TransformConstraintId,
   type TransformConstraintParams,
   type TransformKeyframeMix,
+  type TransformVariantPatch,
   type WeightDab,
   type EffectId,
   type EffectLayerId,
@@ -645,6 +647,11 @@ function transformConstraintView(c: TransformConstraintEntity): Record<string, u
     offsetScaleX: c.offsetScaleX,
     offsetScaleY: c.offsetScaleY,
     offsetShearY: c.offsetShearY,
+    // Stage F2 (ADR-0009) variant flags, projected so a client reads what transform.setVariants wrote;
+    // `order` is emitted only when the constraint carries an explicit solve order.
+    local: c.local,
+    relative: c.relative,
+    ...(c.order !== undefined ? { order: c.order } : {}),
   };
 }
 
@@ -4345,6 +4352,42 @@ export const TOOLS: readonly ToolDefinition[] = [
       }
       session.document.history.execute(
         new SetTransformConstraintParamsCommand(
+          asTransformConstraintId(input.transformConstraintId),
+          patch,
+        ),
+      );
+      return { revision: session.document.model.revision };
+    },
+  ),
+  defineTool(
+    {
+      name: 'transform.setVariants',
+      title: 'Set transform constraint variants',
+      description:
+        'Patch a transform constraint Stage F2 variant flag: `local` (local-space read/write instead of the ' +
+        'world-space blend) and `relative` (offset relative to the bone current value instead of an absolute ' +
+        'blend). Only the named flags change. At least one flag is required.',
+      input: z
+        .object({
+          documentId,
+          transformConstraintId,
+          local: z.boolean().optional(),
+          relative: z.boolean().optional(),
+        })
+        .strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireTransformConstraint(session, input.transformConstraintId);
+      const patch: TransformVariantPatch = {
+        ...(input.local !== undefined ? { local: input.local } : {}),
+        ...(input.relative !== undefined ? { relative: input.relative } : {}),
+      };
+      if (Object.keys(patch).length === 0) {
+        throw new McpToolError('INVALID_INPUT', 'patch must name at least one variant flag');
+      }
+      session.document.history.execute(
+        new SetTransformConstraintVariantsCommand(
           asTransformConstraintId(input.transformConstraintId),
           patch,
         ),

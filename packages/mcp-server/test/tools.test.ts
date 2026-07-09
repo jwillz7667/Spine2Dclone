@@ -1130,6 +1130,19 @@ describe('MCP transform constraint tools (WP-2.7)', () => {
     expect(patched.offsetRotation).toBe(10);
     expect(patched.mixX).toBe(0); // untouched channel kept
 
+    // PP-D10 variant flags: set relative, leave local at its default; the projection reads them back.
+    await call(deps, 'transform.setVariants', { documentId, transformConstraintId, relative: true });
+    const variants = asRecord(
+      asRecord(await call(deps, 'transform.get', { documentId, transformConstraintId }))
+        .transformConstraint,
+    );
+    expect(variants.relative).toBe(true);
+    expect(variants.local).toBe(false);
+    await expectToolError(
+      call(deps, 'transform.setVariants', { documentId, transformConstraintId }),
+      'INVALID_INPUT',
+    );
+
     // An empty patch is rejected at the boundary.
     await expectToolError(
       call(deps, 'transform.setParams', { documentId, transformConstraintId, patch: {} }),
@@ -2014,6 +2027,7 @@ describe('MCP tool catalog', () => {
     'ik.get',
     'transform.createConstraint',
     'transform.setParams',
+    'transform.setVariants',
     'transform.deleteConstraint',
     'transform.setKeyframe',
     'transform.deleteKeyframe',

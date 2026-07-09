@@ -33,6 +33,7 @@ import { usePlaybackStore } from '../editor-state/playback-store';
 import { useDocumentRevision } from '../editor-state/use-document-revision';
 import { dispatchBoneTransform, type EditDispatchContext } from '../viewport/edit-dispatcher';
 import { buildBoneEdit, parseBoneField, type BoneTransformField } from './bone-inspector-logic';
+import { buildBoneKeyCommands, buildSlotColorKeyCommand } from './manual-key';
 import { MeshError } from '../modules/mesh/mesh-error';
 import { autoGridFillMesh, generateMeshFromRegion } from '../modules/mesh/mesh-tool';
 import { regionToMeshInit } from '../modules/mesh/region-to-mesh';
@@ -369,6 +370,7 @@ interface SlotDetailProps {
 function SlotDetail(props: SlotDetailProps): ReactElement {
   const { slot, attachments, atlasRegions } = props;
   const { color } = slot;
+  const canKey = usePlaybackStore((state) => state.activeAnimation) !== null;
 
   function commitName(raw: string): boolean {
     const next = raw.trim();
@@ -413,6 +415,19 @@ function SlotDetail(props: SlotDetailProps): ReactElement {
         <ColorField channel="b" value={color.b} onCommit={commitChannel} />
         <ColorField channel="a" value={color.a} onCommit={commitChannel} />
         <span style={{ ...swatchStyle, background: swatch }} title={swatch} />
+        <button
+          type="button"
+          style={canKey ? smallButtonStyle : { ...smallButtonStyle, ...buttonDisabledStyle }}
+          disabled={!canKey}
+          title={
+            canKey
+              ? 'Key this color at the playhead'
+              : 'Select an animation in the dopesheet to key'
+          }
+          onClick={() => keySlotColorAtPlayhead(slot.id)}
+        >
+          Key
+        </button>
       </div>
 
       <div style={detailRowStyle}>
@@ -983,6 +998,34 @@ function boneFieldKeyLabel(field: BoneTransformField): string {
   return 'Key Bone Shear';
 }
 
+// Manually key the bone's CURRENT transform (all four channels) at the playhead in ONE undo step,
+// independent of the auto-key toggle. A no-op with no active animation (the button is disabled then). The
+// live BoneEntity is structurally a SetupTransform, so it feeds the manual-key builder directly.
+function keyBoneAtPlayhead(boneId: BoneId): void {
+  const doc = documentHost.current();
+  const bone = doc.model.getBone(boneId);
+  const state = usePlaybackStore.getState();
+  if (bone === undefined || state.activeAnimation === null) return;
+  const commands = buildBoneKeyCommands(state.activeAnimation, boneId, bone, state.playhead);
+  doc.history.beginInteraction();
+  try {
+    for (const command of commands) doc.history.execute(command);
+  } finally {
+    doc.history.endInteraction('Key Bone');
+  }
+}
+
+// Manually key the slot's CURRENT color at the playhead as one undo step. A no-op with no active animation.
+function keySlotColorAtPlayhead(slotId: SlotId): void {
+  const doc = documentHost.current();
+  const slot = doc.model.getSlot(slotId);
+  const state = usePlaybackStore.getState();
+  if (slot === undefined || state.activeAnimation === null) return;
+  doc.history.execute(
+    buildSlotColorKeyCommand(state.activeAnimation, slotId, slot.color, state.playhead),
+  );
+}
+
 interface BoneTransformSectionProps {
   readonly bone: BoneEntity;
   readonly selectionCount: number;
@@ -994,6 +1037,8 @@ interface BoneTransformSectionProps {
 // header note flags a multi-bone selection (the gizmo drag moves all, numeric entry edits the primary).
 function BoneTransformSection(props: BoneTransformSectionProps): ReactElement {
   const { bone, selectionCount } = props;
+  const activeAnimation = usePlaybackStore((state) => state.activeAnimation);
+  const canKey = activeAnimation !== null;
 
   const field = (label: string, name: BoneTransformField, step: number): ReactElement => (
     <label style={transformCellStyle}>
@@ -1015,6 +1060,21 @@ function BoneTransformSection(props: BoneTransformSectionProps): ReactElement {
         {selectionCount > 1 && (
           <span style={countStyle}>{selectionCount} selected (editing primary)</span>
         )}
+        <button
+          type="button"
+          style={
+            canKey ? { ...smallButtonStyle, marginLeft: 'auto' } : { ...smallButtonStyle, ...buttonDisabledStyle, marginLeft: 'auto' }
+          }
+          disabled={!canKey}
+          title={
+            canKey
+              ? 'Key this bone (all channels) at the playhead'
+              : 'Select an animation in the dopesheet to key'
+          }
+          onClick={() => keyBoneAtPlayhead(bone.id)}
+        >
+          Key
+        </button>
       </div>
       <div style={transformGridStyle}>
         {field('X', 'x', 1)}

@@ -43,6 +43,11 @@ import {
   type TrackRow,
 } from '../dopesheet/tracks';
 import { beginSpecialDrag, updateSpecialDrag, type SpecialDrag } from '../dopesheet/event-track-edit';
+import {
+  beginTimelineDrag,
+  updateTimelineDrag,
+  type TimelineDrag,
+} from '../dopesheet/timeline-move';
 
 const LABEL_WIDTH = 184;
 const ROW_HEIGHT = 22;
@@ -225,13 +230,17 @@ export function DopesheetPanel(_props: IDockviewPanelProps): ReactElement {
     if (interaction.kind !== 'drag' || activeAnimation === null) return;
     const deltaSeconds = xToTime(view, currentX) - xToTime(view, startX);
     const history = documentHost.current().history;
-    // Both the value-channel keys and the special (event / draw-order) keys in the selection move inside
-    // the SAME open interaction session, so a mixed drag is still one undo step.
+    // The value-channel keys, the special (event / draw-order) keys, and the timeline (attachment / IK /
+    // transform) keys in the selection all move inside the SAME open interaction session, so a mixed drag is
+    // still one undo step.
     if (interaction.drag !== null) {
       updateKeyframeDrag(history, interaction.drag, deltaSeconds, !disableSnap, workingFps, duration);
     }
     if (interaction.special !== null) {
       updateSpecialDrag(history, interaction.special, deltaSeconds, !disableSnap, workingFps, duration);
+    }
+    if (interaction.timeline !== null) {
+      updateTimelineDrag(history, interaction.timeline, deltaSeconds, !disableSnap, workingFps, duration);
     }
   }
 
@@ -297,13 +306,14 @@ export function DopesheetPanel(_props: IDockviewPanelProps): ReactElement {
       const drag = beginKeyframeDrag(dragModel, activeAnimation, selection);
       const dragAnimation = dragModel.getAnimation(activeAnimation);
       const special = dragAnimation ? beginSpecialDrag(dragAnimation, selection) : null;
+      const timeline = dragAnimation ? beginTimelineDrag(dragAnimation, selection) : null;
       // Nothing draggable in the selection (only group rows, or an empty selection): cancel cleanly.
-      if (drag === null && special === null) {
+      if (drag === null && special === null && timeline === null) {
         interactionRef.current = { kind: 'none' };
         return;
       }
       documentHost.current().history.beginInteraction();
-      interactionRef.current = { kind: 'drag', startX: interaction.startX, drag, special };
+      interactionRef.current = { kind: 'drag', startX: interaction.startX, drag, special, timeline };
       applyDrag(interaction.startX, x, event.altKey);
       return;
     }
@@ -562,6 +572,7 @@ type Interaction =
       readonly startX: number;
       readonly drag: KeyframeDrag | null;
       readonly special: SpecialDrag | null;
+      readonly timeline: TimelineDrag | null;
     }
   | {
       readonly kind: 'marquee';

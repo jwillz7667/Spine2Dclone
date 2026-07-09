@@ -223,6 +223,81 @@ namespace Marionette.Runtime.Core.Skeleton
             return new PreparedStepBoolTrack(keyCount, times, values);
         }
 
+        // The optional keyable softness channel of an IK timeline (ADR-0010 section 2.4): built from ONLY
+        // the frames that key softness (it is optional on the IkFrame). Interpolated by its curve like Mix.
+        // Returns null when no frame keys it, so the constraint's base softness holds.
+        public static PreparedTrack? BuildIkSoftnessTrack(IReadOnlyList<IkKeyframe> frames)
+        {
+            var present = new List<IkKeyframe>();
+            for (int i = 0; i < frames.Count; i += 1)
+            {
+                if (frames[i].Softness != null)
+                {
+                    present.Add(frames[i]);
+                }
+            }
+
+            if (present.Count == 0)
+            {
+                return null;
+            }
+
+            int keyCount = present.Count;
+            var times = new double[keyCount];
+            var values = new double[keyCount];
+            var curves = new Curve[keyCount];
+            for (int i = 0; i < keyCount; i += 1)
+            {
+                times[i] = present[i].Time;
+                values[i] = present[i].Softness ?? 0;
+                curves[i] = present[i].Curve;
+            }
+
+            return BuildTrack(keyCount, 1, times, curves, values);
+        }
+
+        public enum IkDepthChannel
+        {
+            Stretch,
+            Compress,
+        }
+
+        // An optional keyable stepped-boolean depth channel of an IK timeline (stretch or compress, ADR-0010
+        // section 2.4): built from ONLY the frames that key it, stepped like the bend channel, resolved by
+        // the discrete greater-weight-wins rule. Returns null when no frame keys it, so the base holds.
+        public static PreparedStepBoolTrack? BuildIkDepthBoolTrack(
+            IReadOnlyList<IkKeyframe> frames,
+            IkDepthChannel channel)
+        {
+            var present = new List<IkKeyframe>();
+            for (int i = 0; i < frames.Count; i += 1)
+            {
+                if (SelectIkDepth(frames[i], channel) != null)
+                {
+                    present.Add(frames[i]);
+                }
+            }
+
+            if (present.Count == 0)
+            {
+                return null;
+            }
+
+            int keyCount = present.Count;
+            var times = new double[keyCount];
+            var values = new byte[keyCount];
+            for (int i = 0; i < keyCount; i += 1)
+            {
+                times[i] = present[i].Time;
+                values[i] = (byte)(SelectIkDepth(present[i], channel) == true ? 1 : 0);
+            }
+
+            return new PreparedStepBoolTrack(keyCount, times, values);
+        }
+
+        private static bool? SelectIkDepth(IkKeyframe frame, IkDepthChannel channel) =>
+            channel == IkDepthChannel.Stretch ? frame.Stretch : frame.Compress;
+
         public enum TransformMixChannel
         {
             MixRotate,

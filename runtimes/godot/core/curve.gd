@@ -17,6 +17,8 @@ const CURVE_BEZIER := 2
 
 enum TransformMixChannel { MIX_ROTATE, MIX_X, MIX_Y, MIX_SCALE_X, MIX_SCALE_Y, MIX_SHEAR_Y }
 
+enum IkDepthChannel { STRETCH, COMPRESS }
+
 
 # A cubic bezier coordinate at parameter s, expanded form (no fused multiply add reassociation, so other
 # runtimes match the operation order). P0 and P3 are the implicit easing endpoints (0 and 1).
@@ -187,6 +189,62 @@ static func build_bend_track(frames: Array) -> Prepared.PreparedStepBoolTrack:
 	track.times = times
 	track.values = values
 	return track
+
+
+# The optional keyable softness channel of an IK timeline (ADR-0010 section 2.4): built from ONLY the
+# frames that key softness (it is optional on the IkFrame). Interpolated by its curve like mix. Returns
+# null when no frame keys it, so the constraint's base softness holds.
+static func build_ik_softness_track(frames: Array):
+	var present := []
+	for i in range(frames.size()):
+		if frames[i].softness != null:
+			present.append(frames[i])
+	if present.size() == 0:
+		return null
+
+	var key_count := present.size()
+	var times := PackedFloat64Array()
+	times.resize(key_count)
+	var values := PackedFloat64Array()
+	values.resize(key_count)
+	var curves := []
+	for i in range(key_count):
+		times[i] = present[i].time
+		values[i] = float(present[i].softness)
+		curves.append(present[i].curve)
+	return _build_track(key_count, 1, times, curves, values)
+
+
+# An optional keyable stepped-boolean depth channel of an IK timeline (stretch or compress, ADR-0010
+# section 2.4): built from ONLY the frames that key it, stepped like the bend channel, resolved by the
+# discrete greater-weight-wins rule. Returns null when no frame keys it, so the constraint's base holds.
+static func build_ik_depth_bool_track(frames: Array, channel: int):
+	var present := []
+	for i in range(frames.size()):
+		if _select_ik_depth(frames[i], channel) != null:
+			present.append(frames[i])
+	if present.size() == 0:
+		return null
+
+	var key_count := present.size()
+	var times := PackedFloat64Array()
+	times.resize(key_count)
+	var values := PackedByteArray()
+	values.resize(key_count)
+	for i in range(key_count):
+		times[i] = present[i].time
+		values[i] = 1 if _select_ik_depth(present[i], channel) == true else 0
+	var track := Prepared.PreparedStepBoolTrack.new()
+	track.key_count = key_count
+	track.times = times
+	track.values = values
+	return track
+
+
+static func _select_ik_depth(frame, channel: int):
+	if channel == IkDepthChannel.STRETCH:
+		return frame.stretch
+	return frame.compress
 
 
 # One mix channel of a transform constraint timeline, built from ONLY the keyframes that key it. A

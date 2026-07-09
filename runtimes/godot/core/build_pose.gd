@@ -84,7 +84,12 @@ static func _resolve_ik(constraint, index_by_name: Dictionary) -> Pose.ResolvedI
 		_resolve_bone_indices(constraint.bones, index_by_name),
 		_lookup(index_by_name, constraint.target),
 		constraint.mix,
-		constraint.bend_positive
+		constraint.bend_positive,
+		constraint.softness,
+		constraint.stretch,
+		constraint.compress,
+		constraint.uniform,
+		constraint.order
 	)
 
 
@@ -110,5 +115,8 @@ static func _resolve_transform(constraint, index_by_name: Dictionary) -> Pose.Re
 		_resolve_bone_indices(constraint.bones, index_by_name),
 		_lookup(index_by_name, constraint.target),
 		base_mix,
-		offset
+		offset,
+		constraint.local,
+		constraint.relative,
+		constraint.order
 	)

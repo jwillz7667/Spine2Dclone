@@ -66,17 +66,48 @@ class ResolvedIkConstraint:
 	var target_index: int
 	var base_mix: float
 	var base_bend_positive: bool
+	# Depth controls from the constraint definition (ADR-0009 section 1.1, ADR-0010 section 2). base_* are
+	# the definition values; the sampled_* scratch carries the per-frame values (softness/stretch/compress
+	# may be keyed, uniform is static). Defaults (softness 0, all false) reproduce the ADR-0003 hard solve.
+	var base_softness: float
+	var base_stretch: bool
+	var base_compress: bool
+	var uniform: bool
+	# The explicit combined-set solve order (ADR-0009 section 1.3), or -1 when this constraint carries none.
+	var order: int
 	var sampled_mix: float
 	var sampled_bend_positive: bool
+	var sampled_softness: float
+	var sampled_stretch: bool
+	var sampled_compress: bool
 
-	func _init(n: String, indices: PackedInt32Array, target: int, mix: float, bend: bool) -> void:
+	func _init(
+		n: String,
+		indices: PackedInt32Array,
+		target: int,
+		mix: float,
+		bend: bool,
+		softness: float,
+		stretch: bool,
+		compress: bool,
+		is_uniform: bool,
+		the_order: int
+	) -> void:
 		name = n
 		bone_indices = indices
 		target_index = target
 		base_mix = mix
 		base_bend_positive = bend
+		base_softness = softness
+		base_stretch = stretch
+		base_compress = compress
+		uniform = is_uniform
+		order = the_order
 		sampled_mix = mix
 		sampled_bend_positive = bend
+		sampled_softness = softness
+		sampled_stretch = stretch
+		sampled_compress = compress
 
 
 # A transform constraint resolved against the pose.
@@ -86,14 +117,32 @@ class ResolvedTransformConstraint:
 	var target_index: int
 	var base_mix: TransformMix
 	var offset: TransformOffset
+	# Variant flags (ADR-0009 section 1.2); default false/false is the ADR-0003 world absolute blend. The
+	# variant solve is a later PP-B5 slice (ADR-0010 section 3); the flags are carried so the resolve stays
+	# total. order is the explicit combined-set solve order (section 1.3), or -1 when it carries none.
+	var local: bool
+	var relative: bool
+	var order: int
 	var sampled_mix: TransformMix
 
-	func _init(n: String, indices: PackedInt32Array, target: int, mix: TransformMix, off: TransformOffset) -> void:
+	func _init(
+		n: String,
+		indices: PackedInt32Array,
+		target: int,
+		mix: TransformMix,
+		off: TransformOffset,
+		is_local: bool,
+		is_relative: bool,
+		the_order: int
+	) -> void:
 		name = n
 		bone_indices = indices
 		target_index = target
 		base_mix = mix
 		offset = off
+		local = is_local
+		relative = is_relative
+		order = the_order
 		sampled_mix = TransformMix.new(mix.rotate, mix.x, mix.y, mix.scale_x, mix.scale_y, mix.shear_y)
 
 
@@ -115,6 +164,11 @@ var slot_setup_color: PackedFloat64Array
 var slot_color: PackedFloat64Array
 var slot_attachment_win_weight: PackedFloat64Array
 var ik_bend_win_weight: PackedFloat64Array
+# One f64 per IK constraint each: the discrete greater-weight-wins winner weights for that constraint's
+# sampled stretch and compress depth flags this frame (ADR-0010 section 2.4), reset to -1 by begin_blend,
+# exactly like ik_bend_win_weight.
+var ik_stretch_win_weight: PackedFloat64Array
+var ik_compress_win_weight: PackedFloat64Array
 var slot_setup_attachment: Array
 var slot_attachment: Array
 
@@ -128,6 +182,12 @@ var draw_order_win_weight: PackedFloat64Array
 
 var ik_constraints: Array
 var transform_constraints: Array
+# The explicit combined-set solve schedule (ADR-0009 section 1.3, ADR-0010 section 1) or null when no
+# constraint carries an order. When present it is a dense permutation of [0, N) (N = total constraints):
+# solve_order[position] is a constraint CODE, code < ik_constraints.size() selecting ik_constraints[code],
+# else transform_constraints[code - ik_constraints.size()]. Step 3 walks it in position order. Null keeps
+# the exact ADR-0003 two-phase (all IK, then all transform) path. Precomputed once at build.
+var solve_order = null  # PackedInt32Array or null
 
 # Reused scratch for sampled deform offsets (grows only when a larger mesh is sampled).
 var deform_scratch: PackedFloat64Array = PackedFloat64Array()
@@ -163,6 +223,8 @@ func _init(
 	slot_color = _float_buffer(slot_count * SLOT_COLOR_STRIDE)
 	slot_attachment_win_weight = _float_buffer(slot_count)
 	ik_bend_win_weight = _float_buffer(the_ik_constraints.size())
+	ik_stretch_win_weight = _float_buffer(the_ik_constraints.size())
+	ik_compress_win_weight = _float_buffer(the_ik_constraints.size())
 	slot_setup_attachment = []
 	slot_setup_attachment.resize(slot_count)
 	slot_attachment = []
@@ -173,6 +235,47 @@ func _init(
 
 	ik_constraints = the_ik_constraints
 	transform_constraints = the_transform_constraints
+	solve_order = _build_solve_order(the_ik_constraints, the_transform_constraints)
+
+
+# Precompute the explicit combined-set solve schedule (ADR-0010 section 1). Returns null when no constraint
+# carries an order (the ADR-0003 two-phase default). When ANY carries one, the format guarantees a dense
+# unique permutation of [0, N); this builds the position->code map from that. It is defensive against an
+# unvalidated document: a partial, duplicated, gapped, or out-of-range assignment falls back to null (the
+# safe document-order default) rather than producing a corrupt schedule.
+static func _build_solve_order(ik: Array, transform: Array):
+	var total := ik.size() + transform.size()
+	if total == 0:
+		return null
+
+	var any_order := false
+	for i in range(ik.size()):
+		if ik[i].order >= 0:
+			any_order = true
+	for i in range(transform.size()):
+		if transform[i].order >= 0:
+			any_order = true
+	if not any_order:
+		return null
+
+	var codes := PackedInt32Array()
+	codes.resize(total)
+	for i in range(total):
+		codes[i] = -1
+	for i in range(ik.size()):
+		if not _place_order(codes, total, ik[i].order, i):
+			return null
+	for j in range(transform.size()):
+		if not _place_order(codes, total, transform[j].order, ik.size() + j):
+			return null
+	return codes
+
+
+static func _place_order(codes: PackedInt32Array, total: int, order: int, code: int) -> bool:
+	if order < 0 or order >= total or codes[order] != -1:
+		return false
+	codes[order] = code
+	return true
 
 
 static func _float_buffer(n: int) -> PackedFloat64Array:

@@ -172,9 +172,17 @@ static func _read_ik_constraint(ik: Dictionary) -> Document.IkConstraint:
 	c.target = _req_string(ik, "target")
 	c.mix = _req_number(ik, "mix")
 	# Format 0.4.0 (ADR-0009) carries the signed bend direction (+1 / -1) in place of the pre-0.4.0
-	# bendPositive boolean; the solve keys on the same sign, so bend > 0 reproduces it exactly. The F2
-	# depth fields (softness/stretch/compress/uniform) are additive and permitted-but-unread (PP-B5).
+	# bendPositive boolean; the solve keys on the same sign, so bend > 0 reproduces it exactly.
 	c.bend_positive = _req_number(ik, "bend") > 0.0
+	# The F2 depth fields (ADR-0009 section 1.1, ADR-0010 section 2), consumed by the PP-B5 solve. Absent
+	# fields default to the neutral values (softness 0, all flags false), which reproduce the hard solve.
+	c.softness = _opt_number_or(ik, "softness", 0.0)
+	c.stretch = _opt_bool_or(ik, "stretch", false)
+	c.compress = _opt_bool_or(ik, "compress", false)
+	c.uniform = _opt_bool_or(ik, "uniform", false)
+	# The explicit combined-set solve order (ADR-0009 section 1.3), or -1 when this constraint carries none.
+	var order_value = ik.get("order")
+	c.order = int(order_value) if _is_number(order_value) else -1
 	return c
 
 
@@ -195,6 +203,12 @@ static func _read_transform_constraint(tc: Dictionary) -> Document.TransformCons
 	c.offset_scale_x = _req_number(tc, "offsetScaleX")
 	c.offset_scale_y = _req_number(tc, "offsetScaleY")
 	c.offset_shear_y = _req_number(tc, "offsetShearY")
+	# Variant flags (ADR-0009 section 1.2); default false/false is the ADR-0003 world absolute blend.
+	c.local = _opt_bool_or(tc, "local", false)
+	c.relative = _opt_bool_or(tc, "relative", false)
+	# The explicit combined-set solve order (ADR-0009 section 1.3), or -1 when this constraint carries none.
+	var order_value = tc.get("order")
+	c.order = int(order_value) if _is_number(order_value) else -1
 	return c
 
 
@@ -223,6 +237,11 @@ static func _read_animation(animation: Dictionary) -> Document.AnimationDef:
 				kf.mix = _req_number(value, "mix")
 				# Signed bend direction (ADR-0009); bend > 0 reproduces the pre-0.4.0 bendPositive boolean.
 				kf.bend_positive = _req_number(value, "bend") > 0.0
+				# Optional keyable depth channels (ADR-0010 section 2.4): null when this frame omits them, so
+				# only keyed frames drive the prepared track and the constraint base holds otherwise.
+				kf.softness = _opt_number(value, "softness")
+				kf.stretch = _opt_bool(value, "stretch")
+				kf.compress = _opt_bool(value, "compress")
 				kf.curve = _read_curve(frame)
 				frames.append(kf)
 			a.ik[ik_name] = frames
@@ -453,6 +472,27 @@ static func _opt_number(obj: Dictionary, key: String):
 	if not _is_number(member):
 		return null
 	return float(member)
+
+
+static func _opt_number_or(obj: Dictionary, key: String, fallback: float) -> float:
+	var member = obj.get(key)
+	if not _is_number(member):
+		return fallback
+	return float(member)
+
+
+static func _opt_bool(obj: Dictionary, key: String):
+	var member = obj.get(key)
+	if typeof(member) != TYPE_BOOL:
+		return null
+	return member
+
+
+static func _opt_bool_or(obj: Dictionary, key: String, fallback: bool) -> bool:
+	var member = obj.get(key)
+	if typeof(member) != TYPE_BOOL:
+		return fallback
+	return member
 
 
 static func _opt_int(obj: Dictionary, key: String):

@@ -98,6 +98,15 @@ class IkConstraint:
 	var target: String
 	var mix: float
 	var bend_positive: bool
+	# Depth controls (ADR-0009 section 1.1, ADR-0010 section 2). softness is a non-negative world-unit
+	# distance; stretch/compress/uniform are booleans. Defaults (softness 0, all false) reproduce the
+	# ADR-0003 hard solve exactly.
+	var softness: float = 0.0
+	var stretch: bool = false
+	var compress: bool = false
+	var uniform: bool = false
+	# The explicit combined-set solve order (ADR-0009 section 1.3), or -1 when this constraint carries none.
+	var order: int = -1
 
 
 class TransformConstraint:
@@ -116,6 +125,12 @@ class TransformConstraint:
 	var offset_scale_x: float
 	var offset_scale_y: float
 	var offset_shear_y: float
+	# The local/relative variant flags (ADR-0009 section 1.2). Default false/false reproduces the ADR-0003
+	# world-space absolute blend; the variant solve is a later PP-B5 slice (ADR-0010 section 3).
+	var local: bool = false
+	var relative: bool = false
+	# The explicit combined-set solve order (ADR-0009 section 1.3), or -1 when this constraint carries none.
+	var order: int = -1
 
 
 class ScalarKeyframe:
@@ -147,6 +162,12 @@ class IkKeyframe:
 	var mix: float
 	var bend_positive: bool
 	var curve: TimelineCurve
+	# Optional keyable depth channels (ADR-0009 section 1.1, ADR-0010 section 2.4). null == not keyed by
+	# this frame, so only the frames that key a channel drive its prepared track (the constraint base holds
+	# otherwise). softness is a float or null; stretch/compress are bool or null.
+	var softness = null
+	var stretch = null
+	var compress = null
 
 
 class TransformKeyframe:

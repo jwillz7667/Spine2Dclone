@@ -174,13 +174,38 @@ namespace Marionette.Runtime.Core.Document
         public double Mix { get; }
         public bool BendPositive { get; }
 
-        public IkConstraint(string name, IReadOnlyList<string> bones, string target, double mix, bool bendPositive)
+        // Depth controls (ADR-0009 section 1.1, ADR-0010 section 2). Softness is a non-negative world-unit
+        // distance; Stretch/Compress/Uniform are booleans. Defaults (softness 0, all false) reproduce the
+        // ADR-0003 hard solve exactly. Order is the explicit combined-set solve order (ADR-0009 section 1.3),
+        // or -1 when this constraint carries none.
+        public double Softness { get; }
+        public bool Stretch { get; }
+        public bool Compress { get; }
+        public bool Uniform { get; }
+        public int Order { get; }
+
+        public IkConstraint(
+            string name,
+            IReadOnlyList<string> bones,
+            string target,
+            double mix,
+            bool bendPositive,
+            double softness,
+            bool stretch,
+            bool compress,
+            bool uniform,
+            int order)
         {
             Name = name;
             Bones = bones;
             Target = target;
             Mix = mix;
             BendPositive = bendPositive;
+            Softness = softness;
+            Stretch = stretch;
+            Compress = compress;
+            Uniform = uniform;
+            Order = order;
         }
     }
 
@@ -202,6 +227,14 @@ namespace Marionette.Runtime.Core.Document
         public double OffsetScaleY { get; }
         public double OffsetShearY { get; }
 
+        // Variant flags (ADR-0009 section 1.2). Default false/false reproduces the ADR-0003 world-space
+        // absolute blend; the variant solve is a later PP-B5 slice (ADR-0010 section 3) but the flags are
+        // carried now so the resolve stays total. Order is the explicit combined-set solve order (ADR-0009
+        // section 1.3), or -1 when this constraint carries none.
+        public bool Local { get; }
+        public bool Relative { get; }
+        public int Order { get; }
+
         public TransformConstraint(
             string name,
             IReadOnlyList<string> bones,
@@ -217,7 +250,10 @@ namespace Marionette.Runtime.Core.Document
             double offsetY,
             double offsetScaleX,
             double offsetScaleY,
-            double offsetShearY)
+            double offsetShearY,
+            bool local,
+            bool relative,
+            int order)
         {
             Name = name;
             Bones = bones;
@@ -234,6 +270,9 @@ namespace Marionette.Runtime.Core.Document
             OffsetScaleX = offsetScaleX;
             OffsetScaleY = offsetScaleY;
             OffsetShearY = offsetShearY;
+            Local = local;
+            Relative = relative;
+            Order = order;
         }
     }
 
@@ -300,12 +339,29 @@ namespace Marionette.Runtime.Core.Document
         public bool BendPositive { get; }
         public Curve Curve { get; }
 
-        public IkKeyframe(double time, double mix, bool bendPositive, Curve curve)
+        // Optional keyable depth channels (ADR-0009 section 1.1, ADR-0010 section 2.4). Null == absent from
+        // this keyframe (the depth-track build honors that by dropping the channel so the constraint base
+        // holds). Softness interpolates by its curve like Mix; Stretch/Compress are stepped booleans.
+        public double? Softness { get; }
+        public bool? Stretch { get; }
+        public bool? Compress { get; }
+
+        public IkKeyframe(
+            double time,
+            double mix,
+            bool bendPositive,
+            Curve curve,
+            double? softness,
+            bool? stretch,
+            bool? compress)
         {
             Time = time;
             Mix = mix;
             BendPositive = bendPositive;
             Curve = curve;
+            Softness = softness;
+            Stretch = stretch;
+            Compress = compress;
         }
     }
 

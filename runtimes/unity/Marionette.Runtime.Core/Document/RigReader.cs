@@ -183,13 +183,19 @@ namespace Marionette.Runtime.Core.Document
         {
             // Format 0.4.0 (ADR-0009) carries the signed bend direction (+1 / -1) in place of the pre-0.4.0
             // bendPositive boolean; the solve keys on the same sign, so bend > 0 reproduces it exactly. The
-            // additive F2 depth fields (softness/stretch/compress/uniform) are permitted-but-unread (PP-B5).
+            // F2 depth fields (softness/stretch/compress/uniform, ADR-0010 section 2) and the optional
+            // explicit solve order (ADR-0009 section 1.3) drive the depth/order solve; absent order is -1.
             return new IkConstraint(
                 ReqString(ik, "name"),
                 ReadStringArray(ReqMember(ik, "bones", JsonKind.Array)),
                 ReqString(ik, "target"),
                 ReqNumber(ik, "mix"),
-                ReqNumber(ik, "bend") > 0.0);
+                ReqNumber(ik, "bend") > 0.0,
+                OptNumber(ik, "softness") ?? 0.0,
+                OptBool(ik, "stretch") ?? false,
+                OptBool(ik, "compress") ?? false,
+                OptBool(ik, "uniform") ?? false,
+                OptInt(ik, "order") ?? -1);
         }
 
         private static TransformConstraint ReadTransformConstraint(JsonValue tc)
@@ -209,7 +215,12 @@ namespace Marionette.Runtime.Core.Document
                 ReqNumber(tc, "offsetY"),
                 ReqNumber(tc, "offsetScaleX"),
                 ReqNumber(tc, "offsetScaleY"),
-                ReqNumber(tc, "offsetShearY"));
+                ReqNumber(tc, "offsetShearY"),
+                // Variant flags (ADR-0009 section 1.2) and the optional explicit solve order (section 1.3).
+                // The variant solve is deferred (ADR-0010 section 3); order feeds the interleaved schedule.
+                OptBool(tc, "local") ?? false,
+                OptBool(tc, "relative") ?? false,
+                OptInt(tc, "order") ?? -1);
         }
 
         private static Animation ReadAnimation(JsonValue animation)
@@ -254,7 +265,12 @@ namespace Marionette.Runtime.Core.Document
                                 ReqNumber(value, "mix"),
                                 // Signed bend (ADR-0009); bend > 0 reproduces the pre-0.4.0 bendPositive.
                                 ReqNumber(value, "bend") > 0.0,
-                                ReadCurve(frame)));
+                                ReadCurve(frame),
+                                // Optional keyable depth channels (ADR-0010 section 2.4); absent == null so
+                                // the depth-track build drops the channel and the constraint base holds.
+                                OptNumber(value, "softness"),
+                                OptBool(value, "stretch"),
+                                OptBool(value, "compress")));
                     }
 
                     ik.Add(new KeyValuePair<string, IReadOnlyList<IkKeyframe>>(entry.Key, frames));
@@ -585,6 +601,17 @@ namespace Marionette.Runtime.Core.Document
             }
 
             return (int)member.AsNumber();
+        }
+
+        private static bool? OptBool(JsonValue obj, string key)
+        {
+            JsonValue? member = obj.Member(key);
+            if (member == null || member.Kind != JsonKind.Bool)
+            {
+                return null;
+            }
+
+            return member.AsBool();
         }
 
         private static string? OptString(JsonValue obj, string key)

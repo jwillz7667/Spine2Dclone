@@ -48,6 +48,12 @@ class PreparedIkChannel:
 	var constraint_index: int
 	var mix = null  # PreparedTrack or null
 	var bend_positive = null  # PreparedStepBoolTrack or null
+	# Optional keyable depth channels (ADR-0009 section 1.1, ADR-0010 section 2.4), each built from ONLY the
+	# frames that key it (null when no frame does, so the constraint base holds). softness interpolates by
+	# its curve like mix; stretch/compress are stepped booleans resolved by greater-weight-wins like bend.
+	var softness = null  # PreparedTrack or null
+	var stretch = null  # PreparedStepBoolTrack or null
+	var compress = null  # PreparedStepBoolTrack or null
 
 
 class PreparedTransformChannel:

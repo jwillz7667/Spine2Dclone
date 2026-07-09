@@ -106,11 +106,28 @@ namespace Marionette.Runtime.Core.Skeleton
         public PreparedTrack? Mix { get; }
         public PreparedStepBoolTrack? BendPositive { get; }
 
-        public PreparedIkChannel(int constraintIndex, PreparedTrack? mix, PreparedStepBoolTrack? bendPositive)
+        // The optional keyable depth channels (ADR-0009 section 1.1, ADR-0010 section 2.4). Each is built
+        // from ONLY the frames that key it, so a channel no frame keys is null and the constraint's base
+        // value holds. Softness interpolates by its curve like Mix; Stretch/Compress are stepped booleans
+        // resolved by the discrete greater-weight-wins rule, exactly like BendPositive.
+        public PreparedTrack? Softness { get; }
+        public PreparedStepBoolTrack? Stretch { get; }
+        public PreparedStepBoolTrack? Compress { get; }
+
+        public PreparedIkChannel(
+            int constraintIndex,
+            PreparedTrack? mix,
+            PreparedStepBoolTrack? bendPositive,
+            PreparedTrack? softness,
+            PreparedStepBoolTrack? stretch,
+            PreparedStepBoolTrack? compress)
         {
             ConstraintIndex = constraintIndex;
             Mix = mix;
             BendPositive = bendPositive;
+            Softness = softness;
+            Stretch = stretch;
+            Compress = compress;
         }
     }
 

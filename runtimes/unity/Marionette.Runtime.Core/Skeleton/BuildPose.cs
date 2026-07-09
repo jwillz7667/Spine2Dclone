@@ -108,7 +108,12 @@ namespace Marionette.Runtime.Core.Skeleton
                 ResolveBoneIndices(constraint.Bones, indexByName),
                 LookupOrMinusOne(indexByName, constraint.Target),
                 constraint.Mix,
-                constraint.BendPositive);
+                constraint.BendPositive,
+                constraint.Softness,
+                constraint.Stretch,
+                constraint.Compress,
+                constraint.Uniform,
+                constraint.Order);
         }
 
         private static ResolvedTransformConstraint ResolveTransform(
@@ -134,7 +139,10 @@ namespace Marionette.Runtime.Core.Skeleton
                 ResolveBoneIndices(constraint.Bones, indexByName),
                 LookupOrMinusOne(indexByName, constraint.Target),
                 baseMix,
-                offset);
+                offset,
+                constraint.Local,
+                constraint.Relative,
+                constraint.Order);
         }
     }
 }

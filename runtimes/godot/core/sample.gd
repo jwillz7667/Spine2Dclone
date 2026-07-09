@@ -50,6 +50,8 @@ static func begin_blend(pose: Pose) -> void:
 		pose.bone_touched[i] = 0
 	_fill(pose.slot_attachment_win_weight, -1.0)
 	_fill(pose.ik_bend_win_weight, -1.0)
+	_fill(pose.ik_stretch_win_weight, -1.0)
+	_fill(pose.ik_compress_win_weight, -1.0)
 	pose.draw_order_win_weight[0] = -1.0
 
 
@@ -109,51 +111,89 @@ static func _blend_add_rotation(current: float, setup_value: float, sampled: flo
 	return current + (_normalize_delta_deg(sampled - setup_value) * w)
 
 
-# Solve step 3: IK constraints first (document array order), then transform constraints.
+# Solve step 3 (ADR-0003 section 3, ordering per ADR-0009 section 1.3 / ADR-0010 section 1). Default
+# (pose.solve_order null): all IK constraints in document order, then all transform constraints in document
+# order, the exact ADR-0003 two-phase path. When the rig assigns an explicit order, pose.solve_order is the
+# precomputed dense schedule and step 3 walks it, dispatching each code to the SAME per-constraint helper
+# the default path uses (so an IK constraint is bit-identical either way; only the schedule moves).
 static func solve_constraints(pose: Pose) -> void:
-	var ik_constraints := pose.ik_constraints
-	var transform_constraints := pose.transform_constraints
 	if _target_world_scratch.size() != Affine.MAT2X3_STRIDE:
 		_target_world_scratch.resize(Affine.MAT2X3_STRIDE)
 
-	for i in range(ik_constraints.size()):
-		var constraint = ik_constraints[i]
-		var target_index: int = constraint.target_index
-		if target_index < 0:
-			continue
-		var bone_indices: PackedInt32Array = constraint.bone_indices
-		if constraint.sampled_mix <= 0.0:
-			continue
+	var ik_constraints := pose.ik_constraints
+	var transform_constraints := pose.transform_constraints
+	var solve_order = pose.solve_order
 
-		ResolveWorld.resolve(pose, target_index, _target_world_scratch, 0)
-		var target_x := _target_world_scratch[4]
-		var target_y := _target_world_scratch[5]
+	if solve_order == null:
+		for i in range(ik_constraints.size()):
+			_solve_one_ik_constraint(pose, ik_constraints[i])
+		for i in range(transform_constraints.size()):
+			_solve_one_transform_constraint(pose, transform_constraints[i])
+		return
 
-		if bone_indices.size() == 1:
-			var bone_index := bone_indices[0]
-			if bone_index < 0:
-				continue
-			Ik.solve_ik_one_bone(pose, bone_index, target_x, target_y, constraint.sampled_mix)
+	var ik_count := ik_constraints.size()
+	for p in range(solve_order.size()):
+		var code: int = solve_order[p]
+		if code < ik_count:
+			_solve_one_ik_constraint(pose, ik_constraints[code])
 		else:
-			var parent_index := bone_indices[0]
-			var child_index := bone_indices[1]
-			if parent_index < 0 or child_index < 0:
-				continue
-			Ik.solve_ik_two_bone(
-				pose, parent_index, child_index, target_x, target_y, constraint.sampled_bend_positive, constraint.sampled_mix
-			)
+			_solve_one_transform_constraint(pose, transform_constraints[code - ik_count])
 
-	for i in range(transform_constraints.size()):
-		var constraint = transform_constraints[i]
-		var target_index: int = constraint.target_index
-		if target_index < 0:
+
+# Solve one IK constraint against the pose (ADR-0003 section 4, depth per ADR-0010 section 2). A constraint
+# with an unresolved bone/target index (-1) or non-positive mix is a no-op. The per-constraint sampled
+# scratch (mix, bend, softness, stretch, compress) was written by step 2; uniform is the static flag.
+static func _solve_one_ik_constraint(pose: Pose, constraint) -> void:
+	var target_index: int = constraint.target_index
+	if target_index < 0:
+		return
+	if constraint.sampled_mix <= 0.0:
+		return
+	var bone_indices: PackedInt32Array = constraint.bone_indices
+
+	ResolveWorld.resolve(pose, target_index, _target_world_scratch, 0)
+	var target_x := _target_world_scratch[4]
+	var target_y := _target_world_scratch[5]
+
+	if bone_indices.size() == 1:
+		var bone_index := bone_indices[0]
+		if bone_index < 0:
+			return
+		Ik.solve_ik_one_bone(
+			pose, bone_index, target_x, target_y, constraint.sampled_mix, constraint.sampled_stretch, constraint.sampled_compress
+		)
+	else:
+		var parent_index := bone_indices[0]
+		var child_index := bone_indices[1]
+		if parent_index < 0 or child_index < 0:
+			return
+		Ik.solve_ik_two_bone(
+			pose,
+			parent_index,
+			child_index,
+			target_x,
+			target_y,
+			constraint.sampled_bend_positive,
+			constraint.sampled_mix,
+			constraint.sampled_softness,
+			constraint.sampled_stretch,
+			constraint.sampled_compress,
+			constraint.uniform
+		)
+
+
+# Solve one transform constraint against the pose (ADR-0003 section 5). Applies to each constrained bone in
+# stored order; an unresolved bone/target index is skipped.
+static func _solve_one_transform_constraint(pose: Pose, constraint) -> void:
+	var target_index: int = constraint.target_index
+	if target_index < 0:
+		return
+	var bone_indices: PackedInt32Array = constraint.bone_indices
+	for b in range(bone_indices.size()):
+		var bone_index := bone_indices[b]
+		if bone_index < 0:
 			continue
-		var bone_indices: PackedInt32Array = constraint.bone_indices
-		for b in range(bone_indices.size()):
-			var bone_index := bone_indices[b]
-			if bone_index < 0:
-				continue
-			TransformConstraint.solve(pose, bone_index, target_index, constraint.sampled_mix, constraint.offset)
+		TransformConstraint.solve(pose, bone_index, target_index, constraint.sampled_mix, constraint.offset)
 
 
 static func reset_constraints_to_base(pose: Pose) -> void:
@@ -161,6 +201,9 @@ static func reset_constraints_to_base(pose: Pose) -> void:
 		var constraint = pose.ik_constraints[i]
 		constraint.sampled_mix = constraint.base_mix
 		constraint.sampled_bend_positive = constraint.base_bend_positive
+		constraint.sampled_softness = constraint.base_softness
+		constraint.sampled_stretch = constraint.base_stretch
+		constraint.sampled_compress = constraint.base_compress
 	for i in range(pose.transform_constraints.size()):
 		var constraint = pose.transform_constraints[i]
 		constraint.sampled_mix.copy_from(constraint.base_mix)
@@ -328,6 +371,8 @@ static func _apply_constraint_entry(pose: Pose, prepared: Prepared.PreparedAnima
 	var ik_constraints := pose.ik_constraints
 	var transform_constraints := pose.transform_constraints
 	var ik_bend_win_weight := pose.ik_bend_win_weight
+	var ik_stretch_win_weight := pose.ik_stretch_win_weight
+	var ik_compress_win_weight := pose.ik_compress_win_weight
 
 	for c in range(ik_channels.size()):
 		var channel = ik_channels[c]
@@ -342,9 +387,27 @@ static func _apply_constraint_entry(pose: Pose, prepared: Prepared.PreparedAnima
 				if additive
 				else _blend_replace_linear(constraint.sampled_mix, value, alpha)
 			)
+		# softness blends like mix (a continuous world-unit distance); a negative additive result is floored
+		# at 0 to keep the non-negative contract the solve's soft-reach remap relies on.
+		if channel.softness != null:
+			var value := _sample_scalar_track(channel.softness, t)
+			var blended := (
+				_blend_add_linear(constraint.sampled_softness, constraint.base_softness, value, alpha)
+				if additive
+				else _blend_replace_linear(constraint.sampled_softness, value, alpha)
+			)
+			constraint.sampled_softness = 0.0 if blended < 0.0 else blended
 		if channel.bend_positive != null and discrete_wins and alpha >= ik_bend_win_weight[index]:
 			constraint.sampled_bend_positive = Curves.sample_step_bool(channel.bend_positive, t)
 			ik_bend_win_weight[index] = alpha
+		# stretch/compress are discrete flags: the track with the greatest alpha this frame wins (ADR-0005
+		# rule 5), exactly like the bend direction, each with its own per-constraint win weight.
+		if channel.stretch != null and discrete_wins and alpha >= ik_stretch_win_weight[index]:
+			constraint.sampled_stretch = Curves.sample_step_bool(channel.stretch, t)
+			ik_stretch_win_weight[index] = alpha
+		if channel.compress != null and discrete_wins and alpha >= ik_compress_win_weight[index]:
+			constraint.sampled_compress = Curves.sample_step_bool(channel.compress, t)
+			ik_compress_win_weight[index] = alpha
 
 	for c in range(transform_channels.size()):
 		var channel = transform_channels[c]
@@ -416,6 +479,9 @@ static func _prepare_animation(pose: Pose, animation) -> Prepared.PreparedAnimat
 		channel.constraint_index = _lookup(ik_index_by_name, ik_name)
 		channel.mix = Curves.build_ik_mix_track(frames)
 		channel.bend_positive = Curves.build_bend_track(frames)
+		channel.softness = Curves.build_ik_softness_track(frames)
+		channel.stretch = Curves.build_ik_depth_bool_track(frames, Curves.IkDepthChannel.STRETCH)
+		channel.compress = Curves.build_ik_depth_bool_track(frames, Curves.IkDepthChannel.COMPRESS)
 		result.ik_channels.append(channel)
 
 	var transform_index_by_name := _name_index_of(pose.transform_constraints)

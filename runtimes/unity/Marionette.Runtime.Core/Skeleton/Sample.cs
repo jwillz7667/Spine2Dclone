@@ -67,6 +67,8 @@ namespace Marionette.Runtime.Core.Skeleton
             Array.Clear(pose.BoneTouched, 0, pose.BoneTouched.Length);
             Fill(pose.SlotAttachmentWinWeight, -1);
             Fill(pose.IkBendWinWeight, -1);
+            Fill(pose.IkStretchWinWeight, -1);
+            Fill(pose.IkCompressWinWeight, -1);
             pose.DrawOrderWinWeight[0] = -1;
         }
 
@@ -149,87 +151,136 @@ namespace Marionette.Runtime.Core.Skeleton
         private static double BlendAddRotation(double current, double setupValue, double sampled, double w) =>
             current + (NormalizeDeltaDeg(sampled - setupValue) * w);
 
-        // Solve step 3: IK constraints first (document array order), then transform constraints.
+        // Solve step 3 (ADR-0003 section 3, ordering per ADR-0009 section 1.3 / ADR-0010 section 1). Default
+        // (pose.SolveOrder null): all IK constraints in document order, then all transform constraints in
+        // document order, the exact ADR-0003 two-phase path. When the rig assigns an explicit order,
+        // pose.SolveOrder is the precomputed dense schedule and step 3 walks it, dispatching each code to the
+        // SAME per-constraint helper the default path uses (so an IK constraint is bit-identical either way).
         public static void SolveConstraints(Pose pose)
         {
             IReadOnlyList<ResolvedIkConstraint> ikConstraints = pose.IkConstraints;
             IReadOnlyList<ResolvedTransformConstraint> transformConstraints = pose.TransformConstraints;
-            double[] targetWorldScratch = TargetWorldScratch;
+            int[]? solveOrder = pose.SolveOrder;
 
-            for (int i = 0; i < ikConstraints.Count; i += 1)
+            if (solveOrder == null)
             {
-                ResolvedIkConstraint constraint = ikConstraints[i];
-                int targetIndex = constraint.TargetIndex;
-                if (targetIndex < 0)
+                for (int i = 0; i < ikConstraints.Count; i += 1)
                 {
-                    continue;
+                    SolveOneIkConstraint(pose, ikConstraints[i]);
                 }
 
-                int[] boneIndices = constraint.BoneIndices;
-                if (constraint.SampledMix <= 0)
+                for (int i = 0; i < transformConstraints.Count; i += 1)
                 {
-                    continue;
+                    SolveOneTransformConstraint(pose, transformConstraints[i]);
                 }
 
-                ResolveWorld.Resolve(pose, targetIndex, targetWorldScratch, 0);
-                double targetX = targetWorldScratch[4];
-                double targetY = targetWorldScratch[5];
+                return;
+            }
 
-                if (boneIndices.Length == 1)
+            int ikCount = ikConstraints.Count;
+            for (int p = 0; p < solveOrder.Length; p += 1)
+            {
+                int code = solveOrder[p];
+                if (code < ikCount)
                 {
-                    int boneIndex = boneIndices[0];
-                    if (boneIndex < 0)
-                    {
-                        continue;
-                    }
-
-                    Ik.SolveIkOneBone(pose, boneIndex, targetX, targetY, constraint.SampledMix);
+                    SolveOneIkConstraint(pose, ikConstraints[code]);
                 }
                 else
                 {
-                    int parentIndex = boneIndices[0];
-                    int childIndex = boneIndices[1];
-                    if (parentIndex < 0 || childIndex < 0)
-                    {
-                        continue;
-                    }
-
-                    Ik.SolveIkTwoBone(
-                        pose,
-                        parentIndex,
-                        childIndex,
-                        targetX,
-                        targetY,
-                        constraint.SampledBendPositive,
-                        constraint.SampledMix);
+                    SolveOneTransformConstraint(pose, transformConstraints[code - ikCount]);
                 }
             }
+        }
 
-            for (int i = 0; i < transformConstraints.Count; i += 1)
+        // Solve one IK constraint against the pose (ADR-0003 section 4, depth per ADR-0010 section 2). Reads
+        // the target world origin into the thread scratch and dispatches one/two-bone. A constraint with an
+        // unresolved bone/target index (-1) or non-positive mix is a no-op. The per-constraint sampled scratch
+        // (mix, bend, softness, stretch, compress) was written by step 2; Uniform is the static definition flag.
+        private static void SolveOneIkConstraint(Pose pose, ResolvedIkConstraint constraint)
+        {
+            int targetIndex = constraint.TargetIndex;
+            if (targetIndex < 0)
             {
-                ResolvedTransformConstraint constraint = transformConstraints[i];
-                int targetIndex = constraint.TargetIndex;
-                if (targetIndex < 0)
+                return;
+            }
+
+            if (constraint.SampledMix <= 0)
+            {
+                return;
+            }
+
+            int[] boneIndices = constraint.BoneIndices;
+            double[] targetWorldScratch = TargetWorldScratch;
+            ResolveWorld.Resolve(pose, targetIndex, targetWorldScratch, 0);
+            double targetX = targetWorldScratch[4];
+            double targetY = targetWorldScratch[5];
+
+            if (boneIndices.Length == 1)
+            {
+                int boneIndex = boneIndices[0];
+                if (boneIndex < 0)
+                {
+                    return;
+                }
+
+                Ik.SolveIkOneBone(
+                    pose,
+                    boneIndex,
+                    targetX,
+                    targetY,
+                    constraint.SampledMix,
+                    constraint.SampledStretch,
+                    constraint.SampledCompress);
+            }
+            else
+            {
+                int parentIndex = boneIndices[0];
+                int childIndex = boneIndices[1];
+                if (parentIndex < 0 || childIndex < 0)
+                {
+                    return;
+                }
+
+                Ik.SolveIkTwoBone(
+                    pose,
+                    parentIndex,
+                    childIndex,
+                    targetX,
+                    targetY,
+                    constraint.SampledBendPositive,
+                    constraint.SampledMix,
+                    constraint.SampledSoftness,
+                    constraint.SampledStretch,
+                    constraint.SampledCompress,
+                    constraint.Uniform);
+            }
+        }
+
+        // Solve one transform constraint against the pose (ADR-0003 section 5). Applies to each constrained
+        // bone in stored order; an unresolved bone/target index is skipped.
+        private static void SolveOneTransformConstraint(Pose pose, ResolvedTransformConstraint constraint)
+        {
+            int targetIndex = constraint.TargetIndex;
+            if (targetIndex < 0)
+            {
+                return;
+            }
+
+            int[] boneIndices = constraint.BoneIndices;
+            for (int b = 0; b < boneIndices.Length; b += 1)
+            {
+                int boneIndex = boneIndices[b];
+                if (boneIndex < 0)
                 {
                     continue;
                 }
 
-                int[] boneIndices = constraint.BoneIndices;
-                for (int b = 0; b < boneIndices.Length; b += 1)
-                {
-                    int boneIndex = boneIndices[b];
-                    if (boneIndex < 0)
-                    {
-                        continue;
-                    }
-
-                    TransformConstraintSolve.Solve(
-                        pose,
-                        boneIndex,
-                        targetIndex,
-                        constraint.SampledMix,
-                        constraint.Offset);
-                }
+                TransformConstraintSolve.Solve(
+                    pose,
+                    boneIndex,
+                    targetIndex,
+                    constraint.SampledMix,
+                    constraint.Offset);
             }
         }
 
@@ -242,6 +293,9 @@ namespace Marionette.Runtime.Core.Skeleton
                 ResolvedIkConstraint constraint = ikConstraints[i];
                 constraint.SampledMix = constraint.BaseMix;
                 constraint.SampledBendPositive = constraint.BaseBendPositive;
+                constraint.SampledSoftness = constraint.BaseSoftness;
+                constraint.SampledStretch = constraint.BaseStretch;
+                constraint.SampledCompress = constraint.BaseCompress;
             }
 
             for (int i = 0; i < transformConstraints.Count; i += 1)
@@ -464,6 +518,8 @@ namespace Marionette.Runtime.Core.Skeleton
             IReadOnlyList<ResolvedIkConstraint> ikConstraints = pose.IkConstraints;
             IReadOnlyList<ResolvedTransformConstraint> transformConstraints = pose.TransformConstraints;
             double[] ikBendWinWeight = pose.IkBendWinWeight;
+            double[] ikStretchWinWeight = pose.IkStretchWinWeight;
+            double[] ikCompressWinWeight = pose.IkCompressWinWeight;
 
             for (int c = 0; c < ikChannels.Count; c += 1)
             {
@@ -483,10 +539,35 @@ namespace Marionette.Runtime.Core.Skeleton
                         : BlendReplaceLinear(constraint.SampledMix, value, alpha);
                 }
 
+                // softness blends like mix (a continuous world-unit distance); a negative additive result is
+                // floored at 0 to keep the non-negative contract the solve's soft-reach remap relies on.
+                if (channel.Softness != null)
+                {
+                    double value = SampleScalarTrack(channel.Softness, t);
+                    double blended = additive
+                        ? BlendAddLinear(constraint.SampledSoftness, constraint.BaseSoftness, value, alpha)
+                        : BlendReplaceLinear(constraint.SampledSoftness, value, alpha);
+                    constraint.SampledSoftness = blended < 0 ? 0 : blended;
+                }
+
                 if (channel.BendPositive != null && discreteWins && alpha >= ikBendWinWeight[index])
                 {
                     constraint.SampledBendPositive = Curves.SampleStepBool(channel.BendPositive, t);
                     ikBendWinWeight[index] = alpha;
+                }
+
+                // stretch/compress are discrete flags: the track with the greatest alpha this frame wins
+                // (ADR-0005 rule 5), exactly like the bend direction, each with its own per-constraint weight.
+                if (channel.Stretch != null && discreteWins && alpha >= ikStretchWinWeight[index])
+                {
+                    constraint.SampledStretch = Curves.SampleStepBool(channel.Stretch, t);
+                    ikStretchWinWeight[index] = alpha;
+                }
+
+                if (channel.Compress != null && discreteWins && alpha >= ikCompressWinWeight[index])
+                {
+                    constraint.SampledCompress = Curves.SampleStepBool(channel.Compress, t);
+                    ikCompressWinWeight[index] = alpha;
                 }
             }
 
@@ -600,7 +681,10 @@ namespace Marionette.Runtime.Core.Skeleton
                 ikChannels.Add(new PreparedIkChannel(
                     LookupOrMinusOne(ikIndexByName, entry.Key),
                     Curves.BuildIkMixTrack(frames),
-                    Curves.BuildBendTrack(frames)));
+                    Curves.BuildBendTrack(frames),
+                    Curves.BuildIkSoftnessTrack(frames),
+                    Curves.BuildIkDepthBoolTrack(frames, Curves.IkDepthChannel.Stretch),
+                    Curves.BuildIkDepthBoolTrack(frames, Curves.IkDepthChannel.Compress)));
             }
 
             Dictionary<string, int> transformIndexByName = NameIndexOf(pose.TransformConstraints);

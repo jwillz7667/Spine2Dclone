@@ -78,6 +78,30 @@ export type { PreparedEventTimeline, PreparedDrawOrderTimeline } from './skeleto
 // runtime-web mesh rendering build on.
 export { sampleMeshVertices, skinMeshInto, MeshAttachmentError } from './skeleton/mesh-sample';
 export type { MeshAttachmentErrorReason } from './skeleton/mesh-sample';
+// Non-drawing geometry attachments (ADR-0012, PP-B2): clipping evaluation, bounding-box hit testing, and
+// point resolution. Post-step-4 accessors over the solved pose (world pass + draw order); they change no
+// pose fixture (Law 1 presentation-only). The clip STATE (world polygon + clipped slot set) and the clip
+// GEOMETRY operation (pooled Sutherland-Hodgman triangle clip with barycentrics) are the behavioral source
+// of truth the renderers consume and Unity/Godot mirror; the clip-geometry cross-language vector locks it.
+export {
+  transformUnweightedVerticesInto,
+  resolvePointWorld,
+  resolvePointWorldForSlot,
+  boundingBoxWorldVerticesForSlot,
+  hitTestPolygon,
+  hitTestBoundingBox,
+  prepareClipping,
+  resolveClipWorldPolygonForSlot,
+  computeClippedSlotRange,
+  makeClipBuffers,
+  clipTriangleList,
+} from './skeleton/attachment-geometry';
+export type {
+  PointWorld,
+  PreparedClip,
+  ClipBuffers,
+  ClipResult,
+} from './skeleton/attachment-geometry';
 export { resolveSequenceFrame, sampleSlotSequenceFrame } from './skeleton/sequence';
 // Runtime skin selection (PP-B3): an allocation-free lookup layer that resolves which attachment a slot
 // presents under the active skin (default-skin fallback), so a renderer switches skins live without

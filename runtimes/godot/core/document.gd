@@ -187,6 +187,40 @@ class DeformEntry:
 	var frames: Array  # Array[DeformKeyframe]
 
 
+# A draw-order offset entry (ADR-0008 section 3): move one named slot by a signed integer number of
+# render positions from its setup index. Mirrors DrawOrderOffset in @marionette/format.
+class DrawOrderOffset:
+	var slot: String
+	var offset: int
+
+
+# A draw-order keyframe (ADR-0008 section 3): at time, apply a compact list of per-slot offsets to the
+# setup draw order. An empty offsets list means the setup order (identity). Stepped (no curve).
+class DrawOrderKeyframe:
+	var time: float
+	var offsets: Array  # Array[DrawOrderOffset]
+
+
+# An event keyframe (ADR-0008 section 2): fires the named event at time, optionally overriding the
+# event's int/float/string payload defaults. Discrete (no curve). A null payload member means "not
+# overridden" (the EventDef default holds); payload resolution happens at prepare time.
+class EventKeyframe:
+	var time: float
+	var name: String
+	var int_value = null  # int or null
+	var float_value = null  # float or null
+	var string_value = null  # String or null
+
+
+# A named event definition (ADR-0008 section 1): the payload defaults an event carries when fired. The
+# audio hint is not part of the solve, so the reader keeps only the payload fields (name + defaults).
+class EventDef:
+	var name: String
+	var int_value = null  # int or null
+	var float_value = null  # float or null
+	var string_value = null  # String or null
+
+
 # Named AnimationDef (not Animation) because Animation is a native Godot class.
 class AnimationDef:
 	var duration: float
@@ -195,6 +229,8 @@ class AnimationDef:
 	var ik: Dictionary = {}  # ik constraint name -> Array[IkKeyframe]
 	var transform: Dictionary = {}  # transform constraint name -> Array[TransformKeyframe]
 	var deform: Array = []  # Array[DeformEntry], nested skin/slot/attachment order preserved
+	var draw_order: Array = []  # Array[DrawOrderKeyframe], ascending time
+	var events: Array = []  # Array[EventKeyframe], non-decreasing time
 
 
 class SkeletonDocument:
@@ -203,6 +239,7 @@ class SkeletonDocument:
 	var skins: Array = []  # Array[Skin]
 	var ik_constraints: Array = []  # Array[IkConstraint]
 	var transform_constraints: Array = []  # Array[TransformConstraint]
+	var events: Array = []  # Array[EventDef], the document-level event payload defaults
 	var animations: Dictionary = {}  # animation id -> Animation
 
 	func find_animation(id: String):

@@ -319,3 +319,64 @@ static func sample_attachment_name(track: Prepared.PreparedAttachmentTrack, t: f
 static func sample_step_bool(track: Prepared.PreparedStepBoolTrack, t: float) -> bool:
 	var i := find_segment_index(track.times, track.key_count, t)
 	return track.values[i] == 1
+
+
+# The index of the active draw-order key at time t: the LATEST key at or before t (stepped). Returns -1
+# when t is below the first key, so NO reorder is active and the setup order holds (ADR-0008; mirrors
+# findDrawOrderKeyIndex in curve.ts). Draw-order timelines are short, so a linear scan is used.
+static func find_draw_order_key_index(timeline: Prepared.PreparedDrawOrderTimeline, t: float) -> int:
+	if timeline.key_count == 0 or t < timeline.times[0]:
+		return -1
+	for i in range(timeline.key_count - 1, -1, -1):
+		if timeline.times[i] <= t:
+			return i
+	return -1
+
+
+# Build a prepared draw-order timeline (ADR-0008 section 3, PP-B4): resolve each key's compact
+# {slot, offset} list into a FULL render-order permutation ONCE at build time, so step-2 application is a
+# single typed-array copy. Mirrors buildDrawOrderTimeline in curve.ts.
+static func build_draw_order_timeline(keys: Array, slot_index_by_name: Dictionary, slot_count: int) -> Prepared.PreparedDrawOrderTimeline:
+	var timeline := Prepared.PreparedDrawOrderTimeline.new()
+	timeline.key_count = keys.size()
+	timeline.times = PackedFloat64Array()
+	timeline.times.resize(keys.size())
+	timeline.orders = []
+	for k in range(keys.size()):
+		var key = keys[k]
+		timeline.times[k] = key.time
+		timeline.orders.append(_resolve_draw_order(key.offsets, slot_index_by_name, slot_count))
+	return timeline
+
+
+# Derive ONE key's full render-order permutation from its offset diff (ADR-0008 section 3): each listed
+# slot is pinned to its target render position (setup index + offset), every unlisted slot keeps its
+# relative setup order filling the remaining positions front to back. The result is order[pos] = slot.
+# Out-of-range or unknown-slot entries (only reachable from an unvalidated draft) are skipped
+# defensively. Mirrors resolveDrawOrder in curve.ts.
+static func _resolve_draw_order(offsets: Array, slot_index_by_name: Dictionary, slot_count: int) -> PackedInt32Array:
+	var order := PackedInt32Array()
+	order.resize(slot_count)
+	for i in range(slot_count):
+		order[i] = -1
+	var listed := PackedByteArray()
+	listed.resize(slot_count)
+	for o in range(offsets.size()):
+		var entry = offsets[o]
+		var slot_index: int = slot_index_by_name.get(entry.slot, -1)
+		if slot_index < 0:
+			continue
+		var target: int = slot_index + int(entry.offset)
+		if target < 0 or target >= slot_count:
+			continue
+		order[target] = slot_index
+		listed[slot_index] = 1
+	var next_unlisted := 0
+	for pos in range(slot_count):
+		if order[pos] != -1:
+			continue
+		while next_unlisted < slot_count and listed[next_unlisted] == 1:
+			next_unlisted += 1
+		order[pos] = next_unlisted
+		next_unlisted += 1
+	return order

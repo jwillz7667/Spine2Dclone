@@ -118,6 +118,14 @@ var ik_bend_win_weight: PackedFloat64Array
 var slot_setup_attachment: Array
 var slot_attachment: Array
 
+# The resolved render order (ADR-0008 draw order, PP-B4): draw_order[render_position] = slot_index,
+# render_position 0 furthest back. Reset to slot_setup_draw_order (identity) each frame (step 1) and
+# overwritten by the active draw-order key (step 2). draw_order_win_weight is a length-1 buffer holding
+# the discrete winner weight (reset to -1 each frame), so a greater-weight layer wins the reorder.
+var draw_order: PackedInt32Array
+var slot_setup_draw_order: PackedInt32Array
+var draw_order_win_weight: PackedFloat64Array
+
 var ik_constraints: Array
 var transform_constraints: Array
 
@@ -159,6 +167,9 @@ func _init(
 	slot_setup_attachment.resize(slot_count)
 	slot_attachment = []
 	slot_attachment.resize(slot_count)
+	draw_order = _identity_draw_order(slot_count)
+	slot_setup_draw_order = _identity_draw_order(slot_count)
+	draw_order_win_weight = _float_buffer(1)
 
 	ik_constraints = the_ik_constraints
 	transform_constraints = the_transform_constraints
@@ -179,4 +190,12 @@ static func _int_buffer(n: int) -> PackedInt32Array:
 static func _byte_buffer(n: int) -> PackedByteArray:
 	var a := PackedByteArray()
 	a.resize(n)
+	return a
+
+
+static func _identity_draw_order(n: int) -> PackedInt32Array:
+	var a := PackedInt32Array()
+	a.resize(n)
+	for i in range(n):
+		a[i] = i
 	return a

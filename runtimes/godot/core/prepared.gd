@@ -67,9 +67,41 @@ class PreparedDeformChannel:
 	var track: PreparedTrack
 
 
+# A prepared per-animation draw-order timeline (ADR-0008 section 3, PP-B4). Each key's compact
+# {slot, offset} list is DERIVED ONCE at build time into a FULL render-order permutation orders[k],
+# where orders[k][render_position] = slot_index (render_position 0 furthest back). An empty offsets list
+# resolves to the identity (setup order). times is strictly ascending; the active key at time t is the
+# latest key at or before t (stepped), or none when t is below the first key. Mirrors
+# PreparedDrawOrderTimeline in prepared.ts.
+class PreparedDrawOrderTimeline:
+	var key_count: int
+	var times: PackedFloat64Array
+	var orders: Array  # Array[PackedInt32Array]
+
+
+# A prepared per-animation event timeline (ADR-0008 section 2, PP-B4). Events are discrete, so there is
+# no curve. Each key's payload is RESOLVED ONCE at build time (the EventDef default overridden by the
+# key's own int/float/string) into parallel value + presence lanes. times is NON-DECREASING; coincident
+# keys keep their timeline order. Mirrors PreparedEventTimeline in prepared.ts.
+class PreparedEventTimeline:
+	var key_count: int
+	var times: PackedFloat64Array
+	var names: Array  # Array[String]
+	var int_values: PackedFloat64Array
+	var has_int: PackedByteArray
+	var float_values: PackedFloat64Array
+	var has_float: PackedByteArray
+	var string_values: Array  # Array of (String or null)
+	var has_string: PackedByteArray
+
+
 class PreparedAnimation:
 	var bone_channels: Array = []  # Array[PreparedBoneChannels]
 	var slot_channels: Array = []  # Array[PreparedSlotChannels]
 	var ik_channels: Array = []  # Array[PreparedIkChannel]
 	var transform_channels: Array = []  # Array[PreparedTransformChannel]
 	var deform_channels: Array = []  # Array[PreparedDeformChannel]
+	# The draw-order reorder timeline (ADR-0008), or null when this animation never reorders. Applied in
+	# step 2 as a discrete greater-weight-wins channel. Event firing is NOT part of PreparedAnimation (it
+	# is a time-RANGE operation, not an instantaneous pose sample) and lives in event_fire.gd.
+	var draw_order = null  # PreparedDrawOrderTimeline or null

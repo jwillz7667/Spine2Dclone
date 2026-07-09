@@ -50,6 +50,7 @@ static func begin_blend(pose: Pose) -> void:
 		pose.bone_touched[i] = 0
 	_fill(pose.slot_attachment_win_weight, -1.0)
 	_fill(pose.ik_bend_win_weight, -1.0)
+	pose.draw_order_win_weight[0] = -1.0
 
 
 static func compose_touched_bones(pose: Pose) -> void:
@@ -176,6 +177,9 @@ static func reset_slots_to_setup(pose: Pose) -> void:
 		pose.slot_color[i] = pose.slot_setup_color[i]
 	for i in range(pose.slot_count):
 		pose.slot_attachment[i] = pose.slot_setup_attachment[i]
+	# Step 1 also resets the render order to the setup (identity) draw order (ADR-0008, PP-B4).
+	for i in range(pose.slot_setup_draw_order.size()):
+		pose.draw_order[i] = pose.slot_setup_draw_order[i]
 
 
 # Apply ONE prepared animation at time t and blend weight alpha onto the running blend scratch.
@@ -183,6 +187,25 @@ static func apply_animation_at(pose: Pose, prepared: Prepared.PreparedAnimation,
 	_apply_bone_entry(pose, prepared, t, alpha, additive)
 	_apply_slot_entry(pose, prepared, t, alpha, additive, discrete_wins)
 	_apply_constraint_entry(pose, prepared, t, alpha, additive, discrete_wins)
+	_apply_draw_order_entry(pose, prepared, t, alpha, discrete_wins)
+
+
+# Apply this animation's active draw-order key as a discrete, whole-skeleton greater-weight-wins channel
+# (ADR-0008, PP-B4; the draw-order analogue of the attachment swap). Mirrors applyDrawOrderEntry in
+# sample.ts.
+static func _apply_draw_order_entry(pose: Pose, prepared: Prepared.PreparedAnimation, t: float, alpha: float, discrete_wins: bool) -> void:
+	var timeline = prepared.draw_order
+	if timeline == null or not discrete_wins:
+		return
+	if alpha < pose.draw_order_win_weight[0]:
+		return
+	var i := Curves.find_draw_order_key_index(timeline, t)
+	if i < 0:
+		return
+	var order: PackedInt32Array = timeline.orders[i]
+	for pos in range(order.size()):
+		pose.draw_order[pos] = order[pos]
+	pose.draw_order_win_weight[0] = alpha
 
 
 static func _apply_bone_entry(pose: Pose, prepared: Prepared.PreparedAnimation, t: float, alpha: float, additive: bool) -> void:
@@ -419,6 +442,9 @@ static func _prepare_animation(pose: Pose, animation) -> Prepared.PreparedAnimat
 		channel.attachment = entry.attachment
 		channel.track = Curves.build_deform_track(entry.frames)
 		result.deform_channels.append(channel)
+
+	if animation.draw_order.size() > 0:
+		result.draw_order = Curves.build_draw_order_timeline(animation.draw_order, slot_index_by_name, pose.slot_count)
 
 	return result
 

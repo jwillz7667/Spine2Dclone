@@ -86,6 +86,16 @@ static func _read_document(root: Dictionary) -> Document.SkeletonDocument:
 		for tc in tc_value:
 			document.transform_constraints.append(_read_transform_constraint(tc))
 
+	var events_value = root.get("events")
+	if events_value != null and typeof(events_value) == TYPE_ARRAY:
+		for ev in events_value:
+			var def := Document.EventDef.new()
+			def.name = _req_string(ev, "name")
+			def.int_value = _opt_int(ev, "int")
+			def.float_value = _opt_number(ev, "float")
+			def.string_value = _opt_string(ev, "string")
+			document.events.append(def)
+
 	var animations_value = _req_object(root, "animations")
 	for anim_id in animations_value:
 		document.animations[anim_id] = _read_animation(animations_value[anim_id])
@@ -251,6 +261,32 @@ static func _read_animation(animation: Dictionary) -> Document.AnimationDef:
 					entry.frames = frames
 					a.deform.append(entry)
 
+	var draw_order_value = animation.get("drawOrder")
+	if draw_order_value != null and typeof(draw_order_value) == TYPE_ARRAY:
+		for key in draw_order_value:
+			var kf := Document.DrawOrderKeyframe.new()
+			kf.time = _req_number(key, "time")
+			kf.offsets = []
+			var offsets_value = key.get("offsets")
+			if offsets_value != null and typeof(offsets_value) == TYPE_ARRAY:
+				for offset in offsets_value:
+					var off := Document.DrawOrderOffset.new()
+					off.slot = _req_string(offset, "slot")
+					off.offset = int(_req_number(offset, "offset"))
+					kf.offsets.append(off)
+			a.draw_order.append(kf)
+
+	var events_value = animation.get("events")
+	if events_value != null and typeof(events_value) == TYPE_ARRAY:
+		for ev in events_value:
+			var kf := Document.EventKeyframe.new()
+			kf.time = _req_number(ev, "time")
+			kf.name = _req_string(ev, "name")
+			kf.int_value = _opt_int(ev, "int")
+			kf.float_value = _opt_number(ev, "float")
+			kf.string_value = _opt_string(ev, "string")
+			a.events.append(kf)
+
 	return a
 
 
@@ -411,6 +447,20 @@ static func _opt_number(obj: Dictionary, key: String):
 	if not _is_number(member):
 		return null
 	return float(member)
+
+
+static func _opt_int(obj: Dictionary, key: String):
+	var member = obj.get(key)
+	if not _is_number(member):
+		return null
+	return int(member)
+
+
+static func _opt_string(obj: Dictionary, key: String):
+	var member = obj.get(key)
+	if member == null or typeof(member) != TYPE_STRING:
+		return null
+	return member
 
 
 static func _req_string(obj: Dictionary, key: String) -> String:

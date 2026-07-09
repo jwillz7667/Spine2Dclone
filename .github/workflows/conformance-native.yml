@@ -1,17 +1,23 @@
 # Three-runtime conformance + cross-language equivalence (phase-5 WP-5.5, conformance-and-ci.md D.9/D.13).
 #
-# Status: SCAFFOLD. The cross-language equivalence job (TASK-5.5.7) is REAL and runs today: it proves the
-# TS integer determinism surface (spinSeed, hash32, the mulberry32 stream, CRC-32, the committed binary
-# twin CRCs) matches the committed cross-language golden, the corpus the native runtimes will reproduce.
-# The Unity / Godot / fast pure-C#-core jobs are wired with the EXACT path filters and skipped-as-success
-# semantics the plan fixes, but they are GUARDED to skip until the native runtimes exist (WP-5.3/5.4):
-# each runs only when its runtime project is present, so this workflow is green now and activates the
-# native jobs the moment the engines land. When they land, add conformance-unity / conformance-godot /
-# conformance-core-fast to the main ci.yml ci-pass needs list (TASK-5.5.6) so they gate merges.
+# Status: ACTIVE (PP-E3). Both native runtimes are landed, so the engine jobs now run for real:
+#   - conformance-unity  runs the shared C# solve core (ADR-0001) via `dotnet test`, no Unity editor.
+#   - conformance-godot  runs the GDScript solve core through the real headless Godot engine.
+#   - cross-language-equivalence  proves the TS integer determinism surface (spinSeed, hash32, the
+#     mulberry32 stream, CRC-32, the committed binary twin CRCs) matches the committed cross-language
+#     golden, the corpus BOTH native runtimes reproduce bit for bit.
+# Each engine job still gates behind a directory probe (detect-runtimes) so the workflow degrades to
+# skipped-as-success if a runtime is ever removed, but in practice both are present and all jobs run.
 #
-# Required-check topology (R5): the single required check stays ci.yml's `ci-pass`. The cross-language
-# equivalence test ALSO runs inside the main `test` job (it is a conformance unit test), so it already
-# gates merges today; this workflow surfaces it as a named job and is where the native jobs attach.
+# Required-check topology (R5, TASK-5.5.6): this repo has TWO required status checks, configured per-repo
+# in branch protection / rulesets (they cannot be set from workflow YAML):
+#   1. `ci-pass`                 (ci.yml)                  every PR and push.
+#   2. `conformance-native-pass` (this workflow)           path-filtered PRs + push to main + nightly.
+# We deliberately keep two workflows rather than folding the native jobs into ci-pass: the engine jobs are
+# heavier (a dotnet restore, a pinned Godot download) and only a change under runtimes / packages/format /
+# packages/runtime-core / packages/conformance can move native conformance, so they run only when one of
+# those paths changes (plus the nightly full run and every push to main). See the note under
+# `conformance-native-pass` on the path-filter interaction with required checks.
 
 name: Conformance (native)
 
@@ -19,7 +25,7 @@ on:
   pull_request:
     # Path filter (explicit, includes the transitive solve/codec owners so a core or codec change cannot
     # skip the engine jobs through a missed trigger): runtimes, conformance corpus, the binary codec +
-    # container (packages/format), and the solve oracle the C# core mirrors (packages/runtime-core).
+    # container (packages/format), and the solve oracle the native cores mirror (packages/runtime-core).
     paths:
       - 'runtimes/**'
       - 'packages/conformance/**'
@@ -29,12 +35,19 @@ on:
   push:
     branches: [main]
   schedule:
-    # Nightly: GameCI licenses + native runners are slow, so the engine jobs run nightly on main in
-    # addition to the path-filtered PR runs.
+    # Nightly full run on main: the native jobs (a dotnet restore + a pinned Godot download) are heavier
+    # than the TS suites, so they run nightly in addition to the path-filtered PR runs.
     - cron: '0 4 * * *'
 
 env:
   TURBO_TELEMETRY_DISABLED: '1'
+  # Pinned official Godot build for the headless conformance run (see conformance-godot below). The SHA256
+  # is the hash of the exact release asset; it cross-checks against Godot's official SHA512-SUMS.txt for
+  # this release, so a tampered or wrong-version download fails the verify step before the engine runs.
+  GODOT_VERSION: '4.6.3-stable'
+  GODOT_ARCHIVE: 'Godot_v4.6.3-stable_linux.x86_64.zip'
+  GODOT_BINARY: 'Godot_v4.6.3-stable_linux.x86_64'
+  GODOT_SHA256: 'd0bc2113065e481c9c2c2b2c37daa4e8be3fe9e27f0ab9ab0b6096e9a37907f3'
 
 jobs:
   # ALWAYS-ON per PR (TASK-5.5.7): the cross-language seed / PRNG / CRC equivalence. Real and green today;
@@ -61,7 +74,6 @@ jobs:
     outputs:
       unity: ${{ steps.probe.outputs.unity }}
       godot: ${{ steps.probe.outputs.godot }}
-      shared: ${{ steps.probe.outputs.shared }}
     steps:
       - uses: actions/checkout@v4
       - id: probe
@@ -69,55 +81,83 @@ jobs:
           {
             echo "unity=$([ -d runtimes/unity ] && echo true || echo false)"
             echo "godot=$([ -d runtimes/godot ] && echo true || echo false)"
-            echo "shared=$([ -d runtimes/shared ] && echo true || echo false)"
           } >> "$GITHUB_OUTPUT"
 
-  # PATH-FILTERED / nightly (TASK-5.5.1): Unity conformance via GameCI batchmode, comparing the native
-  # dump against the committed fixtures within the single tolerance. Skips until WP-5.3 lands runtimes/unity.
+  # PATH-FILTERED / nightly (TASK-5.5.1): Unity conformance via the shared C# solve core.
+  #
+  # No GameCI / no Unity editor by design: per ADR-0001 the Marionette solve is one engine-agnostic C#
+  # library (netstandard2.1, zero UnityEngine references) that Unity and Godot render over; its conformance
+  # harness is a plain net8.0 xUnit project. So `dotnet test` exercises the whole cross-language solve
+  # contract (every committed rig within the A.5 tolerance + the integer determinism corpus bit for bit)
+  # with no Unity license, no editor download, and no self-hosted runner. The Unity-editor batchmode smoke
+  # test (that the MonoBehaviour view layer renders a frame) belongs to the later PP-E1 view-layer slice
+  # and is a separate, non-blocking job; it is intentionally NOT gated here.
   conformance-unity:
     runs-on: ubuntu-latest
     needs: detect-runtimes
     if: ${{ needs.detect-runtimes.outputs.unity == 'true' }}
     steps:
       - uses: actions/checkout@v4
-      - name: Unity conformance dump + compare (WP-5.3, TASK-5.5.1)
-        run: |
-          echo "TODO(WP-5.3): GameCI unity-test-runner -batchmode -nographics, ConformanceDump.Run,"
-          echo "validate dumps against fixture.schema.json, then mc-conformance compare within A.5."
-          exit 1
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Shared C# solve core conformance (dotnet test, WP-5.3, TASK-5.5.1)
+        run: dotnet test runtimes/unity --nologo
 
-  # PATH-FILTERED / nightly (TASK-5.5.2): Godot conformance through the real `godot --headless` engine
-  # path (DECISION-5.4), not a bare C# console. Skips until WP-5.4 lands runtimes/godot.
+  # PATH-FILTERED / nightly (TASK-5.5.2): Godot conformance through the real `godot --headless` engine path
+  # (DECISION-5.4), not a bare C# console. The pinned official Godot build is downloaded, SHA256-verified,
+  # and cached by version; the harness reads the committed rigs / fixtures / vectors from
+  # packages/conformance directly (no build step, no pnpm), and the wrapper fails on a MISSING success
+  # sentinel (Godot exits 0 on a script parse error, so a broken harness would otherwise look green).
   conformance-godot:
     runs-on: ubuntu-latest
     needs: detect-runtimes
     if: ${{ needs.detect-runtimes.outputs.godot == 'true' }}
     steps:
       - uses: actions/checkout@v4
-      - name: Godot conformance dump + compare (WP-5.4, TASK-5.5.2)
+      # Shared libraries the official Godot editor binary dynamically links even under --headless (it opens
+      # no window, but the executable still resolves these at load time). Preinstalled on most GitHub images;
+      # installed explicitly so a base-image change cannot silently break the load.
+      - name: Install headless Godot runtime libraries
         run: |
-          echo "TODO(WP-5.4): pinned headless Godot container runs the dump through the engine path,"
-          echo "then mc-conformance compare within A.5."
-          exit 1
-
-  # ALWAYS-ON per PR once it exists (TASK-5.5.3): a FAST headless pure-C#-core dump (no Unity/Godot engine)
-  # so the slow engine jobs can stay path-filtered + nightly while core parity is checked cheaply per PR.
-  # Skips until the shared Marionette.Runtime.Core lands (WP-5.3).
-  conformance-core-fast:
-    runs-on: ubuntu-latest
-    needs: detect-runtimes
-    if: ${{ needs.detect-runtimes.outputs.shared == 'true' }}
-    steps:
-      - uses: actions/checkout@v4
-      - name: Fast pure-C#-core dump + compare (WP-5.3, TASK-5.5.3)
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libfontconfig1 libx11-6 libxext6 libxcursor1 libxinerama1 libxrandr2 libxi6 libgl1
+      - name: Cache pinned Godot ${{ env.GODOT_VERSION }}
+        id: godot-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/godot-bin
+          key: godot-${{ env.GODOT_VERSION }}-linux-x86_64
+      - name: Download and verify Godot ${{ env.GODOT_VERSION }}
+        if: ${{ steps.godot-cache.outputs.cache-hit != 'true' }}
         run: |
-          echo "TODO(WP-5.3): load the committed binary twins via the shared decoder, dump via"
-          echo "Marionette.Runtime.Core, then mc-conformance compare within A.5."
-          exit 1
+          set -euo pipefail
+          mkdir -p ~/godot-bin
+          url="https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/${GODOT_ARCHIVE}"
+          echo "Downloading ${url}"
+          curl -fsSL -o /tmp/godot.zip "${url}"
+          echo "${GODOT_SHA256}  /tmp/godot.zip" | sha256sum -c -
+          unzip -o /tmp/godot.zip -d ~/godot-bin
+          chmod +x "$HOME/godot-bin/${GODOT_BINARY}"
+      - name: Godot headless conformance (WP-5.4, TASK-5.5.2)
+        run: |
+          set -euo pipefail
+          export GODOT="$HOME/godot-bin/${GODOT_BINARY}"
+          "$GODOT" --version
+          runtimes/godot/tests/run.sh
 
-  # Aggregator with skipped-as-success semantics (mirrors ci.yml ci-pass). A skipped native job (its
-  # runtime not present yet, or an unrelated PR outside the path filter) counts as success; a real failure
-  # turns this red. Once the native runtimes land this becomes a ci-pass dependency (TASK-5.5.6).
+  # Aggregator with skipped-as-success semantics (mirrors ci.yml ci-pass). A genuinely skipped native job
+  # (its runtime removed, or a PR outside the path filter that still triggered a partial run) counts as
+  # success; a real failure or cancellation turns this red. This is the second required status check
+  # (TASK-5.5.6); the repo owner marks BOTH `ci-pass` and `conformance-native-pass` as required.
+  #
+  # Path-filter caveat for the repo owner: because the trigger is path-filtered, a PR that touches none of
+  # the filtered paths does not start this workflow at all, so `conformance-native-pass` is not reported on
+  # that PR. That is correct (such a PR cannot move native conformance), but GitHub's required-status
+  # machinery will wait on an unreported required check. Resolve it per GitHub's documented pattern for a
+  # skipped-but-required check (a companion no-op job of the same name on the inverse path filter), or scope
+  # the requirement through a ruleset that treats a not-triggered workflow as satisfied. See the report.
   conformance-native-pass:
     runs-on: ubuntu-latest
     if: always()
@@ -127,7 +167,6 @@ jobs:
         cross-language-equivalence,
         conformance-unity,
         conformance-godot,
-        conformance-core-fast,
       ]
     steps:
       - name: Verify no native conformance job failed (skipped counts as success)
@@ -136,4 +175,4 @@ jobs:
             echo "A native conformance job failed."
             exit 1
           fi
-          echo "Native conformance checks passed (engine jobs skip until their runtimes land)."
+          echo "Native conformance checks passed (Unity C# core + Godot headless + cross-language vectors)."

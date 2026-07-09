@@ -24,6 +24,9 @@ import {
   DeleteKeyframeCommand,
   SetAttachmentKeyframeCommand,
   DeleteAttachmentKeyframeCommand,
+  MoveAttachmentKeyframeCommand,
+  MoveIkKeyframeCommand,
+  MoveTransformKeyframeCommand,
   CommandTargetMissingError,
   DeleteMeshVertexCommand,
   DeleteSkinCommand,
@@ -695,6 +698,32 @@ function animationView(animation: AnimationEntity): Record<string, unknown> {
         id: frame.id,
         time: frame.time,
         name: frame.name,
+      })),
+    })),
+    // IK and transform constraint timelines, keyed by constraint id. Each keyframe carries its id so the
+    // keyed edit/delete/move tools (ik.deleteKeyframe, ik.moveKeyframe, transform.*) have a target to name.
+    ik: [...animation.ik.entries()].map(([constraintIdKey, frames]) => ({
+      ikConstraintId: constraintIdKey,
+      keyframes: frames.map((kf) => ({
+        id: kf.id,
+        time: kf.time,
+        mix: kf.mix,
+        bendPositive: kf.bendPositive,
+        curve: kf.curve,
+      })),
+    })),
+    transform: [...animation.transform.entries()].map(([constraintIdKey, frames]) => ({
+      transformConstraintId: constraintIdKey,
+      keyframes: frames.map((kf) => ({
+        id: kf.id,
+        time: kf.time,
+        mixRotate: kf.mixRotate,
+        mixX: kf.mixX,
+        mixY: kf.mixY,
+        mixScaleX: kf.mixScaleX,
+        mixScaleY: kf.mixScaleY,
+        mixShearY: kf.mixShearY,
+        curve: kf.curve,
       })),
     })),
     events: animation.events.map((key) => ({
@@ -4129,6 +4158,52 @@ export const TOOLS: readonly ToolDefinition[] = [
   ),
   defineTool(
     {
+      name: 'ik.moveKeyframe',
+      title: 'Move IK keyframe',
+      description:
+        'Move an IK keyframe (by id) to a new time on a constraint IK channel (IK times are strictly ' +
+        'ascending). Landing on an occupied time is a typed KEYFRAME_COLLISION; a missing key is a typed ' +
+        'KEYFRAME_NOT_FOUND. The moved keyframe keeps its mix/bendPositive/curve.',
+      input: z
+        .object({
+          documentId,
+          animationId,
+          ikConstraintId,
+          keyframeId,
+          time: z.number().finite().nonnegative(),
+        })
+        .strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireAnimation(session, input.animationId);
+      requireIkConstraint(session, input.ikConstraintId);
+      try {
+        session.document.history.execute(
+          new MoveIkKeyframeCommand(
+            asAnimationId(input.animationId),
+            asIkConstraintId(input.ikConstraintId),
+            asKeyframeId(input.keyframeId),
+            input.time,
+          ),
+        );
+      } catch (error) {
+        if (error instanceof KeyframeCollisionError) {
+          throw new McpToolError('KEYFRAME_COLLISION', error.message);
+        }
+        if (error instanceof CommandTargetMissingError) {
+          throw new McpToolError(
+            'KEYFRAME_NOT_FOUND',
+            `no IK keyframe "${input.keyframeId}" on constraint "${input.ikConstraintId}"`,
+          );
+        }
+        throw error;
+      }
+      return { revision: session.document.model.revision };
+    },
+  ),
+  defineTool(
+    {
       name: 'ik.list',
       title: 'List IK constraints',
       description: 'List the IK constraints in solve order.',
@@ -4316,6 +4391,52 @@ export const TOOLS: readonly ToolDefinition[] = [
           asKeyframeId(input.keyframeId),
         ),
       );
+      return { revision: session.document.model.revision };
+    },
+  ),
+  defineTool(
+    {
+      name: 'transform.moveKeyframe',
+      title: 'Move transform keyframe',
+      description:
+        'Move a transform keyframe (by id) to a new time on a constraint channel (times are strictly ' +
+        'ascending). Landing on an occupied time is a typed KEYFRAME_COLLISION; a missing key is a typed ' +
+        'KEYFRAME_NOT_FOUND. The moved keyframe keeps all six mix channels and its curve.',
+      input: z
+        .object({
+          documentId,
+          animationId,
+          transformConstraintId,
+          keyframeId,
+          time: z.number().finite().nonnegative(),
+        })
+        .strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireAnimation(session, input.animationId);
+      requireTransformConstraint(session, input.transformConstraintId);
+      try {
+        session.document.history.execute(
+          new MoveTransformKeyframeCommand(
+            asAnimationId(input.animationId),
+            asTransformConstraintId(input.transformConstraintId),
+            asKeyframeId(input.keyframeId),
+            input.time,
+          ),
+        );
+      } catch (error) {
+        if (error instanceof KeyframeCollisionError) {
+          throw new McpToolError('KEYFRAME_COLLISION', error.message);
+        }
+        if (error instanceof CommandTargetMissingError) {
+          throw new McpToolError(
+            'KEYFRAME_NOT_FOUND',
+            `no transform keyframe "${input.keyframeId}" on constraint "${input.transformConstraintId}"`,
+          );
+        }
+        throw error;
+      }
       return { revision: session.document.model.revision };
     },
   ),
@@ -5311,6 +5432,52 @@ export const TOOLS: readonly ToolDefinition[] = [
           throw new McpToolError(
             'KEYFRAME_NOT_FOUND',
             `no attachment keyframe at time ${input.time} on slot "${input.slotId}"`,
+          );
+        }
+        throw error;
+      }
+      return { revision: session.document.model.revision };
+    },
+  ),
+  defineTool(
+    {
+      name: 'kf.attachment.move',
+      title: 'Move attachment keyframe',
+      description:
+        'Move a slot attachment-swap frame (by id) to a new time on the stepped attachment timeline ' +
+        '(times are strictly ascending). Landing on an occupied time is a typed KEYFRAME_COLLISION; a ' +
+        'missing frame is a typed KEYFRAME_NOT_FOUND. The moved frame keeps its `name`.',
+      input: z
+        .object({
+          documentId,
+          animationId,
+          slotId,
+          keyframeId,
+          time: z.number().finite().nonnegative(),
+        })
+        .strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireAnimation(session, input.animationId);
+      requireSlot(session, input.slotId);
+      try {
+        session.document.history.execute(
+          new MoveAttachmentKeyframeCommand(
+            asAnimationId(input.animationId),
+            asSlotId(input.slotId),
+            asKeyframeId(input.keyframeId),
+            input.time,
+          ),
+        );
+      } catch (error) {
+        if (error instanceof KeyframeCollisionError) {
+          throw new McpToolError('KEYFRAME_COLLISION', error.message);
+        }
+        if (error instanceof CommandTargetMissingError) {
+          throw new McpToolError(
+            'KEYFRAME_NOT_FOUND',
+            `no attachment keyframe "${input.keyframeId}" on slot "${input.slotId}"`,
           );
         }
         throw error;

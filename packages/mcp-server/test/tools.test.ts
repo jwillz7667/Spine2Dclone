@@ -1016,6 +1016,25 @@ describe('MCP IK constraint tools (WP-2.6)', () => {
     ).animations[0]!.ik;
     expect(afterDel[0]!.keyframes.length).toBe(1);
 
+    // Move the surviving keyframe (PP-D10). anim.get now surfaces the ik track with keyframe ids.
+    const ikTrack = (
+      asRecord(asRecord(await call(deps, 'anim.get', { documentId, animationId })).animation)
+        .ik as Array<{ keyframes: Array<{ id: string; time: number }> }>
+    )[0]!;
+    const survivorId = ikTrack.keyframes[0]!.id;
+    await call(deps, 'ik.moveKeyframe', {
+      documentId,
+      animationId,
+      ikConstraintId,
+      keyframeId: survivorId,
+      time: 0.25,
+    });
+    const afterMove = (
+      asRecord(asRecord(await call(deps, 'anim.get', { documentId, animationId })).animation)
+        .ik as Array<{ keyframes: Array<{ id: string; time: number }> }>
+    )[0]!;
+    expect(afterMove.keyframes[0]!.time).toBe(0.25);
+
     // Delete the constraint: it (and its surviving track) go in one undo step.
     await call(deps, 'ik.deleteConstraint', { documentId, ikConstraintId });
     expect(
@@ -1127,6 +1146,31 @@ describe('MCP transform constraint tools (WP-2.7)', () => {
       }
     ).animations[0]!.transform;
     expect(trTracks[0]!.keyframes.length).toBe(2);
+
+    // Move the first transform keyframe (PP-D10) via its surfaced id, then reject a collision.
+    await call(deps, 'transform.moveKeyframe', {
+      documentId,
+      animationId,
+      transformConstraintId,
+      keyframeId: trTracks[0]!.keyframes[0]!.id,
+      time: 0.5,
+    });
+    const trMoved = (
+      asRecord(asRecord(await call(deps, 'anim.get', { documentId, animationId })).animation)
+        .transform as Array<{ keyframes: Array<{ id: string; time: number }> }>
+    )[0]!;
+    expect(trMoved.keyframes.find((k) => k.id === trTracks[0]!.keyframes[0]!.id)!.time).toBe(0.5);
+    await expectToolError(
+      call(deps, 'transform.moveKeyframe', {
+        documentId,
+        animationId,
+        transformConstraintId,
+        keyframeId: trTracks[0]!.keyframes[0]!.id,
+        time: 1,
+      }),
+      'KEYFRAME_COLLISION',
+    );
+
     await call(deps, 'transform.deleteKeyframe', {
       documentId,
       animationId,
@@ -1954,6 +1998,7 @@ describe('MCP tool catalog', () => {
     'ik.deleteConstraint',
     'ik.setKeyframe',
     'ik.deleteKeyframe',
+    'ik.moveKeyframe',
     'ik.list',
     'ik.get',
     'transform.createConstraint',
@@ -1961,6 +2006,7 @@ describe('MCP tool catalog', () => {
     'transform.deleteConstraint',
     'transform.setKeyframe',
     'transform.deleteKeyframe',
+    'transform.moveKeyframe',
     'transform.list',
     'transform.get',
     'skin.create',
@@ -2339,6 +2385,58 @@ describe('MCP attachment keyframe tools', () => {
     expect(afterUndo).toHaveLength(1);
     expect(afterUndo[0]!.id).toBe(frameId);
     expect(afterUndo[0]!.name).toBeNull();
+  });
+
+  it('moves an attachment-swap frame and rejects a collision (PP-D10)', async () => {
+    const deps = makeDeps();
+    const { documentId, slotId, animationId } = await buildSwapRig(deps);
+
+    await call(deps, 'kf.attachment.set', {
+      documentId,
+      animationId,
+      slotId,
+      time: 0,
+      name: 'body_img',
+    });
+    await call(deps, 'kf.attachment.set', { documentId, animationId, slotId, time: 1, name: null });
+    const frames = await swapFrames(deps, documentId, animationId, slotId);
+    const firstId = frames[0]!.id;
+
+    // Move the first frame (t=0) to a free time; its name is preserved.
+    await call(deps, 'kf.attachment.move', {
+      documentId,
+      animationId,
+      slotId,
+      keyframeId: firstId,
+      time: 0.4,
+    });
+    const moved = await swapFrames(deps, documentId, animationId, slotId);
+    expect(moved.find((f) => f.id === firstId)!.time).toBe(0.4);
+    expect(moved.find((f) => f.id === firstId)!.name).toBe('body_img');
+
+    // Moving onto the time the other frame occupies is a typed KEYFRAME_COLLISION.
+    await expectToolError(
+      call(deps, 'kf.attachment.move', {
+        documentId,
+        animationId,
+        slotId,
+        keyframeId: firstId,
+        time: 1,
+      }),
+      'KEYFRAME_COLLISION',
+    );
+
+    // A missing frame id is a typed KEYFRAME_NOT_FOUND.
+    await expectToolError(
+      call(deps, 'kf.attachment.move', {
+        documentId,
+        animationId,
+        slotId,
+        keyframeId: 'nope',
+        time: 0.7,
+      }),
+      'KEYFRAME_NOT_FOUND',
+    );
   });
 
   it('surfaces typed errors for an unknown animation, an unknown slot, and an unresolved name', async () => {

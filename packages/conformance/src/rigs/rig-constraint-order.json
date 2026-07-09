@@ -1,0 +1,71 @@
+{
+  "formatVersion": "0.4.0",
+  "name": "rig-constraint-order",
+  "hash": "",
+  "bones": [
+    { "name": "root", "parent": null, "length": 0, "x": 0, "y": 0, "rotation": 0, "scaleX": 1, "scaleY": 1, "shearX": 0, "shearY": 0, "transformMode": "normal" },
+    { "name": "boneP", "parent": "root", "length": 60, "x": 0, "y": 0, "rotation": 0, "scaleX": 1, "scaleY": 1, "shearX": 0, "shearY": 0, "transformMode": "normal" },
+    { "name": "boneC", "parent": "boneP", "length": 40, "x": 60, "y": 0, "rotation": 0, "scaleX": 1, "scaleY": 1, "shearX": 0, "shearY": 0, "transformMode": "normal" },
+    { "name": "tcTarget", "parent": "root", "length": 20, "x": 0, "y": 0, "rotation": 35, "scaleX": 1, "scaleY": 1, "shearX": 0, "shearY": 0, "transformMode": "normal" },
+    { "name": "ikTarget", "parent": "root", "length": 10, "x": 0, "y": 0, "rotation": 0, "scaleX": 1, "scaleY": 1, "shearX": 0, "shearY": 0, "transformMode": "normal" }
+  ],
+  "slots": [],
+  "skins": [{ "name": "default", "attachments": {} }],
+  "ikConstraints": [
+    {
+      "name": "ik",
+      "bones": ["boneC"],
+      "target": "ikTarget",
+      "mix": 1,
+      "bend": 1,
+      "softness": 0,
+      "stretch": false,
+      "compress": false,
+      "uniform": false,
+      "order": 1
+    }
+  ],
+  "transformConstraints": [
+    {
+      "name": "tc",
+      "bones": ["boneP"],
+      "target": "tcTarget",
+      "mixRotate": 1,
+      "mixX": 0,
+      "mixY": 0,
+      "mixScaleX": 0,
+      "mixScaleY": 0,
+      "mixShearY": 0,
+      "offsetRotation": 0,
+      "offsetX": 0,
+      "offsetY": 0,
+      "offsetScaleX": 0,
+      "offsetScaleY": 0,
+      "offsetShearY": 0,
+      "local": false,
+      "relative": false,
+      "order": 0
+    }
+  ],
+  "animations": {
+    "default": {
+      "duration": 1,
+      "bones": {
+        "ikTarget": {
+          "translate": [
+            { "time": 0, "value": { "x": 80, "y": 40 }, "curve": "linear" },
+            { "time": 1, "value": { "x": 80, "y": -40 }, "curve": "linear" }
+          ]
+        }
+      },
+      "slots": {},
+      "ik": {},
+      "transform": {},
+      "deform": {},
+      "drawOrder": [],
+      "events": []
+    }
+  },
+  "atlas": { "pages": [] },
+  "events": []
+}

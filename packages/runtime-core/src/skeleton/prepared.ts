@@ -65,6 +65,14 @@ export interface PreparedIkChannel {
   readonly constraintIndex: number;
   readonly mix: PreparedTrack | null;
   readonly bendPositive: PreparedStepBoolTrack | null;
+  // The optional keyable depth channels (ADR-0009 section 1.1, ADR-0010 section 2.4). Each is built from
+  // ONLY the frames that key it (all optional on the IkFrame), so a channel no frame keys is null and the
+  // constraint's base value holds. `softness` interpolates by its curve (a continuous world-unit
+  // distance); `stretch`/`compress` are stepped booleans resolved by the discrete greater-weight-wins
+  // rule, exactly like `bendPositive`.
+  readonly softness: PreparedTrack | null;
+  readonly stretch: PreparedStepBoolTrack | null;
+  readonly compress: PreparedStepBoolTrack | null;
 }
 
 // The timelines of one animated transform constraint, resolved to the pose's transform-constraint

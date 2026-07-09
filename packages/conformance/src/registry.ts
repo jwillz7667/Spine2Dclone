@@ -36,6 +36,15 @@ export const RIG_IDS = [
   'rig-blendmodes',
   'rig-events-draworder',
   'rig-events-loop',
+  // PP-B5 (pro-parity Stage F2, ADR-0009 + ADR-0010, format 0.4.0) skeleton rigs whose solve features
+  // (IK constraint depth and explicit constraint order) exist as of PP-B5. `rig-ik-depth` exercises
+  // softness, uniform and non-uniform stretch, and compress on one- and two-bone chains (plus a keyed
+  // softness channel); `rig-constraint-order` schedules a transform constraint before an IK constraint on
+  // a dependent bone, an interleaving that provably differs from the default IK-then-transform order.
+  // Both observe only the existing bone-world-affine lane, so no fixture schema change is needed. Authored
+  // from first principles (Law 4).
+  'rig-ik-depth',
+  'rig-constraint-order',
 ] as const;
 
 export type RigId = (typeof RIG_IDS)[number];
@@ -57,6 +66,11 @@ export const RIG_PHASE: Readonly<Record<RigId, number>> = {
   // PP-B1 additions above (the RIG_PHASE gate models "the rig's solve features exist", satisfied here).
   'rig-events-draworder': 2,
   'rig-events-loop': 2,
+  // PP-B5 skeleton rigs: the IK-depth and constraint-order solve features land now (Stage F2). Like the
+  // PP-B1/PP-B4 additions above, they are ordinary skeletons in the phase-2 catalog track and gate at the
+  // current phase (the RIG_PHASE gate models "the rig's solve features exist", satisfied here).
+  'rig-ik-depth': 2,
+  'rig-constraint-order': 2,
 };
 
 // The committed current phase (B.2 landed-rig gating). Bumped per phase milestone in this file, NOT

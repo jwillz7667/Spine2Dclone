@@ -1,0 +1,94 @@
+{
+  "formatVersion": "0.4.0",
+  "name": "rig-ik-depth",
+  "hash": "",
+  "bones": [
+    { "name": "root", "parent": null, "length": 0, "x": 0, "y": 0, "rotation": 0, "scaleX": 1, "scaleY": 1, "shearX": 0, "shearY": 0, "transformMode": "normal" },
+    { "name": "upper1", "parent": "root", "length": 100, "x": 0, "y": 0, "rotation": 0, "scaleX": 1, "scaleY": 1, "shearX": 0, "shearY": 0, "transformMode": "normal" },
+    { "name": "lower1", "parent": "upper1", "length": 80, "x": 100, "y": 0, "rotation": 0, "scaleX": 1, "scaleY": 1, "shearX": 0, "shearY": 0, "transformMode": "normal" },
+    { "name": "t1", "parent": "root", "length": 10, "x": 0, "y": 0, "rotation": 0, "scaleX": 1, "scaleY": 1, "shearX": 0, "shearY": 0, "transformMode": "normal" },
+    { "name": "upper2", "parent": "root", "length": 100, "x": 0, "y": -260, "rotation": 0, "scaleX": 1, "scaleY": 1, "shearX": 0, "shearY": 0, "transformMode": "normal" },
+    { "name": "lower2", "parent": "upper2", "length": 40, "x": 100, "y": 0, "rotation": 0, "scaleX": 1, "scaleY": 1, "shearX": 0, "shearY": 0, "transformMode": "normal" },
+    { "name": "t2", "parent": "root", "length": 10, "x": 0, "y": -260, "rotation": 0, "scaleX": 1, "scaleY": 1, "shearX": 0, "shearY": 0, "transformMode": "normal" },
+    { "name": "b3", "parent": "root", "length": 50, "x": 0, "y": -460, "rotation": 0, "scaleX": 1, "scaleY": 1, "shearX": 0, "shearY": 0, "transformMode": "normal" },
+    { "name": "t3", "parent": "root", "length": 10, "x": 0, "y": -460, "rotation": 0, "scaleX": 1, "scaleY": 1, "shearX": 0, "shearY": 0, "transformMode": "normal" }
+  ],
+  "slots": [],
+  "skins": [{ "name": "default", "attachments": {} }],
+  "ikConstraints": [
+    {
+      "name": "ik1",
+      "bones": ["upper1", "lower1"],
+      "target": "t1",
+      "mix": 1,
+      "bend": 1,
+      "softness": 40,
+      "stretch": true,
+      "compress": true,
+      "uniform": true
+    },
+    {
+      "name": "ik2",
+      "bones": ["upper2", "lower2"],
+      "target": "t2",
+      "mix": 1,
+      "bend": 1,
+      "softness": 0,
+      "stretch": true,
+      "compress": true,
+      "uniform": false
+    },
+    {
+      "name": "ik3",
+      "bones": ["b3"],
+      "target": "t3",
+      "mix": 1,
+      "bend": 1,
+      "softness": 0,
+      "stretch": true,
+      "compress": true,
+      "uniform": false
+    }
+  ],
+  "transformConstraints": [],
+  "animations": {
+    "default": {
+      "duration": 1,
+      "bones": {
+        "t1": {
+          "translate": [
+            { "time": 0, "value": { "x": 10, "y": 0 }, "curve": "linear" },
+            { "time": 0.5, "value": { "x": 175, "y": 0 }, "curve": "linear" },
+            { "time": 1, "value": { "x": 270, "y": 0 }, "curve": "linear" }
+          ]
+        },
+        "t2": {
+          "translate": [
+            { "time": 0, "value": { "x": 30, "y": 0 }, "curve": "linear" },
+            { "time": 0.5, "value": { "x": 110, "y": 0 }, "curve": "linear" },
+            { "time": 1, "value": { "x": 200, "y": 0 }, "curve": "linear" }
+          ]
+        },
+        "t3": {
+          "translate": [
+            { "time": 0, "value": { "x": 20, "y": 0 }, "curve": "linear" },
+            { "time": 1, "value": { "x": 100, "y": 0 }, "curve": "linear" }
+          ]
+        }
+      },
+      "slots": {},
+      "ik": {
+        "ik1": [
+          { "time": 0, "value": { "mix": 1, "bend": 1, "softness": 20 }, "curve": "linear" },
+          { "time": 1, "value": { "mix": 1, "bend": 1, "softness": 60 }, "curve": "linear" }
+        ]
+      },
+      "transform": {},
+      "deform": {},
+      "drawOrder": [],
+      "events": []
+    }
+  },
+  "atlas": { "pages": [] },
+  "events": []
+}

@@ -24,7 +24,24 @@ export interface ResolvedIkConstraint {
   readonly targetIndex: number;
   readonly baseMix: number;
   readonly baseBendPositive: boolean;
-  readonly sampled: { mix: number; bendPositive: boolean };
+  // The depth controls from the constraint definition (ADR-0009 section 1.1, ADR-0010 section 2). softness
+  // is a non-negative world-unit distance; stretch/compress/uniform are booleans. base* are the definition
+  // values; the `sampled` scratch carries the per-frame values (softness/stretch/compress may be keyed,
+  // uniform is static). Defaults (softness 0, all false) reproduce the ADR-0003 hard solve exactly.
+  readonly baseSoftness: number;
+  readonly baseStretch: boolean;
+  readonly baseCompress: boolean;
+  readonly uniform: boolean;
+  // The explicit combined-set solve order (ADR-0009 section 1.3), or -1 when this constraint carries none.
+  // Read once at build to precompute the pose solve schedule; never sampled per frame.
+  readonly order: number;
+  readonly sampled: {
+    mix: number;
+    bendPositive: boolean;
+    softness: number;
+    stretch: boolean;
+    compress: boolean;
+  };
 }
 
 // A transform constraint resolved against the pose. `boneIndices` are the constrained bones (one or
@@ -37,6 +54,13 @@ export interface ResolvedTransformConstraint {
   readonly targetIndex: number;
   readonly baseMix: TransformMix;
   readonly offset: TransformOffset;
+  // The local/relative variant flags (ADR-0009 section 1.2). Default false/false reproduces the ADR-0003
+  // world-space absolute blend. Captured at build; the variant solve is a later PP-B5 slice (ADR-0010
+  // section 3) but the flags are carried now so the resolve and pose stay total.
+  readonly local: boolean;
+  readonly relative: boolean;
+  // The explicit combined-set solve order (ADR-0009 section 1.3), or -1 when this constraint carries none.
+  readonly order: number;
   readonly sampledMix: TransformMix;
 }
 
@@ -112,6 +136,11 @@ export interface Pose {
   // One f64 per IK constraint: the discrete greater-weight-wins winner weight for that constraint's
   // sampled bendPositive flag this frame (ADR-0005 rule 5), reset to -1 by beginBlend.
   readonly ikBendWinWeight: Float64Array;
+  // One f64 per IK constraint each: the discrete greater-weight-wins winner weights for that constraint's
+  // sampled `stretch` and `compress` depth flags this frame (ADR-0010 section 2.4), reset to -1 by
+  // beginBlend, exactly like ikBendWinWeight.
+  readonly ikStretchWinWeight: Float64Array;
+  readonly ikCompressWinWeight: Float64Array;
   // index -> the setup-pose active attachment name (or null). The renderer resolves the name to
   // geometry through the default skin; runtime-core carries the NAME only, keeping geometry out of the
   // platform-agnostic core.
@@ -139,6 +168,13 @@ export interface Pose {
   // The document's transform constraints, resolved to bone indices, in document array order. Solved
   // after all IK constraints (the canonical step-3 order). Empty for a rig with none.
   readonly transformConstraints: readonly ResolvedTransformConstraint[];
+  // The explicit combined-set solve schedule (ADR-0009 section 1.3, ADR-0010 section 1) or null when no
+  // constraint carries an `order`. When present it is a dense permutation of `[0, N)` (N = total
+  // constraints): `solveOrder[position]` is a constraint CODE, `code < ikConstraints.length` selecting
+  // `ikConstraints[code]`, else `transformConstraints[code - ikConstraints.length]`. Step 3 walks it in
+  // position order. Null keeps the exact ADR-0003 two-phase (all IK, then all transform) path, so a rig
+  // without order is byte-identical. Precomputed once at build; never touched per frame.
+  readonly solveOrder: Int32Array | null;
   // Reused scratch for sampled deform offsets (mesh-vertex sampling, sampleMeshVertices). Not touched
   // by the bone/slot/constraint solve; lives on the pose so repeated mesh sampling allocates nothing.
   readonly deformScratch: DeformScratch;
@@ -188,6 +224,8 @@ export function allocatePose(
     slotColor: new Float64Array(slotCount * SLOT_COLOR_STRIDE),
     slotAttachmentWinWeight: new Float64Array(slotCount),
     ikBendWinWeight: new Float64Array(ikConstraints.length),
+    ikStretchWinWeight: new Float64Array(ikConstraints.length),
+    ikCompressWinWeight: new Float64Array(ikConstraints.length),
     slotSetupAttachment: new Array<string | null>(slotCount).fill(null),
     slotAttachment: new Array<string | null>(slotCount).fill(null),
     drawOrder: identityDrawOrder(slotCount),
@@ -195,7 +233,46 @@ export function allocatePose(
     drawOrderWinWeight: new Float64Array(1),
     ikConstraints,
     transformConstraints,
+    solveOrder: buildSolveOrder(ikConstraints, transformConstraints),
     deformScratch: { offsets: new Float64Array(0) },
     preparedAnimations: new WeakMap<Animation, PreparedAnimation>(),
   };
+}
+
+// Precompute the explicit combined-set solve schedule (ADR-0010 section 1). Returns null when no
+// constraint carries an `order` (the ADR-0003 two-phase default). When ANY carries one, the format
+// guarantees (CONSTRAINT_ORDER_INVALID) that ALL do and the values are a dense unique permutation of
+// `[0, N)`; this builds the position->code map from that. It is defensive against an UNVALIDATED document
+// (buildPose's stated lenience): a partial, duplicated, gapped, or out-of-range assignment falls back to
+// null (the safe document-order default) rather than producing a corrupt schedule, mirroring how an
+// unresolved bone index is captured as -1 and skipped instead of crashing.
+function buildSolveOrder(
+  ikConstraints: readonly ResolvedIkConstraint[],
+  transformConstraints: readonly ResolvedTransformConstraint[],
+): Int32Array | null {
+  const total = ikConstraints.length + transformConstraints.length;
+  if (total === 0) return null;
+
+  let anyOrder = false;
+  for (let i = 0; i < ikConstraints.length; i += 1) {
+    if (ikConstraints[i]!.order >= 0) anyOrder = true;
+  }
+  for (let i = 0; i < transformConstraints.length; i += 1) {
+    if (transformConstraints[i]!.order >= 0) anyOrder = true;
+  }
+  if (!anyOrder) return null;
+
+  const codes = new Int32Array(total).fill(-1);
+  const place = (order: number, code: number): boolean => {
+    if (!Number.isInteger(order) || order < 0 || order >= total || codes[order] !== -1) return false;
+    codes[order] = code;
+    return true;
+  };
+  for (let i = 0; i < ikConstraints.length; i += 1) {
+    if (!place(ikConstraints[i]!.order, i)) return null;
+  }
+  for (let j = 0; j < transformConstraints.length; j += 1) {
+    if (!place(transformConstraints[j]!.order, ikConstraints.length + j)) return null;
+  }
+  return codes;
 }

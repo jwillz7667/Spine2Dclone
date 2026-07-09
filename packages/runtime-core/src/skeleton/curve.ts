@@ -198,6 +198,37 @@ export function buildBendTrack(frames: readonly Keyframe<IkFrame>[]): PreparedSt
   return { keyCount, times, values };
 }
 
+// The optional keyable `softness` channel of an IK timeline (ADR-0010 section 2.4): built from ONLY the
+// frames that key softness (it is optional on the IkFrame). Interpolated by its curve like `mix`. Returns
+// null when no frame keys it, so the constraint's base softness holds.
+export function buildIkSoftnessTrack(frames: readonly Keyframe<IkFrame>[]): PreparedTrack | null {
+  const present = frames.filter((frame) => frame.value.softness !== undefined);
+  if (present.length === 0) return null;
+  return buildTrack(present, 1, (key, out, base) => {
+    out[base] = key.value.softness ?? 0;
+  });
+}
+
+// An optional keyable stepped-boolean depth channel of an IK timeline (`stretch` or `compress`, ADR-0010
+// section 2.4): built from ONLY the frames that key it, stepped like the bend channel, resolved by the
+// discrete greater-weight-wins rule. Returns null when no frame keys it, so the constraint's base holds.
+export function buildIkDepthBoolTrack(
+  frames: readonly Keyframe<IkFrame>[],
+  channel: 'stretch' | 'compress',
+): PreparedStepBoolTrack | null {
+  const present = frames.filter((frame) => frame.value[channel] !== undefined);
+  if (present.length === 0) return null;
+  const keyCount = present.length;
+  const times = new Float64Array(keyCount);
+  const values = new Uint8Array(keyCount);
+  for (let i = 0; i < keyCount; i += 1) {
+    const frame = present[i]!;
+    times[i] = frame.time;
+    values[i] = frame.value[channel] === true ? 1 : 0;
+  }
+  return { keyCount, times, values };
+}
+
 // One mix channel of a transform-constraint timeline. The channel is built from ONLY the keyframes
 // that key it (the chosen absent-channel semantics, documented in sample.ts): each kept keyframe's
 // outgoing curve drives the segment to the next kept keyframe. A channel no keyframe keys yields null,

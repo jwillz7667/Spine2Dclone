@@ -12,7 +12,7 @@ All under `src/`:
 
 | Track | Rigs / inputs | Fixtures | Lock |
 |---|---|---|---|
-| **Skeleton** | `rigs/` (11 rigs, each committed as `.json` AND a binary `.bin` twin): rig-2bone, rig-rigid-mesh, rig-weighted-mesh, rig-one-bone-ik, rig-two-bone-ik, rig-transform-constraint, rig-deform, rig-transform-modes, rig-blendmodes, rig-events-draworder, rig-events-loop | `fixtures/` (11, driven by `sample-spec/`) | `.fixtures.lock` |
+| **Skeleton** | `rigs/` (13 rigs, each committed as `.json` AND a binary `.bin` twin): rig-2bone, rig-rigid-mesh, rig-weighted-mesh, rig-one-bone-ik, rig-two-bone-ik, rig-transform-constraint, rig-deform, rig-transform-modes, rig-blendmodes, rig-events-draworder, rig-events-loop, rig-ik-depth, rig-constraint-order | `fixtures/` (13, driven by `sample-spec/`) | `.fixtures.lock` |
 | **Effects / particles** | `effects-rigs/` (4): coin-burst, ribbon-trail, circle-spawn, god-rays-sprite | `effects-fixtures/` (4) | `.effects-fixtures.lock` |
 | **AnimationState** (ADR-0005) | `anim-state-rigs/anim-state-rig.json` | `anim-state-fixtures/` (4): discrete-flip, additive-layer, queue-loop-boundary, crossfade-fractions | `.anim-state-fixtures.lock` |
 | **Slot** | `slot/scenes/` (4 scenes) x `slot/spins/` (6 spins) via `slot/sample-spec/` | `slot/expected/` (6 golden `PresentationTimeline`s) | `.slot.fixtures.lock` |
@@ -45,6 +45,14 @@ name/int/string/time EXACT and float on the `EVENT_FLOAT` tolerance), produced b
 sample-spec's `eventStep`. Both lanes are emitted only when the spec opts in, so every pre-PP-B4 fixture
 regenerates byte-identically. Together with the PP-B1 pair these close all four `a2-coverage` `it.todo`
 entries.
+
+The final two skeleton rigs are the PP-B5 pair (Stage F2, ADR-0009 + ADR-0010): **rig-ik-depth** drives
+the IK constraint-depth solve (softness easing near full extension, uniform and non-uniform stretch beyond
+reach, and compress inside the fold dead zone, on both one- and two-bone chains, plus a keyed softness
+channel); **rig-constraint-order** assigns an explicit `order` that schedules a transform constraint before
+an IK constraint on a dependent bone, an interleaving that provably differs from the default IK-then-
+transform order. Both observe only the existing per-bone world-affine lane (no fixture-schema change), and
+they add no lanes to any other rig, so every pre-PP-B5 fixture regenerates byte-identically.
 
 ## Structure
 

@@ -3,7 +3,7 @@ import { composeInto, MAT2X3_STRIDE } from '../math/affine';
 import { resolveWorld, solveIkOneBone, solveIkTwoBone, solveTransformConstraint } from '../solve';
 import type { TransformMix } from '../solve/transform-constraint';
 import { SETUP_STRIDE, SLOT_COLOR_STRIDE } from './pose';
-import type { Pose, ResolvedTransformConstraint } from './pose';
+import type { Pose, ResolvedIkConstraint, ResolvedTransformConstraint } from './pose';
 import type {
   PreparedAnimation,
   PreparedBoneChannels,
@@ -19,7 +19,9 @@ import {
   buildColorTrack,
   buildDeformTrack,
   buildDrawOrderTimeline,
+  buildIkDepthBoolTrack,
   buildIkMixTrack,
+  buildIkSoftnessTrack,
   buildScalarTrack,
   buildTransformMixTrack,
   buildVec2Track,
@@ -105,6 +107,8 @@ export function beginBlend(pose: Pose): void {
   pose.boneTouched.fill(0);
   pose.slotAttachmentWinWeight.fill(-1);
   pose.ikBendWinWeight.fill(-1);
+  pose.ikStretchWinWeight.fill(-1);
+  pose.ikCompressWinWeight.fill(-1);
   pose.drawOrderWinWeight[0] = -1;
 }
 
@@ -171,62 +175,84 @@ function blendAddRotation(current: number, setupValue: number, sampled: number, 
   return current + normalizeDeltaDeg(sampled - setupValue) * w;
 }
 
-// Solve step 3 (ADR-0003 section 3): IK constraints first (document array order), then transform
-// constraints (document array order). IK reads the target world position (origin of resolveWorld) and
-// writes LOCAL rotation; transform reads/blends in world and writes LOCAL. A constraint with an
-// unresolved bone/target index (-1) is skipped rather than crashing (build-pose captures -1 for a name
-// the rig does not contain). Allocation-free: target world goes into the module scratch, and the
-// per-constraint sampled mix/bendPositive were written into pose-owned scratch in step 2.
+// Solve one IK constraint against the pose (ADR-0003 section 4, depth per ADR-0010 section 2). Reads the
+// target world origin into the module scratch and dispatches one/two-bone. A constraint with an
+// unresolved bone/target index (-1) or non-positive mix is a no-op. The per-constraint sampled scratch
+// (mix, bend, softness, stretch, compress) was written by step 2; `uniform` is the static definition flag.
+function solveOneIkConstraint(pose: Pose, constraint: ResolvedIkConstraint): void {
+  const targetIndex = constraint.targetIndex;
+  if (targetIndex < 0) return;
+  const sampled = constraint.sampled;
+  if (sampled.mix <= 0) return;
+  const boneIndices = constraint.boneIndices;
+
+  resolveWorld(pose, targetIndex, targetWorldScratch, 0);
+  const targetX = targetWorldScratch[4]!;
+  const targetY = targetWorldScratch[5]!;
+
+  if (boneIndices.length === 1) {
+    const boneIndex = boneIndices[0]!;
+    if (boneIndex < 0) return;
+    solveIkOneBone(pose, boneIndex, targetX, targetY, sampled.mix, sampled.stretch, sampled.compress);
+  } else {
+    const parentIndex = boneIndices[0]!;
+    const childIndex = boneIndices[1]!;
+    if (parentIndex < 0 || childIndex < 0) return;
+    solveIkTwoBone(
+      pose,
+      parentIndex,
+      childIndex,
+      targetX,
+      targetY,
+      sampled.bendPositive,
+      sampled.mix,
+      sampled.softness,
+      sampled.stretch,
+      sampled.compress,
+      constraint.uniform,
+    );
+  }
+}
+
+// Solve one transform constraint against the pose (ADR-0003 section 5). Applies to each constrained bone
+// in stored order; an unresolved bone/target index is skipped.
+function solveOneTransformConstraint(pose: Pose, constraint: ResolvedTransformConstraint): void {
+  const targetIndex = constraint.targetIndex;
+  if (targetIndex < 0) return;
+  const boneIndices = constraint.boneIndices;
+  for (let b = 0; b < boneIndices.length; b += 1) {
+    const boneIndex = boneIndices[b]!;
+    if (boneIndex < 0) continue;
+    solveTransformConstraint(pose, boneIndex, targetIndex, constraint.sampledMix, constraint.offset);
+  }
+}
+
+// Solve step 3 (ADR-0003 section 3, ordering per ADR-0009 section 1.3 / ADR-0010 section 1). Default
+// (pose.solveOrder null): all IK constraints in document order, then all transform constraints in document
+// order, the exact ADR-0003 two-phase path. When the rig assigns an explicit `order`, `pose.solveOrder`
+// is the precomputed dense schedule and step 3 walks it, dispatching each code to the SAME per-constraint
+// helper the default path uses (so an IK constraint is bit-identical either way; only the schedule moves).
+// Allocation-free: target world goes into the module scratch; the schedule is precomputed at build.
 export function solveConstraints(pose: Pose): void {
-  const { ikConstraints, transformConstraints } = pose;
+  const { ikConstraints, transformConstraints, solveOrder } = pose;
 
-  for (let i = 0; i < ikConstraints.length; i += 1) {
-    const constraint = ikConstraints[i]!;
-    const targetIndex = constraint.targetIndex;
-    if (targetIndex < 0) continue;
-    const boneIndices = constraint.boneIndices;
-    const sampled = constraint.sampled;
-    if (sampled.mix <= 0) continue;
-
-    resolveWorld(pose, targetIndex, targetWorldScratch, 0);
-    const targetX = targetWorldScratch[4]!;
-    const targetY = targetWorldScratch[5]!;
-
-    if (boneIndices.length === 1) {
-      const boneIndex = boneIndices[0]!;
-      if (boneIndex < 0) continue;
-      solveIkOneBone(pose, boneIndex, targetX, targetY, sampled.mix);
-    } else {
-      const parentIndex = boneIndices[0]!;
-      const childIndex = boneIndices[1]!;
-      if (parentIndex < 0 || childIndex < 0) continue;
-      solveIkTwoBone(
-        pose,
-        parentIndex,
-        childIndex,
-        targetX,
-        targetY,
-        sampled.bendPositive,
-        sampled.mix,
-      );
+  if (solveOrder === null) {
+    for (let i = 0; i < ikConstraints.length; i += 1) {
+      solveOneIkConstraint(pose, ikConstraints[i]!);
     }
+    for (let i = 0; i < transformConstraints.length; i += 1) {
+      solveOneTransformConstraint(pose, transformConstraints[i]!);
+    }
+    return;
   }
 
-  for (let i = 0; i < transformConstraints.length; i += 1) {
-    const constraint = transformConstraints[i]!;
-    const targetIndex = constraint.targetIndex;
-    if (targetIndex < 0) continue;
-    const boneIndices = constraint.boneIndices;
-    for (let b = 0; b < boneIndices.length; b += 1) {
-      const boneIndex = boneIndices[b]!;
-      if (boneIndex < 0) continue;
-      solveTransformConstraint(
-        pose,
-        boneIndex,
-        targetIndex,
-        constraint.sampledMix,
-        constraint.offset,
-      );
+  const ikCount = ikConstraints.length;
+  for (let p = 0; p < solveOrder.length; p += 1) {
+    const code = solveOrder[p]!;
+    if (code < ikCount) {
+      solveOneIkConstraint(pose, ikConstraints[code]!);
+    } else {
+      solveOneTransformConstraint(pose, transformConstraints[code - ikCount]!);
     }
   }
 }
@@ -241,6 +267,9 @@ export function resetConstraintsToBase(pose: Pose): void {
     const constraint = ikConstraints[i]!;
     constraint.sampled.mix = constraint.baseMix;
     constraint.sampled.bendPositive = constraint.baseBendPositive;
+    constraint.sampled.softness = constraint.baseSoftness;
+    constraint.sampled.stretch = constraint.baseStretch;
+    constraint.sampled.compress = constraint.baseCompress;
   }
   for (let i = 0; i < transformConstraints.length; i += 1) {
     const constraint = transformConstraints[i]!;
@@ -466,22 +495,43 @@ function applyConstraintEntry(
   discreteWins: boolean,
 ): void {
   const { ikChannels, transformChannels } = prepared;
-  const { ikConstraints, transformConstraints, ikBendWinWeight } = pose;
+  const { ikConstraints, transformConstraints, ikBendWinWeight, ikStretchWinWeight, ikCompressWinWeight } =
+    pose;
 
   for (let c = 0; c < ikChannels.length; c += 1) {
     const channel: PreparedIkChannel = ikChannels[c]!;
     const index = channel.constraintIndex;
     if (index < 0) continue;
-    const sampled = ikConstraints[index]!.sampled;
+    const constraint = ikConstraints[index]!;
+    const sampled = constraint.sampled;
     if (channel.mix !== null) {
       const value = sampleScalarTrack(channel.mix, t);
       sampled.mix = additive
-        ? blendAddLinear(sampled.mix, ikConstraints[index]!.baseMix, value, alpha)
+        ? blendAddLinear(sampled.mix, constraint.baseMix, value, alpha)
         : blendReplaceLinear(sampled.mix, value, alpha);
+    }
+    // softness blends like mix (a continuous world-unit distance); a negative additive result is floored
+    // at 0 to keep the non-negative contract the solve's soft-reach remap relies on.
+    if (channel.softness !== null) {
+      const value = sampleScalarTrack(channel.softness, t);
+      const blended = additive
+        ? blendAddLinear(sampled.softness, constraint.baseSoftness, value, alpha)
+        : blendReplaceLinear(sampled.softness, value, alpha);
+      sampled.softness = blended < 0 ? 0 : blended;
     }
     if (channel.bendPositive !== null && discreteWins && alpha >= ikBendWinWeight[index]!) {
       sampled.bendPositive = sampleStepBool(channel.bendPositive, t);
       ikBendWinWeight[index] = alpha;
+    }
+    // stretch/compress are discrete flags: the track with the greatest alpha this frame wins (ADR-0005
+    // rule 5), exactly like the bend direction, each with its own per-constraint win weight.
+    if (channel.stretch !== null && discreteWins && alpha >= ikStretchWinWeight[index]!) {
+      sampled.stretch = sampleStepBool(channel.stretch, t);
+      ikStretchWinWeight[index] = alpha;
+    }
+    if (channel.compress !== null && discreteWins && alpha >= ikCompressWinWeight[index]!) {
+      sampled.compress = sampleStepBool(channel.compress, t);
+      ikCompressWinWeight[index] = alpha;
     }
   }
 
@@ -583,6 +633,9 @@ function prepareAnimation(pose: Pose, animation: Animation): PreparedAnimation {
       constraintIndex: ikIndexByName.get(constraintName) ?? -1,
       mix: buildIkMixTrack(frames),
       bendPositive: buildBendTrack(frames),
+      softness: buildIkSoftnessTrack(frames),
+      stretch: buildIkDepthBoolTrack(frames, 'stretch'),
+      compress: buildIkDepthBoolTrack(frames, 'compress'),
     });
   }
 

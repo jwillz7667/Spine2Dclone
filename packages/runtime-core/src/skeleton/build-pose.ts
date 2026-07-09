@@ -90,6 +90,7 @@ function resolveIk(
   constraint: IkConstraint,
   indexByName: ReadonlyMap<string, number>,
 ): ResolvedIkConstraint {
+  const bendPositive = constraint.bend > 0;
   return {
     name: constraint.name,
     boneIndices: resolveBoneIndices(constraint.bones, indexByName),
@@ -98,8 +99,21 @@ function resolveIk(
     // The format carries the signed bend direction (ADR-0009): +1 positive, -1 negative. The solve's
     // internal boolean keys on the same sign (bend > 0), so this read is numerically identical to the
     // pre-0.4.0 `bendPositive` boolean (migrated true -> +1, false -> -1).
-    baseBendPositive: constraint.bend > 0,
-    sampled: { mix: constraint.mix, bendPositive: constraint.bend > 0 },
+    baseBendPositive: bendPositive,
+    // Depth controls (ADR-0009 section 1.1, ADR-0010 section 2). Defaults from the F2 migration (softness
+    // 0, stretch/compress/uniform false) reproduce the ADR-0003 hard solve.
+    baseSoftness: constraint.softness,
+    baseStretch: constraint.stretch,
+    baseCompress: constraint.compress,
+    uniform: constraint.uniform,
+    order: constraint.order ?? -1,
+    sampled: {
+      mix: constraint.mix,
+      bendPositive,
+      softness: constraint.softness,
+      stretch: constraint.stretch,
+      compress: constraint.compress,
+    },
   };
 }
 
@@ -129,6 +143,10 @@ function resolveTransform(
     targetIndex: indexByName.get(constraint.target) ?? -1,
     baseMix,
     offset,
+    // Variant flags (ADR-0009 section 1.2). Default false/false is the ADR-0003 world absolute blend.
+    local: constraint.local,
+    relative: constraint.relative,
+    order: constraint.order ?? -1,
     sampledMix: { ...baseMix },
   };
 }

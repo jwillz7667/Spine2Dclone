@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { SkeletonDocument } from '@marionette/format/types';
 import { buildPose, decomposeWorld, sampleSkeleton, transformPoint } from '../src';
 import type { Mat2x3, Pose } from '../src';
 import { worldOf } from './rig';
@@ -188,6 +189,64 @@ describe('sampleSkeleton constraint order (IK before transform)', () => {
     expect(aimRotation).toBeCloseTo(90, 6); // IK aimed it straight up
     expect(aimRotation).not.toBeCloseTo(0, 3); // proves IK moved it off setup
     expect(worldRotation(pose, 'follower')).toBeCloseTo(aimRotation, 6); // copied the post-IK aim
+    noNaN(pose);
+  });
+});
+
+// ADR-0010 section 1: an explicit `order` interleaves the combined IK + transform set. This rig has a
+// transform constraint that rotates boneP and a one-bone IK that aims boneP's child boneC. The two orders
+// give different results: default is IK-then-transform (IK aims boneC in boneP's SETUP frame, then the
+// transform rotates boneP after, so boneC no longer points at the target), while order tc=0/ik=1 solves
+// the transform FIRST (boneP rotated) and then aims boneC in that updated frame (boneC points at target).
+describe('constraint order (ADR-0010 section 1)', () => {
+  const orderDoc = (withOrder: boolean): SkeletonDocument =>
+    fullDoc({
+      bones: [
+        bone('root', null),
+        bone('boneP', 'root', { length: 60 }),
+        bone('boneC', 'boneP', { x: 60, length: 40 }),
+        bone('tcTarget', 'root', { rotation: 35 }),
+        bone('ikTarget', 'root', { x: 80, y: 40 }),
+      ],
+      ikConstraints: [
+        { ...ikConstraint('ik', ['boneC'], 'ikTarget', 1, true), ...(withOrder ? { order: 1 } : {}) },
+      ],
+      transformConstraints: [
+        transformConstraint('tc', ['boneP'], 'tcTarget', {
+          mixRotate: 1,
+          ...(withOrder ? { order: 0 } : {}),
+        }),
+      ],
+      animations: { pose: anim() },
+    });
+
+  it('the ordered schedule produces a different dependent-bone pose than the default order', () => {
+    const def = orderDoc(false);
+    const ord = orderDoc(true);
+    const defPose = buildPose(def);
+    const ordPose = buildPose(ord);
+
+    sampleSkeleton(def, 'pose', 0, defPose);
+    sampleSkeleton(ord, 'pose', 0, ordPose);
+
+    // The default path builds no schedule; the ordered path builds a dense one that puts tc before ik.
+    expect(defPose.solveOrder).toBeNull();
+    expect(Array.from(ordPose.solveOrder!)).toEqual([1, 0]); // position 0 -> tc (code 1), position 1 -> ik (code 0)
+    expect(Array.from(worldOf(ordPose, 'boneC'))).not.toEqual(Array.from(worldOf(defPose, 'boneC')));
+    noNaN(defPose);
+    noNaN(ordPose);
+  });
+
+  it('solving the transform first lets the IK aim the child in the constrained parent frame', () => {
+    const ord = orderDoc(true);
+    const pose = buildPose(ord);
+
+    sampleSkeleton(ord, 'pose', 0, pose);
+
+    // tc rotated boneP to 35deg first, then ik aimed boneC's world X straight at ikTarget (80, 40).
+    const [ox, oy] = originOf(pose, 'boneC');
+    expect(xAngle(worldOf(pose, 'boneC'))).toBeCloseTo(Math.atan2(40 - oy, 80 - ox), 6);
+    expect(worldRotation(pose, 'boneP')).toBeCloseTo(35, 6);
     noNaN(pose);
   });
 });

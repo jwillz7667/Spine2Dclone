@@ -81,7 +81,9 @@
       "rig-transform-modes": 584598942,
       "rig-blendmodes": 2749745388,
       "rig-events-draworder": 2703229390,
-      "rig-events-loop": 2995768846
+      "rig-events-loop": 2995768846,
+      "rig-ik-depth": 4184302106,
+      "rig-constraint-order": 2460018340
     }
   }
 }

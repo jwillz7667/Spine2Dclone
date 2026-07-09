@@ -21,9 +21,11 @@ runtime must match exactly:
    mixes, and applies the active draw-order key; `composeTouchedBones` composes touched local
    matrices). Event firing is NOT part of this instantaneous pose sample (it is a time-range
    operation, see below).
-3. **Solve constraints**: all IK constraints first (`solveIkOneBone` / `solveIkTwoBone`), then all
-   transform constraints (`solveTransformConstraint`), each in document order (ADR-0003).
-   Constraints write local transforms only.
+3. **Solve constraints**: by default all IK constraints first (`solveIkOneBone` / `solveIkTwoBone`),
+   then all transform constraints (`solveTransformConstraint`), each in document order (ADR-0003); when
+   the rig assigns an explicit `order` the combined set is solved in one interleaved schedule instead
+   (ADR-0010). IK also honours the depth controls (softness easing, stretch, compress, uniform) that
+   write local rotation and, for stretch/compress, local scaleX. Constraints write local transforms only.
 4. **World transforms**: one forward pass (`computeWorldTransforms`), parents before children,
    dispatching per bone on `transformMode` (`normal` plus four parent-influence-suppressing modes
    in `src/skeleton/transform-mode.ts`).

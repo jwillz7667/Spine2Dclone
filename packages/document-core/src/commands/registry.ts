@@ -101,6 +101,7 @@ import { setMeshEdgesSpec } from './set-mesh-edges.command';
 import { setRegionAttachmentTransformSpec } from './set-region-attachment-transform.command';
 import { setSlotBlendModeSpec } from './set-slot-blend-mode.command';
 import { setSlotColorSpec } from './set-slot-color.command';
+import { setSlotDarkColorSpec } from './set-slot-dark-color.command';
 import { unbindMeshSpec } from './unbind-mesh.command';
 import type { CommandSpec } from './spec';
 
@@ -124,6 +125,7 @@ export const commandRegistry: readonly CommandSpec[] = [
   renameSlotSpec,
   setSlotBlendModeSpec,
   setSlotColorSpec,
+  setSlotDarkColorSpec,
   reorderSlotSpec,
   addRegionAttachmentSpec,
   // PP-D10 (Stage F2) linked meshes

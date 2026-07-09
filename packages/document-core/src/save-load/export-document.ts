@@ -170,6 +170,7 @@ function slotTimelinesToFormat(set: SlotTimelineSet): SlotTimelines {
       ? { attachment: set.attachment.map((frame) => ({ time: frame.time, name: frame.name })) }
       : {}),
     ...(set.color.length > 0 ? { color: colorKeyframes(set.color) } : {}),
+    ...(set.dark.length > 0 ? { dark: colorKeyframes(set.dark) } : {}),
     ...(set.sequence.length > 0
       ? {
           sequence: set.sequence.map((k) => ({
@@ -182,7 +183,6 @@ function slotTimelinesToFormat(set: SlotTimelineSet): SlotTimelines {
       : {}),
     ...(set.rgb !== undefined ? { rgb: set.rgb } : {}),
     ...(set.alpha !== undefined ? { alpha: set.alpha } : {}),
-    ...(set.dark !== undefined ? { dark: set.dark } : {}),
   };
 }
 

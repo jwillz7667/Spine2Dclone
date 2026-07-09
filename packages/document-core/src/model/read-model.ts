@@ -234,6 +234,7 @@ export interface SlotTimelineSnapshot {
   readonly color: readonly KeyframeSnapshot[];
   readonly attachment: readonly AttachmentFrameSnapshot[];
   readonly sequence: readonly SequenceKeyframeSnapshot[];
+  readonly dark: readonly KeyframeSnapshot[];
 }
 
 // Plain IK / transform / deform keyframe projections (WP-2.6/2.7/2.9), value copies in time order.
@@ -635,6 +636,7 @@ export function animationToSnapshot(animation: AnimationEntity): AnimationSnapsh
       color: set.color.map(keyframeToSnapshot),
       attachment: set.attachment.map(attachmentFrameToSnapshot),
       sequence: set.sequence.map(sequenceKeyframeToSnapshot),
+      dark: set.dark.map(keyframeToSnapshot),
     });
   }
   slots.sort((a, b) => (a.slotId < b.slotId ? -1 : a.slotId > b.slotId ? 1 : 0));

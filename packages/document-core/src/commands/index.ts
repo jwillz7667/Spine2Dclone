@@ -25,6 +25,7 @@ export { DeleteSlotCommand, deleteSlotSpec } from './delete-slot.command';
 export { RenameSlotCommand, renameSlotSpec } from './rename-slot.command';
 export { SetSlotBlendModeCommand, setSlotBlendModeSpec } from './set-slot-blend-mode.command';
 export { SetSlotColorCommand, setSlotColorSpec } from './set-slot-color.command';
+export { SetSlotDarkColorCommand, setSlotDarkColorSpec } from './set-slot-dark-color.command';
 export { ReorderSlotCommand, reorderSlotSpec } from './reorder-slot.command';
 export {
   AddRegionAttachmentCommand,

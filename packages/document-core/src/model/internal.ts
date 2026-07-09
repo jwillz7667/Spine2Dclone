@@ -255,7 +255,7 @@ type CarriedBoneTracks = Pick<
   BoneTimelineSet,
   'translateX' | 'translateY' | 'scaleX' | 'scaleY' | 'shearX' | 'shearY'
 >;
-type CarriedSlotTracks = Pick<SlotTimelineSet, 'rgb' | 'alpha' | 'dark'>;
+type CarriedSlotTracks = Pick<SlotTimelineSet, 'rgb' | 'alpha'>;
 
 interface MutableBoneTimelineSet extends CarriedBoneTracks {
   rotate: KeyframeEntity[];
@@ -269,9 +269,10 @@ interface MutableBoneTimelineSet extends CarriedBoneTracks {
 interface MutableSlotTimelineSet extends CarriedSlotTracks {
   color: KeyframeEntity[];
   attachment: AttachmentFrameEntity[];
-  // The sequence timeline (PP-D10) is a first-class editable channel like color/attachment. The carried
-  // rgb/alpha/dark tracks (from CarriedSlotTracks) are immutable frozen refs.
+  // The sequence and dark timelines (PP-D10) are first-class editable channels like color/attachment. The
+  // carried rgb/alpha tracks (from CarriedSlotTracks) are immutable frozen refs.
   sequence: SequenceKeyframeEntity[];
+  dark: KeyframeEntity[];
 }
 
 // Spread only the PRESENT carried F2 tracks (exactOptionalPropertyTypes) so an absent track stays absent
@@ -292,7 +293,6 @@ function carriedSlotTracks(set: SlotTimelineSet): CarriedSlotTracks {
   return {
     ...(set.rgb !== undefined ? { rgb: set.rgb } : {}),
     ...(set.alpha !== undefined ? { alpha: set.alpha } : {}),
-    ...(set.dark !== undefined ? { dark: set.dark } : {}),
   };
 }
 
@@ -333,13 +333,14 @@ function toMutableSlotSet(set: SlotTimelineSet): MutableSlotTimelineSet {
     color: set.color.slice(),
     attachment: set.attachment.slice(),
     sequence: set.sequence.slice(),
+    dark: set.dark.slice(),
     ...carriedSlotTracks(set),
   };
 }
 
 // A fresh empty mutable slot timeline set (the create-on-write base for the slot channel writers).
 function newMutableSlotSet(): MutableSlotTimelineSet {
-  return { color: [], attachment: [], sequence: [] };
+  return { color: [], attachment: [], sequence: [], dark: [] };
 }
 
 // Deep-copy a deform map (fresh nested maps and sliced keyframe arrays) so an in-place edit to one copy
@@ -427,6 +428,7 @@ function cloneMutableAnimation(a: MutableAnimation): MutableAnimation {
       color: set.color.slice(),
       attachment: set.attachment.slice(),
       sequence: set.sequence.slice(),
+      dark: set.dark.slice(),
       ...carriedSlotTracks(set),
     });
   }
@@ -472,6 +474,7 @@ function freezeAnimation(a: MutableAnimation): AnimationEntity {
         color: Object.freeze(set.color.slice()),
         attachment: Object.freeze(set.attachment.slice()),
         sequence: Object.freeze(set.sequence.slice()),
+        dark: Object.freeze(set.dark.slice()),
         ...carriedSlotTracks(set),
       }),
     );
@@ -1345,6 +1348,25 @@ export class DocumentModelInternal implements DocumentReadModel {
         animation.slots.set(slotId, set);
       }
       set.sequence = keys.slice();
+    });
+  }
+
+  // Replace a slot's dark-color (two-color tint) keyframes (PP-D10). Same create-on-write / prune-on-empty
+  // contract as the other slot channels; the caller passes an already-time-sorted array of immutable keys.
+  setSlotDarkChannel(animId: AnimationId, slotId: SlotId, keyframes: readonly KeyframeEntity[]): void {
+    this.writeAnimation(animId, (animation) => {
+      let set = animation.slots.get(slotId);
+      if (keyframes.length === 0) {
+        if (!set) return;
+        set.dark = [];
+        if (isSlotTimelineSetEmpty(set)) animation.slots.delete(slotId);
+        return;
+      }
+      if (!set) {
+        set = newMutableSlotSet();
+        animation.slots.set(slotId, set);
+      }
+      set.dark = keyframes.slice();
     });
   }
 

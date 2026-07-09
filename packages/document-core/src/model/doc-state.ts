@@ -20,7 +20,6 @@ import type {
 type CarriedScalarTrack = NonNullable<BoneTimelines['translateX']>;
 type CarriedRgbTrack = NonNullable<SlotTimelines['rgb']>;
 type CarriedAlphaTrack = NonNullable<SlotTimelines['alpha']>;
-type CarriedDarkTrack = NonNullable<SlotTimelines['dark']>;
 type CarriedSequence = NonNullable<RegionAttachment['sequence']>;
 import type {
   AnimationId,
@@ -290,12 +289,15 @@ export interface SlotTimelineSet {
   // Stage F2 (ADR-0009 section 3) frame-`sequence` timeline, promoted to editable id-keyed entities (PP-D10),
   // always present (empty when unused), like `color`/`attachment`.
   readonly sequence: readonly SequenceKeyframeEntity[];
-  // Stage F2 (ADR-0009 sections 4.2, 4.3) split rgb/alpha color tracks and the keyable two-color `dark` tint,
-  // carried verbatim (no command authors them yet, PP-D10). The joint `color` and the split `rgb`/`alpha`
-  // never coexist on one slot (the format's TIMELINE_COMPONENT_CONFLICT).
+  // Stage F2 (ADR-0009 section 4.3) keyable two-color `dark` tint, promoted to editable id-keyed keyframes
+  // (PP-D10); the value is an RGBA ColorValue like the joint `color` channel. Keying it requires the slot's
+  // setup `darkColor` (the format's ANIM_DARK_NO_SETUP). Always present (empty when unused).
+  readonly dark: readonly KeyframeEntity[];
+  // Stage F2 (ADR-0009 section 4.2) split rgb/alpha color tracks, carried verbatim (no command authors them
+  // yet, PP-D10). The joint `color` and the split `rgb`/`alpha` never coexist on one slot (the format's
+  // TIMELINE_COMPONENT_CONFLICT).
   readonly rgb?: CarriedRgbTrack;
   readonly alpha?: CarriedAlphaTrack;
-  readonly dark?: CarriedDarkTrack;
 }
 
 // A keyed IK-constraint frame (WP-2.6, format IkFrame): an internal `id`, a `time`, a `mix` blend, a
@@ -809,16 +811,16 @@ export function isBoneTimelineSetEmpty(set: BoneTimelineSet): boolean {
   );
 }
 
-// True when a slot timeline set carries no color/attachment/sequence keyframes (the prune condition). A
-// carried F2 rgb/alpha/dark track (ADR-0009) counts as content so it is never pruned.
+// True when a slot timeline set carries no color/attachment/sequence/dark keyframes (the prune condition). A
+// carried F2 rgb/alpha track (ADR-0009) counts as content so it is never pruned.
 export function isSlotTimelineSetEmpty(set: SlotTimelineSet): boolean {
   return (
     set.color.length === 0 &&
     set.attachment.length === 0 &&
     set.sequence.length === 0 &&
+    set.dark.length === 0 &&
     set.rgb === undefined &&
-    set.alpha === undefined &&
-    set.dark === undefined
+    set.alpha === undefined
   );
 }
 

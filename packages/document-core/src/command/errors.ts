@@ -214,6 +214,25 @@ export class SequenceError extends Error {
   }
 }
 
+// A Stage F2 timeline authoring edit (PP-D10) rejected BEFORE any mutation. The `reason` mirrors the format's
+// timeline-granularity checks (ADR-0009 section 4):
+//   - darkNoSetup: keying a slot's two-color `dark` tint while the slot has no setup `darkColor`
+//     (the format's ANIM_DARK_NO_SETUP).
+//   - componentConflict: a joint channel and its split component tracks coexist on one bone/slot (the
+//     format's TIMELINE_COMPONENT_CONFLICT).
+export type TimelineErrorReason = 'darkNoSetup' | 'componentConflict';
+
+export class TimelineError extends Error {
+  override readonly name = 'TimelineError';
+  readonly code = 'TIMELINE' as const;
+  constructor(
+    readonly reason: TimelineErrorReason,
+    readonly detail?: string,
+  ) {
+    super(`timeline error (${reason})` + (detail === undefined ? '' : `: ${detail}`));
+  }
+}
+
 // A constraint authoring edit (WP-2.6 / WP-2.7) rejected BEFORE any mutation, so it leaves no document
 // change and no history entry. The `reason` discriminant says which rule fired:
 //   - boneMissing: a referenced chain bone is not in the document.

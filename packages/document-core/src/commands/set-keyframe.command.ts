@@ -1,6 +1,10 @@
 import type { CurveType } from '@marionette/format/types';
 import type { Command, CommandContext } from '../command/command';
-import { CommandNotAppliedError, CommandTargetMissingError } from '../command/errors';
+import {
+  CommandNotAppliedError,
+  CommandTargetMissingError,
+  TimelineError,
+} from '../command/errors';
 import { makeKeyframe, type KeyframeEntity, type KeyframeValue } from '../model/doc-state';
 import type { AnimationId, KeyframeId } from '../model/ids';
 import {
@@ -41,6 +45,15 @@ export class SetKeyframeCommand implements Command {
     if (this.before === undefined) {
       const animation = ctx.mutate.getAnimation(this.animId);
       if (!animation) throw new CommandTargetMissingError(this.kind, this.animId);
+      // Keying a slot's two-color `dark` tint requires the slot's setup darkColor (ADR-0009 section 4.3, the
+      // format's ANIM_DARK_NO_SETUP), enforced BEFORE any mutation.
+      if (this.target.kind === 'slot' && this.target.channel === 'dark') {
+        const slot = ctx.mutate.getSlot(this.target.slotId);
+        if (slot === undefined) throw new CommandTargetMissingError(this.kind, this.target.slotId);
+        if (slot.darkColor === null) {
+          throw new TimelineError('darkNoSetup', `slot "${this.target.slotId}" has no setup dark color`);
+        }
+      }
       const channel = readChannel(animation, this.target);
       this.before = channel;
       const existing = channel.find((kf) => kf.time === this.time);

@@ -16,7 +16,9 @@ namespace Marionette.Runtime.Core.Tests
             _output = output;
         }
 
-        // The seven committed skeleton rigs (packages/conformance/src/registry.ts RIG_IDS).
+        // The committed skeleton rigs the native harness mirrors (packages/conformance/src/registry.ts
+        // RIG_IDS). PP-B4 adds rig-events-draworder and rig-events-loop, which exercise the draw-order lane
+        // and the fired-event log (the one-stage-lag native chase of the TS solve).
         public static IEnumerable<object[]> Rigs()
         {
             yield return new object[] { "rig-2bone" };
@@ -26,6 +28,8 @@ namespace Marionette.Runtime.Core.Tests
             yield return new object[] { "rig-two-bone-ik" };
             yield return new object[] { "rig-transform-constraint" };
             yield return new object[] { "rig-deform" };
+            yield return new object[] { "rig-events-draworder" };
+            yield return new object[] { "rig-events-loop" };
         }
 
         [Theory]

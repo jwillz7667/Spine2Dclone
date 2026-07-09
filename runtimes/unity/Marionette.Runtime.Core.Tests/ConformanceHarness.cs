@@ -82,9 +82,122 @@ namespace Marionette.Runtime.Core.Tests
                 }
 
                 CompareMeshes(result, document, spec, sample, pose, vertexScratch);
+                CompareDrawOrder(result, rigId, sample, pose);
             }
 
+            CompareEvents(result, rigId, document, spec, fixture);
+
             return result;
+        }
+
+        // Compare the resolved render order of one sample (ADR-0008, PP-B4): an integer permutation, EXACT.
+        private static void CompareDrawOrder(ConformanceResult result, string rigId, FixtureSample sample, Pose pose)
+        {
+            if (sample.DrawOrder == null)
+            {
+                return;
+            }
+
+            if (sample.DrawOrder.Count != pose.SlotCount)
+            {
+                result.Failures.Add(
+                    $"[{rigId}] draw order length mismatch at t={sample.Time}: "
+                    + $"expected {sample.DrawOrder.Count}, actual {pose.SlotCount}");
+                return;
+            }
+
+            for (int i = 0; i < sample.DrawOrder.Count; i += 1)
+            {
+                result.LaneComparisons += 1;
+                if (pose.DrawOrder[i] != sample.DrawOrder[i])
+                {
+                    result.Failures.Add(
+                        $"[{rigId}] draw order mismatch at t={sample.Time}, position {i}: "
+                        + $"expected {sample.DrawOrder[i]}, actual {pose.DrawOrder[i]}");
+                }
+            }
+        }
+
+        // Sweep the sample-spec eventStep and compare the fired-event log to the committed fixture
+        // (ADR-0008, PP-B4). Name/int/string/time are EXACT; the float payload rides the EVENT_FLOAT
+        // tolerance. The log is ordered, so entries are matched index by index.
+        private static void CompareEvents(
+            ConformanceResult result,
+            string rigId,
+            SkeletonDocument document,
+            SampleSpec spec,
+            Fixture fixture)
+        {
+            if (spec.EventStep == null)
+            {
+                return;
+            }
+
+            Animation? animation = document.FindAnimation(spec.Animation);
+            if (animation == null)
+            {
+                result.Failures.Add($"[{rigId}] event sweep animation '{spec.Animation}' not found");
+                return;
+            }
+
+            PreparedEventTimeline? timeline = EventFire.PrepareEventTimeline(animation, document.Events);
+            EventQueue queue = EventFire.MakeEventQueue();
+            if (timeline != null)
+            {
+                EventFire.CollectFiredEvents(
+                    timeline,
+                    spec.EventStep.From,
+                    spec.EventStep.To,
+                    spec.EventStep.Dt,
+                    spec.Loop,
+                    spec.Duration,
+                    queue);
+            }
+
+            if (queue.Count != fixture.Events.Count)
+            {
+                result.Failures.Add(
+                    $"[{rigId}] fired-event count mismatch: expected {fixture.Events.Count}, actual {queue.Count}");
+                return;
+            }
+
+            for (int i = 0; i < fixture.Events.Count; i += 1)
+            {
+                FiredEventRecord expected = fixture.Events[i];
+                FiredEvent actual = queue.Events[i];
+                string where = $"[{rigId}] event {i} ('{expected.Name}' at t={expected.Time})";
+                result.LaneComparisons += 1;
+
+                if (actual.Name != expected.Name)
+                {
+                    result.Failures.Add($"{where} name mismatch: expected '{expected.Name}', actual '{actual.Name}'");
+                }
+
+                if (actual.Time != expected.Time)
+                {
+                    result.Failures.Add($"{where} time mismatch: expected {expected.Time:R}, actual {actual.Time:R}");
+                }
+
+                if (actual.HasInt != expected.HasInt || (actual.HasInt && (int)actual.IntValue != expected.Int))
+                {
+                    result.Failures.Add($"{where} int payload mismatch");
+                }
+
+                if (actual.HasString != expected.HasString || (actual.HasString && actual.StringValue != expected.String))
+                {
+                    result.Failures.Add($"{where} string payload mismatch");
+                }
+
+                if (actual.HasFloat != expected.HasFloat)
+                {
+                    result.Failures.Add($"{where} float presence mismatch");
+                }
+                else if (actual.HasFloat && !Tolerances.EventFloat.Within(actual.FloatValue, expected.Float))
+                {
+                    result.Failures.Add(
+                        $"{where} float payload drifts: expected {expected.Float:R}, actual {actual.FloatValue:R}");
+                }
+            }
         }
 
         private static void CompareAffine(
@@ -198,19 +311,48 @@ namespace Marionette.Runtime.Core.Tests
 
     // A minimal reader for the committed sample spec (packages/conformance/src/sample-spec/*.json), using
     // the core's dependency free JSON parser. Reads only the fields the harness consumes.
+    // The deterministic event-step sweep window (ADR-0008, PP-B4): advance from From to To in Dt frame
+    // steps, firing events at each step. Present only when the sample-spec sets eventStep.
+    public sealed class EventStep
+    {
+        public double Dt { get; }
+        public double From { get; }
+        public double To { get; }
+
+        public EventStep(double dt, double from, double to)
+        {
+            Dt = dt;
+            From = from;
+            To = to;
+        }
+    }
+
     public sealed class SampleSpec
     {
         public string RigId { get; }
         public string Animation { get; }
         public bool Loop { get; }
+        public double Duration { get; }
         public IReadOnlyList<double> PoseTimes { get; }
+        public bool CaptureDrawOrder { get; }
+        public EventStep? EventStep { get; }
 
-        private SampleSpec(string rigId, string animation, bool loop, IReadOnlyList<double> poseTimes)
+        private SampleSpec(
+            string rigId,
+            string animation,
+            bool loop,
+            double duration,
+            IReadOnlyList<double> poseTimes,
+            bool captureDrawOrder,
+            EventStep? eventStep)
         {
             RigId = rigId;
             Animation = animation;
             Loop = loop;
+            Duration = duration;
             PoseTimes = poseTimes;
+            CaptureDrawOrder = captureDrawOrder;
+            EventStep = eventStep;
         }
 
         public static SampleSpec Load(string path)
@@ -222,11 +364,29 @@ namespace Marionette.Runtime.Core.Tests
                 poseTimes.Add(time.AsNumber());
             }
 
+            JsonValue? captureValue = root.Member("captureDrawOrder");
+            bool captureDrawOrder = captureValue != null
+                && captureValue.Kind == JsonKind.Bool
+                && captureValue.AsBool();
+
+            EventStep? eventStep = null;
+            JsonValue? eventStepValue = root.Member("eventStep");
+            if (eventStepValue != null && eventStepValue.Kind == JsonKind.Object)
+            {
+                eventStep = new EventStep(
+                    eventStepValue.Member("dt")!.AsNumber(),
+                    eventStepValue.Member("from")!.AsNumber(),
+                    eventStepValue.Member("to")!.AsNumber());
+            }
+
             return new SampleSpec(
                 root.Member("rigId")!.AsString(),
                 root.Member("animation")!.AsString(),
                 root.Member("loop")!.AsBool(),
-                poseTimes);
+                root.Member("duration")!.AsNumber(),
+                poseTimes,
+                captureDrawOrder,
+                eventStep);
         }
     }
 
@@ -257,16 +417,55 @@ namespace Marionette.Runtime.Core.Tests
         public IReadOnlyList<KeyValuePair<string, double[]>> Bones { get; }
         public IReadOnlyList<MeshVertices> Meshes { get; }
 
+        // The resolved render order (ADR-0008, PP-B4): an integer permutation, present only when the
+        // sample-spec captures it. Null otherwise.
+        public IReadOnlyList<int>? DrawOrder { get; }
+
         public FixtureSample(
             double time,
             string animation,
             IReadOnlyList<KeyValuePair<string, double[]>> bones,
-            IReadOnlyList<MeshVertices> meshes)
+            IReadOnlyList<MeshVertices> meshes,
+            IReadOnlyList<int>? drawOrder)
         {
             Time = time;
             Animation = animation;
             Bones = bones;
             Meshes = meshes;
+            DrawOrder = drawOrder;
+        }
+    }
+
+    // One committed fired-event record (ADR-0008, PP-B4): name + fire time + resolved payload presence.
+    public sealed class FiredEventRecord
+    {
+        public string Name { get; }
+        public double Time { get; }
+        public bool HasInt { get; }
+        public int Int { get; }
+        public bool HasFloat { get; }
+        public double Float { get; }
+        public bool HasString { get; }
+        public string? String { get; }
+
+        public FiredEventRecord(
+            string name,
+            double time,
+            bool hasInt,
+            int intValue,
+            bool hasFloat,
+            double floatValue,
+            bool hasString,
+            string? stringValue)
+        {
+            Name = name;
+            Time = time;
+            HasInt = hasInt;
+            Int = intValue;
+            HasFloat = hasFloat;
+            Float = floatValue;
+            HasString = hasString;
+            String = stringValue;
         }
     }
 
@@ -276,10 +475,15 @@ namespace Marionette.Runtime.Core.Tests
         public string RigId { get; }
         public IReadOnlyList<FixtureSample> Samples { get; }
 
-        private Fixture(string rigId, IReadOnlyList<FixtureSample> samples)
+        // The fixture-level fired-event log (ADR-0008, PP-B4), present only when the sample-spec set an
+        // eventStep. Empty list when absent.
+        public IReadOnlyList<FiredEventRecord> Events { get; }
+
+        private Fixture(string rigId, IReadOnlyList<FixtureSample> samples, IReadOnlyList<FiredEventRecord> events)
         {
             RigId = rigId;
             Samples = samples;
+            Events = events;
         }
 
         public static Fixture Load(string path)
@@ -321,14 +525,47 @@ namespace Marionette.Runtime.Core.Tests
                     }
                 }
 
+                List<int>? drawOrder = null;
+                JsonValue? drawOrderValue = sample.Member("drawOrder");
+                if (drawOrderValue != null && drawOrderValue.Kind == JsonKind.Array)
+                {
+                    drawOrder = new List<int>();
+                    foreach (JsonValue slotIndex in drawOrderValue.AsArray())
+                    {
+                        drawOrder.Add((int)slotIndex.AsNumber());
+                    }
+                }
+
                 samples.Add(new FixtureSample(
                     sample.Member("time")!.AsNumber(),
                     sample.Member("animation")!.AsString(),
                     bones,
-                    meshes));
+                    meshes,
+                    drawOrder));
             }
 
-            return new Fixture(root.Member("rigId")!.AsString(), samples);
+            var events = new List<FiredEventRecord>();
+            JsonValue? eventsValue = root.Member("events");
+            if (eventsValue != null && eventsValue.Kind == JsonKind.Array)
+            {
+                foreach (JsonValue ev in eventsValue.AsArray())
+                {
+                    JsonValue? intValue = ev.Member("int");
+                    JsonValue? floatValue = ev.Member("float");
+                    JsonValue? stringValue = ev.Member("string");
+                    events.Add(new FiredEventRecord(
+                        ev.Member("name")!.AsString(),
+                        ev.Member("time")!.AsNumber(),
+                        intValue != null && intValue.Kind == JsonKind.Number,
+                        intValue != null && intValue.Kind == JsonKind.Number ? (int)intValue.AsNumber() : 0,
+                        floatValue != null && floatValue.Kind == JsonKind.Number,
+                        floatValue != null && floatValue.Kind == JsonKind.Number ? floatValue.AsNumber() : 0,
+                        stringValue != null && stringValue.Kind == JsonKind.String,
+                        stringValue != null && stringValue.Kind == JsonKind.String ? stringValue.AsString() : null));
+                }
+            }
+
+            return new Fixture(root.Member("rigId")!.AsString(), samples, events);
         }
     }
 }

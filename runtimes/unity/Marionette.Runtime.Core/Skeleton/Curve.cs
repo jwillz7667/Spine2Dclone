@@ -414,5 +414,101 @@ namespace Marionette.Runtime.Core.Skeleton
             int i = FindSegmentIndex(track.Times, track.KeyCount, t);
             return track.Values[i] == 1;
         }
+
+        // The index of the active draw-order key at time t: the LATEST key at or before t (stepped).
+        // Returns -1 when t is below the first key, so the setup order holds (ADR-0008; mirrors
+        // findDrawOrderKeyIndex in curve.ts). Draw-order timelines are short, so a linear scan is used.
+        public static int FindDrawOrderKeyIndex(PreparedDrawOrderTimeline timeline, double t)
+        {
+            if (timeline.KeyCount == 0 || t < timeline.Times[0])
+            {
+                return -1;
+            }
+
+            for (int i = timeline.KeyCount - 1; i >= 0; i -= 1)
+            {
+                if (timeline.Times[i] <= t)
+                {
+                    return i;
+                }
+            }
+
+            return -1;
+        }
+
+        // Build a prepared draw-order timeline (ADR-0008 section 3, PP-B4): resolve each key's compact
+        // {slot, offset} list into a FULL render-order permutation ONCE at build time. Mirrors
+        // buildDrawOrderTimeline in curve.ts.
+        public static PreparedDrawOrderTimeline BuildDrawOrderTimeline(
+            IReadOnlyList<DrawOrderKeyframe> keys,
+            Dictionary<string, int> slotIndexByName,
+            int slotCount)
+        {
+            int keyCount = keys.Count;
+            var times = new double[keyCount];
+            var orders = new int[keyCount][];
+            for (int k = 0; k < keyCount; k += 1)
+            {
+                DrawOrderKeyframe key = keys[k];
+                times[k] = key.Time;
+                orders[k] = ResolveDrawOrder(key.Offsets, slotIndexByName, slotCount);
+            }
+
+            return new PreparedDrawOrderTimeline(keyCount, times, orders);
+        }
+
+        // Derive one key's full render-order permutation from its offset diff (ADR-0008 section 3): each
+        // listed slot is pinned to its target render position (setup index + offset), every unlisted slot
+        // keeps its relative setup order filling the remaining positions front to back. Mirrors
+        // resolveDrawOrder in curve.ts.
+        private static int[] ResolveDrawOrder(
+            IReadOnlyList<DrawOrderOffset> offsets,
+            Dictionary<string, int> slotIndexByName,
+            int slotCount)
+        {
+            var order = new int[slotCount];
+            for (int i = 0; i < slotCount; i += 1)
+            {
+                order[i] = -1;
+            }
+
+            var listed = new bool[slotCount];
+            for (int o = 0; o < offsets.Count; o += 1)
+            {
+                DrawOrderOffset entry = offsets[o];
+                if (!slotIndexByName.TryGetValue(entry.Slot, out int slotIndex))
+                {
+                    continue;
+                }
+
+                int target = slotIndex + entry.Offset;
+                if (target < 0 || target >= slotCount)
+                {
+                    continue;
+                }
+
+                order[target] = slotIndex;
+                listed[slotIndex] = true;
+            }
+
+            int nextUnlisted = 0;
+            for (int pos = 0; pos < slotCount; pos += 1)
+            {
+                if (order[pos] != -1)
+                {
+                    continue;
+                }
+
+                while (nextUnlisted < slotCount && listed[nextUnlisted])
+                {
+                    nextUnlisted += 1;
+                }
+
+                order[pos] = nextUnlisted;
+                nextUnlisted += 1;
+            }
+
+            return order;
+        }
     }
 }

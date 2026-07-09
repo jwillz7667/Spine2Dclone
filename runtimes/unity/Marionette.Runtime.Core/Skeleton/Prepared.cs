@@ -159,6 +159,61 @@ namespace Marionette.Runtime.Core.Skeleton
         }
     }
 
+    // A prepared per-animation draw-order timeline (ADR-0008 section 3, PP-B4). Each key's compact offset
+    // diff is derived ONCE at build time into a FULL render-order permutation Orders[k], where
+    // Orders[k][renderPosition] = slotIndex. Mirrors PreparedDrawOrderTimeline in prepared.ts.
+    public sealed class PreparedDrawOrderTimeline
+    {
+        public int KeyCount { get; }
+        public double[] Times { get; }
+        public int[][] Orders { get; }
+
+        public PreparedDrawOrderTimeline(int keyCount, double[] times, int[][] orders)
+        {
+            KeyCount = keyCount;
+            Times = times;
+            Orders = orders;
+        }
+    }
+
+    // A prepared per-animation event timeline (ADR-0008 section 2, PP-B4). Payloads are resolved ONCE at
+    // build time (EventDef default overridden by the key) into parallel value + presence lanes. Times are
+    // NON-DECREASING. Mirrors PreparedEventTimeline in prepared.ts.
+    public sealed class PreparedEventTimeline
+    {
+        public int KeyCount { get; }
+        public double[] Times { get; }
+        public string[] Names { get; }
+        public double[] IntValues { get; }
+        public bool[] HasInt { get; }
+        public double[] FloatValues { get; }
+        public bool[] HasFloat { get; }
+        public string?[] StringValues { get; }
+        public bool[] HasString { get; }
+
+        public PreparedEventTimeline(
+            int keyCount,
+            double[] times,
+            string[] names,
+            double[] intValues,
+            bool[] hasInt,
+            double[] floatValues,
+            bool[] hasFloat,
+            string?[] stringValues,
+            bool[] hasString)
+        {
+            KeyCount = keyCount;
+            Times = times;
+            Names = names;
+            IntValues = intValues;
+            HasInt = hasInt;
+            FloatValues = floatValues;
+            HasFloat = hasFloat;
+            StringValues = stringValues;
+            HasString = hasString;
+        }
+    }
+
     public sealed class PreparedAnimation
     {
         public IReadOnlyList<PreparedBoneChannels> BoneChannels { get; }
@@ -167,18 +222,23 @@ namespace Marionette.Runtime.Core.Skeleton
         public IReadOnlyList<PreparedTransformChannel> TransformChannels { get; }
         public IReadOnlyList<PreparedDeformChannel> DeformChannels { get; }
 
+        // The draw-order reorder timeline, or null when this animation never reorders (PP-B4).
+        public PreparedDrawOrderTimeline? DrawOrder { get; }
+
         public PreparedAnimation(
             IReadOnlyList<PreparedBoneChannels> boneChannels,
             IReadOnlyList<PreparedSlotChannels> slotChannels,
             IReadOnlyList<PreparedIkChannel> ikChannels,
             IReadOnlyList<PreparedTransformChannel> transformChannels,
-            IReadOnlyList<PreparedDeformChannel> deformChannels)
+            IReadOnlyList<PreparedDeformChannel> deformChannels,
+            PreparedDrawOrderTimeline? drawOrder)
         {
             BoneChannels = boneChannels;
             SlotChannels = slotChannels;
             IkChannels = ikChannels;
             TransformChannels = transformChannels;
             DeformChannels = deformChannels;
+            DrawOrder = drawOrder;
         }
     }
 }

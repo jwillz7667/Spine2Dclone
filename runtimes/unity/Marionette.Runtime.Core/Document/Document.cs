@@ -401,6 +401,73 @@ namespace Marionette.Runtime.Core.Document
         }
     }
 
+    // A draw-order offset entry (ADR-0008 section 3): move one named slot by a signed integer number of
+    // render positions from its setup index. Mirrors DrawOrderOffset in @marionette/format.
+    public sealed class DrawOrderOffset
+    {
+        public string Slot { get; }
+        public int Offset { get; }
+
+        public DrawOrderOffset(string slot, int offset)
+        {
+            Slot = slot;
+            Offset = offset;
+        }
+    }
+
+    // A draw-order keyframe (ADR-0008 section 3): at Time, apply a compact list of per-slot offsets to the
+    // setup draw order. An empty Offsets list means the setup order (identity). Stepped (no curve).
+    public sealed class DrawOrderKeyframe
+    {
+        public double Time { get; }
+        public IReadOnlyList<DrawOrderOffset> Offsets { get; }
+
+        public DrawOrderKeyframe(double time, IReadOnlyList<DrawOrderOffset> offsets)
+        {
+            Time = time;
+            Offsets = offsets;
+        }
+    }
+
+    // An event keyframe (ADR-0008 section 2): fires the named event at Time, optionally overriding the
+    // event's int/float/string payload defaults. Discrete (no curve). Null presence means "not overridden"
+    // (the EventDef default holds); the payload resolution happens at prepare time.
+    public sealed class EventKeyframe
+    {
+        public double Time { get; }
+        public string Name { get; }
+        public int? Int { get; }
+        public double? Float { get; }
+        public string? String { get; }
+
+        public EventKeyframe(double time, string name, int? intValue, double? floatValue, string? stringValue)
+        {
+            Time = time;
+            Name = name;
+            Int = intValue;
+            Float = floatValue;
+            String = stringValue;
+        }
+    }
+
+    // A named event definition (ADR-0008 section 1): the payload defaults an event carries when fired. The
+    // audio hint is not part of the solve, so the C# core reads only the payload fields (name + defaults).
+    public sealed class EventDef
+    {
+        public string Name { get; }
+        public int? Int { get; }
+        public double? Float { get; }
+        public string? String { get; }
+
+        public EventDef(string name, int? intValue, double? floatValue, string? stringValue)
+        {
+            Name = name;
+            Int = intValue;
+            Float = floatValue;
+            String = stringValue;
+        }
+    }
+
     public sealed class Animation
     {
         public double Duration { get; }
@@ -409,6 +476,8 @@ namespace Marionette.Runtime.Core.Document
         public IReadOnlyList<KeyValuePair<string, IReadOnlyList<IkKeyframe>>> Ik { get; }
         public IReadOnlyList<KeyValuePair<string, IReadOnlyList<TransformKeyframe>>> Transform { get; }
         public IReadOnlyList<DeformEntry> Deform { get; }
+        public IReadOnlyList<DrawOrderKeyframe> DrawOrder { get; }
+        public IReadOnlyList<EventKeyframe> Events { get; }
 
         public Animation(
             double duration,
@@ -416,7 +485,9 @@ namespace Marionette.Runtime.Core.Document
             IReadOnlyList<KeyValuePair<string, SlotTimelines>> slots,
             IReadOnlyList<KeyValuePair<string, IReadOnlyList<IkKeyframe>>> ik,
             IReadOnlyList<KeyValuePair<string, IReadOnlyList<TransformKeyframe>>> transform,
-            IReadOnlyList<DeformEntry> deform)
+            IReadOnlyList<DeformEntry> deform,
+            IReadOnlyList<DrawOrderKeyframe> drawOrder,
+            IReadOnlyList<EventKeyframe> events)
         {
             Duration = duration;
             Bones = bones;
@@ -424,6 +495,8 @@ namespace Marionette.Runtime.Core.Document
             Ik = ik;
             Transform = transform;
             Deform = deform;
+            DrawOrder = drawOrder;
+            Events = events;
         }
     }
 
@@ -434,6 +507,7 @@ namespace Marionette.Runtime.Core.Document
         public IReadOnlyList<Skin> Skins { get; }
         public IReadOnlyList<IkConstraint> IkConstraints { get; }
         public IReadOnlyList<TransformConstraint> TransformConstraints { get; }
+        public IReadOnlyList<EventDef> Events { get; }
         public IReadOnlyList<KeyValuePair<string, Animation>> Animations { get; }
 
         public SkeletonDocument(
@@ -442,6 +516,7 @@ namespace Marionette.Runtime.Core.Document
             IReadOnlyList<Skin> skins,
             IReadOnlyList<IkConstraint> ikConstraints,
             IReadOnlyList<TransformConstraint> transformConstraints,
+            IReadOnlyList<EventDef> events,
             IReadOnlyList<KeyValuePair<string, Animation>> animations)
         {
             Bones = bones;
@@ -449,6 +524,7 @@ namespace Marionette.Runtime.Core.Document
             Skins = skins;
             IkConstraints = ikConstraints;
             TransformConstraints = transformConstraints;
+            Events = events;
             Animations = animations;
         }
 

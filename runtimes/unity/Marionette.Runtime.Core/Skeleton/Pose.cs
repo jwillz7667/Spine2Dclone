@@ -101,6 +101,14 @@ namespace Marionette.Runtime.Core.Skeleton
         public string?[] SlotSetupAttachment { get; }
         public string?[] SlotAttachment { get; }
 
+        // The resolved render order (ADR-0008 draw order, PP-B4): DrawOrder[renderPosition] = slotIndex.
+        // Reset to SlotSetupDrawOrder (identity) each frame (step 1) and overwritten by the active key
+        // (step 2). DrawOrderWinWeight is a length-1 buffer holding the discrete winner weight (reset to -1
+        // by BeginBlend), mirroring the pose.ts scalar kept in a typed array so the pose stays a buffer.
+        public int[] DrawOrder { get; }
+        public int[] SlotSetupDrawOrder { get; }
+        public double[] DrawOrderWinWeight { get; }
+
         public IReadOnlyList<ResolvedIkConstraint> IkConstraints { get; }
         public IReadOnlyList<ResolvedTransformConstraint> TransformConstraints { get; }
 
@@ -139,11 +147,25 @@ namespace Marionette.Runtime.Core.Skeleton
             IkBendWinWeight = new double[ikConstraints.Count];
             SlotSetupAttachment = new string?[slotCount];
             SlotAttachment = new string?[slotCount];
+            DrawOrder = IdentityDrawOrder(slotCount);
+            SlotSetupDrawOrder = IdentityDrawOrder(slotCount);
+            DrawOrderWinWeight = new double[1];
 
             IkConstraints = ikConstraints;
             TransformConstraints = transformConstraints;
             DeformScratch = new double[0];
             PreparedAnimations = new Dictionary<Animation, PreparedAnimation>();
+        }
+
+        private static int[] IdentityDrawOrder(int slotCount)
+        {
+            var order = new int[slotCount];
+            for (int i = 0; i < slotCount; i += 1)
+            {
+                order[i] = i;
+            }
+
+            return order;
         }
     }
 }

@@ -35,6 +35,9 @@ namespace Marionette.Runtime.Core.Tests
         // Skinned and deformed vertex world positions: absolute term near zero, relative term at scale.
         public static readonly Tolerance Vertex = new Tolerance(1e-4, 1e-5);
 
+        // Event float payloads (authored values, low noise): mirrors EVENT_FLOAT in tolerance.ts.
+        public static readonly Tolerance EventFloat = new Tolerance(1e-5, 1e-6);
+
         // Affine lanes [a, b, c, d, tx, ty]: 0..3 are the basis class, 4..5 the translation class.
         public static Tolerance ForLane(int lane) => lane < 4 ? WorldBasis : WorldTranslation;
     }

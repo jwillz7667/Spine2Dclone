@@ -72,6 +72,21 @@ namespace Marionette.Runtime.Core.Document
                 }
             }
 
+            var events = new List<EventDef>();
+            JsonValue? eventsValue = root.Member("events");
+            if (eventsValue != null && eventsValue.Kind == JsonKind.Array)
+            {
+                foreach (JsonValue ev in eventsValue.AsArray())
+                {
+                    events.Add(
+                        new EventDef(
+                            ReqString(ev, "name"),
+                            OptInt(ev, "int"),
+                            OptNumber(ev, "float"),
+                            OptString(ev, "string")));
+                }
+            }
+
             var animations = new List<KeyValuePair<string, Animation>>();
             JsonValue animationsValue = ReqMember(root, "animations", JsonKind.Object);
             foreach (KeyValuePair<string, JsonValue> entry in animationsValue.Members())
@@ -80,7 +95,14 @@ namespace Marionette.Runtime.Core.Document
                     new KeyValuePair<string, Animation>(entry.Key, ReadAnimation(entry.Value)));
             }
 
-            return new SkeletonDocument(bones, slots, skins, ikConstraints, transformConstraints, animations);
+            return new SkeletonDocument(
+                bones,
+                slots,
+                skins,
+                ikConstraints,
+                transformConstraints,
+                events,
+                animations);
         }
 
         private static Bone ReadBone(JsonValue bone)
@@ -293,7 +315,46 @@ namespace Marionette.Runtime.Core.Document
                 }
             }
 
-            return new Animation(duration, bones, slots, ik, transform, deform);
+            var drawOrder = new List<DrawOrderKeyframe>();
+            JsonValue? drawOrderValue = animation.Member("drawOrder");
+            if (drawOrderValue != null && drawOrderValue.Kind == JsonKind.Array)
+            {
+                foreach (JsonValue key in drawOrderValue.AsArray())
+                {
+                    var offsets = new List<DrawOrderOffset>();
+                    JsonValue? offsetsValue = key.Member("offsets");
+                    if (offsetsValue != null && offsetsValue.Kind == JsonKind.Array)
+                    {
+                        foreach (JsonValue offset in offsetsValue.AsArray())
+                        {
+                            offsets.Add(
+                                new DrawOrderOffset(
+                                    ReqString(offset, "slot"),
+                                    (int)ReqNumber(offset, "offset")));
+                        }
+                    }
+
+                    drawOrder.Add(new DrawOrderKeyframe(ReqNumber(key, "time"), offsets));
+                }
+            }
+
+            var events = new List<EventKeyframe>();
+            JsonValue? eventsValue = animation.Member("events");
+            if (eventsValue != null && eventsValue.Kind == JsonKind.Array)
+            {
+                foreach (JsonValue ev in eventsValue.AsArray())
+                {
+                    events.Add(
+                        new EventKeyframe(
+                            ReqNumber(ev, "time"),
+                            ReqString(ev, "name"),
+                            OptInt(ev, "int"),
+                            OptNumber(ev, "float"),
+                            OptString(ev, "string")));
+                }
+            }
+
+            return new Animation(duration, bones, slots, ik, transform, deform, drawOrder, events);
         }
 
         private static BoneTimelines ReadBoneTimelines(JsonValue timelines)
@@ -508,6 +569,28 @@ namespace Marionette.Runtime.Core.Document
             }
 
             return member.AsNumber();
+        }
+
+        private static int? OptInt(JsonValue obj, string key)
+        {
+            JsonValue? member = obj.Member(key);
+            if (member == null || member.Kind != JsonKind.Number)
+            {
+                return null;
+            }
+
+            return (int)member.AsNumber();
+        }
+
+        private static string? OptString(JsonValue obj, string key)
+        {
+            JsonValue? member = obj.Member(key);
+            if (member == null || member.Kind != JsonKind.String)
+            {
+                return null;
+            }
+
+            return member.AsString();
         }
 
         private static string ReqString(JsonValue obj, string key)

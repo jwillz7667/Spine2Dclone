@@ -67,6 +67,7 @@ namespace Marionette.Runtime.Core.Skeleton
             Array.Clear(pose.BoneTouched, 0, pose.BoneTouched.Length);
             Fill(pose.SlotAttachmentWinWeight, -1);
             Fill(pose.IkBendWinWeight, -1);
+            pose.DrawOrderWinWeight[0] = -1;
         }
 
         public static void ComposeTouchedBones(Pose pose)
@@ -260,6 +261,8 @@ namespace Marionette.Runtime.Core.Skeleton
         public static void ResetSlotsToSetup(Pose pose)
         {
             Array.Copy(pose.SlotSetupColor, pose.SlotColor, pose.SlotSetupColor.Length);
+            // Step 1 also resets the render order to the setup (identity) draw order (ADR-0008, PP-B4).
+            Array.Copy(pose.SlotSetupDrawOrder, pose.DrawOrder, pose.SlotSetupDrawOrder.Length);
             for (int i = 0; i < pose.SlotCount; i += 1)
             {
                 pose.SlotAttachment[i] = pose.SlotSetupAttachment[i];
@@ -278,6 +281,38 @@ namespace Marionette.Runtime.Core.Skeleton
             ApplyBoneEntry(pose, prepared, t, alpha, additive);
             ApplySlotEntry(pose, prepared, t, alpha, additive, discreteWins);
             ApplyConstraintEntry(pose, prepared, t, alpha, additive, discreteWins);
+            ApplyDrawOrderEntry(pose, prepared, t, alpha, discreteWins);
+        }
+
+        // Apply this animation's active draw-order key as a discrete, whole-skeleton greater-weight-wins
+        // channel (ADR-0008, PP-B4; the draw-order analogue of the attachment swap). Mirrors
+        // applyDrawOrderEntry in sample.ts.
+        private static void ApplyDrawOrderEntry(
+            Pose pose,
+            PreparedAnimation prepared,
+            double t,
+            double alpha,
+            bool discreteWins)
+        {
+            PreparedDrawOrderTimeline? timeline = prepared.DrawOrder;
+            if (timeline == null || !discreteWins)
+            {
+                return;
+            }
+
+            if (alpha < pose.DrawOrderWinWeight[0])
+            {
+                return;
+            }
+
+            int i = Curves.FindDrawOrderKeyIndex(timeline, t);
+            if (i < 0)
+            {
+                return;
+            }
+
+            Array.Copy(timeline.Orders[i], pose.DrawOrder, timeline.Orders[i].Length);
+            pose.DrawOrderWinWeight[0] = alpha;
         }
 
         private static void ApplyBoneEntry(
@@ -603,7 +638,17 @@ namespace Marionette.Runtime.Core.Skeleton
                     Curves.BuildDeformTrack(entry.Frames)));
             }
 
-            return new PreparedAnimation(boneChannels, slotChannels, ikChannels, transformChannels, deformChannels);
+            PreparedDrawOrderTimeline? drawOrder = animation.DrawOrder.Count > 0
+                ? Curves.BuildDrawOrderTimeline(animation.DrawOrder, slotIndexByName, pose.SlotCount)
+                : null;
+
+            return new PreparedAnimation(
+                boneChannels,
+                slotChannels,
+                ikChannels,
+                transformChannels,
+                deformChannels,
+                drawOrder);
         }
 
         private static bool HasKeys<T>(IReadOnlyList<T>? keys) => keys != null && keys.Count > 0;

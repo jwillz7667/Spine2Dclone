@@ -36,6 +36,7 @@ import {
   type RegionTrim,
 } from './attachment-sprites';
 import { createMeshDisplay, markMeshPositionsDirty, type MeshDisplay } from './mesh-display';
+import { resolveRenderMesh } from './linked-mesh';
 import { TwoColorFilter, updateTwoColorFilter } from './two-color-filter';
 import { computeRegionSized, placeRegion } from './region-placement';
 import type { RegionTextureResolver } from './region-textures';
@@ -502,9 +503,20 @@ export class SkeletonView {
               trim,
             );
             regionEntries.set(attachment, { region: attachment, texture, sizedForSprite });
-          } else if (attachment.type === 'mesh') {
+          } else if (attachment.type === 'mesh' || attachment.type === 'linkedmesh') {
             if (meshEntries.has(attachment)) continue;
-            const entry = createMeshDisplay(attachment, this.resolver?.(attachment.path) ?? null);
+            // Resolve the SOURCE geometry (a linked mesh reuses a parent mesh's uvs/triangles/vertices; a
+            // plain mesh is its own source). The display draws with the origin attachment's OWN texture,
+            // color, and size, but skins the source geometry (world positions come from runtime-core).
+            const resolved = resolveRenderMesh(document, skin.name, slot.name, attachment);
+            if (resolved === null) continue;
+            const entry = createMeshDisplay(
+              resolved.source,
+              resolved.color,
+              resolved.width,
+              resolved.height,
+              this.resolver?.(resolved.path) ?? null,
+            );
             meshEntries.set(attachment, entry);
             meshList.push(entry);
             this.meshDisplays.push(entry);
@@ -724,8 +736,11 @@ export class SkeletonView {
     t: number,
   ): void {
     if (animationId === null) {
-      skinMeshInto(entry.mesh, scene.pose, record.boneIndex, entry.positions);
+      // Setup pose: skin the SOURCE geometry (the resolved parent mesh for a linked mesh, PP-C8).
+      skinMeshInto(entry.sourceMesh, scene.pose, record.boneIndex, entry.positions);
     } else {
+      // Animated: sampleMeshVertices resolves the linked-mesh chain internally from the ACTIVE attachment
+      // name, so the world positions never re-derive the resolution here.
       sampleMeshVertices(
         scene.document,
         animationId,
@@ -741,7 +756,8 @@ export class SkeletonView {
 
     const slotColor = scene.pose.slotColor;
     const colorBase = record.slotIndex * SLOT_COLOR_STRIDE;
-    const meshColor = entry.mesh.color;
+    // The origin attachment's OWN color (a linked mesh keeps its own tint, not the parent mesh's).
+    const meshColor = entry.color;
     const lightR = slotColor[colorBase]! * meshColor.r;
     const lightG = slotColor[colorBase + 1]! * meshColor.g;
     const lightB = slotColor[colorBase + 2]! * meshColor.b;
@@ -761,8 +777,8 @@ export class SkeletonView {
     record.kind = 'mesh';
     record.visible = true;
     record.attachment = activeName;
-    record.width = entry.mesh.width;
-    record.height = entry.mesh.height;
+    record.width = entry.width;
+    record.height = entry.height;
     record.tint = tint;
     record.dark = dark;
     record.alpha = alpha;

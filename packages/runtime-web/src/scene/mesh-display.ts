@@ -1,5 +1,5 @@
 import { Mesh, MeshGeometry, Texture } from 'pixi.js';
-import type { MeshAttachment } from '@marionette/format/types';
+import type { MeshAttachment, RGBA } from '@marionette/format/types';
 
 // Mesh attachment rendering (WP-2.11 renderer slice; handoff section 8.5). A mesh attachment renders as
 // a PixiJS Mesh whose geometry is built ONCE per scene: the uvs and triangles are constant per document
@@ -17,31 +17,46 @@ import type { MeshAttachment } from '@marionette/format/types';
 // texture.textureMatrix when the texture has a non-trivial frame (BatchableMesh), so the same uvs are
 // correct for the 1x1 white placeholder and for a real frame-cropped atlas texture.
 
-// One mesh attachment bound to its live display object. `positions` is the geometry's OWN position
-// buffer (2 world-space lanes per vertex): the per-frame solve writes into it directly, then
-// markMeshPositionsDirty uploads it. `texture` is the host-resolved region texture or null (placeholder).
+// One (linked-)mesh attachment bound to its live display object. `sourceMesh` is the GEOMETRY mesh
+// runtime-core skins (the attachment itself for a plain mesh; the resolved parent root mesh for a linked
+// mesh, PP-C8), so the geometry uvs/triangles and the setup-pose skinMeshInto both read it. `color`/`width`/
+// `height` are the ORIGIN attachment's OWN render properties (a linked mesh keeps its own color and size),
+// and `texture` is the origin attachment's OWN region. `positions` is the geometry's own position buffer
+// (2 world-space lanes per vertex); the per-frame solve writes into it directly, then markMeshPositionsDirty
+// uploads it.
 export interface MeshDisplay {
-  readonly mesh: MeshAttachment;
+  readonly sourceMesh: MeshAttachment;
+  readonly color: RGBA;
+  readonly width: number;
+  readonly height: number;
   readonly texture: Texture | null;
   readonly display: Mesh;
   readonly positions: Float32Array;
   readonly vertexCount: number;
 }
 
-// Build the display object for one mesh attachment. Runs at scene build only (never per frame): it
+// Build the display object for one (linked-)mesh attachment. Runs at scene build only (never per frame): it
 // allocates the geometry buffers (positions zeroed; the first render fills them from the solve) and the
-// Mesh. The caller owns adding it to a layer and destroying it on scene teardown; the TEXTURE is a view
-// over the host's atlas page and must never be destroyed here (region-textures.ts lifecycle).
-export function createMeshDisplay(mesh: MeshAttachment, texture: Texture | null): MeshDisplay {
-  const vertexCount = mesh.uvs.length / 2;
+// Mesh. `sourceMesh` supplies the geometry (uvs/triangles); `color`/`width`/`height`/`texture` are the
+// origin attachment's own render properties (identical to the source for a plain mesh, the linked mesh's own
+// for a linked mesh). The caller owns adding it to a layer and destroying it on scene teardown; the TEXTURE
+// is a view over the host's atlas page and must never be destroyed here (region-textures.ts lifecycle).
+export function createMeshDisplay(
+  sourceMesh: MeshAttachment,
+  color: RGBA,
+  width: number,
+  height: number,
+  texture: Texture | null,
+): MeshDisplay {
+  const vertexCount = sourceMesh.uvs.length / 2;
   const geometry = new MeshGeometry({
     positions: new Float32Array(vertexCount * 2),
-    uvs: Float32Array.from(mesh.uvs),
-    indices: Uint32Array.from(mesh.triangles),
+    uvs: Float32Array.from(sourceMesh.uvs),
+    indices: Uint32Array.from(sourceMesh.triangles),
   });
   const display = new Mesh({ geometry, texture: texture ?? Texture.WHITE });
   display.visible = false;
-  return { mesh, texture, display, positions: geometry.positions, vertexCount };
+  return { sourceMesh, color, width, height, texture, display, positions: geometry.positions, vertexCount };
 }
 
 // Mark the position buffer dirty after the solve wrote new lanes, so the renderer re-uploads it. This is

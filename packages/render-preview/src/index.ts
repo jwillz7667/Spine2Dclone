@@ -77,6 +77,12 @@ export { TRANSPARENT } from './color';
 // produce the same straight-alpha output for the same inputs.
 export { combineTwoColor } from './two-color';
 
+// Linked-mesh geometry resolution (PP-C8): resolves a mesh or linkedmesh attachment to the source geometry
+// to skin plus the linked mesh's own render properties (path/color). Exported so tests can assert the render
+// path resolves the same source runtime-core skins.
+export { resolveRenderMesh } from './linked-mesh';
+export type { ResolvedRenderMesh } from './linked-mesh';
+
 // Placement parity primitives: the world-space region quad geometry, reproducing the runtime-web
 // region-placement math against runtime-core only (see geometry.ts). Exported so tooling and parity tests
 // can assert that what the rasterizer draws matches the runtimes' placement.

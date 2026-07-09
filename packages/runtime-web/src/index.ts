@@ -35,6 +35,11 @@ export { blendModeToPixi } from './scene/blend-mode';
 export { combineTwoColor } from './scene/two-color';
 export type { StraightColor } from './scene/two-color';
 export { TwoColorFilter, updateTwoColorFilter } from './scene/two-color-filter';
+// Linked-mesh geometry resolution (PP-C8): resolves a mesh or linkedmesh attachment to the source geometry
+// runtime-core skins plus the origin attachment's own render properties. The twin of render-preview's
+// resolver; exported so tests can assert both renderers resolve the same source.
+export { resolveRenderMesh } from './scene/linked-mesh';
+export type { ResolvedRenderMesh } from './scene/linked-mesh';
 export { makeParticleRenderBatch, fillEmitterBatch } from './scene/particle-render-batch';
 export type { ParticleRenderBatch } from './scene/particle-render-batch';
 // The pure triangle-strip geometry bridge for ribbon trails (PP-C3): strip index / UV construction (once

@@ -20,6 +20,7 @@ import {
 import type { AtlasIndex, TextureSampler } from './atlas';
 import type { Color } from './color';
 import { UnknownAnimationError } from './errors';
+import { resolveRenderMesh } from './linked-mesh';
 import {
   regionWorldCorners,
   REGION_QUAD_TRIANGLES,
@@ -155,7 +156,15 @@ export function gatherDrawItemsFromPose(
     if (bySlot === undefined) continue;
     const attachment = bySlot[activeName];
     if (attachment === undefined) continue;
-    if (attachment.type !== 'region' && attachment.type !== 'mesh') continue;
+    // region, mesh, and linkedmesh are the drawable kinds here. A linked mesh carries its OWN color/path
+    // (used below for tint/sampler) and reuses a parent mesh's geometry (resolved in the mesh branch).
+    if (
+      attachment.type !== 'region' &&
+      attachment.type !== 'mesh' &&
+      attachment.type !== 'linkedmesh'
+    ) {
+      continue;
+    }
 
     const colorBase = slotIndex * SLOT_COLOR_STRIDE;
     const sr = slotColor[colorBase]!;
@@ -184,6 +193,11 @@ export function gatherDrawItemsFromPose(
         regionItem(pose, boneIndex, attachment, tint, alpha, slot.blendMode, sampler, trim, dark),
       );
     } else {
+      // mesh or linkedmesh: resolve the SOURCE geometry (a linked mesh reuses a parent mesh's uvs/triangles
+      // and vertex stream); the world positions still come from runtime-core (sampleMeshVertices resolves
+      // the same chain when animated, skinMeshInto over the source at setup), so the geometry never drifts.
+      const resolved = resolveRenderMesh(document, DEFAULT_SKIN_NAME, slot.name, activeName);
+      if (resolved === null) continue;
       items.push(
         meshItem(
           document,
@@ -191,7 +205,7 @@ export function gatherDrawItemsFromPose(
           boneIndex,
           slot.name,
           activeName,
-          attachment,
+          resolved.source,
           animationId,
           sampleTime,
           tint,

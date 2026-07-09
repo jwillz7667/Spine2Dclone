@@ -85,6 +85,8 @@ import {
   SetSkinAttachmentCommand,
   SetSlotBlendModeCommand,
   SetSlotColorCommand,
+  SetSlotDarkColorCommand,
+  TimelineError,
   ReorderConstraintsCommand,
   SetTransformConstraintParamsCommand,
   SetTransformConstraintVariantsCommand,
@@ -546,16 +548,16 @@ function channelKeyframes(
 // consistent and the referenced bone/slot exists (a typed boundary check, not a silent no-op).
 function resolveTarget(
   session: Session,
-  channel: BoneChannel | 'color',
+  channel: BoneChannel | 'color' | 'dark',
   boneId: string | undefined,
   slotId: string | undefined,
 ): KeyframeTarget {
-  if (channel === 'color') {
+  if (channel === 'color' || channel === 'dark') {
     if (slotId === undefined) {
-      throw new McpToolError('INVALID_INPUT', 'the color channel requires slotId');
+      throw new McpToolError('INVALID_INPUT', `the ${channel} channel requires slotId`);
     }
     requireSlot(session, slotId);
-    return { kind: 'slot', slotId: asSlotId(slotId), channel: 'color' };
+    return { kind: 'slot', slotId: asSlotId(slotId), channel };
   }
   if (boneId === undefined) {
     throw new McpToolError('INVALID_INPUT', `the ${channel} channel requires boneId`);
@@ -565,12 +567,13 @@ function resolveTarget(
 }
 
 // Validate that a keyframe value's shape matches its channel (the model stores it as given, so the
-// boundary is where a mismatch must be rejected before it reaches the document).
-function checkValueShape(channel: BoneChannel | 'color', value: KeyframeValue): KeyframeValue {
+// boundary is where a mismatch must be rejected before it reaches the document). The two-color `dark` tint
+// is an RGBA color value like `color`.
+function checkValueShape(channel: BoneChannel | 'color' | 'dark', value: KeyframeValue): KeyframeValue {
   const ok =
     channel === 'rotate'
       ? 'angle' in value
-      : channel === 'color'
+      : channel === 'color' || channel === 'dark'
         ? 'color' in value
         : 'x' in value && 'y' in value;
   if (!ok) {
@@ -748,6 +751,7 @@ function animationView(animation: AnimationEntity): Record<string, unknown> {
     slots: [...animation.slots.entries()].map(([slotIdKey, set]) => ({
       slotId: slotIdKey,
       color: set.color.map(keyframeView),
+      dark: set.dark.map(keyframeView),
       attachment: set.attachment.map((frame) => ({
         id: frame.id,
         time: frame.time,
@@ -856,7 +860,7 @@ const weightDabSchema = z
 
 // A keyframe channel name (bone transform channels + the slot color channel). The handler resolves it
 // with boneId/slotId into a branded KeyframeTarget and validates the pairing (resolveTarget).
-const channelSchema = z.enum(['rotate', 'translate', 'scale', 'shear', 'color']);
+const channelSchema = z.enum(['rotate', 'translate', 'scale', 'shear', 'color', 'dark']);
 
 // A keyframe value: one of the three disjoint channel value shapes. The handler checks the value shape
 // matches the channel (checkValueShape); the union here keeps a malformed shape (e.g. extra keys) out.
@@ -3455,6 +3459,24 @@ export const TOOLS: readonly ToolDefinition[] = [
   ),
   defineTool(
     {
+      name: 'slot.darkColor',
+      title: 'Set slot dark color',
+      description:
+        'Set or clear a slot setup DARK color (Stage F2 two-color tint, RGBA 0..1). A non-null color enables ' +
+        'the two-color tint and is required before keying the `dark` timeline; `color: null` disables it.',
+      input: z.object({ documentId, slotId, color: rgbaSchema.nullable() }).strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireSlot(session, input.slotId);
+      session.document.history.execute(
+        new SetSlotDarkColorCommand(asSlotId(input.slotId), input.color),
+      );
+      return { revision: session.document.model.revision };
+    },
+  ),
+  defineTool(
+    {
       name: 'slot.reorder',
       title: 'Reorder slot',
       description: 'Move a slot to a new index in the setup-pose draw order.',
@@ -5457,17 +5479,25 @@ export const TOOLS: readonly ToolDefinition[] = [
       requireAnimation(session, input.animationId);
       const target = resolveTarget(session, input.channel, input.boneId, input.slotId);
       const value = checkValueShape(input.channel, input.value);
-      session.document.history.execute(
-        input.curve === undefined
-          ? new SetKeyframeCommand(asAnimationId(input.animationId), target, input.time, value)
-          : new SetKeyframeCommand(
-              asAnimationId(input.animationId),
-              target,
-              input.time,
-              value,
-              input.curve,
-            ),
-      );
+      try {
+        session.document.history.execute(
+          input.curve === undefined
+            ? new SetKeyframeCommand(asAnimationId(input.animationId), target, input.time, value)
+            : new SetKeyframeCommand(
+                asAnimationId(input.animationId),
+                target,
+                input.time,
+                value,
+                input.curve,
+              ),
+        );
+      } catch (error) {
+        // Keying the two-color `dark` channel without a setup dark color is a typed TIMELINE error.
+        if (error instanceof TimelineError) {
+          throw new McpToolError('TIMELINE', error.message, { reason: error.reason });
+        }
+        throw error;
+      }
       return { revision: session.document.model.revision };
     },
   ),

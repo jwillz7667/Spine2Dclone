@@ -2661,6 +2661,61 @@ describe('MCP attachment keyframe tools', () => {
   });
 });
 
+describe('MCP two-color dark tools (PP-D10)', () => {
+  it('sets the setup dark color, keys the dark channel, and rejects keying without setup', async () => {
+    const deps = makeDeps();
+    const { documentId } = asRecord(await call(deps, 'document.new', { name: 'dark' }));
+    const { boneId } = asRecord(
+      await call(deps, 'bone.create', { documentId, name: 'root', length: 100 }),
+    );
+    const { slotId } = asRecord(
+      await call(deps, 'slot.create', { documentId, boneId, name: 'body' }),
+    );
+    const { animationId } = asRecord(
+      await call(deps, 'anim.create', { documentId, name: 'idle', duration: 1 }),
+    );
+
+    // Keying dark before a setup dark color is a typed TIMELINE error.
+    await expectToolError(
+      call(deps, 'kf.set', {
+        documentId,
+        animationId,
+        channel: 'dark',
+        slotId,
+        time: 0.5,
+        value: { color: { r: 1, g: 0, b: 0, a: 1 } },
+      }),
+      'TIMELINE',
+    );
+
+    // Enable the setup dark color, then key the dark channel.
+    await call(deps, 'slot.darkColor', {
+      documentId,
+      slotId,
+      color: { r: 0.1, g: 0.1, b: 0.1, a: 1 },
+    });
+    await call(deps, 'kf.set', {
+      documentId,
+      animationId,
+      channel: 'dark',
+      slotId,
+      time: 0.5,
+      value: { color: { r: 1, g: 0, b: 0, a: 1 } },
+    });
+    const animGet = asRecord(await call(deps, 'anim.get', { documentId, animationId }));
+    const slots = asRecord(animGet.animation).slots as Array<{
+      slotId: string;
+      dark: Array<{ id: string; time: number }>;
+    }>;
+    expect(slots.find((s) => s.slotId === slotId)?.dark).toHaveLength(1);
+
+    // Clear the setup dark color.
+    await call(deps, 'slot.darkColor', { documentId, slotId, color: null });
+    const slotGet = asRecord(await call(deps, 'slot.get', { documentId, slotId }));
+    expect(asRecord(slotGet.slot).darkColor).toBeNull();
+  });
+});
+
 describe('MCP sequence timeline tools (PP-D10)', () => {
   async function seqOf(
     deps: ToolDeps,

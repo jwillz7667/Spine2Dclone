@@ -708,28 +708,29 @@ trivial getter tests. The thresholds are floors, not targets.
 - CI hardware is noisy; the strict 16.6ms/60fps budget and mobile profiling are validated on real devices in Phase 5
   (handoff risk register). The CI gate catches relative regressions early.
 
-### D.9 conformance-native job (WP-V.13, WP-V.14, Phase 5)
+### D.9 conformance-native job (WP-V.13, WP-V.14; ACTIVATED by PP-E3)
 
-- Lives in `conformance-native.yml`. Until the Unity and Godot runtimes exist (Phase 5), the jobs are guarded by
-  `if: hashFiles('runtimes/unity/**') != ''` / `hashFiles('runtimes/godot/**') != ''` and are not in the required-check
-  set. Before Phase 5, conformance == `conformance-web` only, which is sufficient because the web runtime is the only
-  runtime that exists. The committed fixtures and slot goldens produced earlier are the exact contract the native
-  runtimes must meet, so no rework is needed when they come online.
-- **Internal-only (fork-PR secret handling).** The Unity job needs a Unity license secret, which GitHub does not expose
-  to fork pull requests. The whole workflow is guarded by
-  `if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository`, so
-  external fork PRs SKIP `conformance-native` (it does not hard-fail for want of a secret). Native conformance for a
-  fork contribution runs after the maintainer merges to an internal branch or on the nightly schedule. This is noted in
-  the runbook so an external contributor is not blocked by a job they cannot run.
-- Unity job: GameCI `game-ci/unity-test-runner` (or batchmode `unity-builder`) with the license secret, runs
-  `ConformanceDump.Run`, validates dumps against `fixture.schema.json` via `JsonSchema.Net` (A.8), then
-  `mc-conformance compare` for BOTH the skeletal fixtures (tolerance) and the slot goldens (exact, B.3). Native runners
-  are slow; this job runs on `push` to `main`, on same-repo PRs touching `runtimes/unity/**` or conformance, and nightly.
-- Godot job: headless Godot container (pinned version), runs `dump.gd`, then `mc-conformance compare` for skeletal +
-  slot.
-- When Phase 5 lands, `conformance-unity` and `conformance-godot` are added to `ci-pass` dependencies / branch
-  protection as required checks (WP-V.16), at which point all three runtimes gate merges for both the skeletal contract
-  and the slot contract (handoff section 8.11).
+- Lives in `conformance-native.yml`, ACTIVE since PP-E3 (both native runtimes are landed). The engine
+  jobs remain guarded by directory probes so a genuinely absent runtime skips-as-success, and the
+  workflow is path-filtered (`runtimes/**`, `packages/{conformance,format,runtime-core}/**`, the
+  workflow file) plus a nightly schedule.
+- **Unity job (as built, superseding the GameCI sketch below):** `actions/setup-dotnet` (8.x) then
+  `dotnet test runtimes/unity --nologo`. No Unity editor, no GameCI, NO license secret, and therefore
+  no fork-PR secret restriction: the solve is one engine-agnostic C# library (netstandard2.1, zero
+  UnityEngine, ADR-0001) and a plain net8.0 xUnit project exercises the full cross-language contract
+  (fixtures within the A.5 tolerance, integer vectors bit-exact). The Unity-editor batchmode smoke
+  test (the MonoBehaviour view layer renders a frame) is a later, separate, non-blocking job and is
+  the only place GameCI or a license would ever be needed.
+- **Godot job (as built):** the pinned official Godot 4.6.3-stable Linux build, SHA256-verified
+  (cross-checked against the official SHA512-SUMS), cached by version, running the harness headless
+  via `runtimes/godot/tests/run.sh`, whose missing-PASS-sentinel convention fails the job even though
+  Godot exits 0 on script parse errors.
+- **Required checks (WP-V.16 / TASK-5.5.6):** branch protection marks BOTH `ci-pass` and
+  `conformance-native-pass` required. They stay separate workflows: the native jobs are heavier and
+  only solve/format/conformance/runtimes changes can move them. Because of the path filter, a PR
+  outside those paths does not report `conformance-native-pass`; the repo config resolves that with
+  the documented skipped-but-required companion pattern or a ruleset treating a not-triggered
+  workflow as satisfied.
 
 ### D.10 Electron build/package job (WP-V.11)
 

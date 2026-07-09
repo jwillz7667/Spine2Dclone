@@ -2,6 +2,7 @@ import {
   KeyframeCollisionError,
   MoveAttachmentKeyframeCommand,
   MoveIkKeyframeCommand,
+  MoveSequenceKeyframeCommand,
   MoveTransformKeyframeCommand,
   type AnimationEntity,
   type AnimationId,
@@ -12,7 +13,8 @@ import {
 import { clamp, snapToFrame, type WorkingFps } from './timeline-math';
 
 // The dopesheet's drag wiring for the non-value TimelineRow kinds that gained a move command in PP-D10: the
-// slot attachment-swap timeline, the IK-mix timeline, and the transform-constraint timeline. These keys are
+// slot attachment-swap timeline, the frame-sequence timeline, the IK-mix timeline, and the transform-
+// constraint timeline. These keys are
 // NOT bone/slot value channels (no KeyframeValue, no curve), so they never flow through keyframe-edit.ts's
 // value-channel path; and unlike the discrete event/draw-order specials (event-track-edit.ts) they live on a
 // named slot or constraint. Every mutation here goes through a command on the live History (LAW 2); this
@@ -53,6 +55,13 @@ export function beginTimelineDrag(
         id: frame.id,
         originTime: frame.time,
         make: (newTime) => new MoveAttachmentKeyframeCommand(animId, slotId, frame.id, newTime),
+      });
+    }
+    for (const kf of set.sequence) {
+      index.set(kf.id, {
+        id: kf.id,
+        originTime: kf.time,
+        make: (newTime) => new MoveSequenceKeyframeCommand(animId, slotId, kf.id, newTime),
       });
     }
   }

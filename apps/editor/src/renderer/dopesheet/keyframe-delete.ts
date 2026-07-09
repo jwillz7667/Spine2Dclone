@@ -5,6 +5,7 @@ import {
   DeleteEventKeyCommand,
   DeleteIkKeyframeCommand,
   DeleteKeyframeCommand,
+  DeleteSequenceKeyframeCommand,
   DeleteTransformKeyframeCommand,
   type AnimationEntity,
   type BoneChannel,
@@ -53,6 +54,10 @@ function buildDeleteIndex(animation: AnimationEntity): Map<KeyframeId, () => Com
     // attachment frame per time), so the factory captures the frame's time rather than its id.
     for (const frame of set.attachment) {
       index.set(frame.id, () => new DeleteAttachmentKeyframeCommand(animId, slotId, frame.time));
+    }
+    // The frame-sequence timeline (PP-D10) is addressed by KeyframeId.
+    for (const kf of set.sequence) {
+      index.set(kf.id, () => new DeleteSequenceKeyframeCommand(animId, slotId, kf.id));
     }
   }
 

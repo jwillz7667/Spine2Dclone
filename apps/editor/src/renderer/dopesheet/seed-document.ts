@@ -10,6 +10,7 @@ import {
   SetEventKeyCommand,
   SetIkKeyframeCommand,
   SetKeyframeCommand,
+  SetSequenceKeyframeCommand,
   SetTransformKeyframeCommand,
   createDocument,
   makeIdFactory,
@@ -167,6 +168,19 @@ export function setAttachmentKeys(
 ): void {
   for (const time of times) {
     doc.history.execute(new SetAttachmentKeyframeCommand(animId, slotId, time, null));
+  }
+}
+
+// Key the frame-sequence timeline at each of `times` (loop mode from frame 0), for the dopesheet
+// sequence-row tests.
+export function setSequenceKeys(
+  doc: Document,
+  animId: AnimationId,
+  slotId: SlotId,
+  times: readonly number[],
+): void {
+  for (const time of times) {
+    doc.history.execute(new SetSequenceKeyframeCommand(animId, slotId, time, 'loop', 0, 0.1));
   }
 }
 

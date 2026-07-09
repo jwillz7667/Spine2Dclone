@@ -123,7 +123,9 @@ export function buildTracks(animation: AnimationEntity, names: TrackNames): Trac
 
   const slotIds = new Set<SlotId>();
   for (const [slotId, set] of animation.slots) {
-    if (set.color.length > 0 || set.attachment.length > 0) slotIds.add(slotId);
+    if (set.color.length > 0 || set.attachment.length > 0 || set.sequence.length > 0) {
+      slotIds.add(slotId);
+    }
   }
   for (const slotId of deformBySlot.keys()) slotIds.add(slotId);
 
@@ -148,6 +150,14 @@ export function buildTracks(animation: AnimationEntity, names: TrackNames): Trac
         key: `slot:${slotId}:attachment`,
         label: 'Attachment',
         keyframes: set.attachment.map((kf) => ({ id: kf.id, time: kf.time })),
+      });
+    }
+    if (set !== undefined && set.sequence.length > 0) {
+      rows.push({
+        kind: 'timeline',
+        key: `slot:${slotId}:sequence`,
+        label: 'Sequence',
+        keyframes: set.sequence.map((kf) => ({ id: kf.id, time: kf.time })),
       });
     }
     const deforms = (deformBySlot.get(slotId) ?? []).sort((a, b) =>

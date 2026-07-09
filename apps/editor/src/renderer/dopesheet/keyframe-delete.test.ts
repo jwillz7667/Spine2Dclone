@@ -15,6 +15,7 @@ import {
   setEventKeys,
   setIkKeys,
   setRotateKeys,
+  setSequenceKeys,
   setTransformKeys,
 } from './seed-document';
 
@@ -45,6 +46,7 @@ function seedAllKinds(doc: Document): {
   setRotateKeys(doc, animId, bone, [{ time: 0, value: { angle: 4 } }]);
   setColorKeys(doc, animId, back, [0.1]);
   setAttachmentKeys(doc, animId, back, [0.2]);
+  setSequenceKeys(doc, animId, back, [0.15]);
   const ik = addIkConstraint(doc, 'reach', bone, tip);
   setIkKeys(doc, animId, ik, [0.3]);
   const tc = addTransformConstraint(doc, 'copy', bone, tip);
@@ -59,6 +61,7 @@ function seedAllKinds(doc: Document): {
     rotate: animation.bones.get(bone)!.rotate[0]!.id,
     color: animation.slots.get(back)!.color[0]!.id,
     attachment: animation.slots.get(back)!.attachment[0]!.id,
+    sequence: animation.slots.get(back)!.sequence[0]!.id,
     ik: animation.ik.get(ik)![0]!.id,
     transform: animation.transform.get(tc)![0]!.id,
     event: animation.events[0]!.id,
@@ -74,7 +77,7 @@ describe('dopesheet unified keyframe deletion (PP-D2)', () => {
 
     const collected = collectKeyframeIds(animation);
 
-    expect(collected.size).toBe(7);
+    expect(collected.size).toBe(8);
     for (const id of Object.values(ids)) expect(collected.has(id)).toBe(true);
   });
 

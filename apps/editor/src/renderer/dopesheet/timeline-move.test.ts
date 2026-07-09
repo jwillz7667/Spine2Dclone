@@ -12,6 +12,7 @@ import {
   setAttachmentKeys,
   setIkKeys,
   setRotateKeys,
+  setSequenceKeys,
   setTransformKeys,
 } from './seed-document';
 
@@ -102,6 +103,23 @@ describe('dopesheet timeline-row drag (PP-D10)', () => {
 
     updateThroughSession(doc, animId, [first.id], 0.3);
     expect(attachmentTimes(doc, animId)).toEqual([0.5, 0.8]);
+
+    doc.history.undo();
+    expect(doc.model.snapshot()).toEqual(before);
+  });
+
+  it('drags a frame-sequence key and undoes in one step', () => {
+    const doc = createEmptyDocument();
+    const boneId = addBone(doc, 'root');
+    const slotId = addSlot(doc, 'body', boneId);
+    const animId = addAnimation(doc, 'idle', DURATION);
+    setSequenceKeys(doc, animId, slotId, [0.2, 0.8]);
+    const first = [...anim(doc, animId).slots.values()][0]!.sequence[0]!;
+    const before = doc.model.snapshot();
+
+    updateThroughSession(doc, animId, [first.id], 0.3);
+    const times = [...anim(doc, animId).slots.values()][0]!.sequence.map((k) => k.time);
+    expect(times).toEqual([0.5, 0.8]);
 
     doc.history.undo();
     expect(doc.model.snapshot()).toEqual(before);

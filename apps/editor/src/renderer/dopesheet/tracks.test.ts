@@ -11,6 +11,7 @@ import {
   setAttachmentKeys,
   setIkKeys,
   setRotateKeys,
+  setSequenceKeys,
   setTransformKeys,
 } from './seed-document';
 
@@ -44,6 +45,22 @@ describe('dopesheet tracks', () => {
       expect(channel.target).toEqual({ kind: 'bone', boneId: bone, channel: 'rotate' });
       expect(channel.keyframes).toHaveLength(2);
     }
+  });
+
+  it('emits a sequence timeline row under its slot group', () => {
+    const doc = createEmptyDocument();
+    const bone = addBone(doc, 'root');
+    const slot = addSlot(doc, 'body', bone);
+    const anim = addAnimation(doc, 'idle', 2);
+    setSequenceKeys(doc, anim, slot, [0, 1]);
+
+    const rows = buildTracks(doc.model.getAnimation(anim)!, names(doc));
+    expect(rows.map((row) => `${row.kind}:${row.label}`)).toEqual([
+      'group:body',
+      'timeline:Sequence',
+    ]);
+    const seqRow = rows[1];
+    if (seqRow?.kind === 'timeline') expect(seqRow.keyframes).toHaveLength(2);
   });
 
   it('emits attachment, IK, and transform timeline rows alongside bone channels', () => {

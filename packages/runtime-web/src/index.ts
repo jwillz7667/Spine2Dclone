@@ -73,6 +73,27 @@ export {
   currentRollupValue,
 } from './slot/timeline-cursor';
 export type { TimelineCursor } from './slot/timeline-cursor';
+// Phase 4 slot GL renderer (WP-4.11 / PP-C4 remainder): the pure grid-to-pixel layout, the pure board
+// reducer that folds directives into a cell board (reel stops, landings, animation phases, cascade
+// moves), and the SlotSceneView that mounts one pooled SkeletonView per cell, draws the winning-cell
+// highlight overlay, and surfaces the counter rollup / vfx / escalation / flow directives via callbacks.
+export { gridMetrics, cellCenter, cellRect, gridSize } from './slot/grid-layout';
+export type { GridMetrics, CellRect } from './slot/grid-layout';
+export {
+  makeSlotSceneState,
+  resetSlotSceneState,
+  applyDirective,
+  cellIndex,
+} from './slot/slot-scene-state';
+export type { SlotSceneState, CellPhase } from './slot/slot-scene-state';
+export { SlotSceneView } from './slot/slot-scene-view';
+export type {
+  ResolvedSymbol,
+  SymbolResolver,
+  SlotSceneCallbacks,
+  SlotSceneViewOptions,
+  SlotSceneDescription,
+} from './slot/slot-scene-view';
 export { loopTime } from './transport';
 // Headless sampling harness (TASK-1.10.4): samples the SAME runtime-core path the player renders,
 // with no GL/render context, so WP-1.13 can check editor-vs-runtime parity in plain Node/Vitest.

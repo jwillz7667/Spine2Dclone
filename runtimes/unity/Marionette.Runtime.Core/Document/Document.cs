@@ -178,6 +178,52 @@ namespace Marionette.Runtime.Core.Document
         }
     }
 
+    // A clipping attachment (ADR-0012, PP-B2): a polygon vertex stream plus the name of the slot at which
+    // clipping ENDS. Renderers clip the geometry of the slots between this attachment's slot and the End
+    // slot (in draw order) to the polygon. Vertices are ALWAYS unweighted in our format (a flat
+    // [x0, y0, ...] stream rigidly attached to the slot bone); the color is a render input the solve ignores.
+    // Mirrors ClippingAttachment in @marionette/format.
+    public sealed class ClippingAttachment
+    {
+        public string End { get; }
+        public double[] Vertices { get; }
+
+        public ClippingAttachment(string end, double[] vertices)
+        {
+            End = end;
+            Vertices = vertices;
+        }
+    }
+
+    // A bounding-box attachment (ADR-0012, PP-B2): an unweighted polygon vertex stream used for hit testing
+    // (a punch, pickup, clickable region). No drawing. Mirrors BoundingBoxAttachment in @marionette/format.
+    public sealed class BoundingBoxAttachment
+    {
+        public double[] Vertices { get; }
+
+        public BoundingBoxAttachment(double[] vertices)
+        {
+            Vertices = vertices;
+        }
+    }
+
+    // A point attachment (ADR-0012, PP-B2): a single local (x, y, rotation) transform used as a named world
+    // anchor (muzzle, hand, attach point) whose world position and rotation a game reads. Mirrors
+    // PointAttachment in @marionette/format.
+    public sealed class PointAttachment
+    {
+        public double X { get; }
+        public double Y { get; }
+        public double Rotation { get; }
+
+        public PointAttachment(double x, double y, double rotation)
+        {
+            X = x;
+            Y = y;
+            Rotation = rotation;
+        }
+    }
+
     public sealed class Attachment
     {
         public string Type { get; }
@@ -189,12 +235,28 @@ namespace Marionette.Runtime.Core.Document
         // slot whose active attachment carries none.
         public SequenceBlock? Sequence { get; }
 
-        public Attachment(string type, MeshAttachment? mesh, LinkedMeshAttachment? linked, SequenceBlock? sequence)
+        // The non-drawing geometry attachment payloads (ADR-0012, PP-B2), each present only for its kind
+        // (Type "clipping" / "boundingbox" / "point"), null otherwise.
+        public ClippingAttachment? Clipping { get; }
+        public BoundingBoxAttachment? BoundingBox { get; }
+        public PointAttachment? Point { get; }
+
+        public Attachment(
+            string type,
+            MeshAttachment? mesh,
+            LinkedMeshAttachment? linked,
+            SequenceBlock? sequence,
+            ClippingAttachment? clipping,
+            BoundingBoxAttachment? boundingBox,
+            PointAttachment? point)
         {
             Type = type;
             Mesh = mesh;
             Linked = linked;
             Sequence = sequence;
+            Clipping = clipping;
+            BoundingBox = boundingBox;
+            Point = point;
         }
     }
 

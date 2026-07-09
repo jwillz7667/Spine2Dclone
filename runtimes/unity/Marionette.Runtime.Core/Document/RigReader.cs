@@ -193,7 +193,54 @@ namespace Marionette.Runtime.Core.Document
                         ReqString(attachment, "parent"),
                         skin,
                         ReqBool(attachment, "timelines")),
+                    null,
+                    null,
+                    null,
                     null);
+            }
+
+            // The non-drawing geometry attachments (ADR-0012, PP-B2). A clipping/boundingbox vertex stream is
+            // ALWAYS unweighted in our format; a point is a single local (x, y, rotation). Their color / render
+            // inputs are ignored by the solve, so only the geometry-bearing fields are read.
+            if (type == "clipping")
+            {
+                return new Attachment(
+                    type,
+                    null,
+                    null,
+                    null,
+                    new ClippingAttachment(
+                        ReqString(attachment, "end"),
+                        ReadNumberArray(ReqMember(attachment, "vertices", JsonKind.Array))),
+                    null,
+                    null);
+            }
+
+            if (type == "boundingbox")
+            {
+                return new Attachment(
+                    type,
+                    null,
+                    null,
+                    null,
+                    null,
+                    new BoundingBoxAttachment(ReadNumberArray(ReqMember(attachment, "vertices", JsonKind.Array))),
+                    null);
+            }
+
+            if (type == "point")
+            {
+                return new Attachment(
+                    type,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    new PointAttachment(
+                        ReqNumber(attachment, "x"),
+                        ReqNumber(attachment, "y"),
+                        ReqNumber(attachment, "rotation")));
             }
 
             // A region or mesh attachment may carry an optional sequence block (ADR-0011 section 2); read it
@@ -202,7 +249,7 @@ namespace Marionette.Runtime.Core.Document
 
             if (type != "mesh")
             {
-                return new Attachment(type, null, null, sequence);
+                return new Attachment(type, null, null, sequence, null, null, null);
             }
 
             double[] uvs = ReadNumberArray(ReqMember(attachment, "uvs", JsonKind.Array));
@@ -214,7 +261,7 @@ namespace Marionette.Runtime.Core.Document
                 bones = ReadIntArray(bonesValue);
             }
 
-            return new Attachment(type, new MeshAttachment(uvs, vertices, bones), null, sequence);
+            return new Attachment(type, new MeshAttachment(uvs, vertices, bones), null, sequence, null, null, null);
         }
 
         private static SequenceBlock? ReadSequenceBlock(JsonValue attachment)

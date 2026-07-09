@@ -41,6 +41,11 @@ namespace Marionette.Runtime.Core.Tests
         // Slot color r, g, b, a (bounded 0..1): no relative term needed. Mirrors COLOR in tolerance.ts.
         public static readonly Tolerance Color = new Tolerance(1e-5, 0.0);
 
+        // World rotation in DEGREES for a point attachment (ADR-0012 section 2): a small absolute band with a
+        // light relative term (angles reach a few hundred degrees). Mirrors ANGLE in tolerance.ts. Point world
+        // x/y ride the Vertex class like every other world position.
+        public static readonly Tolerance Angle = new Tolerance(1e-4, 1e-6);
+
         // Affine lanes [a, b, c, d, tx, ty]: 0..3 are the basis class, 4..5 the translation class.
         public static Tolerance ForLane(int lane) => lane < 4 ? WorldBasis : WorldTranslation;
     }

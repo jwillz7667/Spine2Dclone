@@ -62,6 +62,13 @@ namespace Marionette.Runtime.Core.Tests
             int maxMeshLanes = MaxMeshLanes(fixture);
             float[]? vertexScratch = maxMeshLanes > 0 ? new float[maxMeshLanes] : null;
 
+            // PP-B2 geometry-attachment capture targets (ADR-0012), resolved once from the sample-spec (like
+            // build-fixture.ts). Each is empty unless the spec opts in, so non-PP-B2 rigs add no comparisons.
+            List<ClipTarget> clipTargets = ResolveClipTargets(result, rigId, document, spec, slotIndexByName);
+            List<BoxTarget> boxTargets = ResolveBoxTargets(result, rigId, document, spec, slotIndexByName);
+            List<PointTarget> pointTargets = ResolvePointTargets(result, rigId, document, spec, slotIndexByName);
+            var clippedSlotScratch = new int[pose.SlotCount];
+
             for (int s = 0; s < fixture.Samples.Count; s += 1)
             {
                 FixtureSample sample = fixture.Samples[s];
@@ -102,6 +109,9 @@ namespace Marionette.Runtime.Core.Tests
                 CompareSlots(result, rigId, sample, pose, slotIndexByName, blendModeByName);
                 CompareDrawOrder(result, rigId, sample, pose);
                 CompareSequences(result, rigId, document, spec, sample, pose);
+                CompareClips(result, rigId, sample, pose, clipTargets, clippedSlotScratch);
+                CompareBoxes(result, rigId, sample, pose, boxTargets, spec.HitProbes);
+                ComparePoints(result, rigId, sample, pose, pointTargets);
             }
 
             CompareEvents(result, rigId, document, spec, fixture);
@@ -350,6 +360,451 @@ namespace Marionette.Runtime.Core.Tests
             }
         }
 
+        // A resolved clip-capture target (PP-B2): the clipping attachment plus its slot index and its `end` slot
+        // index, with a reused world-polygon scratch sized to the polygon (2 * V lanes). Mirrors
+        // ClipCaptureTarget in build-fixture.ts.
+        private sealed class ClipTarget
+        {
+            public string Slot { get; }
+            public string Attachment { get; }
+            public ClippingAttachment Clip { get; }
+            public int ClipSlotIndex { get; }
+            public int EndSlotIndex { get; }
+            public double[] PolygonScratch { get; }
+
+            public ClipTarget(
+                string slot,
+                string attachment,
+                ClippingAttachment clip,
+                int clipSlotIndex,
+                int endSlotIndex)
+            {
+                Slot = slot;
+                Attachment = attachment;
+                Clip = clip;
+                ClipSlotIndex = clipSlotIndex;
+                EndSlotIndex = endSlotIndex;
+                PolygonScratch = new double[clip.Vertices.Length];
+            }
+        }
+
+        private sealed class BoxTarget
+        {
+            public string Slot { get; }
+            public string Attachment { get; }
+            public BoundingBoxAttachment Box { get; }
+            public int SlotIndex { get; }
+            public double[] VertexScratch { get; }
+
+            public BoxTarget(string slot, string attachment, BoundingBoxAttachment box, int slotIndex)
+            {
+                Slot = slot;
+                Attachment = attachment;
+                Box = box;
+                SlotIndex = slotIndex;
+                VertexScratch = new double[box.Vertices.Length];
+            }
+        }
+
+        private sealed class PointTarget
+        {
+            public string Slot { get; }
+            public string Attachment { get; }
+            public PointAttachment Point { get; }
+            public int SlotIndex { get; }
+
+            public PointTarget(string slot, string attachment, PointAttachment point, int slotIndex)
+            {
+                Slot = slot;
+                Attachment = attachment;
+                Point = point;
+                SlotIndex = slotIndex;
+            }
+        }
+
+        // Look up an attachment by (skin, slot, attachment) in the document, or null when absent. Mirrors the
+        // build-fixture.ts lookupCaptureAttachment traversal over the ordered skin members.
+        private static Attachment? LookupCaptureAttachment(
+            SkeletonDocument document,
+            string skinName,
+            string slotName,
+            string attachmentName)
+        {
+            foreach (Skin skin in document.Skins)
+            {
+                if (skin.Name != skinName)
+                {
+                    continue;
+                }
+
+                foreach (KeyValuePair<string, IReadOnlyList<KeyValuePair<string, Attachment>>> slotEntry in skin.Attachments)
+                {
+                    if (slotEntry.Key != slotName)
+                    {
+                        continue;
+                    }
+
+                    foreach (KeyValuePair<string, Attachment> attachmentEntry in slotEntry.Value)
+                    {
+                        if (attachmentEntry.Key == attachmentName)
+                        {
+                            return attachmentEntry.Value;
+                        }
+                    }
+                }
+            }
+
+            return null;
+        }
+
+        private static List<ClipTarget> ResolveClipTargets(
+            ConformanceResult result,
+            string rigId,
+            SkeletonDocument document,
+            SampleSpec spec,
+            Dictionary<string, int> slotIndexByName)
+        {
+            var targets = new List<ClipTarget>();
+            foreach (CaptureTarget target in spec.Clips)
+            {
+                Attachment? attachment = LookupCaptureAttachment(document, target.Skin, target.Slot, target.Attachment);
+                if (attachment == null || attachment.Type != "clipping" || attachment.Clipping == null)
+                {
+                    result.Failures.Add(
+                        $"[{rigId}] sample-spec captures clip '{target.Skin}/{target.Slot}/{target.Attachment}', "
+                        + "but the rig has no such clipping attachment");
+                    continue;
+                }
+
+                if (!slotIndexByName.TryGetValue(target.Slot, out int clipSlotIndex)
+                    || !slotIndexByName.TryGetValue(attachment.Clipping.End, out int endSlotIndex))
+                {
+                    result.Failures.Add(
+                        $"[{rigId}] clip '{target.Slot}/{target.Attachment}' names a slot the rig does not define "
+                        + $"(slot '{target.Slot}' or end '{attachment.Clipping.End}')");
+                    continue;
+                }
+
+                targets.Add(new ClipTarget(
+                    target.Slot,
+                    target.Attachment,
+                    attachment.Clipping,
+                    clipSlotIndex,
+                    endSlotIndex));
+            }
+
+            return targets;
+        }
+
+        private static List<BoxTarget> ResolveBoxTargets(
+            ConformanceResult result,
+            string rigId,
+            SkeletonDocument document,
+            SampleSpec spec,
+            Dictionary<string, int> slotIndexByName)
+        {
+            var targets = new List<BoxTarget>();
+            foreach (CaptureTarget target in spec.Boxes)
+            {
+                Attachment? attachment = LookupCaptureAttachment(document, target.Skin, target.Slot, target.Attachment);
+                if (attachment == null || attachment.Type != "boundingbox" || attachment.BoundingBox == null)
+                {
+                    result.Failures.Add(
+                        $"[{rigId}] sample-spec captures box '{target.Skin}/{target.Slot}/{target.Attachment}', "
+                        + "but the rig has no such boundingbox attachment");
+                    continue;
+                }
+
+                if (!slotIndexByName.TryGetValue(target.Slot, out int slotIndex))
+                {
+                    result.Failures.Add(
+                        $"[{rigId}] box '{target.Slot}/{target.Attachment}' names a slot the rig does not define");
+                    continue;
+                }
+
+                targets.Add(new BoxTarget(target.Slot, target.Attachment, attachment.BoundingBox, slotIndex));
+            }
+
+            return targets;
+        }
+
+        private static List<PointTarget> ResolvePointTargets(
+            ConformanceResult result,
+            string rigId,
+            SkeletonDocument document,
+            SampleSpec spec,
+            Dictionary<string, int> slotIndexByName)
+        {
+            var targets = new List<PointTarget>();
+            foreach (CaptureTarget target in spec.Points)
+            {
+                Attachment? attachment = LookupCaptureAttachment(document, target.Skin, target.Slot, target.Attachment);
+                if (attachment == null || attachment.Type != "point" || attachment.Point == null)
+                {
+                    result.Failures.Add(
+                        $"[{rigId}] sample-spec captures point '{target.Skin}/{target.Slot}/{target.Attachment}', "
+                        + "but the rig has no such point attachment");
+                    continue;
+                }
+
+                if (!slotIndexByName.TryGetValue(target.Slot, out int slotIndex))
+                {
+                    result.Failures.Add(
+                        $"[{rigId}] point '{target.Slot}/{target.Attachment}' names a slot the rig does not define");
+                    continue;
+                }
+
+                targets.Add(new PointTarget(target.Slot, target.Attachment, attachment.Point, slotIndex));
+            }
+
+            return targets;
+        }
+
+        // Compare one sample's resolved clip state (PP-B2, ADR-0012 section 3): the world polygon rides the
+        // VERTEX tolerance; the clipped-slot name list is DISCRETE, compared EXACT in render-position order.
+        // Present only on rigs whose sample-spec captures clips; absent samples short-circuit.
+        private static void CompareClips(
+            ConformanceResult result,
+            string rigId,
+            FixtureSample sample,
+            Pose pose,
+            List<ClipTarget> clipTargets,
+            int[] clippedSlotScratch)
+        {
+            if (clipTargets.Count == 0 && sample.Clips.Count == 0)
+            {
+                return;
+            }
+
+            if (clipTargets.Count != sample.Clips.Count)
+            {
+                result.Failures.Add(
+                    $"[{rigId}] clip lane length mismatch at t={sample.Time}: spec has {clipTargets.Count} "
+                    + $"clip targets, fixture has {sample.Clips.Count}");
+                return;
+            }
+
+            for (int i = 0; i < clipTargets.Count; i += 1)
+            {
+                ClipTarget target = clipTargets[i];
+                ClipState expected = sample.Clips[i];
+                if (expected.Slot != target.Slot || expected.Attachment != target.Attachment)
+                {
+                    result.Failures.Add(
+                        $"[{rigId}] clip key mismatch at t={sample.Time}, index {i}: spec "
+                        + $"'{target.Slot}/{target.Attachment}', fixture '{expected.Key}'");
+                    continue;
+                }
+
+                int vertexCount = AttachmentGeometry.ResolveClipWorldPolygonForSlot(
+                    pose, target.ClipSlotIndex, target.Clip, target.PolygonScratch);
+                int clippedCount = AttachmentGeometry.ComputeClippedSlotRange(
+                    pose, target.ClipSlotIndex, target.EndSlotIndex, clippedSlotScratch);
+
+                // Clipped-slot membership: a discrete draw-order decision, compared EXACT in order.
+                if (expected.ClippedSlots.Count != clippedCount)
+                {
+                    result.Failures.Add(
+                        $"[{rigId}] clip '{expected.Key}' at t={sample.Time} clipped-slot count mismatch: "
+                        + $"expected {expected.ClippedSlots.Count}, actual {clippedCount}");
+                }
+                else
+                {
+                    for (int k = 0; k < clippedCount; k += 1)
+                    {
+                        string actualSlot = pose.SlotNames[clippedSlotScratch[k]];
+                        result.LaneComparisons += 1;
+                        if (actualSlot != expected.ClippedSlots[k])
+                        {
+                            result.Failures.Add(
+                                $"[{rigId}] clip '{expected.Key}' at t={sample.Time} clipped-slot {k} mismatch: "
+                                + $"expected '{expected.ClippedSlots[k]}', actual '{actualSlot}'");
+                        }
+                    }
+                }
+
+                if (vertexCount * 2 != expected.WorldPolygon.Count)
+                {
+                    result.Failures.Add(
+                        $"[{rigId}] clip '{expected.Key}' at t={sample.Time} world-polygon length mismatch: "
+                        + $"expected {expected.WorldPolygon.Count} lanes, actual {vertexCount * 2}");
+                    continue;
+                }
+
+                for (int lane = 0; lane < expected.WorldPolygon.Count; lane += 1)
+                {
+                    double expectedValue = expected.WorldPolygon[lane];
+                    double actualValue = target.PolygonScratch[lane];
+                    double delta = Math.Abs(actualValue - expectedValue);
+                    result.MaxVertexError = Math.Max(result.MaxVertexError, delta);
+                    result.LaneComparisons += 1;
+                    if (!Tolerances.Vertex.Within(actualValue, expectedValue))
+                    {
+                        result.Failures.Add(
+                            $"[{rigId}] clip '{expected.Key}' world-polygon lane {lane} at t={sample.Time} drifts: "
+                            + $"expected {expectedValue:R}, actual {actualValue:R}, delta {delta:R}");
+                    }
+                }
+            }
+        }
+
+        // Compare one sample's resolved bounding-box state (PP-B2, ADR-0012 section 4): world vertices ride the
+        // VERTEX tolerance; the per-probe even-odd hit booleans are DISCRETE, compared EXACT. Present only on
+        // rigs whose sample-spec captures boxes; absent samples short-circuit.
+        private static void CompareBoxes(
+            ConformanceResult result,
+            string rigId,
+            FixtureSample sample,
+            Pose pose,
+            List<BoxTarget> boxTargets,
+            IReadOnlyList<HitProbe> hitProbes)
+        {
+            if (boxTargets.Count == 0 && sample.Boxes.Count == 0)
+            {
+                return;
+            }
+
+            if (boxTargets.Count != sample.Boxes.Count)
+            {
+                result.Failures.Add(
+                    $"[{rigId}] box lane length mismatch at t={sample.Time}: spec has {boxTargets.Count} "
+                    + $"box targets, fixture has {sample.Boxes.Count}");
+                return;
+            }
+
+            for (int i = 0; i < boxTargets.Count; i += 1)
+            {
+                BoxTarget target = boxTargets[i];
+                BoundingBoxState expected = sample.Boxes[i];
+                if (expected.Slot != target.Slot || expected.Attachment != target.Attachment)
+                {
+                    result.Failures.Add(
+                        $"[{rigId}] box key mismatch at t={sample.Time}, index {i}: spec "
+                        + $"'{target.Slot}/{target.Attachment}', fixture '{expected.Key}'");
+                    continue;
+                }
+
+                int vertexCount = AttachmentGeometry.BoundingBoxWorldVerticesForSlot(
+                    pose, target.SlotIndex, target.Box, target.VertexScratch);
+
+                // Per-probe even-odd hit results: a hit is a hit, compared EXACT.
+                if (expected.Hits.Count != hitProbes.Count)
+                {
+                    result.Failures.Add(
+                        $"[{rigId}] box '{expected.Key}' at t={sample.Time} hit-probe count mismatch: "
+                        + $"expected {expected.Hits.Count}, spec has {hitProbes.Count} probes");
+                }
+                else
+                {
+                    for (int k = 0; k < hitProbes.Count; k += 1)
+                    {
+                        bool actualHit = AttachmentGeometry.HitTestPolygon(
+                            target.VertexScratch, vertexCount, hitProbes[k].X, hitProbes[k].Y);
+                        result.LaneComparisons += 1;
+                        if (actualHit != expected.Hits[k])
+                        {
+                            result.Failures.Add(
+                                $"[{rigId}] box '{expected.Key}' at t={sample.Time} hit probe {k} mismatch: "
+                                + $"expected {expected.Hits[k]}, actual {actualHit}");
+                        }
+                    }
+                }
+
+                if (vertexCount * 2 != expected.WorldVertices.Count)
+                {
+                    result.Failures.Add(
+                        $"[{rigId}] box '{expected.Key}' at t={sample.Time} world-vertex length mismatch: "
+                        + $"expected {expected.WorldVertices.Count} lanes, actual {vertexCount * 2}");
+                    continue;
+                }
+
+                for (int lane = 0; lane < expected.WorldVertices.Count; lane += 1)
+                {
+                    double expectedValue = expected.WorldVertices[lane];
+                    double actualValue = target.VertexScratch[lane];
+                    double delta = Math.Abs(actualValue - expectedValue);
+                    result.MaxVertexError = Math.Max(result.MaxVertexError, delta);
+                    result.LaneComparisons += 1;
+                    if (!Tolerances.Vertex.Within(actualValue, expectedValue))
+                    {
+                        result.Failures.Add(
+                            $"[{rigId}] box '{expected.Key}' world-vertex lane {lane} at t={sample.Time} drifts: "
+                            + $"expected {expectedValue:R}, actual {actualValue:R}, delta {delta:R}");
+                    }
+                }
+            }
+        }
+
+        // Compare one sample's resolved point world state (PP-B2, ADR-0012 section 2): x/y ride the VERTEX
+        // tolerance, rotation rides the ANGLE tolerance. Present only on rigs whose sample-spec captures points.
+        private static void ComparePoints(
+            ConformanceResult result,
+            string rigId,
+            FixtureSample sample,
+            Pose pose,
+            List<PointTarget> pointTargets)
+        {
+            if (pointTargets.Count == 0 && sample.Points.Count == 0)
+            {
+                return;
+            }
+
+            if (pointTargets.Count != sample.Points.Count)
+            {
+                result.Failures.Add(
+                    $"[{rigId}] point lane length mismatch at t={sample.Time}: spec has {pointTargets.Count} "
+                    + $"point targets, fixture has {sample.Points.Count}");
+                return;
+            }
+
+            for (int i = 0; i < pointTargets.Count; i += 1)
+            {
+                PointTarget target = pointTargets[i];
+                PointState expected = sample.Points[i];
+                if (expected.Slot != target.Slot || expected.Attachment != target.Attachment)
+                {
+                    result.Failures.Add(
+                        $"[{rigId}] point key mismatch at t={sample.Time}, index {i}: spec "
+                        + $"'{target.Slot}/{target.Attachment}', fixture '{expected.Key}'");
+                    continue;
+                }
+
+                if (!AttachmentGeometry.ResolvePointWorldForSlot(
+                    pose, target.SlotIndex, target.Point, out AttachmentGeometry.PointWorld world))
+                {
+                    result.Failures.Add(
+                        $"[{rigId}] point '{expected.Key}' at t={sample.Time} has no resolvable slot bone");
+                    continue;
+                }
+
+                ComparePointLane(result, rigId, sample.Time, expected.Key, "x", world.X, expected.X, Tolerances.Vertex);
+                ComparePointLane(result, rigId, sample.Time, expected.Key, "y", world.Y, expected.Y, Tolerances.Vertex);
+                ComparePointLane(
+                    result, rigId, sample.Time, expected.Key, "rotation", world.RotationDeg, expected.Rotation, Tolerances.Angle);
+            }
+        }
+
+        private static void ComparePointLane(
+            ConformanceResult result,
+            string rigId,
+            double time,
+            string key,
+            string lane,
+            double actualValue,
+            double expectedValue,
+            Tolerance tol)
+        {
+            double delta = Math.Abs(actualValue - expectedValue);
+            result.MaxVertexError = Math.Max(result.MaxVertexError, delta);
+            result.LaneComparisons += 1;
+            if (!tol.Within(actualValue, expectedValue))
+            {
+                result.Failures.Add(
+                    $"[{rigId}] point '{key}' world {lane} at t={time} drifts: "
+                    + $"expected {expectedValue:R}, actual {actualValue:R}, delta {delta:R}");
+            }
+        }
+
         private static void CompareAffine(
             ConformanceResult result,
             string rigId,
@@ -477,6 +932,36 @@ namespace Marionette.Runtime.Core.Tests
         }
     }
 
+    // A (skin, slot, attachment) capture target named by the sample-spec (PP-B2 clips/boxes/points, PP-B2
+    // hit-test boxes). Mirrors the { skin, slot, attachment } objects in sampleSpecSchema.
+    public sealed class CaptureTarget
+    {
+        public string Skin { get; }
+        public string Slot { get; }
+        public string Attachment { get; }
+
+        public CaptureTarget(string skin, string slot, string attachment)
+        {
+            Skin = skin;
+            Slot = slot;
+            Attachment = attachment;
+        }
+    }
+
+    // A world-space probe point a bounding box is hit-tested against (PP-B2). Mirrors a [x, y] tuple in the
+    // spec's hitProbes.
+    public readonly struct HitProbe
+    {
+        public readonly double X;
+        public readonly double Y;
+
+        public HitProbe(double x, double y)
+        {
+            X = x;
+            Y = y;
+        }
+    }
+
     public sealed class SampleSpec
     {
         public string RigId { get; }
@@ -495,6 +980,13 @@ namespace Marionette.Runtime.Core.Tests
         // when the sample-spec omits captureSequences, in which case the sequences lane is absent and the
         // harness compares nothing new, mirroring the drawOrder opt-in.
         public IReadOnlyList<string> CaptureSequences { get; }
+
+        // The PP-B2 geometry-attachment capture targets (ADR-0012), in spec order. Empty when the sample-spec
+        // omits the lane. `HitProbes` is the world-space probe list every captured box is hit-tested against.
+        public IReadOnlyList<CaptureTarget> Clips { get; }
+        public IReadOnlyList<CaptureTarget> Boxes { get; }
+        public IReadOnlyList<HitProbe> HitProbes { get; }
+        public IReadOnlyList<CaptureTarget> Points { get; }
         public EventStep? EventStep { get; }
 
         private SampleSpec(
@@ -506,6 +998,10 @@ namespace Marionette.Runtime.Core.Tests
             bool captureDrawOrder,
             IReadOnlyList<string> captureSequences,
             IReadOnlyList<string?> activeSkins,
+            IReadOnlyList<CaptureTarget> clips,
+            IReadOnlyList<CaptureTarget> boxes,
+            IReadOnlyList<HitProbe> hitProbes,
+            IReadOnlyList<CaptureTarget> points,
             EventStep? eventStep)
         {
             RigId = rigId;
@@ -516,7 +1012,30 @@ namespace Marionette.Runtime.Core.Tests
             CaptureDrawOrder = captureDrawOrder;
             CaptureSequences = captureSequences;
             ActiveSkins = activeSkins;
+            Clips = clips;
+            Boxes = boxes;
+            HitProbes = hitProbes;
+            Points = points;
             EventStep = eventStep;
+        }
+
+        // Read an array of { skin, slot, attachment } capture targets, or empty when the member is absent.
+        private static List<CaptureTarget> ReadCaptureTargets(JsonValue root, string member)
+        {
+            var targets = new List<CaptureTarget>();
+            JsonValue? value = root.Member(member);
+            if (value != null && value.Kind == JsonKind.Array)
+            {
+                foreach (JsonValue target in value.AsArray())
+                {
+                    targets.Add(new CaptureTarget(
+                        target.Member("skin")!.AsString(),
+                        target.Member("slot")!.AsString(),
+                        target.Member("attachment")!.AsString()));
+                }
+            }
+
+            return targets;
         }
 
         public static SampleSpec Load(string path)
@@ -540,6 +1059,21 @@ namespace Marionette.Runtime.Core.Tests
                 foreach (JsonValue slot in captureSequencesValue.AsArray())
                 {
                     captureSequences.Add(slot.AsString());
+                }
+            }
+
+            List<CaptureTarget> clips = ReadCaptureTargets(root, "clips");
+            List<CaptureTarget> boxes = ReadCaptureTargets(root, "boxes");
+            List<CaptureTarget> points = ReadCaptureTargets(root, "points");
+
+            var hitProbes = new List<HitProbe>();
+            JsonValue? hitProbesValue = root.Member("hitProbes");
+            if (hitProbesValue != null && hitProbesValue.Kind == JsonKind.Array)
+            {
+                foreach (JsonValue probe in hitProbesValue.AsArray())
+                {
+                    IReadOnlyList<JsonValue> pair = probe.AsArray();
+                    hitProbes.Add(new HitProbe(pair[0].AsNumber(), pair[1].AsNumber()));
                 }
             }
 
@@ -574,6 +1108,10 @@ namespace Marionette.Runtime.Core.Tests
                 captureDrawOrder,
                 captureSequences,
                 activeSkins,
+                clips,
+                boxes,
+                hitProbes,
+                points,
                 eventStep);
         }
     }
@@ -635,6 +1173,77 @@ namespace Marionette.Runtime.Core.Tests
         }
     }
 
+    // One clip attachment's resolved clip state at a sample (PP-B2, ADR-0012 section 3): the world polygon
+    // (VERTEX class) and the clipped-slot name list (draw-order membership, EXACT). Mirrors clipStateSchema.
+    public sealed class ClipState
+    {
+        public string Slot { get; }
+        public string Attachment { get; }
+        public IReadOnlyList<double> WorldPolygon { get; }
+        public IReadOnlyList<string> ClippedSlots { get; }
+
+        public string Key => $"{Slot}/{Attachment}";
+
+        public ClipState(
+            string slot,
+            string attachment,
+            IReadOnlyList<double> worldPolygon,
+            IReadOnlyList<string> clippedSlots)
+        {
+            Slot = slot;
+            Attachment = attachment;
+            WorldPolygon = worldPolygon;
+            ClippedSlots = clippedSlots;
+        }
+    }
+
+    // One bounding-box attachment's resolved hit-test state at a sample (PP-B2, ADR-0012 section 4): world
+    // vertices (VERTEX class) and one even-odd hit boolean per committed probe (EXACT). Mirrors
+    // boundingBoxStateSchema.
+    public sealed class BoundingBoxState
+    {
+        public string Slot { get; }
+        public string Attachment { get; }
+        public IReadOnlyList<double> WorldVertices { get; }
+        public IReadOnlyList<bool> Hits { get; }
+
+        public string Key => $"{Slot}/{Attachment}";
+
+        public BoundingBoxState(
+            string slot,
+            string attachment,
+            IReadOnlyList<double> worldVertices,
+            IReadOnlyList<bool> hits)
+        {
+            Slot = slot;
+            Attachment = attachment;
+            WorldVertices = worldVertices;
+            Hits = hits;
+        }
+    }
+
+    // One point attachment's resolved world state at a sample (PP-B2, ADR-0012 section 2): world position (x, y
+    // on the VERTEX class) and world rotation degrees (the ANGLE class). Mirrors pointStateSchema.
+    public sealed class PointState
+    {
+        public string Slot { get; }
+        public string Attachment { get; }
+        public double X { get; }
+        public double Y { get; }
+        public double Rotation { get; }
+
+        public string Key => $"{Slot}/{Attachment}";
+
+        public PointState(string slot, string attachment, double x, double y, double rotation)
+        {
+            Slot = slot;
+            Attachment = attachment;
+            X = x;
+            Y = y;
+            Rotation = rotation;
+        }
+    }
+
     public sealed class FixtureSample
     {
         public double Time { get; }
@@ -656,6 +1265,12 @@ namespace Marionette.Runtime.Core.Tests
         // captureSequences. Empty list when absent, so samples without a sequences lane add no comparisons.
         public IReadOnlyList<SequenceFrame> Sequences { get; }
 
+        // The PP-B2 geometry-attachment lanes (ADR-0012), present only when the sample-spec opts in via
+        // clips/boxes/points. Empty list when absent, so pre-PP-B2 samples add no comparisons.
+        public IReadOnlyList<ClipState> Clips { get; }
+        public IReadOnlyList<BoundingBoxState> Boxes { get; }
+        public IReadOnlyList<PointState> Points { get; }
+
         public FixtureSample(
             double time,
             string animation,
@@ -663,7 +1278,10 @@ namespace Marionette.Runtime.Core.Tests
             IReadOnlyList<MeshVertices> meshes,
             IReadOnlyList<SlotState> slots,
             IReadOnlyList<int>? drawOrder,
-            IReadOnlyList<SequenceFrame> sequences)
+            IReadOnlyList<SequenceFrame> sequences,
+            IReadOnlyList<ClipState> clips,
+            IReadOnlyList<BoundingBoxState> boxes,
+            IReadOnlyList<PointState> points)
         {
             Time = time;
             Animation = animation;
@@ -672,6 +1290,9 @@ namespace Marionette.Runtime.Core.Tests
             Slots = slots;
             DrawOrder = drawOrder;
             Sequences = sequences;
+            Clips = clips;
+            Boxes = boxes;
+            Points = points;
         }
     }
 
@@ -737,6 +1358,7 @@ namespace Marionette.Runtime.Core.Tests
         private static readonly HashSet<string> AllowedSample = new HashSet<string>
         {
             "time", "animation", "loop", "bones", "meshes", "slots", "drawOrder", "sequences",
+            "clips", "boxes", "points",
         };
 
         // The exhaustive member allowlist for a captured slot entry (mirrors the .strict() slotStateSchema in
@@ -745,6 +1367,23 @@ namespace Marionette.Runtime.Core.Tests
         private static readonly HashSet<string> AllowedSlot = new HashSet<string>
         {
             "slot", "blendMode", "color", "dark",
+        };
+
+        // The exhaustive member allowlists for the PP-B2 geometry-attachment lanes (mirror clipStateSchema,
+        // boundingBoxStateSchema, pointStateSchema in schema/fixture.ts). Any member outside a set fails loudly.
+        private static readonly HashSet<string> AllowedClip = new HashSet<string>
+        {
+            "slot", "attachment", "worldPolygon", "clippedSlots",
+        };
+
+        private static readonly HashSet<string> AllowedBox = new HashSet<string>
+        {
+            "slot", "attachment", "worldVertices", "hits",
+        };
+
+        private static readonly HashSet<string> AllowedPoint = new HashSet<string>
+        {
+            "slot", "attachment", "x", "y", "rotation",
         };
 
         private static void RequireKnownMembers(JsonValue obj, HashSet<string> allowed, string context)
@@ -858,6 +1497,79 @@ namespace Marionette.Runtime.Core.Tests
                     }
                 }
 
+                // The PP-B2 clip state lane (ADR-0012 section 3): world polygon + clipped-slot name list.
+                var clips = new List<ClipState>();
+                JsonValue? clipsValue = sample.Member("clips");
+                if (clipsValue != null && clipsValue.Kind == JsonKind.Array)
+                {
+                    foreach (JsonValue clip in clipsValue.AsArray())
+                    {
+                        RequireKnownMembers(clip, AllowedClip, "clip");
+                        var worldPolygon = new List<double>();
+                        foreach (JsonValue lane in clip.Member("worldPolygon")!.AsArray())
+                        {
+                            worldPolygon.Add(lane.AsNumber());
+                        }
+
+                        var clippedSlots = new List<string>();
+                        foreach (JsonValue name in clip.Member("clippedSlots")!.AsArray())
+                        {
+                            clippedSlots.Add(name.AsString());
+                        }
+
+                        clips.Add(new ClipState(
+                            clip.Member("slot")!.AsString(),
+                            clip.Member("attachment")!.AsString(),
+                            worldPolygon,
+                            clippedSlots));
+                    }
+                }
+
+                // The PP-B2 bounding-box hit-test lane (ADR-0012 section 4): world vertices + per-probe hits.
+                var boxes = new List<BoundingBoxState>();
+                JsonValue? boxesValue = sample.Member("boxes");
+                if (boxesValue != null && boxesValue.Kind == JsonKind.Array)
+                {
+                    foreach (JsonValue box in boxesValue.AsArray())
+                    {
+                        RequireKnownMembers(box, AllowedBox, "box");
+                        var worldVertices = new List<double>();
+                        foreach (JsonValue lane in box.Member("worldVertices")!.AsArray())
+                        {
+                            worldVertices.Add(lane.AsNumber());
+                        }
+
+                        var hits = new List<bool>();
+                        foreach (JsonValue hit in box.Member("hits")!.AsArray())
+                        {
+                            hits.Add(hit.AsBool());
+                        }
+
+                        boxes.Add(new BoundingBoxState(
+                            box.Member("slot")!.AsString(),
+                            box.Member("attachment")!.AsString(),
+                            worldVertices,
+                            hits));
+                    }
+                }
+
+                // The PP-B2 point world-state lane (ADR-0012 section 2): world x/y + rotation degrees.
+                var points = new List<PointState>();
+                JsonValue? pointsValue = sample.Member("points");
+                if (pointsValue != null && pointsValue.Kind == JsonKind.Array)
+                {
+                    foreach (JsonValue point in pointsValue.AsArray())
+                    {
+                        RequireKnownMembers(point, AllowedPoint, "point");
+                        points.Add(new PointState(
+                            point.Member("slot")!.AsString(),
+                            point.Member("attachment")!.AsString(),
+                            point.Member("x")!.AsNumber(),
+                            point.Member("y")!.AsNumber(),
+                            point.Member("rotation")!.AsNumber()));
+                    }
+                }
+
                 samples.Add(new FixtureSample(
                     sample.Member("time")!.AsNumber(),
                     sample.Member("animation")!.AsString(),
@@ -865,7 +1577,10 @@ namespace Marionette.Runtime.Core.Tests
                     meshes,
                     slots,
                     drawOrder,
-                    sequences));
+                    sequences,
+                    clips,
+                    boxes,
+                    points));
             }
 
             var events = new List<FiredEventRecord>();

@@ -26,6 +26,11 @@ namespace Marionette.Runtime.Core.Tests
         public static string CrossLanguageVectors() =>
             Path.Combine(ConformanceSrc, "cross-language", "seed-prng-crc-vectors.json");
 
+        // The clip-geometry cross-language golden vectors (PP-B2, ADR-0012 section 3): the Sutherland-Hodgman
+        // triangle-clip corpus every runtime must reproduce, read directly from the one committed tree.
+        public static string ClipGeometryVectors() =>
+            Path.Combine(ConformanceSrc, "cross-language", "clip-geometry-vectors.json");
+
         // Every committed skeleton rig, discovered from the fixtures directory rather than a hardcoded
         // list, so the harness runs EXACTLY the landed corpus (the materialized projection of
         // registry.ts LANDED_RIG_IDS: the generator writes one <rigId>.fixture.json per landed rig and the

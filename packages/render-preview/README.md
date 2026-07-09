@@ -45,8 +45,12 @@ and effect state from a real `EffectSystem` stepped at the effect's `simulationD
 alpha, bilinear sampling, particle/bundle/composed rendering. Atlas trim offsets (PP-C1) place a trimmed
 region where its untrimmed original would sit; rotated atlas regions (PP-C2) are sampled in place. Both
 mirror runtime-web exactly (`regionWorldCorners` + the trim/rotation samplers), locked by parity tests.
-**Out of scope (documented):** clipping masks, tint-black, point/bounding-box attachments,
-slot-scene composition.
+**Stage F2 (PP-C8):** the two-color dark tint (`two-color.ts`, the shared light+dark formula, with a
+byte-golden and a math parity test against runtime-web), linked meshes (rendered as their resolved parent
+geometry via `resolveRenderMesh`, with the linked mesh's own texture and color), and sequence attachments
+(the resolved frame's atlas region is named by `sequenceRegionName` and sampled per frame).
+**Out of scope (documented):** clipping masks (their evaluation is PP-B2; the clip render is PP-C8 part 2),
+point/bounding-box attachments, slot-scene composition.
 
 ## Run
 

@@ -80,6 +80,20 @@ the position buffer rewritten in place each frame from the skinned world space v
   pooled sprites and mesh displays with no structural rebuild.
 - **Draw order**: rendering follows the solved `pose.drawOrder` (ADR-0008); the attachment layer children
   are re-appended only when the permutation changes. A setup or no key frame keeps setup slot order.
+- **Two-color dark tint** (PP-C8): a slot with a setup `darkColor` renders through a PixiJS v8 two-color
+  filter (`two-color-filter.ts`) that applies the shared light+dark formula (`two-color.ts`, the twin of
+  render-preview's, asserted by the same parity vectors). The filter is created lazily behind a DOM guard, so
+  the headless `describe()` path reports the resolved dark tint without a rendering context.
+- **Linked meshes** (PP-C8): a `linkedmesh` renders as a regular mesh built from its resolved parent geometry
+  (`resolveRenderMesh`) with the linked mesh's own texture, color, and size; the world vertices come from
+  runtime-core (`sampleMeshVertices` resolves the chain when animated).
+- **Sequence attachments** (PP-C8): a region / mesh attachment with a `sequence` block swaps its texture to
+  the resolved frame's region per sample (named by `sequenceRegionName`), through the pooled texture
+  resolver. `describe()` reports the presented region name.
+- **Skin-scoped constraints** (PP-C8): `syncAnimated` forwards the active skin to the solve, so a constraint
+  a skin scopes toggles with that skin. The multi-track `syncState` path cannot forward the skin yet
+  (runtime-core's `applyAnimationState` takes no skin argument), documented in place as a runtime-core
+  follow-up.
 - `setTextureResolver(resolver)` binds decoded atlas page textures; without one, attachments render as
   tintable 1x1 white placeholders. Atlas trim offsets are applied to placement (`sizeForTexture`, PP-C1)
   and rotated regions slice with a swapped frame + PixiJS `rotate=2` (`sliceRegion`, PP-C2), both mirroring
@@ -127,6 +141,14 @@ logic / structural tests above plus the committed fixtures, not by pixel capture
   render preview rasterizer.
 - **Per vertex ribbon shading**: the ribbon taper's per vertex color / alpha needs a custom shader; the
   strip geometry (positions, UVs, indices) and the per vertex taper data are produced and tested here.
+- **Two-color filter pixel output** (PP-C8): the GPU light+dark tint. The pure formula (`two-color.ts`) is
+  parity-tested against render-preview, and `describe()` proves the dark lane is read; only the filter's
+  actual pixels need a GL context. Web-worker rendering without a `document` takes the single-color fallback.
+
+## Still pending
+
+- **Clipping mask render** (PP-C8 part 2): stencil / geometry clipping, gated on the PP-B2 clip evaluation.
+- **Compressed texture GPU work** (WP-5.2, above): transcode, mips, and scale variants at the GL edge.
 
 ## Run
 

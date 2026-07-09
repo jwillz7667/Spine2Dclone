@@ -39,8 +39,10 @@ import {
   GenerateMeshFromRegionCommand,
   KeyframeCollisionError,
   LinkedMeshError,
+  SequenceError,
   CreateLinkedMeshCommand,
   UnlinkMeshCommand,
+  SetAttachmentSequenceCommand,
   MeshBindingError,
   MeshTopologyLockedError,
   MoveBoneCommand,
@@ -347,6 +349,20 @@ function executeLinkedMeshEdit(session: Session, cmd: Command): number {
   } catch (error) {
     if (error instanceof LinkedMeshError) {
       throw new McpToolError('LINKED_MESH', error.message, { reason: error.reason });
+    }
+    throw error;
+  }
+  return session.document.model.revision;
+}
+
+// Execute a sequence authoring edit (PP-D10), converting the sequence guard into a typed SEQUENCE tool error
+// carrying the reason (shape / setupRange / notFound). The guard throws before any mutation.
+function executeSequenceEdit(session: Session, cmd: Command): number {
+  try {
+    session.document.history.execute(cmd);
+  } catch (error) {
+    if (error instanceof SequenceError) {
+      throw new McpToolError('SEQUENCE', error.message, { reason: error.reason });
     }
     throw error;
   }
@@ -3552,6 +3568,43 @@ export const TOOLS: readonly ToolDefinition[] = [
         revision: executeLinkedMeshEdit(
           session,
           new UnlinkMeshCommand(asSlotId(input.slotId), input.name),
+        ),
+      };
+    },
+  ),
+  defineTool(
+    {
+      name: 'attach.sequence.set',
+      title: 'Set attachment sequence',
+      description:
+        'Set or clear the Stage F2 frame-sequence on a region or mesh attachment. Provide `sequence` ' +
+        '(count >= 1, non-negative integer start/digits/setupIndex, setupIndex in [0, count)) to set it, or ' +
+        '`sequence: null` to clear it. A bad shape/setupIndex or a non-region/mesh target is SEQUENCE ' +
+        '(reason shape / setupRange / notFound).',
+      input: z
+        .object({
+          documentId,
+          slotId,
+          name: z.string().min(1),
+          sequence: z
+            .object({
+              count: z.number().int().finite().positive(),
+              start: z.number().int().finite().nonnegative(),
+              digits: z.number().int().finite().nonnegative(),
+              setupIndex: z.number().int().finite().nonnegative(),
+            })
+            .strict()
+            .nullable(),
+        })
+        .strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireSlot(session, input.slotId);
+      return {
+        revision: executeSequenceEdit(
+          session,
+          new SetAttachmentSequenceCommand(asSlotId(input.slotId), input.name, input.sequence),
         ),
       };
     },

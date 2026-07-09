@@ -841,6 +841,42 @@ describe('MCP linked-mesh tools (PP-D10)', () => {
       'LINKED_MESH',
     );
   });
+
+  it('sets and clears an attachment frame-sequence and rejects a bad setupIndex', async () => {
+    const deps = makeDeps();
+    const { documentId, slotId } = await buildUnweightedMeshDoc(deps);
+
+    await call(deps, 'attach.sequence.set', {
+      documentId,
+      slotId,
+      name: 'panel',
+      sequence: { count: 8, start: 0, digits: 2, setupIndex: 2 },
+    });
+    const snap = asRecord(await call(deps, 'document.getSnapshot', { documentId }));
+    const att = (
+      snap.snapshot as { attachments: Array<{ name: string; sequence?: { count: number } }> }
+    ).attachments.find((a) => a.name === 'panel');
+    expect(att?.sequence?.count).toBe(8);
+
+    // An out-of-range setupIndex is a typed SEQUENCE error.
+    await expectToolError(
+      call(deps, 'attach.sequence.set', {
+        documentId,
+        slotId,
+        name: 'panel',
+        sequence: { count: 3, start: 0, digits: 1, setupIndex: 5 },
+      }),
+      'SEQUENCE',
+    );
+
+    // Clear it.
+    await call(deps, 'attach.sequence.set', { documentId, slotId, name: 'panel', sequence: null });
+    const cleared = asRecord(await call(deps, 'document.getSnapshot', { documentId }));
+    const attCleared = (
+      cleared.snapshot as { attachments: Array<{ name: string; sequence?: unknown }> }
+    ).attachments.find((a) => a.name === 'panel');
+    expect(attCleared?.sequence).toBeUndefined();
+  });
 });
 
 describe('MCP mesh weight tools (WP-2.3 / WP-2.4)', () => {

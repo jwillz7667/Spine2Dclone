@@ -12,16 +12,18 @@ All under `src/`:
 
 | Track | Rigs / inputs | Fixtures | Lock |
 |---|---|---|---|
-| **Skeleton** | `rigs/` (18 rigs, each committed as `.json` AND a binary `.bin` twin): rig-2bone, rig-rigid-mesh, rig-weighted-mesh, rig-one-bone-ik, rig-two-bone-ik, rig-transform-constraint, rig-deform, rig-transform-modes, rig-blendmodes, rig-events-draworder, rig-events-loop, rig-ik-depth, rig-constraint-order, rig-transform-variants, rig-linked-mesh, rig-sequences, rig-split-tracks, rig-skin-scoped | `fixtures/` (18, driven by `sample-spec/`) | `.fixtures.lock` |
+| **Skeleton** | `rigs/` (20 rigs, each committed as `.json` AND a binary `.bin` twin): rig-2bone, rig-rigid-mesh, rig-weighted-mesh, rig-one-bone-ik, rig-two-bone-ik, rig-transform-constraint, rig-deform, rig-transform-modes, rig-blendmodes, rig-events-draworder, rig-events-loop, rig-ik-depth, rig-constraint-order, rig-transform-variants, rig-linked-mesh, rig-sequences, rig-split-tracks, rig-skin-scoped, rig-clipping, rig-hit-point | `fixtures/` (20, driven by `sample-spec/`) | `.fixtures.lock` |
 | **Effects / particles** | `effects-rigs/` (4): coin-burst, ribbon-trail, circle-spawn, god-rays-sprite | `effects-fixtures/` (4) | `.effects-fixtures.lock` |
 | **AnimationState** (ADR-0005) | `anim-state-rigs/anim-state-rig.json` | `anim-state-fixtures/` (4): discrete-flip, additive-layer, queue-loop-boundary, crossfade-fractions | `.anim-state-fixtures.lock` |
 | **Slot** | `slot/scenes/` (4 scenes) x `slot/spins/` (6 spins) via `slot/sample-spec/` | `slot/expected/` (6 golden `PresentationTimeline`s) | `.slot.fixtures.lock` |
 
-Plus the **cross-language integer-determinism corpus**
-`src/cross-language/seed-prng-crc-vectors.json` (WP-5.5): golden vectors for `spinSeed` (FNV-1a-32),
-`hash32`, `instanceSeed`, the Mulberry32 stream, and CRC-32/ISO-HDLC (including the CRC of each
-binary rig twin body). The TS runtime, the future C# runtime, and the future GDScript runtime must
-reproduce these bit for bit.
+Plus two **cross-language golden corpora** under `src/cross-language/`. `seed-prng-crc-vectors.json`
+(WP-5.5): golden vectors for `spinSeed` (FNV-1a-32), `hash32`, `instanceSeed`, the Mulberry32 stream,
+and CRC-32/ISO-HDLC (including the CRC of each binary rig twin body); the TS, C#, and GDScript runtimes
+must reproduce these bit for bit. `clip-geometry-vectors.json` (PP-B2, ADR-0012): the clipped output of
+the Sutherland-Hodgman triangle clipper for a fixed set of (polygon, triangle-list) inputs (ring count,
+per-ring source triangle and vertex count, positions, and barycentrics); all three runtimes must
+reproduce the ring structure EXACTLY and the positions/barycentrics within the `VERTEX` tolerance.
 
 Lock files are sha256 manifests over rig + spec + fixture + binary twin, keyed to the pinned
 toolchain (`node-22.13.1-v8`).
@@ -83,6 +85,17 @@ It uses a new per-sample `activeSkins` sample-spec knob (parallel to `poseTimes`
 under active skin null (scoped off) and "gold" (scoped on), observing the on/off difference on the bone
 world-affine lane. Scoped bones are pure data with no transform-solve effect (ADR-0011 section 4).
 
+The last two skeleton rigs are the PP-B2 pair (Stage 0, ADR-0012), locking the clipping / bounding-box /
+point solve. **rig-clipping** animates a clip bone (moving the world clip polygon) whose `end` slot is a
+deforming mesh, and carries a draw-order key that changes which slots the clip covers; a new per-sample
+`clips` lane captures `{ slot, attachment, worldPolygon, clippedSlots }` (the world polygon on the
+`VERTEX` tolerance, the clipped-slot name list EXACT). **rig-hit-point** carries a bounding box and a
+point on a moving bone; a `boxes` lane captures `{ worldVertices, hits }` (world vertices on `VERTEX`,
+per-probe even-odd hits EXACT against the spec's `hitProbes`) and a `points` lane captures
+`{ x, y, rotation }` (position on `VERTEX`, rotation on the new `ANGLE` tolerance). The Sutherland-Hodgman
+triangle clipper itself is locked cross-language by `clip-geometry-vectors.json` (above). All three lanes
+are emitted only when the spec opts in, so every pre-PP-B2 fixture regenerates byte-identically.
+
 ## Structure
 
 - `registry.ts`: the `RigId` union, ordered `RIG_IDS`, per-rig phase map, and `CONFORMANCE_PHASE`
@@ -111,6 +124,7 @@ formula is `|actual - expected| <= atol + rtol * max(|actual|, |expected|)`:
 | VERTEX | 1e-4 | 1e-5 |
 | COLOR | 1e-5 | 0 |
 | EVENT_FLOAT | 1e-5 | 1e-6 |
+| ANGLE | 1e-4 | 1e-6 |
 | PARTICLE | 1e-4 | 1e-5 |
 | PARTICLE_COLOR | 1e-5 | 0 |
 
@@ -132,6 +146,7 @@ pnpm --filter @marionette/conformance generate            # skeleton track
 pnpm --filter @marionette/conformance generate:effects
 pnpm --filter @marionette/conformance generate:anim-state
 pnpm --filter @marionette/conformance generate:slot
+pnpm --filter @marionette/conformance exec tsx scripts/gen-clip-geometry-vectors.mts  # PP-B2 clipper golden
 ```
 
 The drift gate regenerates and runs `git diff --exit-code` over the rig/spec/fixture trees: any
@@ -148,9 +163,10 @@ pnpm conformance:particles                               # the effects fixture s
 Notable suites: the independent closed-form **oracle** for rig-2bone (`test/oracle.test.ts`, so the
 first fixture generation was checked against hand-computed values, not merely frozen), in-memory
 round-trip regeneration per track, `phase2-rigs`, `phase3-effects`, `phase3-perf-gates`,
-`phase4-slot`, `anim-state`, `binary-twins` (WP-5.1), `cross-language-vectors` (WP-5.5), and the
-`a2-coverage` meta-test that gates every solve branch the current fixture schema observes (the
-unobserved branches are pending `it.todo` entries by design).
+`phase4-slot`, `anim-state`, `binary-twins` (WP-5.1), `cross-language-vectors` (WP-5.5),
+`clip-geometry-vectors` (PP-B2, the clipper golden drift tripwire), `geometry-attachments` (PP-B2
+clip/box/point observability coverage), and the `a2-coverage` meta-test that gates every solve branch
+the current fixture schema observes (the unobserved branches are pending `it.todo` entries by design).
 
 The tolerance-based tests pass on any modern Node; only the byte-exact drift gate and lock files
 are toolchain-sensitive and must run on the pin.

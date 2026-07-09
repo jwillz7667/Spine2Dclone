@@ -42,6 +42,7 @@ runtime must match exactly:
 | Sampling | `skeleton/sample.ts`, `curve.ts`, `prepared.ts` | Single-animation sampling, the bezier table sampler (`BEZIER_SEGMENTS`), the prepared-animation cache, the draw-order lane application (PP-B4) |
 | Event firing | `skeleton/event-fire.ts` | Draw-order/event solve for PP-B4: `fireEventsInStep`, `collectFiredEvents`, `prepareEventTimeline`, the pooled `EventQueue`. Time-range fire-on-cross with exact loop-boundary semantics |
 | Skin state | `skeleton/skin-state.ts` | Runtime skin selection (PP-B3): `buildSkinState`, `setActiveSkin`, `resolveAttachment`, `resolveSlotAttachment`. An allocation-free lookup of the attachment a slot presents under the active skin (default-skin fallback), so a renderer switches skins live without rebuilding the `Pose`. A pure lookup over document skins + `pose.slotAttachment`; changes no solve output |
+| Geometry attachments | `skeleton/attachment-geometry.ts` | Clipping / bounding-box / point solve (PP-B2, ADR-0012): `prepareClipping`, `resolveClipWorldPolygonForSlot`, `computeClippedSlotRange`, `clipTriangleList`, `boundingBoxWorldVerticesForSlot`, `hitTestPolygon` / `hitTestBoundingBox`, `resolvePointWorld`. Post-step-4 accessors over the solved pose (world pass + draw order); read-only, so they change no fixture (Law 1) |
 | AnimationState | `skeleton/animation-state.ts` | Multi-track playback per ADR-0005: `setAnimation`, `crossfadeTo`, `queueAnimation`, additive layering, the per-update event queue drain (PP-B4) |
 | Solve primitives | `solve/` | `resolveWorld`, one/two-bone IK, transform constraint, weighted/unweighted skinning, deform |
 | Effects | `effects/` | Mulberry32 PRNG (`makePrng`, `hash32`, `spinSeed` = FNV-1a-32 over UTF-8), the normative per-particle draw order, SoA particle pools with integer age steps, life curves, the emitter/sprite-animator/ribbon solvers, `EffectSystem` (quality tiers, `DEFAULT_MAX_LIVE_PARTICLES = 2000` budget with eviction) |
@@ -87,6 +88,30 @@ independent of how visible it is; weight gates the visual contribution, never th
 within one update is (ascending track index, outgoing-before-incoming, timeline), matching the apply
 order, so the drained log is deterministic.
 
+## Clipping, bounding boxes, and points (PP-B2, ADR-0012)
+
+The three non-drawing geometry attachment kinds (`clipping`, `boundingbox`, `point`) are solved in
+`skeleton/attachment-geometry.ts` as pure accessors over an already-solved `Pose` (they read
+`pose.world` and `pose.drawOrder` and never write, so they add no fixture and keep Law 1 intact). In
+our format these polygons are always unweighted (no `bones` manifest), so a vertex's world position is
+`slotBoneWorld * (x, y)`.
+
+- **Clipping.** `prepareClipping(clip)` decides convexity once on the LOCAL polygon (affine invariant)
+  and, when concave, ear-clips it into reusable triangle topology, recording the pooled worst-case
+  bounds. Per frame, `resolveClipWorldPolygonForSlot` transforms the polygon to world and
+  `computeClippedSlotRange` returns the slots the clip affects (the slots after the clip slot up to and
+  including its `end` slot in the CURRENT draw order). `clipTriangleList` is the geometry operation a
+  CPU rasterizer needs: pooled Sutherland-Hodgman clipping of a triangle stream against the polygon
+  (single pass when convex, one pass per ear-clip piece when concave), reorienting each convex piece CCW
+  by its signed area, emitting each output vertex with its barycentric coordinates so a renderer
+  interpolates UVs/colors. Zero steady-state allocation; a determinism test and an allocation probe pin
+  it, and the cross-language `clip-geometry-vectors.json` golden locks it across TS, C#, and GDScript.
+- **Bounding boxes.** `boundingBoxWorldVerticesForSlot` transforms the box to world;
+  `hitTestPolygon` / `hitTestBoundingBox` is even-odd (crossing-number) point-in-polygon, orientation
+  independent and compared EXACT in conformance.
+- **Points.** `resolvePointWorld` composes the local `(x, y, rotation)` with the slot bone world:
+  position is the affine of `(x, y)`, rotation is `point.rotation` plus the bone's world x-axis angle.
+
 ## Determinism rules
 
 - Same document, animation, and time always produce the same pose; same seed always produces the
@@ -104,7 +129,7 @@ order, so the drained log is deterministic.
 
 ```sh
 pnpm --filter @marionette/runtime-core typecheck
-pnpm --filter @marionette/runtime-core test        # vitest, 28 test files
+pnpm --filter @marionette/runtime-core test        # vitest, 34 test files
 pnpm --filter @marionette/runtime-core gen:golden  # regenerate the byte-locked golden fixtures
 pnpm --filter @marionette/runtime-core build
 ```

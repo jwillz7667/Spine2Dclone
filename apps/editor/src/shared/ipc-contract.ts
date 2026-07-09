@@ -12,6 +12,10 @@ export const IpcChannel = {
   fileSave: 'file:save',
   fileOpen: 'file:open',
   atlasImport: 'atlas:import',
+  // Import images supplied BY THE RENDERER as bytes (drag-drop onto the assets panel, or a file-input
+  // picker). Unlike atlas:import (main owns a directory dialog), here the sandboxed renderer reads the
+  // dropped/picked File bytes via the web File API and ships them; main stages them and runs the SAME pack.
+  atlasImportImages: 'atlas:importImages',
   // menu:action is the one MAIN -> RENDERER push channel (webContents.send): the native application menu
   // lives in the main process, and a menu click dispatches one of the allowlisted MenuActionId strings to
   // the renderer, which maps it to the same action a keybinding would (undo/redo/save/open/import/tool/mode).
@@ -130,6 +134,18 @@ export const atlasImportResponseSchema = z.discriminatedUnion('status', [
 
 export type AtlasImportResponse = z.infer<typeof atlasImportResponseSchema>;
 
+// atlas:importImages. The renderer sends one or more source images as raw bytes (a dropped or picked PNG);
+// main stages them under an app-owned directory and runs the deterministic pack, returning the same packed
+// AtlasRef + page bytes as atlas:import. Each `name` is the dropped file name; main treats it as untrusted
+// (basename-confined at the staging boundary). The response reuses atlasImportResponseSchema.
+export const atlasImportImagesRequestSchema = z
+  .object({
+    images: z.array(z.object({ name: z.string().min(1), data: z.instanceof(Uint8Array) }).strict()),
+  })
+  .strict();
+
+export type AtlasImportImagesRequest = z.infer<typeof atlasImportImagesRequestSchema>;
+
 // Typed IPC error model. The main boundary never throws a bare string across the wire; it returns
 // a discriminated result so the renderer can branch on success without try/catch over IPC.
 export type IpcErrorCode =
@@ -175,6 +191,9 @@ export interface MarionetteApi {
   // Import a directory of source sprites; main owns the directory dialog (no renderer path), packs the
   // atlas, and returns the packed AtlasRef or a canceled status.
   importAtlas(): Promise<IpcResult<AtlasImportResponse>>;
+  // Import images the renderer read as bytes (drag-drop or a file-input picker); main stages and packs
+  // them, returning the packed AtlasRef and page bytes.
+  importAtlasImages(images: AtlasImportImagesRequest['images']): Promise<IpcResult<AtlasImportResponse>>;
   // Subscribe to application-menu clicks pushed from the main process (menu:action). The callback receives
   // one allowlisted MenuActionId per click; returns an unsubscribe function. This is the only MAIN ->
   // RENDERER push in the bridge; everything else is request/response.

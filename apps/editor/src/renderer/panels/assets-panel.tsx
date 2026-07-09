@@ -1,7 +1,15 @@
 import type { IDockviewPanelProps } from 'dockview';
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactElement } from 'react';
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type DragEvent as ReactDragEvent,
+  type ReactElement,
+} from 'react';
 import { documentHost } from '../document';
-import { runSpriteImport } from '../actions/import-sprites';
+import { runImageImport, runSpriteImport } from '../actions/import-sprites';
 import { atlasTextureStore } from '../editor-state/atlas-texture-store';
 import { useDocumentRevision } from '../editor-state/use-document-revision';
 import { buildAtlasView } from './assets-atlas-view';
@@ -93,8 +101,58 @@ export function AssetsPanel(_props: IDockviewPanelProps): ReactElement {
     }
   }
 
+  // Import a set of dropped or picked image Files (PP-D5). The renderer reads each File's bytes with the web
+  // File API (no filesystem access) and hands them to main, which stages and packs them exactly like a
+  // folder import. Non-image entries are ignored before reading; the packer filters to PNG, so a dropped
+  // JPEG yields a "0 regions" notice like the folder path.
+  const [isDragging, setIsDragging] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  async function importFiles(fileList: FileList | null): Promise<void> {
+    if (fileList === null || fileList.length === 0) return;
+    const files = Array.from(fileList).filter((file) => file.type.startsWith('image/'));
+    if (files.length === 0) {
+      showNotice('Image import supports PNG files only; nothing usable was dropped.');
+      return;
+    }
+    setIsImporting(true);
+    try {
+      const images = await Promise.all(
+        files.map(async (file) => ({
+          name: file.name,
+          data: new Uint8Array(await file.arrayBuffer()),
+        })),
+      );
+      const outcome = await runImageImport(images);
+      if (outcome.kind === 'error') {
+        showNotice(outcome.message);
+      } else if (outcome.kind === 'imported' && outcome.regionCount === 0) {
+        showNotice('Imported 0 regions. Image import supports PNG files only.');
+      }
+    } finally {
+      setIsImporting(false);
+    }
+  }
+
+  function onDrop(event: ReactDragEvent<HTMLDivElement>): void {
+    event.preventDefault();
+    setIsDragging(false);
+    void importFiles(event.dataTransfer.files);
+  }
+
   return (
-    <div style={rootStyle}>
+    <div
+      style={isDragging ? { ...rootStyle, ...rootDragStyle } : rootStyle}
+      onDragOver={(event) => {
+        event.preventDefault();
+        if (!isDragging) setIsDragging(true);
+      }}
+      onDragLeave={(event) => {
+        // Only clear when the pointer leaves the panel itself, not when it moves over a child element.
+        if (event.currentTarget === event.target) setIsDragging(false);
+      }}
+      onDrop={onDrop}
+    >
       <div style={toolbarStyle}>
         <button
           type="button"
@@ -106,6 +164,26 @@ export function AssetsPanel(_props: IDockviewPanelProps): ReactElement {
         >
           {isImporting ? 'Importing...' : 'Import sprites'}
         </button>
+        <button
+          type="button"
+          style={isImporting ? { ...buttonStyle, ...buttonBusyStyle } : buttonStyle}
+          disabled={isImporting}
+          title="Add one or more PNG images (or drag them onto this panel)"
+          onClick={() => fileInputRef.current?.click()}
+        >
+          Add images
+        </button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/png"
+          multiple
+          style={{ display: 'none' }}
+          onChange={(event) => {
+            void importFiles(event.target.files);
+            event.target.value = ''; // allow re-picking the same file
+          }}
+        />
         <span style={countStyle}>
           {atlasView.regionCount} {atlasView.regionCount === 1 ? 'region' : 'regions'}
           {atlasView.pageCount > 0 &&
@@ -115,7 +193,9 @@ export function AssetsPanel(_props: IDockviewPanelProps): ReactElement {
 
       <div style={listStyle}>
         {atlasView.regionCount === 0 ? (
-          <div style={emptyStyle}>No atlas imported yet. Import sprites to pack an atlas.</div>
+          <div style={emptyStyle}>
+            No atlas yet. Import a folder of sprites, click Add images, or drag PNGs onto this panel.
+          </div>
         ) : (
           atlasView.regions.map((region) => (
             <div key={region.name} style={rowStyle}>
@@ -146,6 +226,12 @@ const rootStyle: CSSProperties = {
   background: '#1b1b1b',
   color: '#dddddd',
   fontSize: 12,
+};
+
+const rootDragStyle: CSSProperties = {
+  outline: `2px dashed ${ACCENT}`,
+  outlineOffset: -4,
+  background: '#1e2632',
 };
 
 const toolbarStyle: CSSProperties = {

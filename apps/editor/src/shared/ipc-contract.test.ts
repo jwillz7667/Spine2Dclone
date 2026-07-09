@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  atlasImportImagesRequestSchema,
   atlasImportRequestSchema,
   atlasImportResponseSchema,
   fileOpenResponseSchema,
@@ -100,6 +101,35 @@ describe('ipc-contract validation', () => {
         fileOpenResponseSchema,
         { status: 'opened', name: 'rig.json', document: { a: 1 } },
         'IPC_BAD_RESPONSE',
+      ).ok,
+    ).toBe(false);
+  });
+
+  it('accepts an atlas:importImages request of named byte blobs and rejects malformed ones', () => {
+    expect(
+      validateWith(
+        atlasImportImagesRequestSchema,
+        { images: [{ name: 'arm.png', data: new Uint8Array([137, 80, 78, 71]) }] },
+        'IPC_BAD_REQUEST',
+      ).ok,
+    ).toBe(true);
+    // An empty set is valid (nothing to pack); the renderer guards against sending it.
+    expect(
+      validateWith(atlasImportImagesRequestSchema, { images: [] }, 'IPC_BAD_REQUEST').ok,
+    ).toBe(true);
+    // Non-byte data and a missing name are rejected at the boundary.
+    expect(
+      validateWith(
+        atlasImportImagesRequestSchema,
+        { images: [{ name: 'arm.png', data: 'not-bytes' }] },
+        'IPC_BAD_REQUEST',
+      ).ok,
+    ).toBe(false);
+    expect(
+      validateWith(
+        atlasImportImagesRequestSchema,
+        { images: [{ data: new Uint8Array([1]) }] },
+        'IPC_BAD_REQUEST',
       ).ok,
     ).toBe(false);
   });

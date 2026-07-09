@@ -5,6 +5,7 @@
 import { app, ipcMain } from 'electron';
 import {
   IpcChannel,
+  atlasImportImagesRequestSchema,
   atlasImportRequestSchema,
   fileOpenRequestSchema,
   fileSaveRequestSchema,
@@ -17,7 +18,7 @@ import {
   type GetVersionResponse,
   type IpcResult,
 } from '../../shared';
-import { importAtlasFromDirectory } from '../atlas-import';
+import { importAtlasFromDirectory, importAtlasImages } from '../atlas-import';
 import { openDocumentFromFile, saveDocumentToFile } from '../file-io';
 
 export function registerIpc(): void {
@@ -60,6 +61,15 @@ export function registerIpc(): void {
       return importAtlasFromDirectory();
     },
   );
+
+  ipcMain.handle(
+    IpcChannel.atlasImportImages,
+    async (_event, payload: unknown): Promise<IpcResult<AtlasImportResponse>> => {
+      const request = validateWith(atlasImportImagesRequestSchema, payload, 'IPC_BAD_REQUEST');
+      if (!request.ok) return request;
+      return importAtlasImages(request.data.images);
+    },
+  );
 }
 
 export function disposeIpc(): void {
@@ -67,4 +77,5 @@ export function disposeIpc(): void {
   ipcMain.removeHandler(IpcChannel.fileSave);
   ipcMain.removeHandler(IpcChannel.fileOpen);
   ipcMain.removeHandler(IpcChannel.atlasImport);
+  ipcMain.removeHandler(IpcChannel.atlasImportImages);
 }

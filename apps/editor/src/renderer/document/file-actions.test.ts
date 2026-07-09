@@ -45,6 +45,12 @@ function installApi(behavior: Behavior): { savedDocument: () => unknown } {
       ok: true,
       data: { status: 'canceled' },
     }),
+    // These file-action tests never import images; a bounded stub keeps the MarionetteApi contract complete
+    // after it gained importAtlasImages (atlas:importImages, PP-D5 drag-drop / file-picker import).
+    importAtlasImages: async (): Promise<IpcResult<AtlasImportResponse>> => ({
+      ok: true,
+      data: { status: 'imported', atlas: { pages: [] }, pages: [] },
+    }),
     // The MarionetteApi contract gained onMenuAction (menu:action push, application menu). These file
     // actions never subscribe, so a no-op stub returning a no-op unsubscribe satisfies the contract.
     onMenuAction: () => () => {},

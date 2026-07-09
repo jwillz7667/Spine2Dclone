@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import type { ConstraintSelection } from '../editor-state/constraint-selection-store';
-import { parseSoftnessInput, reconcileConstraintSelection } from './constraints-logic';
+import {
+  moveInOrder,
+  parseSoftnessInput,
+  reconcileConstraintSelection,
+  solveOrderView,
+  type OrderedConstraint,
+} from './constraints-logic';
+
+const ikA: OrderedConstraint = { kind: 'ik', id: 'ik_a', name: 'A', order: undefined };
+const tcB: OrderedConstraint = { kind: 'transform', id: 'tc_b', name: 'B', order: undefined };
 
 describe('constraints-logic: reconcileConstraintSelection', () => {
   const ik: ConstraintSelection = { kind: 'ik', id: 'ik_1' };
@@ -22,6 +31,32 @@ describe('constraints-logic: reconcileConstraintSelection', () => {
 
   it('passes null through', () => {
     expect(reconcileConstraintSelection(null, ['ik_1'], ['tc_1'])).toBeNull();
+  });
+});
+
+describe('constraints-logic: solveOrderView', () => {
+  it('uses the default order (IK then transform) when no explicit order is set', () => {
+    expect(solveOrderView([ikA], [tcB]).map((c) => c.id)).toEqual(['ik_a', 'tc_b']);
+  });
+
+  it('sorts by explicit order when any constraint carries one', () => {
+    const ik = { ...ikA, order: 1 };
+    const tc = { ...tcB, order: 0 };
+    expect(solveOrderView([ik], [tc]).map((c) => c.id)).toEqual(['tc_b', 'ik_a']);
+  });
+});
+
+describe('constraints-logic: moveInOrder', () => {
+  const ids = ['a', 'b', 'c'];
+
+  it('moves an item up and down', () => {
+    expect(moveInOrder(ids, 2, -1)).toEqual(['a', 'c', 'b']);
+    expect(moveInOrder(ids, 0, 1)).toEqual(['b', 'a', 'c']);
+  });
+
+  it('returns the same reference for an out-of-bounds move', () => {
+    expect(moveInOrder(ids, 0, -1)).toBe(ids);
+    expect(moveInOrder(ids, 2, 1)).toBe(ids);
   });
 });
 

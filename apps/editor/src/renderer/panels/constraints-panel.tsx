@@ -1,6 +1,7 @@
 import type { IDockviewPanelProps } from 'dockview';
 import { useEffect, useMemo, type CSSProperties, type ReactElement } from 'react';
 import {
+  ReorderConstraintsCommand,
   SetIkBendPositiveCommand,
   SetIkDepthParamsCommand,
   SetIkMixCommand,
@@ -16,7 +17,13 @@ import {
   useConstraintSelectionStore,
   type ConstraintSelection,
 } from '../editor-state/constraint-selection-store';
-import { parseSoftnessInput, reconcileConstraintSelection } from './constraints-logic';
+import {
+  moveInOrder,
+  parseSoftnessInput,
+  reconcileConstraintSelection,
+  solveOrderView,
+  type OrderedConstraint,
+} from './constraints-logic';
 
 const ACCENT = '#5aa0ff';
 
@@ -54,6 +61,29 @@ export function ConstraintsPanel(_props: IDockviewPanelProps): ReactElement {
         ? transformConstraints.find((c) => c.id === selection.id)
         : undefined,
     [selection, transformConstraints],
+  );
+
+  const solveOrder = useMemo<OrderedConstraint[]>(
+    () =>
+      solveOrderView(
+        ikConstraints.map((c) => ({
+          kind: 'ik',
+          id: c.id,
+          name: c.name,
+          order: c.order,
+        })),
+        transformConstraints.map((c) => ({
+          kind: 'transform',
+          id: c.id,
+          name: c.name,
+          order: c.order,
+        })),
+      ),
+    [ikConstraints, transformConstraints],
+  );
+  const hasExplicitOrder = useMemo(
+    () => solveOrder.some((c) => c.order !== undefined),
+    [solveOrder],
   );
 
   const total = ikConstraints.length + transformConstraints.length;
@@ -111,6 +141,49 @@ export function ConstraintsPanel(_props: IDockviewPanelProps): ReactElement {
         ) : (
           <div style={emptyStyle}>Select a constraint to edit it.</div>
         )}
+
+        {solveOrder.length > 1 && (
+          <div style={orderSectionStyle}>
+            <div style={fieldRowStyle}>
+              <span style={sectionLabelStyle}>Solve order</span>
+              {hasExplicitOrder && (
+                <button
+                  type="button"
+                  style={smallButtonStyle}
+                  title="Clear the explicit order and restore the default (all IK, then all transform)"
+                  onClick={() => clearConstraintOrder()}
+                >
+                  Reset
+                </button>
+              )}
+            </div>
+            {solveOrder.map((c, index) => (
+              <div key={c.id} style={orderRowStyle}>
+                <span style={orderIndexStyle}>{index + 1}</span>
+                <span style={nameStyle}>{c.name}</span>
+                <span style={badgeStyle}>{c.kind === 'ik' ? 'IK' : 'TR'}</span>
+                <button
+                  type="button"
+                  style={arrowButtonStyle}
+                  disabled={index === 0}
+                  title="Move earlier in the solve order"
+                  onClick={() => reorderBy(solveOrder, index, -1)}
+                >
+                  Up
+                </button>
+                <button
+                  type="button"
+                  style={arrowButtonStyle}
+                  disabled={index === solveOrder.length - 1}
+                  title="Move later in the solve order"
+                  onClick={() => reorderBy(solveOrder, index, 1)}
+                >
+                  Down
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -121,6 +194,20 @@ export function ConstraintsPanel(_props: IDockviewPanelProps): ReactElement {
 
 function selectConstraint(selection: ConstraintSelection): void {
   useConstraintSelectionStore.getState().select(selection);
+}
+
+// Move the constraint at `index` by `delta` and commit the whole new permutation as one ReorderConstraints
+// (LAW 2). An out-of-bounds move returns the same list, so no command is issued.
+function reorderBy(order: readonly OrderedConstraint[], index: number, delta: number): void {
+  const ids = order.map((c) => c.id);
+  const next = moveInOrder(ids, index, delta);
+  if (next === ids) return;
+  documentHost.current().history.execute(new ReorderConstraintsCommand([...next]));
+}
+
+// Clear the explicit order on every constraint, restoring the default (all IK, then all transform).
+function clearConstraintOrder(): void {
+  documentHost.current().history.execute(new ReorderConstraintsCommand(null));
 }
 
 function setIkMix(id: IkConstraintId, mix: number): void {
@@ -380,3 +467,45 @@ const checkRowStyle: CSSProperties = {
 };
 
 const noteStyle: CSSProperties = { color: '#777777', fontSize: 11, paddingTop: 6 };
+
+const orderSectionStyle: CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 4,
+  padding: 10,
+  borderTop: '1px solid #2c2c2c',
+};
+
+const orderRowStyle: CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 6,
+};
+
+const orderIndexStyle: CSSProperties = {
+  flex: '0 0 18px',
+  color: '#8899aa',
+  textAlign: 'right',
+};
+
+const smallButtonStyle: CSSProperties = {
+  flex: '0 0 auto',
+  padding: '2px 8px',
+  fontSize: 11,
+  color: '#dddddd',
+  background: '#2d2d2d',
+  border: '1px solid #444444',
+  borderRadius: 4,
+  cursor: 'pointer',
+};
+
+const arrowButtonStyle: CSSProperties = {
+  flex: '0 0 auto',
+  padding: '1px 8px',
+  fontSize: 11,
+  color: '#dddddd',
+  background: '#2d2d2d',
+  border: '1px solid #444444',
+  borderRadius: 4,
+  cursor: 'pointer',
+};

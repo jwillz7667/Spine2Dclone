@@ -60,6 +60,10 @@ export {
   DeleteAttachmentKeyframeCommand,
   deleteAttachmentKeyframeSpec,
 } from './delete-attachment-keyframe.command';
+export {
+  MoveAttachmentKeyframeCommand,
+  moveAttachmentKeyframeSpec,
+} from './move-attachment-keyframe.command';
 export { SetCurveCommand, setCurveSpec } from './set-curve.command';
 export { DuplicateAnimationCommand, duplicateAnimationSpec } from './duplicate-animation.command';
 export { PasteKeyframesCommand, pasteKeyframesSpec } from './paste-keyframes.command';
@@ -110,6 +114,7 @@ export { SetIkBendPositiveCommand, setIkBendPositiveSpec } from './set-ik-bend-p
 export { DeleteIkConstraintCommand, deleteIkConstraintSpec } from './delete-ik-constraint.command';
 export { SetIkKeyframeCommand, setIkKeyframeSpec } from './set-ik-keyframe.command';
 export { DeleteIkKeyframeCommand, deleteIkKeyframeSpec } from './delete-ik-keyframe.command';
+export { MoveIkKeyframeCommand, moveIkKeyframeSpec } from './move-ik-keyframe.command';
 // WP-2.7 transform constraint authoring
 export {
   CreateTransformConstraintCommand,
@@ -133,6 +138,10 @@ export {
   DeleteTransformKeyframeCommand,
   deleteTransformKeyframeSpec,
 } from './delete-transform-keyframe.command';
+export {
+  MoveTransformKeyframeCommand,
+  moveTransformKeyframeSpec,
+} from './move-transform-keyframe.command';
 // WP-2.8 named skins
 export { CreateSkinCommand, createSkinSpec } from './create-skin.command';
 export { RenameSkinCommand, renameSkinSpec } from './rename-skin.command';

@@ -85,6 +85,9 @@ import { setCurveSpec } from './set-curve.command';
 import { setKeyframeSpec } from './set-keyframe.command';
 import { setAttachmentKeyframeSpec } from './set-attachment-keyframe.command';
 import { deleteAttachmentKeyframeSpec } from './delete-attachment-keyframe.command';
+import { moveAttachmentKeyframeSpec } from './move-attachment-keyframe.command';
+import { moveIkKeyframeSpec } from './move-ik-keyframe.command';
+import { moveTransformKeyframeSpec } from './move-transform-keyframe.command';
 import { setMeshEdgesSpec } from './set-mesh-edges.command';
 import { setRegionAttachmentTransformSpec } from './set-region-attachment-transform.command';
 import { setSlotBlendModeSpec } from './set-slot-blend-mode.command';
@@ -127,6 +130,7 @@ export const commandRegistry: readonly CommandSpec[] = [
   deleteKeyframeSpec,
   setAttachmentKeyframeSpec,
   deleteAttachmentKeyframeSpec,
+  moveAttachmentKeyframeSpec,
   setCurveSpec,
   duplicateAnimationSpec,
   pasteKeyframesSpec,
@@ -154,12 +158,14 @@ export const commandRegistry: readonly CommandSpec[] = [
   deleteIkConstraintSpec,
   setIkKeyframeSpec,
   deleteIkKeyframeSpec,
+  moveIkKeyframeSpec,
   // WP-2.7 transform constraint authoring
   createTransformConstraintSpec,
   setTransformConstraintParamsSpec,
   deleteTransformConstraintSpec,
   setTransformKeyframeSpec,
   deleteTransformKeyframeSpec,
+  moveTransformKeyframeSpec,
   // WP-2.8 named skins
   createSkinSpec,
   renameSkinSpec,

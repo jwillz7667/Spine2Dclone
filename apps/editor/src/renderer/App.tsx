@@ -10,6 +10,7 @@ import {
   EventsPanel,
   HierarchyPanel,
   InspectorPanel,
+  SkinsPanel,
   SlotPanel,
   ViewportPanel,
 } from './panels';
@@ -29,6 +30,7 @@ const components = {
   curveeditor: CurveEditorPanel,
   events: EventsPanel,
   draworder: DrawOrderPanel,
+  skins: SkinsPanel,
 };
 
 // Default layout: hierarchy left, viewport center, inspector right, and an animation-authoring strip
@@ -72,6 +74,14 @@ function onReady(event: DockviewReadyEvent): void {
     id: 'effects',
     component: 'effects',
     title: 'Effects',
+    position: { referencePanel: inspector, direction: 'within' },
+  });
+  // The Skins panel (PP-D4) tabs alongside the Inspector/Effects group on the right: it is an entity editor
+  // over the same document + undo stack, and its per-slot overrides read the attachments the inspector sets.
+  event.api.addPanel({
+    id: 'skins',
+    component: 'skins',
+    title: 'Skins',
     position: { referencePanel: inspector, direction: 'within' },
   });
   // The animation manager (WP-1.9) anchors the bottom strip: it manages the named animations the dopesheet

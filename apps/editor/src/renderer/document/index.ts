@@ -10,6 +10,7 @@ import { exportDocument, loadDocument, type Document } from '@marionette/documen
 import { createInitialDocument, createProductionEnvironment } from '../composition-root';
 import { atlasTextureStore } from '../editor-state/atlas-texture-store';
 import { useSelectionStore } from '../editor-state/selection-store';
+import { useSkinPreviewStore } from '../editor-state/skin-preview-store';
 import { bridge } from '../ipc-bridge';
 
 // The renderer's single owner of the live Document. It holds the current Document (created at startup
@@ -53,6 +54,7 @@ class DocumentHost {
     this.detachReconciler = this.attachReconciler(next);
     useSelectionStore.getState().clear();
     atlasTextureStore.clear();
+    useSkinPreviewStore.getState().reset();
   }
 
   // File > New: swap in a fresh, empty document (no bones, no atlas), the same atomic reconciler + cleared
@@ -65,6 +67,7 @@ class DocumentHost {
     this.detachReconciler = this.attachReconciler(next);
     useSelectionStore.getState().clear();
     atlasTextureStore.clear();
+    useSkinPreviewStore.getState().reset();
   }
 
   private attachReconciler(document: Document): () => void {

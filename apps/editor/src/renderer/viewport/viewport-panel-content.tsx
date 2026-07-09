@@ -11,6 +11,7 @@ import { useMarqueeStore } from '../editor-state/marquee-store';
 import { useSlotSelectionStore } from '../editor-state/slot-selection-store';
 import { useWeightPaintStore } from '../editor-state/weight-paint-store';
 import { usePlaybackStore } from '../editor-state/playback-store';
+import { DEFAULT_SKIN_NAME, useSkinPreviewStore } from '../editor-state/skin-preview-store';
 import { useToolStore, type ToolId } from '../editor-state/tool-store';
 import { attachCameraController, type CameraControls } from './camera-controller';
 import { createViewportLayers } from './layers';
@@ -66,6 +67,7 @@ export function ViewportPanelContent(): ReactElement {
     let unsubscribeWeightPaint: (() => void) | null = null;
     let unsubscribeTool: (() => void) | null = null;
     let unsubscribeMarquee: (() => void) | null = null;
+    let unsubscribeSkin: (() => void) | null = null;
 
     void (async () => {
       const created = new Application();
@@ -177,6 +179,15 @@ export function ViewportPanelContent(): ReactElement {
         resolverDirty = true;
       });
 
+      // The active-skin PREVIEW is ephemeral editor state (PP-D4). It changes only when the author switches
+      // the previewed skin, so the binding is event-driven: the subscription flags it and the tick applies
+      // it to the shared SkeletonView before rendering. A revision change also re-applies it (below), so a
+      // newly added skin becomes previewable and a removed one falls back to default without a throw.
+      let skinDirty = false;
+      unsubscribeSkin = useSkinPreviewStore.subscribe(() => {
+        skinDirty = true;
+      });
+
       // The last successfully exported document, cached by model.revision. SkeletonView keys its prepared
       // pose on document IDENTITY (a WeakMap), so this reference MUST stay stable while the document is
       // unchanged: re-exporting every frame would defeat that cache and re-pay full validation per frame
@@ -217,6 +228,29 @@ export function ViewportPanelContent(): ReactElement {
             }
           }
           gizmoDirty = true;
+        }
+
+        // Apply the ephemeral skin PREVIEW (PP-D4) to the shared SkeletonView BEFORE rendering. The desired
+        // name is validated against the document about to be drawn (cachedDoc), so the scene rebuild applies
+        // a skin the document actually defines (ensureScene throws for an unknown remembered skin); an
+        // unknown or removed skin falls back to default. Applying to a not-yet-rebuilt stale scene can throw
+        // when the doc and skin change together, but setActiveSkin records the pending name first and the
+        // imminent (re)sync applies it cleanly, so that transient throw is benign and swallowed. Forcing
+        // lastTarget to null makes the render block below re-render under the new skin.
+        if ((skinDirty || revisionChanged) && cachedDoc !== null) {
+          const desired = useSkinPreviewStore.getState().activeSkin;
+          const inDoc =
+            desired === DEFAULT_SKIN_NAME || cachedDoc.skins.some((skin) => skin.name === desired);
+          const applyName = inDoc ? desired : DEFAULT_SKIN_NAME;
+          if (view.getActiveSkin() !== applyName) {
+            try {
+              view.setActiveSkin(applyName);
+            } catch {
+              // Benign: the pending name is recorded and the (re)sync below applies it to the rebuilt scene.
+            }
+            lastTarget = null;
+          }
+          skinDirty = false;
         }
 
         // Read the ephemeral transport imperatively (the ticker lives outside React, so it must not couple
@@ -316,6 +350,7 @@ export function ViewportPanelContent(): ReactElement {
       unsubscribeWeightPaint?.();
       unsubscribeTool?.();
       unsubscribeMarquee?.();
+      unsubscribeSkin?.();
       if (app !== null) {
         app.destroy({ removeView: true }, { children: true });
         app = null;

@@ -164,7 +164,7 @@ function triggerOnSystem(system: EffectSystem, trigger: EffectFrameTrigger): voi
 // Solve one effect frame: validate, build the atlas index, trigger, step 0 -> time at the fixed sub-step
 // dt, and read the solved state. Returns everything the draw-item gather needs. Shared by renderEffectFrame
 // and the composed path so there is one solve driver.
-function solveEffectFrame(params: {
+export function solveEffectFrame(params: {
   readonly effectsDocument: unknown;
   readonly trigger: EffectFrameTrigger;
   readonly time: number;
@@ -191,7 +191,11 @@ function solveEffectFrame(params: {
 
 // Rasterize one effect draw item. World items project through the world -> image transform; screen items
 // already carry image-pixel positions and bypass it. Fixed loop order over the item's triangles.
-function rasterizeEffectItem(fb: Framebuffer, item: EffectDrawItem, transform: WorldToImage): void {
+export function rasterizeEffectItem(
+  fb: Framebuffer,
+  item: EffectDrawItem,
+  transform: WorldToImage,
+): void {
   const p = item.positions;
   const uvs = item.uvs;
   const triangles = item.triangles;
@@ -220,7 +224,7 @@ function rasterizeEffectItem(fb: Framebuffer, item: EffectDrawItem, transform: W
 
 // Add every world-space vertex of a draw item to the content bounds (screen items are viewport-relative
 // and excluded from fit:'content' framing).
-function addWorldItemBounds(bounds: WorldBounds, item: EffectDrawItem): void {
+export function addWorldItemBounds(bounds: WorldBounds, item: EffectDrawItem): void {
   if (item.space !== 'world') return;
   const p = item.positions;
   for (let i = 0; i < p.length; i += 2) bounds.add(p[i]!, p[i + 1]!);

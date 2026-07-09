@@ -23,16 +23,23 @@ export class Framebuffer {
     this.width = width;
     this.height = height;
     this.data = new Float64Array(width * height * 4);
-    // Initialize every pixel to the premultiplied background (straight * alpha).
+    this.clear(background);
+  }
+
+  // Reset every pixel to the premultiplied background (straight * alpha). The constructor calls it, and the
+  // sequence pipeline calls it once per frame so a single framebuffer (its Float64Array) is reused across a
+  // whole clip with no per-frame allocation. Deterministic: fixed loop order, no clock, no randomness.
+  clear(background: Color): void {
     const br = background.r * background.a;
     const bg = background.g * background.a;
     const bb = background.b * background.a;
     const ba = background.a;
-    for (let i = 0; i < this.data.length; i += 4) {
-      this.data[i] = br;
-      this.data[i + 1] = bg;
-      this.data[i + 2] = bb;
-      this.data[i + 3] = ba;
+    const data = this.data;
+    for (let i = 0; i < data.length; i += 4) {
+      data[i] = br;
+      data[i + 1] = bg;
+      data[i + 2] = bb;
+      data[i + 3] = ba;
     }
   }
 
@@ -100,9 +107,17 @@ export class Framebuffer {
   }
 
   // Convert the premultiplied framebuffer to straight-alpha 8-bit RGBA for PNG encoding. Straight color =
-  // premultiplied / alpha (0 where alpha is 0). Clamp then quantize once (Math.round, pinned).
+  // premultiplied / alpha (0 where alpha is 0). Clamp then quantize once (Math.round, pinned). Allocates a
+  // fresh buffer; the sequence pipeline uses toStraightRgba8Into to write into a reused scratch instead.
   toStraightRgba8(): Uint8Array {
     const out = new Uint8Array(this.width * this.height * 4);
+    this.toStraightRgba8Into(out);
+    return out;
+  }
+
+  // Write the straight-alpha 8-bit RGBA read-out into a caller-owned buffer (length width * height * 4), so
+  // a clip reuses one output buffer across every frame. Same pinned math as toStraightRgba8.
+  toStraightRgba8Into(out: Uint8Array): void {
     const data = this.data;
     for (let i = 0; i < data.length; i += 4) {
       const a = clamp01(data[i + 3]!);
@@ -118,7 +133,6 @@ export class Framebuffer {
       }
       out[i + 3] = to8Bit(a);
     }
-    return out;
   }
 }
 

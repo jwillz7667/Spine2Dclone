@@ -79,7 +79,9 @@ export class WorldBounds {
 
 // Resolve the world -> image transform for the viewport. For fit:'content' the caller passes the
 // accumulated world bounds; for an explicit rect the bounds are ignored. Validates the viewport size.
-export function resolveWorldToImage(viewport: Viewport, bounds: WorldBounds): WorldToImage {
+// Validate the output image size (positive integers). Extracted so the sequence pipeline can fail fast on
+// a bad viewport at renderSequence() time, not only when the first frame resolves its transform.
+export function assertViewportSize(viewport: Viewport): void {
   if (
     !Number.isInteger(viewport.width) ||
     !Number.isInteger(viewport.height) ||
@@ -90,6 +92,10 @@ export function resolveWorldToImage(viewport: Viewport, bounds: WorldBounds): Wo
       `viewport width/height must be positive integers, received ${viewport.width} x ${viewport.height}`,
     );
   }
+}
+
+export function resolveWorldToImage(viewport: Viewport, bounds: WorldBounds): WorldToImage {
+  assertViewportSize(viewport);
 
   const rect = viewport.fit === 'content' ? bounds.paddedRect() : viewport.fit;
   if (rect.w <= 0 || rect.h <= 0) {

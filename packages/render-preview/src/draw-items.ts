@@ -66,11 +66,44 @@ function readBoneWorld(pose: Pose, boneIndex: number): Mat2x3 {
   return [w[base]!, w[base + 1]!, w[base + 2]!, w[base + 3]!, w[base + 4]!, w[base + 5]!];
 }
 
-// Solve the pose once and gather the draw items in slot (draw) order. When `animation` is undefined the
-// setup pose is solved (steps 1 and 4 plus the slot setup reset); otherwise the skeleton is sampled at the
-// clamped time (t in [0, duration]; this does NOT loop, matching the ADR "sampleSkeleton at the clamped
-// time"). The geometry each item carries is exactly the runtime-core solve output (regionWorldCorners for
-// regions, skinMeshInto/sampleMeshVertices for meshes), so the preview cannot drift from the runtimes.
+// The mesh-deform source for gathering: the (animationId, time) whose deform channel is sampled on top of
+// the skin. `animationId: null` is the setup pose (pure skin, deform is zero at setup). For an
+// AnimationState frame this is the base track-0 entry (its animationId + trackTime), matching runtime-web's
+// SkeletonView.syncState (deform under AnimationState is scoped to track 0; ADR-0005 defines no cross-track
+// deform blend), so the preview and the shipped renderer sample the same deform.
+export interface MeshDeformSource {
+  readonly animationId: string | null;
+  readonly sampleTime: number;
+}
+
+// Solve the pose into the caller's buffer for a single-animation (or setup-pose) frame and return the mesh
+// deform source. When `animation` is undefined the setup pose is solved (steps 1 and 4 plus the slot setup
+// reset); otherwise the skeleton is sampled at the clamped time (t in [0, duration]; this does NOT loop,
+// matching the ADR "sampleSkeleton at the clamped time"). The pose is caller-owned so the sequence pipeline
+// reuses one pose across a whole clip (sampleSkeleton and the setup reset both fully re-solve it).
+export function solvePoseForFrame(
+  document: SkeletonDocument,
+  pose: Pose,
+  animation: string | undefined,
+  time: number | undefined,
+): MeshDeformSource {
+  if (animation !== undefined) {
+    const anim = document.animations[animation];
+    if (anim === undefined) throw new UnknownAnimationError(animation);
+    const sampleTime = Math.min(Math.max(time ?? 0, 0), anim.duration);
+    sampleSkeleton(document, animation, sampleTime, pose);
+    return { animationId: animation, sampleTime };
+  }
+  resetToSetupPose(pose);
+  resetSlotsToSetup(pose);
+  computeWorldTransforms(pose);
+  return { animationId: null, sampleTime: 0 };
+}
+
+// Solve the pose once and gather the draw items in slot (draw) order. Convenience wrapper (builds a fresh
+// pose per call) used by renderFrame; the sequence pipeline calls solvePoseForFrame + gatherDrawItemsFromPose
+// against a reused pose instead. The geometry each item carries is exactly the runtime-core solve output
+// (regionWorldCorners for regions, skinMeshInto/sampleMeshVertices for meshes), so the preview cannot drift.
 export function gatherDrawItems(
   document: SkeletonDocument,
   atlas: AtlasIndex,
@@ -78,21 +111,22 @@ export function gatherDrawItems(
   time: number | undefined,
 ): DrawItem[] {
   const pose = buildPose(document);
+  const deform = solvePoseForFrame(document, pose, animation, time);
+  return gatherDrawItemsFromPose(document, atlas, pose, deform);
+}
 
-  let animationId: string | null;
-  let sampleTime = 0;
-  if (animation !== undefined) {
-    const anim = document.animations[animation];
-    if (anim === undefined) throw new UnknownAnimationError(animation);
-    sampleTime = Math.min(Math.max(time ?? 0, 0), anim.duration);
-    sampleSkeleton(document, animation, sampleTime, pose);
-    animationId = animation;
-  } else {
-    resetToSetupPose(pose);
-    resetSlotsToSetup(pose);
-    computeWorldTransforms(pose);
-    animationId = null;
-  }
+// Gather the draw items in slot (draw) order from an ALREADY-solved pose (world pass current). Shared by
+// the single-frame path and the sequence pipeline (which solves the pose itself, single-animation via
+// solvePoseForFrame or AnimationState via applyAnimationState). `deform` names the (animationId, time) the
+// mesh deform is sampled from; regions ignore it.
+export function gatherDrawItemsFromPose(
+  document: SkeletonDocument,
+  atlas: AtlasIndex,
+  pose: Pose,
+  deform: MeshDeformSource,
+): DrawItem[] {
+  const animationId = deform.animationId;
+  const sampleTime = deform.sampleTime;
 
   const defaultSkin = findDefaultSkin(document);
   if (defaultSkin === undefined) return [];

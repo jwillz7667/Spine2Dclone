@@ -7,5 +7,30 @@ export { RealEngineAdapter, RealEngineMappingError } from './adapter';
 export type { RealAdapterErrorCode, SymbolMap } from './adapter';
 export { resolveRealEngineConfig, RealEngineConfigError } from './config';
 export type { RealEngineConfig } from './config';
-export type { NonTransactingResolveClient } from './client';
+export type { NonTransactingResolveClient, RealResolveOptions } from './client';
 export type { NativeResolveOutput, NativeCascade } from './native';
+export { nativeResolveOutputSchema } from './native-schema';
+
+// The concrete HTTP transport for the non-transacting resolve (WP-5.8).
+export {
+  HttpResolveClient,
+  createGlobalResolveFetch,
+  createRealHttpEngine,
+} from './http-transport';
+export type {
+  HttpResolveDeps,
+  HttpResolveRequest,
+  HttpResolveResponse,
+  ResolveFetch,
+  CreateRealHttpEngineParams,
+} from './http-transport';
+export { httpTransportConfigSchema, parseHttpTransportConfig } from './http-config';
+export type { HttpTransportConfig } from './http-config';
+export {
+  RealEngineTransportError,
+  isRetryableTransportError,
+} from './errors';
+export type {
+  RealEngineTransportErrorCode,
+  RealEngineTransportErrorOptions,
+} from './errors';

@@ -7,6 +7,9 @@
 // pre-cascade board or the per-step authoritative running total triggers the adapter's typed
 // unavailable errors (phase-4 section 5.5/5.6) rather than the adapter fabricating them (LAW 1).
 
+// Optional fields carry an explicit `| undefined` so the shape matches a Zod `.optional()` inference under
+// `exactOptionalPropertyTypes` (native-schema.ts validates the wire payload against exactly this shape).
+
 export interface NativeCascade {
   // [row, col] cells removed at this step.
   readonly removedCells: readonly (readonly [number, number])[];
@@ -15,7 +18,7 @@ export interface NativeCascade {
   readonly winThisStep: number;
   // The engine's authoritative running total through this step. OPTIONAL: absence is a typed error for a
   // cascade result (the adapter never synthesizes it).
-  readonly runningTotal?: number;
+  readonly runningTotal?: number | undefined;
 }
 
 export interface NativeResolveOutput {
@@ -24,18 +27,18 @@ export interface NativeResolveOutput {
   // The final (post-cascade) board, native symbol codes, rows of columns.
   readonly boardFinal: readonly (readonly string[])[];
   // The pre-cascade board. OPTIONAL: required only for a genuine cascade result (else a typed error).
-  readonly boardInitial?: readonly (readonly string[])[];
+  readonly boardInitial?: readonly (readonly string[])[] | undefined;
   readonly paylines: readonly {
     readonly sym: string;
     readonly cells: readonly (readonly [number, number])[];
     readonly pay: number;
-    readonly line?: number;
+    readonly line?: number | undefined;
   }[];
   readonly bonuses: readonly {
     readonly kind: string;
     readonly payload: Readonly<Record<string, number | string | boolean | readonly number[]>>;
   }[];
-  readonly tumbles?: readonly NativeCascade[];
+  readonly tumbles?: readonly NativeCascade[] | undefined;
   readonly total: number;
-  readonly proof?: string;
+  readonly proof?: string | undefined;
 }

@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import type { AnimationId, BoneId, SlotId } from '../document';
 import type { SetupTransform } from '../viewport/setup-delta';
-import { buildBoneKeyCommands, buildSlotColorKeyCommand } from './manual-key';
+import {
+  buildBoneKeyCommands,
+  buildSlotColorKeyCommand,
+  buildSlotDarkKeyCommand,
+} from './manual-key';
 import { addAnimation, addBone, createEmptyDocument } from '../dopesheet/seed-document';
 
 // A non-identity setup pose: keying its current values must reproduce it, so every delta is identity.
@@ -49,6 +53,17 @@ describe('manual keyframe commands (PP-D2)', () => {
       'slot_1' as SlotId,
       { r: 0.2, g: 0.4, b: 0.6, a: 1 },
       1,
+    );
+    expect(command.kind).toBe('kf.set');
+  });
+
+  it('keys the slot dark color as one SetKeyframe at the playhead (PP-D10)', () => {
+    const animId = 'animation_1' as AnimationId;
+    const command = buildSlotDarkKeyCommand(
+      animId,
+      'slot_1' as SlotId,
+      { r: 0.1, g: 0.1, b: 0.1, a: 1 },
+      0.5,
     );
     expect(command.kind).toBe('kf.set');
   });

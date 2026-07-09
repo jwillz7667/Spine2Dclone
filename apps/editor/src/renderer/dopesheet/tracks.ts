@@ -123,7 +123,12 @@ export function buildTracks(animation: AnimationEntity, names: TrackNames): Trac
 
   const slotIds = new Set<SlotId>();
   for (const [slotId, set] of animation.slots) {
-    if (set.color.length > 0 || set.attachment.length > 0 || set.sequence.length > 0) {
+    if (
+      set.color.length > 0 ||
+      set.attachment.length > 0 ||
+      set.sequence.length > 0 ||
+      set.dark.length > 0
+    ) {
       slotIds.add(slotId);
     }
   }
@@ -142,6 +147,15 @@ export function buildTracks(animation: AnimationEntity, names: TrackNames): Trac
         label: 'Color',
         target: { kind: 'slot', slotId, channel: 'color' },
         keyframes: set.color.map((kf) => ({ id: kf.id, time: kf.time })),
+      });
+    }
+    if (set !== undefined && set.dark.length > 0) {
+      rows.push({
+        kind: 'channel',
+        key: `slot:${slotId}:dark`,
+        label: 'Dark',
+        target: { kind: 'slot', slotId, channel: 'dark' },
+        keyframes: set.dark.map((kf) => ({ id: kf.id, time: kf.time })),
       });
     }
     if (set !== undefined && set.attachment.length > 0) {

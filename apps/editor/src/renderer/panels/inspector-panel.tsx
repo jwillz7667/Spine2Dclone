@@ -21,6 +21,7 @@ import {
   SetRegionAttachmentTransformCommand,
   SetSlotBlendModeCommand,
   SetSlotColorCommand,
+  SetSlotDarkColorCommand,
   UnbindMeshCommand,
   documentHost,
   type AttachmentEntity,
@@ -39,7 +40,11 @@ import { usePlaybackStore } from '../editor-state/playback-store';
 import { useDocumentRevision } from '../editor-state/use-document-revision';
 import { dispatchBoneTransform, type EditDispatchContext } from '../viewport/edit-dispatcher';
 import { buildBoneEdit, parseBoneField, type BoneTransformField } from './bone-inspector-logic';
-import { buildBoneKeyCommands, buildSlotColorKeyCommand } from './manual-key';
+import {
+  buildBoneKeyCommands,
+  buildSlotColorKeyCommand,
+  buildSlotDarkKeyCommand,
+} from './manual-key';
 import { MeshError } from '../modules/mesh/mesh-error';
 import { autoGridFillMesh, generateMeshFromRegion } from '../modules/mesh/mesh-tool';
 import { regionToMeshInit } from '../modules/mesh/region-to-mesh';
@@ -525,7 +530,19 @@ function SlotDetail(props: SlotDetailProps): ReactElement {
     return true;
   }
 
+  // Edit one channel of the setup DARK color (PP-D10), reading the LIVE dark color so a run composes.
+  function commitDarkChannel(channel: ColorChannel, raw: string): boolean {
+    const live = documentHost.current().model.getSlot(slot.id);
+    if (live === undefined || live.darkColor === null) return false;
+    const current = live.darkColor[channel];
+    const next = parseChannel(raw, current);
+    if (next === current) return false;
+    commitSlotDarkColor(slot.id, withChannel(live.darkColor, channel, next));
+    return true;
+  }
+
   const swatch = `rgba(${to255(color.r)}, ${to255(color.g)}, ${to255(color.b)}, ${color.a})`;
+  const dark = slot.darkColor;
 
   return (
     <div style={detailBodyStyle}>
@@ -562,6 +579,51 @@ function SlotDetail(props: SlotDetailProps): ReactElement {
         >
           Key
         </button>
+      </div>
+
+      <div style={detailRowStyle}>
+        <span style={labelStyle}>Dark</span>
+        {dark === null ? (
+          <button
+            type="button"
+            style={smallButtonStyle}
+            title="Enable the Stage F2 two-color dark tint on this slot"
+            onClick={() => commitSlotDarkColor(slot.id, { r: 0, g: 0, b: 0, a: 1 })}
+          >
+            Enable
+          </button>
+        ) : (
+          <>
+            <ColorField channel="r" value={dark.r} onCommit={commitDarkChannel} />
+            <ColorField channel="g" value={dark.g} onCommit={commitDarkChannel} />
+            <ColorField channel="b" value={dark.b} onCommit={commitDarkChannel} />
+            <span
+              style={{
+                ...swatchStyle,
+                background: `rgb(${to255(dark.r)}, ${to255(dark.g)}, ${to255(dark.b)})`,
+              }}
+            />
+            <button
+              type="button"
+              style={canKey ? smallButtonStyle : { ...smallButtonStyle, ...buttonDisabledStyle }}
+              disabled={!canKey}
+              title={
+                canKey ? 'Key the dark color at the playhead' : 'Select an animation to key'
+              }
+              onClick={() => keySlotDarkAtPlayhead(slot.id)}
+            >
+              Key
+            </button>
+            <button
+              type="button"
+              style={smallButtonStyle}
+              title="Disable the two-color dark tint"
+              onClick={() => commitSlotDarkColor(slot.id, null)}
+            >
+              Off
+            </button>
+          </>
+        )}
       </div>
 
       <div style={detailRowStyle}>
@@ -1208,6 +1270,29 @@ function keySlotColorAtPlayhead(slotId: SlotId): void {
   if (slot === undefined || state.activeAnimation === null) return;
   doc.history.execute(
     buildSlotColorKeyCommand(state.activeAnimation, slotId, slot.color, state.playhead),
+  );
+}
+
+// Set or clear a slot's setup DARK color (PP-D10) inside a coalescing session (mirrors commitSlotColor).
+function commitSlotDarkColor(id: SlotId, color: RGBA | null): void {
+  const history = documentHost.current().history;
+  history.beginInteraction();
+  try {
+    history.execute(new SetSlotDarkColorCommand(id, color));
+  } finally {
+    history.endInteraction('Set Slot Dark Color');
+  }
+}
+
+// Key the slot's current setup dark color at the playhead (only meaningful when the slot has a dark color;
+// the command enforces ANIM_DARK_NO_SETUP otherwise).
+function keySlotDarkAtPlayhead(slotId: SlotId): void {
+  const doc = documentHost.current();
+  const slot = doc.model.getSlot(slotId);
+  const state = usePlaybackStore.getState();
+  if (slot === undefined || slot.darkColor === null || state.activeAnimation === null) return;
+  doc.history.execute(
+    buildSlotDarkKeyCommand(state.activeAnimation, slotId, slot.darkColor, state.playhead),
   );
 }
 

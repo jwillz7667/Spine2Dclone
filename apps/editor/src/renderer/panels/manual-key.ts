@@ -62,3 +62,16 @@ export function buildSlotColorKeyCommand(
   const target: KeyframeTarget = { kind: 'slot', slotId, channel: 'color' };
   return new SetKeyframeCommand(animationId, target, time, { color });
 }
+
+// A single SetKeyframe keying the slot's current two-color DARK tint at `time` (PP-D10). The command rejects
+// keying a slot with no setup dark color (ANIM_DARK_NO_SETUP), so the panel offers this only when the slot
+// has one; the value is the dark color as-is (stored absolutely, like the joint color).
+export function buildSlotDarkKeyCommand(
+  animationId: AnimationId,
+  slotId: SlotId,
+  darkColor: RGBA,
+  time: number,
+): SetKeyframeCommand {
+  const target: KeyframeTarget = { kind: 'slot', slotId, channel: 'dark' };
+  return new SetKeyframeCommand(animationId, target, time, { color: darkColor });
+}

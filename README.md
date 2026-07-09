@@ -36,7 +36,7 @@ The portal is [`docs/README.md`](docs/README.md). Highlights:
 ## Status (see `docs/DEV_PLAN.md` section 9 for the tracker)
 
 Phases 0 to 4 (foundations, bone puppet, rigging, VFX/particles, slot composer) are complete and
-green in CI-verifiable form: the document model, the 100-command layer with exact undo, the
+green in CI-verifiable form: the document model, the 113-command layer with exact undo, the
 deterministic solve, the effects and slot runtimes, the `math-bridge` engine boundary, the MCP
 control surface, and the four-track conformance suite. Phase 5 (production hardening) is in
 progress: the headless spine is landed (MRNT binary codec, export-profile core, cross-language
@@ -91,8 +91,8 @@ node packages/mcp-server/dist/cli.js <projectRoot>
 
 `.github/workflows/ci.yml` runs typecheck, lint (including the dash guard), tests, build, the
 format semver gates, the package allowlist guard, the Phase 3 acceptance harness, and commitlint;
-a single `ci-pass` job aggregates the required checks. `conformance-native.yml` already runs the
-cross-language determinism vectors and is scaffolded for the Unity/Godot runtimes. Details:
+a single `ci-pass` job aggregates the required checks. `conformance-native.yml` gates Unity and Godot conformance
+for real (dotnet test plus the pinned headless Godot build) alongside the cross-language vectors. Details:
 [`docs/dev/testing-and-ci.md`](docs/dev/testing-and-ci.md).
 
 ## The five laws (a reviewer rejects any PR that breaks one)

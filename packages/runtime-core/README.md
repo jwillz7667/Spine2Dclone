@@ -15,9 +15,12 @@ These bans exist so the logic ports unchanged to C# and GDScript.
 Implemented in `src/skeleton/sample.ts` (`sampleSkeleton`); this order is the behavioral spec every
 runtime must match exactly:
 
-1. **Reset** to setup pose (`resetToSetupPose`, plus slot colors and constraint mixes).
+1. **Reset** to setup pose (`resetToSetupPose`, plus slot colors, constraint mixes, and the setup
+   draw order).
 2. **Apply animation timelines** (`applyAnimationAt` blends locals, slot color, and constraint
-   mixes; `composeTouchedBones` composes touched local matrices).
+   mixes, and applies the active draw-order key; `composeTouchedBones` composes touched local
+   matrices). Event firing is NOT part of this instantaneous pose sample (it is a time-range
+   operation, see below).
 3. **Solve constraints**: all IK constraints first (`solveIkOneBone` / `solveIkTwoBone`), then all
    transform constraints (`solveTransformConstraint`), each in document order (ADR-0003).
    Constraints write local transforms only.
@@ -34,9 +37,10 @@ runtime must match exactly:
 |---|---|---|
 | Affine math | `math/affine.ts` | The 2x3 matrix library: `compose`, `decompose`, `multiply`, `invert`, in-place `*Into` variants |
 | Pose | `skeleton/pose.ts`, `build-pose.ts` | The `Pose` structure-of-arrays buffers (Float64), built once from a `SkeletonDocument` |
-| Sampling | `skeleton/sample.ts`, `curve.ts`, `prepared.ts` | Single-animation sampling, the bezier table sampler (`BEZIER_SEGMENTS`), the prepared-animation cache |
+| Sampling | `skeleton/sample.ts`, `curve.ts`, `prepared.ts` | Single-animation sampling, the bezier table sampler (`BEZIER_SEGMENTS`), the prepared-animation cache, the draw-order lane application (PP-B4) |
+| Event firing | `skeleton/event-fire.ts` | Draw-order/event solve for PP-B4: `fireEventsInStep`, `collectFiredEvents`, `prepareEventTimeline`, the pooled `EventQueue`. Time-range fire-on-cross with exact loop-boundary semantics |
 | Skin state | `skeleton/skin-state.ts` | Runtime skin selection (PP-B3): `buildSkinState`, `setActiveSkin`, `resolveAttachment`, `resolveSlotAttachment`. An allocation-free lookup of the attachment a slot presents under the active skin (default-skin fallback), so a renderer switches skins live without rebuilding the `Pose`. A pure lookup over document skins + `pose.slotAttachment`; changes no solve output |
-| AnimationState | `skeleton/animation-state.ts` | Multi-track playback per ADR-0005: `setAnimation`, `crossfadeTo`, `queueAnimation`, additive layering |
+| AnimationState | `skeleton/animation-state.ts` | Multi-track playback per ADR-0005: `setAnimation`, `crossfadeTo`, `queueAnimation`, additive layering, the per-update event queue drain (PP-B4) |
 | Solve primitives | `solve/` | `resolveWorld`, one/two-bone IK, transform constraint, weighted/unweighted skinning, deform |
 | Effects | `effects/` | Mulberry32 PRNG (`makePrng`, `hash32`, `spinSeed` = FNV-1a-32 over UTF-8), the normative per-particle draw order, SoA particle pools with integer age steps, life curves, the emitter/sprite-animator/ribbon solvers, `EffectSystem` (quality tiers, `DEFAULT_MAX_LIVE_PARTICLES = 2000` budget with eviction) |
 | Slot | `slot/` | `sequence(result, scene)` producing a `PresentationTimeline` (pure function of a `SpinResult`, LAW 1), the integer fixed-point `rollupValueAt`, the column-down cascade `solveCascadeStep` |
@@ -51,6 +55,35 @@ A renderer solves the pose once with `sampleSkeleton`, then reads each slot's ge
 `default` skin, so a costume skin can override only some slots and inherit the rest. This is a pure
 lookup over `pose.slotAttachment` (the resolved attachment NAME the solve writes at step 2) plus the
 document skins: it adds no per-frame allocation, changes no solve output, and touches no fixture.
+
+## Draw order and event firing (PP-B4, ADR-0008)
+
+**Draw order** is a `Pose` lane, `pose.drawOrder` (an `Int32Array` where `drawOrder[renderPosition] =
+slotIndex`, position 0 furthest back). Step 1 resets it to the setup identity order; step 2 applies the
+animation's active draw-order key (the latest key at or before `t`, stepped) as a discrete
+greater-weight-wins channel, exactly like the attachment swap. Below the first key the setup order holds
+(coherent with ADR-0008's "empty offsets means setup order"). Each key's compact `{slot, offset}` diff is
+derived once at build into a full render-order permutation (`buildDrawOrderTimeline`), so application is a
+single allocation-free typed-array copy. A renderer reads `pose.drawOrder` after `sampleSkeleton` /
+`applyAnimationState` to draw slots front-to-back.
+
+**Events** are discrete markers fired as playback time advances PAST them, so they are a TIME-RANGE
+operation (`fireEventsInStep` / `collectFiredEvents`), not part of the instantaneous pose sample. Firing
+is half-open on the low end `(from, from+dt]` with exact loop-boundary semantics (tail of the current
+period, then one full pass per completed period, then the head). Event times live in `[0, duration]`:
+`t == duration` is the loop point (fires once per loop in the tail), and `t == 0` is the animation's
+starting state (it does not fire on its own during looping playback, since every sweep starts at
+`fromTime >= 0` and is half-open). Payloads are resolved once (the `EventDef` default overridden by the
+key) into a pooled, drained-per-update `EventQueue` (zero steady-state allocation, pinned by the
+allocation probe).
+
+`AnimationState` drains its `eventQueue` each `updateAnimationState`: every ADVANCING entry fires,
+including a crossfading-OUT `mixFrom` entry. This is a first-principles choice, not Spine imitation: an
+event is a discrete logical/audio marker, not a weighted value, so a track's blend weight (`alpha`, the
+crossfade fraction) cannot fire "half an event." A playing animation fires its events as it plays,
+independent of how visible it is; weight gates the visual contribution, never the firing. Fire order
+within one update is (ascending track index, outgoing-before-incoming, timeline), matching the apply
+order, so the drained log is deterministic.
 
 ## Determinism rules
 

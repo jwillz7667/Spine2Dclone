@@ -12,7 +12,7 @@ All under `src/`:
 
 | Track | Rigs / inputs | Fixtures | Lock |
 |---|---|---|---|
-| **Skeleton** | `rigs/` (9 rigs, each committed as `.json` AND a binary `.bin` twin): rig-2bone, rig-rigid-mesh, rig-weighted-mesh, rig-one-bone-ik, rig-two-bone-ik, rig-transform-constraint, rig-deform, rig-transform-modes, rig-blendmodes | `fixtures/` (9, driven by `sample-spec/`) | `.fixtures.lock` |
+| **Skeleton** | `rigs/` (11 rigs, each committed as `.json` AND a binary `.bin` twin): rig-2bone, rig-rigid-mesh, rig-weighted-mesh, rig-one-bone-ik, rig-two-bone-ik, rig-transform-constraint, rig-deform, rig-transform-modes, rig-blendmodes, rig-events-draworder, rig-events-loop | `fixtures/` (11, driven by `sample-spec/`) | `.fixtures.lock` |
 | **Effects / particles** | `effects-rigs/` (4): coin-burst, ribbon-trail, circle-spawn, god-rays-sprite | `effects-fixtures/` (4) | `.effects-fixtures.lock` |
 | **AnimationState** (ADR-0005) | `anim-state-rigs/anim-state-rig.json` | `anim-state-fixtures/` (4): discrete-flip, additive-layer, queue-loop-boundary, crossfade-fractions | `.anim-state-fixtures.lock` |
 | **Slot** | `slot/scenes/` (4 scenes) x `slot/spins/` (6 spins) via `slot/sample-spec/` | `slot/expected/` (6 golden `PresentationTimeline`s) | `.slot.fixtures.lock` |
@@ -33,9 +33,18 @@ path) is observed in the per-bone world affine; **rig-blendmodes** carries the f
 four slots and animates each slot's color. To make the blend track observable, a fixture sample gained
 an optional `slots` member (`{ slot, blendMode, color }` per captured slot): a rig's sample-spec opts in
 with a `slots: [names]` list, so bone-only and mesh-only fixtures stay byte-identical. `blendMode` is a
-discrete exact-compare lane; `color` rides the `COLOR` tolerance. Together they close two of the four
-`a2-coverage` `it.todo` entries (the remaining two, draw-order and events, are blocked on the F1 format
-stage).
+discrete exact-compare lane; `color` rides the `COLOR` tolerance.
+
+The last two skeleton rigs are the PP-B4 pair (Stage F1, ADR-0008): **rig-events-draworder** carries a
+draw-order timeline that reorders three slots mid-clip plus event keys with resolved payloads, and
+**rig-events-loop** fires events across a looping event-step sweep that crosses the loop boundary twice
+(including a key exactly at the loop point). Two fixture lanes make them observable: a per-sample integer
+`drawOrder` permutation (`drawOrder[renderPosition] = slotIndex`, EXACT compare), opted in with the
+sample-spec's `captureDrawOrder`; and a fixture-level fired-event log (`events`, one record per fire with
+name/int/string/time EXACT and float on the `EVENT_FLOAT` tolerance), produced by sweeping the
+sample-spec's `eventStep`. Both lanes are emitted only when the spec opts in, so every pre-PP-B4 fixture
+regenerates byte-identically. Together with the PP-B1 pair these close all four `a2-coverage` `it.todo`
+entries.
 
 ## Structure
 

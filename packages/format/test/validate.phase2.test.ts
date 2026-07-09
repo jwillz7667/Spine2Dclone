@@ -58,7 +58,7 @@ function baseDoc(mesh: MeshAttachment = unweightedMesh()): SkeletonDocument {
     transformMode: 'normal' as const,
   });
   return {
-    formatVersion: '0.3.0',
+    formatVersion: '0.4.0',
     name: 'rig',
     hash: '',
     bones: [bone('root', null, 0), bone('child', 'root', 100)],
@@ -108,7 +108,11 @@ function ik(over: Partial<SkeletonDocument['ikConstraints'][number]> = {}): Skel
         bones: ['root', 'child'],
         target: 'child',
         mix: 1,
-        bendPositive: true,
+        bend: 1,
+        softness: 0,
+        stretch: false,
+        compress: false,
+        uniform: false,
         ...over,
       },
     ],
@@ -132,6 +136,8 @@ function tc(
     offsetScaleX: 0,
     offsetScaleY: 0,
     offsetShearY: 0,
+    local: false,
+    relative: false,
   };
   return {
     ...doc,
@@ -266,7 +272,17 @@ describe('constraint validation (ADR-0003)', () => {
     const dup: SkeletonDocument = {
       ...doc,
       ikConstraints: [
-        { name: 'shared', bones: ['child'], target: 'root', mix: 1, bendPositive: true },
+        {
+          name: 'shared',
+          bones: ['child'],
+          target: 'root',
+          mix: 1,
+          bend: 1,
+          softness: 0,
+          stretch: false,
+          compress: false,
+          uniform: false,
+        },
       ],
       transformConstraints: [
         {
@@ -285,6 +301,8 @@ describe('constraint validation (ADR-0003)', () => {
           offsetScaleX: 0,
           offsetScaleY: 0,
           offsetShearY: 0,
+          local: false,
+          relative: false,
         },
       ],
     };
@@ -302,7 +320,7 @@ describe('animation ik/transform/deform validation (ADR-0004)', () => {
           duration: 1,
           bones: {},
           slots: {},
-          ik: { ghost: [{ time: 0, value: { mix: 1, bendPositive: true }, curve: 'stepped' }] },
+          ik: { ghost: [{ time: 0, value: { mix: 1, bend: 1 }, curve: 'stepped' }] },
           transform: {},
           deform: {},
           drawOrder: [],

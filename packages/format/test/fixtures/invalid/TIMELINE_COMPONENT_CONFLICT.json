@@ -38,7 +38,7 @@
         "body": {
           "body": {
             "type": "region",
-            "path": "ghostRegion",
+            "path": "body",
             "x": 0,
             "y": 0,
             "rotation": 0,
@@ -65,18 +65,21 @@
       "duration": 1,
       "bones": {
         "root": {
-          "rotate": [
+          "translate": [
             {
               "time": 0,
               "value": {
-                "angle": 0
+                "x": 0,
+                "y": 0
               },
               "curve": "linear"
-            },
+            }
+          ],
+          "translateX": [
             {
-              "time": 1,
+              "time": 0,
               "value": {
-                "angle": 30
+                "value": 0
               },
               "curve": "linear"
             }

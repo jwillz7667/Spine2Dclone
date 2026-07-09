@@ -45,7 +45,7 @@ describe('effects barrel surface', () => {
     expect(EFFECTS_FORMAT_VERSION).toBe('1.0.0');
     expect(FORMAT_COMMON_VERSION).toBe('1.0.0');
     // The effects and slot version lines move INDEPENDENTLY of the skeletal formatVersion, which is at
-    // 0.3.0 after the stage F1 bump (ADR-0008); the effects line is unaffected.
-    expect(CURRENT_FORMAT_VERSION).toBe('0.3.0');
+    // 0.4.0 after the stage F2 bump (ADR-0009); the effects line is unaffected.
+    expect(CURRENT_FORMAT_VERSION).toBe('0.4.0');
   });
 });

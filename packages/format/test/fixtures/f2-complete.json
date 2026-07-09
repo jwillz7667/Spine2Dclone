@@ -1,0 +1,509 @@
+{
+  "formatVersion": "0.4.0",
+  "name": "f2-complete",
+  "hash": "cbf5986994fa8540d98624f5123bdf4886b8f0f88050966b388b18020bf30841",
+  "bones": [
+    {
+      "name": "root",
+      "parent": null,
+      "length": 100,
+      "x": 0,
+      "y": 0,
+      "rotation": 0,
+      "scaleX": 1,
+      "scaleY": 1,
+      "shearX": 0,
+      "shearY": 0,
+      "transformMode": "normal"
+    },
+    {
+      "name": "child",
+      "parent": "root",
+      "length": 100,
+      "x": 100,
+      "y": 0,
+      "rotation": 0,
+      "scaleX": 1,
+      "scaleY": 1,
+      "shearX": 0,
+      "shearY": 0,
+      "transformMode": "normal"
+    },
+    {
+      "name": "target",
+      "parent": "root",
+      "length": 100,
+      "x": 200,
+      "y": 0,
+      "rotation": 0,
+      "scaleX": 1,
+      "scaleY": 1,
+      "shearX": 0,
+      "shearY": 0,
+      "transformMode": "normal"
+    }
+  ],
+  "slots": [
+    {
+      "name": "body",
+      "bone": "root",
+      "color": {
+        "r": 1,
+        "g": 1,
+        "b": 1,
+        "a": 1
+      },
+      "darkColor": {
+        "r": 0,
+        "g": 0,
+        "b": 0,
+        "a": 1
+      },
+      "attachment": "body",
+      "blendMode": "normal"
+    },
+    {
+      "name": "limb",
+      "bone": "child",
+      "color": {
+        "r": 1,
+        "g": 1,
+        "b": 1,
+        "a": 1
+      },
+      "attachment": "baseMesh",
+      "blendMode": "normal"
+    }
+  ],
+  "skins": [
+    {
+      "name": "default",
+      "attachments": {
+        "body": {
+          "body": {
+            "type": "region",
+            "path": "body",
+            "x": 0,
+            "y": 0,
+            "rotation": 0,
+            "scaleX": 1,
+            "scaleY": 1,
+            "width": 64,
+            "height": 64,
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "sequence": {
+              "count": 3,
+              "start": 1,
+              "digits": 2,
+              "setupIndex": 1
+            }
+          }
+        },
+        "limb": {
+          "baseMesh": {
+            "type": "mesh",
+            "path": "baseRegion",
+            "uvs": [
+              0,
+              0,
+              1,
+              0,
+              1,
+              1,
+              0,
+              1
+            ],
+            "triangles": [
+              0,
+              1,
+              2,
+              0,
+              2,
+              3
+            ],
+            "hullLength": 4,
+            "width": 64,
+            "height": 64,
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "vertices": [
+              -10,
+              -10,
+              10,
+              -10,
+              10,
+              10,
+              -10,
+              10
+            ]
+          },
+          "linkedLimb": {
+            "type": "linkedmesh",
+            "path": "linkedRegion",
+            "parent": "baseMesh",
+            "timelines": false,
+            "width": 64,
+            "height": 64,
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            }
+          }
+        }
+      },
+      "bones": [
+        "child"
+      ],
+      "constraints": [
+        "ik1",
+        "tc1"
+      ]
+    }
+  ],
+  "ikConstraints": [
+    {
+      "name": "ik1",
+      "bones": [
+        "root",
+        "child"
+      ],
+      "target": "target",
+      "mix": 1,
+      "bend": 1,
+      "softness": 8,
+      "stretch": true,
+      "compress": false,
+      "uniform": true,
+      "order": 0
+    },
+    {
+      "name": "ik2",
+      "bones": [
+        "child"
+      ],
+      "target": "target",
+      "mix": 0.5,
+      "bend": -1,
+      "softness": 0,
+      "stretch": false,
+      "compress": true,
+      "uniform": false,
+      "order": 1
+    }
+  ],
+  "transformConstraints": [
+    {
+      "name": "tc1",
+      "bones": [
+        "child"
+      ],
+      "target": "root",
+      "mixRotate": 1,
+      "mixX": 0,
+      "mixY": 0,
+      "mixScaleX": 0,
+      "mixScaleY": 0,
+      "mixShearY": 0,
+      "offsetRotation": 0,
+      "offsetX": 0,
+      "offsetY": 0,
+      "offsetScaleX": 0,
+      "offsetScaleY": 0,
+      "offsetShearY": 0,
+      "local": true,
+      "relative": false,
+      "order": 2
+    }
+  ],
+  "events": [],
+  "animations": {
+    "idle": {
+      "duration": 1,
+      "bones": {
+        "root": {
+          "rotate": [
+            {
+              "time": 0,
+              "value": {
+                "angle": 0
+              },
+              "curve": "linear"
+            },
+            {
+              "time": 1,
+              "value": {
+                "angle": 10
+              },
+              "curve": "linear"
+            }
+          ]
+        },
+        "child": {
+          "translateX": [
+            {
+              "time": 0,
+              "value": {
+                "value": 0
+              },
+              "curve": {
+                "type": "bezier",
+                "cx1": 0.25,
+                "cy1": 0.1,
+                "cx2": 0.75,
+                "cy2": 0.9
+              }
+            },
+            {
+              "time": 1,
+              "value": {
+                "value": 5
+              },
+              "curve": "linear"
+            }
+          ],
+          "translateY": [
+            {
+              "time": 0,
+              "value": {
+                "value": 0
+              },
+              "curve": "linear"
+            }
+          ],
+          "scaleX": [
+            {
+              "time": 0,
+              "value": {
+                "value": 1
+              },
+              "curve": "stepped"
+            }
+          ],
+          "scaleY": [
+            {
+              "time": 0,
+              "value": {
+                "value": 1
+              },
+              "curve": "linear"
+            }
+          ],
+          "shearX": [
+            {
+              "time": 0,
+              "value": {
+                "value": 0
+              },
+              "curve": "linear"
+            }
+          ],
+          "shearY": [
+            {
+              "time": 0,
+              "value": {
+                "value": 0
+              },
+              "curve": "linear"
+            }
+          ]
+        }
+      },
+      "slots": {
+        "body": {
+          "rgb": [
+            {
+              "time": 0,
+              "value": {
+                "rgb": {
+                  "r": 1,
+                  "g": 1,
+                  "b": 1
+                }
+              },
+              "curve": "linear"
+            },
+            {
+              "time": 1,
+              "value": {
+                "rgb": {
+                  "r": 1,
+                  "g": 0.5,
+                  "b": 0.2
+                }
+              },
+              "curve": "linear"
+            }
+          ],
+          "alpha": [
+            {
+              "time": 0,
+              "value": {
+                "alpha": 1
+              },
+              "curve": "linear"
+            },
+            {
+              "time": 1,
+              "value": {
+                "alpha": 0.5
+              },
+              "curve": "linear"
+            }
+          ],
+          "dark": [
+            {
+              "time": 0,
+              "value": {
+                "color": {
+                  "r": 0,
+                  "g": 0,
+                  "b": 0,
+                  "a": 1
+                }
+              },
+              "curve": "linear"
+            },
+            {
+              "time": 1,
+              "value": {
+                "color": {
+                  "r": 0.1,
+                  "g": 0.1,
+                  "b": 0.2,
+                  "a": 1
+                }
+              },
+              "curve": "linear"
+            }
+          ],
+          "sequence": [
+            {
+              "time": 0,
+              "mode": "loop",
+              "index": 0,
+              "delay": 0.1
+            }
+          ]
+        }
+      },
+      "ik": {
+        "ik1": [
+          {
+            "time": 0,
+            "value": {
+              "mix": 1,
+              "bend": 1,
+              "softness": 8,
+              "stretch": true,
+              "compress": false
+            },
+            "curve": "stepped"
+          }
+        ]
+      },
+      "transform": {
+        "tc1": [
+          {
+            "time": 0,
+            "value": {
+              "mixRotate": 1
+            },
+            "curve": "linear"
+          }
+        ]
+      },
+      "deform": {
+        "default": {
+          "limb": {
+            "linkedLimb": [
+              {
+                "time": 0,
+                "value": {
+                  "offsets": [
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0
+                  ]
+                },
+                "curve": "linear"
+              }
+            ]
+          }
+        }
+      },
+      "drawOrder": [
+        {
+          "time": 0,
+          "offsets": []
+        }
+      ],
+      "events": []
+    }
+  },
+  "atlas": {
+    "pages": [
+      {
+        "file": "atlas.png",
+        "width": 256,
+        "height": 256,
+        "regions": [
+          {
+            "name": "body",
+            "x": 0,
+            "y": 0,
+            "w": 64,
+            "h": 64,
+            "rotated": false,
+            "offsetX": 0,
+            "offsetY": 0,
+            "originalW": 64,
+            "originalH": 64
+          },
+          {
+            "name": "baseRegion",
+            "x": 64,
+            "y": 0,
+            "w": 64,
+            "h": 64,
+            "rotated": false,
+            "offsetX": 0,
+            "offsetY": 0,
+            "originalW": 64,
+            "originalH": 64
+          },
+          {
+            "name": "linkedRegion",
+            "x": 128,
+            "y": 0,
+            "w": 64,
+            "h": 64,
+            "rotated": false,
+            "offsetX": 0,
+            "offsetY": 0,
+            "originalW": 64,
+            "originalH": 64
+          }
+        ]
+      }
+    ]
+  },
+  "metadata": {
+    "fps": 30
+  }
+}

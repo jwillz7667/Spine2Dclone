@@ -1,7 +1,7 @@
 {
-  "formatVersion": "0.3.0",
+  "formatVersion": "0.4.0",
   "name": "events-draworder",
-  "hash": "8c1ec7497eeb97d10918c8b4453ed00bcd50f16f4bfbb2e317734285f0c16e23",
+  "hash": "d0b8fd67bce78fab2dcbfabab72701a05055611484b815e0743c87fcad74fc7c",
   "bones": [
     {
       "name": "root",

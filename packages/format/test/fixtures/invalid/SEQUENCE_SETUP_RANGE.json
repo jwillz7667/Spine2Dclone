@@ -38,7 +38,7 @@
         "body": {
           "body": {
             "type": "region",
-            "path": "ghostRegion",
+            "path": "body",
             "x": 0,
             "y": 0,
             "rotation": 0,
@@ -51,6 +51,12 @@
               "g": 1,
               "b": 1,
               "a": 1
+            },
+            "sequence": {
+              "count": 2,
+              "start": 0,
+              "digits": 2,
+              "setupIndex": 5
             }
           }
         }

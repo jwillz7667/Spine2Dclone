@@ -6,10 +6,11 @@ import { migrateToCurrent, runMigrations } from '../src/version/migrate';
 import type { MigrationStep } from '../src/version/migrations';
 import { cloneMinimal } from './helpers';
 
-// WP-2.2 / ADR-0004 and stage F1 / ADR-0008 (format-contract section 10.4, 10.5): the migration
-// framework and the 0.1.x -> 0.2.0 -> 0.3.0 chain. A pre-current document is forward-migrated on
-// import (empties injected, version stamped, hash recomputed) so every committed older document still
-// loads (backward compatibility). A 0.1.0 document walks BOTH steps to reach 0.3.0.
+// WP-2.2 / ADR-0004, stage F1 / ADR-0008, and stage F2 / ADR-0009 (format-contract section 10.4, 10.5):
+// the migration framework and the 0.1.x -> 0.2.0 -> 0.3.0 -> 0.4.0 chain. A pre-current document is
+// forward-migrated on import (empties injected, constraints reshaped, version stamped, hash recomputed)
+// so every committed older document still loads (backward compatibility). A 0.1.0 document walks every
+// step to reach 0.4.0.
 
 // A Phase-1 (0.1.0) document: no ikConstraints/transformConstraints, an animation without the
 // ik/transform/deform timelines. Returned as a plain object (it does NOT satisfy the current schema).
@@ -55,13 +56,13 @@ function oldMinimal(hash: string): Record<string, unknown> {
   return base;
 }
 
-describe('0.1.x -> 0.3.0 migration chain (ADR-0004, ADR-0008)', () => {
-  it('injects every added collection through the chain and stamps 0.3.0', () => {
+describe('0.1.x -> 0.4.0 migration chain (ADR-0004, ADR-0008, ADR-0009)', () => {
+  it('injects every added collection through the chain and stamps 0.4.0', () => {
     const result = migrateToCurrent(oldMinimal(''));
     expect(result.kind).toBe('migrated');
     if (result.kind !== 'migrated') return;
     const doc = result.doc as SkeletonDocument;
-    expect(doc.formatVersion).toBe('0.3.0');
+    expect(doc.formatVersion).toBe('0.4.0');
     // Phase 2 (0.2.0) additions.
     expect(doc.ikConstraints).toEqual([]);
     expect(doc.transformConstraints).toEqual([]);
@@ -101,14 +102,54 @@ describe('0.1.x -> 0.3.0 migration chain (ADR-0004, ADR-0008)', () => {
   it('validateDocument forward-migrates a 0.1.0 document end to end', () => {
     const report = validateDocument(oldMinimal(''));
     expect(report.ok).toBe(true);
-    expect(report.document?.formatVersion).toBe('0.3.0');
+    expect(report.document?.formatVersion).toBe('0.4.0');
     expect(report.document?.ikConstraints).toEqual([]);
     expect(report.document?.events).toEqual([]);
   });
 
-  it('migrateToCurrent on a current 0.3.0 document is unchanged', () => {
+  it('migrateToCurrent on a current 0.4.0 document is unchanged', () => {
     const result = migrateToCurrent(cloneMinimal());
     expect(result.kind).toBe('unchanged');
+  });
+
+  it('maps a 0.3.0 IK constraint bendPositive to the signed bend and injects depth defaults (ADR-0009)', () => {
+    // A 0.3.0 document with a fully-shaped IK constraint (bendPositive, no depth fields) and an IK
+    // timeline frame; the migration replaces bendPositive with bend and injects the depth defaults.
+    const source = {
+      ...(cloneMinimal() as unknown as Record<string, unknown>),
+      formatVersion: '0.3.0',
+      hash: '',
+      ikConstraints: [
+        { name: 'ik', bones: ['root'], target: 'root', mix: 1, bendPositive: false },
+      ],
+      animations: {
+        idle: {
+          duration: 1,
+          bones: {},
+          slots: {},
+          ik: { ik: [{ time: 0, value: { mix: 1, bendPositive: true }, curve: 'stepped' }] },
+          transform: {},
+          deform: {},
+          drawOrder: [],
+          events: [],
+        },
+      },
+    };
+    const result = migrateToCurrent(source);
+    expect(result.kind).toBe('migrated');
+    if (result.kind !== 'migrated') return;
+    const doc = result.doc as SkeletonDocument;
+    const constraint = doc.ikConstraints[0];
+    expect(constraint?.bend).toBe(-1); // bendPositive false -> -1
+    expect(constraint).not.toHaveProperty('bendPositive');
+    expect(constraint?.softness).toBe(0);
+    expect(constraint?.stretch).toBe(false);
+    expect(constraint?.compress).toBe(false);
+    expect(constraint?.uniform).toBe(false);
+    const frame = doc.animations['idle']?.ik['ik']?.[0]?.value;
+    expect(frame?.bend).toBe(1); // bendPositive true -> +1
+    expect(frame).not.toHaveProperty('bendPositive');
+    expect(validateDocument(doc).ok).toBe(true);
   });
 
   it('a below-current version with no chain link is unsupported', () => {

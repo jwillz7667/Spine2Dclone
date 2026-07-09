@@ -38,7 +38,7 @@
         "body": {
           "body": {
             "type": "region",
-            "path": "ghostRegion",
+            "path": "body",
             "x": 0,
             "y": 0,
             "rotation": 0,
@@ -83,7 +83,24 @@
           ]
         }
       },
-      "slots": {},
+      "slots": {
+        "body": {
+          "dark": [
+            {
+              "time": 0,
+              "value": {
+                "color": {
+                  "r": 0,
+                  "g": 0,
+                  "b": 0,
+                  "a": 1
+                }
+              },
+              "curve": "linear"
+            }
+          ]
+        }
+      },
       "ik": {},
       "transform": {},
       "deform": {},

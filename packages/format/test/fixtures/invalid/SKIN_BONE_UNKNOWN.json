@@ -38,7 +38,7 @@
         "body": {
           "body": {
             "type": "region",
-            "path": "ghostRegion",
+            "path": "body",
             "x": 0,
             "y": 0,
             "rotation": 0,
@@ -54,7 +54,10 @@
             }
           }
         }
-      }
+      },
+      "bones": [
+        "ghost"
+      ]
     }
   ],
   "ikConstraints": [],

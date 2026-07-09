@@ -1,10 +1,12 @@
 // Generates the skeleton golden corpus (format-contract WP-F.10, phase-0-foundations.md WP-0.3):
 // one canonical valid `minimal.json` plus one `invalid/<CODE>.json` per reachable error code, each
 // invalid by exactly ONE fault. It also emits the WP-1.11 (phase-1-bone-puppet.md section 5) positive
-// completeness fixture `phase1-complete.json` and the stage F1 (ADR-0008) positive completeness
-// fixture `events-draworder.json`, which exercises event definitions, event and draw-order timelines,
-// and the metadata block. The corpus is committed; this script is its provenance, so a reviewer can
-// see precisely which single field each fixture breaks. Run: pnpm gen:fixtures.
+// completeness fixture `phase1-complete.json`, the stage F1 (ADR-0008) positive completeness fixture
+// `events-draworder.json` (event definitions, event and draw-order timelines, metadata), and the stage
+// F2 (ADR-0009) positive completeness fixture `f2-complete.json` (constraint depth and order, a linked
+// mesh, a sequence attachment, per-component and split-color and dark timelines, and skin scoping). The
+// corpus is committed; this script is its provenance, so a reviewer can see precisely which single field
+// each fixture breaks. Run: pnpm gen:fixtures.
 //
 // The valid fixtures carry a correct content hash (so they validate with zero warnings). The
 // invalid semantic/structural fixtures carry an empty hash, which yields only a HASH_ABSENT warning
@@ -25,7 +27,7 @@ const invalidDir = join(fixturesDir, 'invalid');
 // computed and embedded below.
 function minimalDraft(): SkeletonDocument {
   return {
-    formatVersion: '0.3.0',
+    formatVersion: '0.4.0',
     name: 'minimal',
     hash: '',
     bones: [
@@ -138,7 +140,7 @@ function minimalValid(): SkeletonDocument {
 // so the fixture validates with zero errors and zero warnings.
 function phase1CompleteDraft(): SkeletonDocument {
   return {
-    formatVersion: '0.3.0',
+    formatVersion: '0.4.0',
     name: 'phase1-complete',
     hash: '',
     bones: [
@@ -320,7 +322,7 @@ function eventsDrawOrderDraft(): SkeletonDocument {
     originalH: 64,
   });
   return {
-    formatVersion: '0.3.0',
+    formatVersion: '0.4.0',
     name: 'events-draworder',
     hash: '',
     bones: [
@@ -399,6 +401,234 @@ function eventsDrawOrderValid(): SkeletonDocument {
   return { ...draft, hash: computeContentHash(draft) };
 }
 
+// The stage F2 (ADR-0009) positive COMPLETENESS fixture: a rig that exercises every new 0.4.0 shape end
+// to end. Two IK constraints carry softness/stretch/compress/uniform and a signed bend with an explicit
+// order; a transform constraint carries the local variant and closes the dense order [0, 3). A mesh on
+// the `limb` slot has a linked mesh child that reuses its geometry, and the animation deforms the linked
+// mesh (its V resolved through the parent). The `body` region carries a frame sequence, and the animation
+// keys per-component bone tracks (with a per-component bezier), split slot rgb/alpha and a two-color dark
+// timeline (the slot defines a setup darkColor), a sequence timeline, and a keyed IK frame with softness.
+// The default skin scopes a bone and constraints. Authored with an empty hash; the real hash is embedded
+// in f2CompleteValid below so the fixture validates with zero errors and zero warnings.
+function f2CompleteDraft(): SkeletonDocument {
+  const bone = (name: string, parent: string | null, x: number) => ({
+    name,
+    parent,
+    length: 100,
+    x,
+    y: 0,
+    rotation: 0,
+    scaleX: 1,
+    scaleY: 1,
+    shearX: 0,
+    shearY: 0,
+    transformMode: 'normal' as const,
+  });
+  const atlasRegion = (name: string, x: number) => ({
+    name,
+    x,
+    y: 0,
+    w: 64,
+    h: 64,
+    rotated: false,
+    offsetX: 0,
+    offsetY: 0,
+    originalW: 64,
+    originalH: 64,
+  });
+  const white = { r: 1, g: 1, b: 1, a: 1 };
+  return {
+    formatVersion: '0.4.0',
+    name: 'f2-complete',
+    hash: '',
+    bones: [bone('root', null, 0), bone('child', 'root', 100), bone('target', 'root', 200)],
+    slots: [
+      { name: 'body', bone: 'root', color: white, darkColor: { r: 0, g: 0, b: 0, a: 1 }, attachment: 'body', blendMode: 'normal' },
+      { name: 'limb', bone: 'child', color: white, attachment: 'baseMesh', blendMode: 'normal' },
+    ],
+    skins: [
+      {
+        name: 'default',
+        attachments: {
+          body: {
+            body: {
+              type: 'region',
+              path: 'body',
+              x: 0,
+              y: 0,
+              rotation: 0,
+              scaleX: 1,
+              scaleY: 1,
+              width: 64,
+              height: 64,
+              color: white,
+              sequence: { count: 3, start: 1, digits: 2, setupIndex: 1 },
+            },
+          },
+          limb: {
+            baseMesh: {
+              type: 'mesh',
+              path: 'baseRegion',
+              uvs: [0, 0, 1, 0, 1, 1, 0, 1],
+              triangles: [0, 1, 2, 0, 2, 3],
+              hullLength: 4,
+              width: 64,
+              height: 64,
+              color: white,
+              vertices: [-10, -10, 10, -10, 10, 10, -10, 10],
+            },
+            linkedLimb: {
+              type: 'linkedmesh',
+              path: 'linkedRegion',
+              parent: 'baseMesh',
+              timelines: false,
+              width: 64,
+              height: 64,
+              color: white,
+            },
+          },
+        },
+        bones: ['child'],
+        constraints: ['ik1', 'tc1'],
+      },
+    ],
+    ikConstraints: [
+      {
+        name: 'ik1',
+        bones: ['root', 'child'],
+        target: 'target',
+        mix: 1,
+        bend: 1,
+        softness: 8,
+        stretch: true,
+        compress: false,
+        uniform: true,
+        order: 0,
+      },
+      {
+        name: 'ik2',
+        bones: ['child'],
+        target: 'target',
+        mix: 0.5,
+        bend: -1,
+        softness: 0,
+        stretch: false,
+        compress: true,
+        uniform: false,
+        order: 1,
+      },
+    ],
+    transformConstraints: [
+      {
+        name: 'tc1',
+        bones: ['child'],
+        target: 'root',
+        mixRotate: 1,
+        mixX: 0,
+        mixY: 0,
+        mixScaleX: 0,
+        mixScaleY: 0,
+        mixShearY: 0,
+        offsetRotation: 0,
+        offsetX: 0,
+        offsetY: 0,
+        offsetScaleX: 0,
+        offsetScaleY: 0,
+        offsetShearY: 0,
+        local: true,
+        relative: false,
+        order: 2,
+      },
+    ],
+    events: [],
+    animations: {
+      idle: {
+        duration: 1,
+        bones: {
+          root: {
+            rotate: [
+              { time: 0, value: { angle: 0 }, curve: 'linear' },
+              { time: 1, value: { angle: 10 }, curve: 'linear' },
+            ],
+          },
+          child: {
+            translateX: [
+              {
+                time: 0,
+                value: { value: 0 },
+                curve: { type: 'bezier', cx1: 0.25, cy1: 0.1, cx2: 0.75, cy2: 0.9 },
+              },
+              { time: 1, value: { value: 5 }, curve: 'linear' },
+            ],
+            translateY: [{ time: 0, value: { value: 0 }, curve: 'linear' }],
+            scaleX: [{ time: 0, value: { value: 1 }, curve: 'stepped' }],
+            scaleY: [{ time: 0, value: { value: 1 }, curve: 'linear' }],
+            shearX: [{ time: 0, value: { value: 0 }, curve: 'linear' }],
+            shearY: [{ time: 0, value: { value: 0 }, curve: 'linear' }],
+          },
+        },
+        slots: {
+          body: {
+            rgb: [
+              { time: 0, value: { rgb: { r: 1, g: 1, b: 1 } }, curve: 'linear' },
+              { time: 1, value: { rgb: { r: 1, g: 0.5, b: 0.2 } }, curve: 'linear' },
+            ],
+            alpha: [
+              { time: 0, value: { alpha: 1 }, curve: 'linear' },
+              { time: 1, value: { alpha: 0.5 }, curve: 'linear' },
+            ],
+            dark: [
+              { time: 0, value: { color: { r: 0, g: 0, b: 0, a: 1 } }, curve: 'linear' },
+              { time: 1, value: { color: { r: 0.1, g: 0.1, b: 0.2, a: 1 } }, curve: 'linear' },
+            ],
+            sequence: [{ time: 0, mode: 'loop', index: 0, delay: 0.1 }],
+          },
+        },
+        ik: {
+          ik1: [
+            {
+              time: 0,
+              value: { mix: 1, bend: 1, softness: 8, stretch: true, compress: false },
+              curve: 'stepped',
+            },
+          ],
+        },
+        transform: {
+          tc1: [{ time: 0, value: { mixRotate: 1 }, curve: 'linear' }],
+        },
+        deform: {
+          default: {
+            limb: {
+              linkedLimb: [
+                { time: 0, value: { offsets: [0, 0, 0, 0, 0, 0, 0, 0] }, curve: 'linear' },
+              ],
+            },
+          },
+        },
+        drawOrder: [{ time: 0, offsets: [] }],
+        events: [],
+      },
+    },
+    atlas: {
+      pages: [
+        {
+          file: 'atlas.png',
+          width: 256,
+          height: 256,
+          regions: [atlasRegion('body', 0), atlasRegion('baseRegion', 64), atlasRegion('linkedRegion', 128)],
+        },
+      ],
+    },
+    metadata: { fps: 30 },
+  };
+}
+
+// Build the stage F2 completeness document with its real content hash embedded.
+function f2CompleteValid(): SkeletonDocument {
+  const draft = f2CompleteDraft();
+  return { ...draft, hash: computeContentHash(draft) };
+}
+
 // Each invalid case clones the minimal draft (empty hash) and applies exactly one fault. The
 // returned value is serialized verbatim; some faults are intentionally off-type (an unknown key, a
 // bad bezier), which is why a few builders return a looser object than SkeletonDocument.
@@ -409,6 +639,56 @@ interface InvalidCase {
 
 function draft(): SkeletonDocument {
   return minimalDraft();
+}
+
+// A base with a `limb` slot carrying a mesh `baseMesh` and a linked mesh `dst` (parent `baseMesh`), plus
+// the atlas regions they reference. Valid until a linked-mesh case mutates the link.
+function linkedMeshBase(): SkeletonDocument {
+  const white = { r: 1, g: 1, b: 1, a: 1 };
+  const region = (name: string, x: number) => ({
+    name,
+    x,
+    y: 0,
+    w: 64,
+    h: 64,
+    rotated: false,
+    offsetX: 0,
+    offsetY: 0,
+    originalW: 64,
+    originalH: 64,
+  });
+  const doc = draft();
+  doc.slots.push({
+    name: 'limb',
+    bone: 'root',
+    color: white,
+    attachment: 'baseMesh',
+    blendMode: 'normal',
+  });
+  doc.skins[0]!.attachments['limb'] = {
+    baseMesh: {
+      type: 'mesh',
+      path: 'baseRegion',
+      uvs: [0, 0, 1, 0, 1, 1, 0, 1],
+      triangles: [0, 1, 2, 0, 2, 3],
+      hullLength: 4,
+      width: 64,
+      height: 64,
+      color: white,
+      vertices: [-10, -10, 10, -10, 10, 10, -10, 10],
+    },
+    dst: {
+      type: 'linkedmesh',
+      path: 'linkedRegion',
+      parent: 'baseMesh',
+      timelines: false,
+      width: 64,
+      height: 64,
+      color: white,
+    },
+  };
+  doc.atlas.pages[0]!.regions.push(region('baseRegion', 64), region('linkedRegion', 128));
+  return doc;
 }
 
 const invalidCases: readonly InvalidCase[] = [
@@ -619,6 +899,137 @@ const invalidCases: readonly InvalidCase[] = [
     },
   },
   {
+    code: 'IK_SOFTNESS_RANGE',
+    build: () => {
+      const doc = draft();
+      doc.ikConstraints.push({
+        name: 'ik',
+        bones: ['root'],
+        target: 'root',
+        mix: 1,
+        bend: 1,
+        softness: -1,
+        stretch: false,
+        compress: false,
+        uniform: false,
+      });
+      return doc;
+    },
+  },
+  {
+    code: 'CONSTRAINT_ORDER_INVALID',
+    build: () => {
+      // Order is set on one of two constraints (all-or-none violation).
+      const doc = draft();
+      const base = {
+        bones: ['root'],
+        target: 'root',
+        mix: 1,
+        bend: 1 as const,
+        softness: 0,
+        stretch: false,
+        compress: false,
+        uniform: false,
+      };
+      doc.ikConstraints.push({ name: 'ikA', ...base, order: 0 }, { name: 'ikB', ...base });
+      return doc;
+    },
+  },
+  {
+    code: 'LINKED_MESH_PARENT_MISSING',
+    build: () => {
+      const doc = linkedMeshBase();
+      const dst = doc.skins[0]!.attachments['limb']!['dst']!;
+      if (dst.type === 'linkedmesh') dst.parent = 'ghost';
+      return doc;
+    },
+  },
+  {
+    code: 'LINKED_MESH_PARENT_INVALID',
+    build: () => {
+      // The parent resolves but is a region (no geometry to inherit).
+      const doc = linkedMeshBase();
+      doc.skins[0]!.attachments['limb']!['baseMesh'] = {
+        type: 'region',
+        path: 'baseRegion',
+        x: 0,
+        y: 0,
+        rotation: 0,
+        scaleX: 1,
+        scaleY: 1,
+        width: 64,
+        height: 64,
+        color: { r: 1, g: 1, b: 1, a: 1 },
+      };
+      return doc;
+    },
+  },
+  {
+    code: 'LINKED_MESH_CYCLE',
+    build: () => {
+      // baseMesh becomes a linked mesh pointing at dst, and dst points at baseMesh (a cycle).
+      const doc = linkedMeshBase();
+      doc.skins[0]!.attachments['limb']!['baseMesh'] = {
+        type: 'linkedmesh',
+        path: 'baseRegion',
+        parent: 'dst',
+        timelines: false,
+        width: 64,
+        height: 64,
+        color: { r: 1, g: 1, b: 1, a: 1 },
+      };
+      return doc;
+    },
+  },
+  {
+    code: 'SEQUENCE_SETUP_RANGE',
+    build: () => {
+      const doc = draft();
+      const att = doc.skins[0]!.attachments['body']!['body']!;
+      if (att.type === 'region') att.sequence = { count: 2, start: 0, digits: 2, setupIndex: 5 };
+      return doc;
+    },
+  },
+  {
+    code: 'TIMELINE_COMPONENT_CONFLICT',
+    build: () => {
+      // Both the joint translate track and a split translateX track on one bone.
+      const doc = draft();
+      doc.animations.idle!.bones.root = {
+        translate: [{ time: 0, value: { x: 0, y: 0 }, curve: 'linear' }],
+        translateX: [{ time: 0, value: { value: 0 }, curve: 'linear' }],
+      };
+      return doc;
+    },
+  },
+  {
+    code: 'ANIM_DARK_NO_SETUP',
+    build: () => {
+      // A dark timeline on a slot with no setup darkColor.
+      const doc = draft();
+      doc.animations.idle!.slots.body = {
+        dark: [{ time: 0, value: { color: { r: 0, g: 0, b: 0, a: 1 } }, curve: 'linear' }],
+      };
+      return doc;
+    },
+  },
+  {
+    code: 'SKIN_BONE_UNKNOWN',
+    build: () => {
+      const doc = draft();
+      doc.skins[0]!.bones = ['ghost'];
+      return doc;
+    },
+  },
+  {
+    code: 'SKIN_CONSTRAINT_UNKNOWN',
+    build: () => {
+      const doc = draft();
+      doc.skins[0]!.constraints = ['ghost'];
+      return doc;
+    },
+  },
+  {
     code: 'HASH_MISMATCH',
     build: () => {
       const doc = minimalValid();
@@ -663,6 +1074,15 @@ function main(): void {
     );
   }
 
+  const f2Complete = f2CompleteValid();
+  writeJson(join(fixturesDir, 'f2-complete.json'), f2Complete);
+  const f2Report = validateDocument(f2Complete);
+  if (!f2Report.ok || f2Report.warnings.length > 0) {
+    throw new Error(
+      `f2-complete.json did not validate clean: ok=${f2Report.ok}, errors=${f2Report.errors.length}, warnings=${f2Report.warnings.length}, codes=[${f2Report.errors.map((e) => e.code).join(', ')}]`,
+    );
+  }
+
   for (const testCase of invalidCases) {
     const document = testCase.build();
     writeJson(join(invalidDir, `${testCase.code}.json`), document);
@@ -676,7 +1096,7 @@ function main(): void {
   }
 
   console.log(
-    `generated minimal.json + phase1-complete.json + events-draworder.json + ${invalidCases.length} invalid fixtures`,
+    `generated minimal.json + phase1-complete.json + events-draworder.json + f2-complete.json + ${invalidCases.length} invalid fixtures`,
   );
 }
 

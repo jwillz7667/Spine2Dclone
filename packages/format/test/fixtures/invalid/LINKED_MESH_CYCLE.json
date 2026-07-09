@@ -29,6 +29,18 @@
       },
       "attachment": "body",
       "blendMode": "normal"
+    },
+    {
+      "name": "limb",
+      "bone": "root",
+      "color": {
+        "r": 1,
+        "g": 1,
+        "b": 1,
+        "a": 1
+      },
+      "attachment": "baseMesh",
+      "blendMode": "normal"
     }
   ],
   "skins": [
@@ -38,12 +50,42 @@
         "body": {
           "body": {
             "type": "region",
-            "path": "ghostRegion",
+            "path": "body",
             "x": 0,
             "y": 0,
             "rotation": 0,
             "scaleX": 1,
             "scaleY": 1,
+            "width": 64,
+            "height": 64,
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            }
+          }
+        },
+        "limb": {
+          "baseMesh": {
+            "type": "linkedmesh",
+            "path": "baseRegion",
+            "parent": "dst",
+            "timelines": false,
+            "width": 64,
+            "height": 64,
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            }
+          },
+          "dst": {
+            "type": "linkedmesh",
+            "path": "linkedRegion",
+            "parent": "baseMesh",
+            "timelines": false,
             "width": 64,
             "height": 64,
             "color": {
@@ -101,6 +143,30 @@
           {
             "name": "body",
             "x": 0,
+            "y": 0,
+            "w": 64,
+            "h": 64,
+            "rotated": false,
+            "offsetX": 0,
+            "offsetY": 0,
+            "originalW": 64,
+            "originalH": 64
+          },
+          {
+            "name": "baseRegion",
+            "x": 64,
+            "y": 0,
+            "w": 64,
+            "h": 64,
+            "rotated": false,
+            "offsetX": 0,
+            "offsetY": 0,
+            "originalW": 64,
+            "originalH": 64
+          },
+          {
+            "name": "linkedRegion",
+            "x": 128,
             "y": 0,
             "w": 64,
             "h": 64,

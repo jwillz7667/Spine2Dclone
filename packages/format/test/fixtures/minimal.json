@@ -1,7 +1,7 @@
 {
-  "formatVersion": "0.3.0",
+  "formatVersion": "0.4.0",
   "name": "minimal",
-  "hash": "8528add4e021681bd340f6494ac147024bf7118bbfbc47f9a0ce27d8bf9b3704",
+  "hash": "459e1ff38e435819a328737354560b38cd593a0664f302ef10d5a62a95e8581c",
   "bones": [
     {
       "name": "root",

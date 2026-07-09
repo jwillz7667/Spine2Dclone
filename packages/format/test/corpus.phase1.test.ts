@@ -201,14 +201,24 @@ describe('Phase 1 contract guardrails (WP-1.11)', () => {
     'ANIM_EVENT_UNKNOWN',
     'EVENT_AUDIO_RANGE',
     'HASH_MISMATCH',
+    'IK_SOFTNESS_RANGE',
+    'CONSTRAINT_ORDER_INVALID',
+    'LINKED_MESH_PARENT_MISSING',
+    'LINKED_MESH_PARENT_INVALID',
+    'LINKED_MESH_CYCLE',
+    'SEQUENCE_SETUP_RANGE',
+    'TIMELINE_COMPONENT_CONFLICT',
+    'ANIM_DARK_NO_SETUP',
+    'SKIN_BONE_UNKNOWN',
+    'SKIN_CONSTRAINT_UNKNOWN',
   ];
 
   it('adds no new FormatErrorCode members and reorders none (union frozen)', () => {
     expect([...FORMAT_ERROR_CODES]).toEqual([...COMMITTED_FORMAT_ERROR_CODES]);
   });
 
-  it('tracks the format version at 0.3.0 / major 0 after the stage F1 additive bump (ADR-0008)', () => {
-    expect(CURRENT_FORMAT_VERSION).toBe('0.3.0');
+  it('tracks the format version at 0.4.0 / major 0 after the stage F2 additive bump (ADR-0009)', () => {
+    expect(CURRENT_FORMAT_VERSION).toBe('0.4.0');
     expect(SUPPORTED_FORMAT_MAJOR).toBe(0);
   });
 

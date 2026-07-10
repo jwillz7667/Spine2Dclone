@@ -11,6 +11,19 @@ import {
   type SlotSceneSnapshot,
 } from '../document';
 import { useDocumentRevision } from '../editor-state/use-document-revision';
+import {
+  mountSlotPreview,
+  type SlotPreviewHandle,
+  type SlotPreviewHud,
+} from './slot-preview/slot-preview-view';
+import {
+  DEFAULT_SLOT_PREVIEW_SCENARIO,
+  SLOT_PREVIEW_SCENARIOS,
+  slotScenarioLabel,
+  toScenarioId,
+  type SlotPreviewScenarioId,
+} from './slot-preview/slot-preview-model';
+import { makePreviewTransport, type PreviewTransport } from './preview/preview-transport';
 
 const ACCENT = '#5aa0ff';
 const NOTICE_DURATION_MS = 4000;
@@ -53,10 +66,112 @@ export function SlotPanel(_props: IDockviewPanelProps): ReactElement {
 
   return (
     <div style={rootStyle}>
+      <SlotPreviewPane revision={revision} />
       <GridSection grid={grid} onError={showNotice} />
       <SymbolSection snapshot={snapshot} onError={showNotice} />
       <SummarySection snapshot={snapshot} tumble={scene.tumble} onError={showNotice} />
       {notice !== null && <div style={noticeStyle}>{notice}</div>}
+    </div>
+  );
+}
+
+const EMPTY_PREVIEW_HUD: SlotPreviewHud = {
+  rollupValue: null,
+  escalation: null,
+  flowState: null,
+  lastVfx: null,
+};
+
+// The live slot scene preview (PP-D8): mounts the runtime-web SlotSceneView playing a committed mock
+// scenario's PresentationTimeline (reel stops, landings, win highlights, counter rollup) through the SAME
+// sequencer + renderer the packaged player uses. The scenario selector picks a committed MockMathEngine
+// outcome (LAW 1: the preview only ever consumes a SpinResult, never fabricates one); playback transport
+// reuses the shared transport state machine. It lives inside the slot panel (like the effects preview lives
+// in the effects panel) so the composed scene and its playback sit together; the GL host owns its own
+// Application lifecycle. The pane re-syncs from the document on every revision without issuing a command.
+function SlotPreviewPane(props: { readonly revision: number }): ReactElement {
+  const { revision } = props;
+  const hostRef = useRef<HTMLDivElement | null>(null);
+  const handleRef = useRef<SlotPreviewHandle | null>(null);
+  const [transport, setTransport] = useState<PreviewTransport>(() => makePreviewTransport());
+  const [scenario, setScenario] = useState<SlotPreviewScenarioId>(DEFAULT_SLOT_PREVIEW_SCENARIO);
+  const [hud, setHud] = useState<SlotPreviewHud>(EMPTY_PREVIEW_HUD);
+  const [previewNotice, setPreviewNotice] = useState<string | null>(null);
+
+  useEffect(() => {
+    const host = hostRef.current;
+    if (host === null) return;
+    const handle = mountSlotPreview(host, {
+      onTransport: setTransport,
+      onScenario: setScenario,
+      onHud: setHud,
+      onNotice: setPreviewNotice,
+    });
+    handleRef.current = handle;
+    return () => {
+      handle.destroy();
+      handleRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    handleRef.current?.resyncFromDocument();
+  }, [revision]);
+
+  return (
+    <div style={sectionStyle}>
+      <div style={sectionHeaderStyle}>
+        <span>Scene Preview</span>
+        <span style={countStyle}>mock scenario</span>
+      </div>
+      <div style={previewToolbarStyle}>
+        <button
+          type="button"
+          style={smallButtonStyle}
+          title={transport.isPlaying ? 'Pause' : 'Play'}
+          onClick={() => handleRef.current?.togglePlay()}
+        >
+          {transport.isPlaying ? 'Pause' : 'Play'}
+        </button>
+        <button
+          type="button"
+          style={smallButtonStyle}
+          title="Replay the scenario from the start"
+          onClick={() => handleRef.current?.restart()}
+        >
+          Restart
+        </button>
+        <select
+          style={scenarioSelectStyle}
+          value={scenario}
+          title="The mock SpinResult scenario to play"
+          onChange={(event) => handleRef.current?.setScenario(toScenarioId(event.target.value))}
+        >
+          {SLOT_PREVIEW_SCENARIOS.map((id) => (
+            <option key={id} value={id}>
+              {slotScenarioLabel(id)}
+            </option>
+          ))}
+        </select>
+        <button
+          type="button"
+          style={smallButtonStyle}
+          title="Cycle the preview background (dark / light / checker)"
+          onClick={() => handleRef.current?.cycleBackground()}
+        >
+          BG: {transport.background}
+        </button>
+      </div>
+      <div style={previewHostWrapStyle}>
+        <div ref={hostRef} style={previewHostStyle} />
+        {previewNotice !== null && <div style={previewNoticeStyle}>{previewNotice}</div>}
+        <div style={previewHudStyle}>
+          {hud.rollupValue !== null && <span style={hudWinStyle}>Win {hud.rollupValue}</span>}
+          {hud.escalation !== null && <span style={hudBadgeStyle}>{hud.escalation}</span>}
+          {hud.flowState !== null && <span style={hudFlowStyle}>{hud.flowState}</span>}
+          {hud.lastVfx !== null && <span style={hudVfxStyle}>{hud.lastVfx}</span>}
+        </div>
+      </div>
     </div>
   );
 }
@@ -623,6 +738,74 @@ const buttonDisabledStyle: CSSProperties = {
   opacity: 0.45,
   cursor: 'not-allowed',
 };
+
+const previewToolbarStyle: CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 6,
+  padding: '6px 8px',
+  borderBottom: '1px solid #2c2c2c',
+  flexWrap: 'wrap',
+};
+
+const scenarioSelectStyle: CSSProperties = {
+  fontSize: 12,
+  color: '#dddddd',
+  background: '#222222',
+  border: '1px solid #3a3a3a',
+  borderRadius: 3,
+  padding: '2px 6px',
+};
+
+const previewHostWrapStyle: CSSProperties = {
+  position: 'relative',
+  height: 260,
+  flex: '0 0 auto',
+};
+
+const previewHostStyle: CSSProperties = { width: '100%', height: '100%' };
+
+const previewNoticeStyle: CSSProperties = {
+  position: 'absolute',
+  top: 8,
+  left: 8,
+  right: 8,
+  padding: '4px 8px',
+  borderRadius: 4,
+  background: 'rgba(40, 30, 18, 0.9)',
+  border: '1px solid #6a5a2a',
+  color: '#e0c98a',
+  pointerEvents: 'none',
+};
+
+const previewHudStyle: CSSProperties = {
+  position: 'absolute',
+  bottom: 8,
+  left: 8,
+  display: 'flex',
+  gap: 6,
+  pointerEvents: 'none',
+};
+
+const hudBadgeBaseStyle: CSSProperties = {
+  padding: '2px 8px',
+  borderRadius: 10,
+  fontSize: 11,
+  fontWeight: 700,
+  color: '#141414',
+};
+
+const hudWinStyle: CSSProperties = { ...hudBadgeBaseStyle, background: '#ffe066' };
+
+const hudBadgeStyle: CSSProperties = {
+  ...hudBadgeBaseStyle,
+  background: '#ff8a5a',
+  textTransform: 'uppercase',
+};
+
+const hudFlowStyle: CSSProperties = { ...hudBadgeBaseStyle, background: '#7ad0ff' };
+
+const hudVfxStyle: CSSProperties = { ...hudBadgeBaseStyle, background: '#b28aff' };
 
 const textInputStyle: CSSProperties = {
   flex: '1 1 120px',

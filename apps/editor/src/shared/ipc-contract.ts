@@ -12,6 +12,10 @@ export const IpcChannel = {
   fileSave: 'file:save',
   fileOpen: 'file:open',
   atlasImport: 'atlas:import',
+  // Import a user-owned exported Spine project (.json or .skel). Main owns the file dialog (no renderer
+  // path, the path-injection defense), runs the clean-room importer OUTSIDE the renderer document path,
+  // and returns the converted document plus the lossy-conversion warnings, or a typed failure (PP-A5).
+  spineImport: 'spine:import',
   // Import images supplied BY THE RENDERER as bytes (drag-drop onto the assets panel, or a file-input
   // picker). Unlike atlas:import (main owns a directory dialog), here the sandboxed renderer reads the
   // dropped/picked File bytes via the web File API and ships them; main stages them and runs the SAME pack.
@@ -38,6 +42,7 @@ export const MENU_ACTION_IDS = [
   'file:open',
   'file:save',
   'file:importSprites',
+  'file:importSpine',
   'edit:undo',
   'edit:redo',
   'tool:select',
@@ -111,6 +116,46 @@ export const fileOpenResponseSchema = z.discriminatedUnion('status', [
 ]);
 
 export type FileOpenResponse = z.infer<typeof fileOpenResponseSchema>;
+
+// spine:import. No request payload; the main process shows the .json/.skel open dialog, runs the
+// clean-room importer, and returns the converted document plus warnings, a typed failure, or a cancel.
+// The warning/error shapes mirror @marionette/import-spine's typed diagnostics structurally (editor-shared
+// stays a leaf that imports only Zod, never the importer package); the main process maps the importer's
+// result into these shapes. `document` is opaque at the transport layer (z.unknown), exactly like
+// file:open: the importer already validated it and the renderer re-validates via loadDocument (LAW 3).
+export const spineImportWarningSchema = z
+  .object({ feature: z.string().min(1), path: z.string(), why: z.string().min(1) })
+  .strict();
+
+export type SpineImportWarning = z.infer<typeof spineImportWarningSchema>;
+
+export const spineImportErrorSchema = z
+  .object({ code: z.string().min(1), path: z.string(), message: z.string().min(1) })
+  .strict();
+
+export type SpineImportError = z.infer<typeof spineImportErrorSchema>;
+
+export const spineImportRequestSchema = z.undefined();
+export const spineImportResponseSchema = z.discriminatedUnion('status', [
+  z
+    .object({
+      status: z.literal('imported'),
+      name: z.string().min(1),
+      document: z.unknown(),
+      warnings: z.array(spineImportWarningSchema),
+    })
+    .strict(),
+  z
+    .object({
+      status: z.literal('failed'),
+      errors: z.array(spineImportErrorSchema),
+      warnings: z.array(spineImportWarningSchema),
+    })
+    .strict(),
+  z.object({ status: z.literal('canceled') }).strict(),
+]);
+
+export type SpineImportResponse = z.infer<typeof spineImportResponseSchema>;
 
 // atlas:import. No request payload (the renderer supplies NO filesystem path, the path-injection
 // defense): the main process shows the directory dialog, runs the deterministic pack pipeline, reads the
@@ -199,6 +244,10 @@ export interface MarionetteApi {
   importAtlasImages(
     images: AtlasImportImagesRequest['images'],
   ): Promise<IpcResult<AtlasImportResponse>>;
+  // Import a user-owned Spine project (.json or .skel); main owns the dialog, runs the clean-room
+  // importer off the renderer document path, and returns the converted document plus warnings, a typed
+  // failure, or a canceled status.
+  importSpineProject(): Promise<IpcResult<SpineImportResponse>>;
   // Subscribe to application-menu clicks pushed from the main process (menu:action). The callback receives
   // one allowlisted MenuActionId per click; returns an unsubscribe function. This is the only MAIN ->
   // RENDERER push in the bridge; everything else is request/response.

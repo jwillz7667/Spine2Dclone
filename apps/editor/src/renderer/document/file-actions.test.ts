@@ -6,6 +6,7 @@ import type {
   GetVersionResponse,
   IpcResult,
   MarionetteApi,
+  SpineImportResponse,
 } from '../../shared';
 import { useSelectionStore } from '../editor-state/selection-store';
 import {
@@ -54,6 +55,12 @@ function installApi(behavior: Behavior): { savedDocument: () => unknown } {
     // The MarionetteApi contract gained onMenuAction (menu:action push, application menu). These file
     // actions never subscribe, so a no-op stub returning a no-op unsubscribe satisfies the contract.
     onMenuAction: () => () => {},
+    // The MarionetteApi contract gained importSpineProject (spine:import, PP-A5). These file actions never
+    // import a Spine project; a canceled default keeps the bridge complete.
+    importSpineProject: async (): Promise<IpcResult<SpineImportResponse>> => ({
+      ok: true,
+      data: { status: 'canceled' },
+    }),
   };
   vi.stubGlobal('window', { marionette: api });
   return { savedDocument: () => saved };

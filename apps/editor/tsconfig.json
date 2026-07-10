@@ -17,6 +17,7 @@
     { "path": "../../packages/atlas-pack" },
     { "path": "../../packages/runtime-core" },
     { "path": "../../packages/runtime-web" },
-    { "path": "../../packages/document-core" }
+    { "path": "../../packages/document-core" },
+    { "path": "../../packages/import-spine" }
   ]
 }

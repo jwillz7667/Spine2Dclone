@@ -60,6 +60,7 @@ export function buildAppMenuTemplate(options: AppMenuOptions): MenuItemConstruct
       action('Save...', 'file:save', dispatch, `${mod}+S`),
       { type: 'separator' },
       action('Import Sprites...', 'file:importSprites', dispatch, `${mod}+Shift+I`),
+      action('Import Spine Project...', 'file:importSpine', dispatch),
       { type: 'separator' },
       isMac ? { role: 'close' } : { role: 'quit' },
     ],

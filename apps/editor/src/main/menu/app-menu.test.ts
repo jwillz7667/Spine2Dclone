@@ -67,6 +67,15 @@ describe('buildAppMenuTemplate', () => {
     expect(dispatch).toHaveBeenCalledWith('file:save');
   });
 
+  it('File has Import Spine Project wired to file:importSpine (PP-A5)', () => {
+    const { template, dispatch } = build(false);
+    const file = submenuOf(template, 'File');
+    const item = file.find((i) => i.label === 'Import Spine Project...');
+    expect(item).toBeDefined();
+    item?.click?.(undefined as never, undefined, undefined as never);
+    expect(dispatch).toHaveBeenCalledWith('file:importSpine');
+  });
+
   it('Edit undo/redo dispatch the document actions (not the DOM undo role)', () => {
     const { template, dispatch } = build(false);
     const edit = submenuOf(template, 'Edit');

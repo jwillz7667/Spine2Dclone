@@ -11,15 +11,18 @@ import {
   fileSaveRequestSchema,
   getVersionRequestSchema,
   getVersionResponseSchema,
+  spineImportRequestSchema,
   validateWith,
   type AtlasImportResponse,
   type FileOpenResponse,
   type FileSaveResponse,
   type GetVersionResponse,
   type IpcResult,
+  type SpineImportResponse,
 } from '../../shared';
 import { importAtlasFromDirectory, importAtlasImages } from '../atlas-import';
 import { openDocumentFromFile, saveDocumentToFile } from '../file-io';
+import { importSpineProjectFromFile } from '../spine-import';
 
 export function registerIpc(): void {
   ipcMain.handle(
@@ -70,6 +73,15 @@ export function registerIpc(): void {
       return importAtlasImages(request.data.images);
     },
   );
+
+  ipcMain.handle(
+    IpcChannel.spineImport,
+    async (_event, payload: unknown): Promise<IpcResult<SpineImportResponse>> => {
+      const request = validateWith(spineImportRequestSchema, payload, 'IPC_BAD_REQUEST');
+      if (!request.ok) return request;
+      return importSpineProjectFromFile();
+    },
+  );
 }
 
 export function disposeIpc(): void {
@@ -78,4 +90,5 @@ export function disposeIpc(): void {
   ipcMain.removeHandler(IpcChannel.fileOpen);
   ipcMain.removeHandler(IpcChannel.atlasImport);
   ipcMain.removeHandler(IpcChannel.atlasImportImages);
+  ipcMain.removeHandler(IpcChannel.spineImport);
 }

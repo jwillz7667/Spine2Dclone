@@ -18,6 +18,7 @@ import {
 } from './panels';
 import { attachKeybindings } from './viewport/keybindings';
 import { attachMenuActions } from './menu-actions';
+import { SpineImportResults } from './spine-import-results';
 import 'dockview/dist/styles/dockview.css';
 
 const components = {
@@ -160,6 +161,9 @@ export function App(): ReactElement {
   }, []);
 
   return (
-    <DockviewReact components={components} onReady={onReady} className="dockview-theme-abyss" />
+    <>
+      <DockviewReact components={components} onReady={onReady} className="dockview-theme-abyss" />
+      <SpineImportResults />
+    </>
   );
 }

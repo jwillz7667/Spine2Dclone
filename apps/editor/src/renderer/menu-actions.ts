@@ -5,6 +5,7 @@ import {
   type FileActionOutcome,
 } from './document';
 import { runSpriteImport } from './actions/import-sprites';
+import { importSpineProjectFromDialog } from './actions/import-spine';
 import { useToolStore } from './editor-state/tool-store';
 import { usePlaybackStore } from './editor-state/playback-store';
 import { bridge } from './ipc-bridge';
@@ -31,6 +32,13 @@ export function attachMenuActions(): () => void {
         void runSpriteImport().then((outcome) => {
           if (outcome.kind === 'error') {
             console.error(`[marionette] import failed: ${outcome.message}`);
+          }
+        });
+        return;
+      case 'file:importSpine':
+        void importSpineProjectFromDialog().then((outcome) => {
+          if (outcome.kind === 'error') {
+            console.error(`[marionette] Spine import failed: ${outcome.message}`);
           }
         });
         return;

@@ -12,6 +12,7 @@ const api: MarionetteApi = {
   openDocument: () => ipcRenderer.invoke(IpcChannel.fileOpen, undefined),
   importAtlas: () => ipcRenderer.invoke(IpcChannel.atlasImport, undefined),
   importAtlasImages: (images) => ipcRenderer.invoke(IpcChannel.atlasImportImages, { images }),
+  importSpineProject: () => ipcRenderer.invoke(IpcChannel.spineImport, undefined),
   onMenuAction: (callback) => {
     // Forward ONLY allowlisted menu actions (defense in depth: an unknown or spoofed payload is dropped).
     const listener = (_event: IpcRendererEvent, action: unknown): void => {

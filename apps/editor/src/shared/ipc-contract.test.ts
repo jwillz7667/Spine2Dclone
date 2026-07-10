@@ -10,6 +10,8 @@ import {
   getVersionResponseSchema,
   IpcChannel,
   isAllowedChannel,
+  isMenuActionId,
+  spineImportResponseSchema,
   validateWith,
 } from './ipc-contract';
 
@@ -191,6 +193,64 @@ describe('ipc-contract validation', () => {
       validateWith(
         atlasImportResponseSchema,
         { status: 'imported', atlas: { pages: [] }, pages: [{ file: 'a.png', data: 'not-bytes' }] },
+        'IPC_BAD_RESPONSE',
+      ).ok,
+    ).toBe(false);
+  });
+
+  it('allowlists the spine:import channel and the file:importSpine menu action (PP-A5)', () => {
+    expect(isAllowedChannel(IpcChannel.spineImport)).toBe(true);
+    expect(isAllowedChannel('spine:import')).toBe(true);
+    expect(isMenuActionId('file:importSpine')).toBe(true);
+    expect(isMenuActionId('file:importAlien')).toBe(false);
+  });
+
+  it('accepts imported, failed, and canceled spine:import responses, rejects an unknown status', () => {
+    expect(
+      validateWith(
+        spineImportResponseSchema,
+        {
+          status: 'imported',
+          name: 'hero',
+          document: { anything: true },
+          warnings: [
+            { feature: 'atlas-synthesized', path: '', why: 'placeholder atlas synthesized' },
+          ],
+        },
+        'IPC_BAD_RESPONSE',
+      ).ok,
+    ).toBe(true);
+    expect(
+      validateWith(
+        spineImportResponseSchema,
+        {
+          status: 'failed',
+          errors: [{ code: 'SPINE_VERSION_UNSUPPORTED', path: '/skeleton/spine', message: 'nope' }],
+          warnings: [],
+        },
+        'IPC_BAD_RESPONSE',
+      ).ok,
+    ).toBe(true);
+    expect(
+      validateWith(spineImportResponseSchema, { status: 'canceled' }, 'IPC_BAD_RESPONSE').ok,
+    ).toBe(true);
+    expect(
+      validateWith(spineImportResponseSchema, { status: 'exploded' }, 'IPC_BAD_RESPONSE').ok,
+    ).toBe(false);
+  });
+
+  it('rejects an imported spine:import response missing its name or warnings (strict schema)', () => {
+    expect(
+      validateWith(
+        spineImportResponseSchema,
+        { status: 'imported', document: {}, warnings: [] },
+        'IPC_BAD_RESPONSE',
+      ).ok,
+    ).toBe(false);
+    expect(
+      validateWith(
+        spineImportResponseSchema,
+        { status: 'imported', name: 'hero', document: {} },
         'IPC_BAD_RESPONSE',
       ).ok,
     ).toBe(false);

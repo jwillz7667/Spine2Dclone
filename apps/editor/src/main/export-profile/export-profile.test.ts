@@ -196,6 +196,7 @@ describe('disjoint-fields guard (TASK-5.0.5 / TASK-5.0.8)', () => {
       'ikConstraints',
       'transformConstraints',
       'pathConstraints',
+      'physicsConstraints',
       'events',
       'animations',
       'atlas',

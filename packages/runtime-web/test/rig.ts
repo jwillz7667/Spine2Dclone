@@ -148,6 +148,7 @@ export function makeDocument(parts: DocumentParts): SkeletonDocument {
       drawOrder: anim.drawOrder ?? [],
       events: anim.events ?? [],
       path: anim.path ?? {},
+      physics: anim.physics ?? {},
     };
   }
 
@@ -164,6 +165,7 @@ export function makeDocument(parts: DocumentParts): SkeletonDocument {
     ikConstraints: [],
     transformConstraints: [],
     pathConstraints: [],
+    physicsConstraints: [],
     events: [],
     animations,
     atlas: {

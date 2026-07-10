@@ -123,8 +123,9 @@ describe('idle-sprite Phase 1 DoD acceptance (WP-1.13)', () => {
     expect(RIG.formatVersion).toBe(CURRENT_FORMAT_VERSION);
     // The committed rig is a 0.1.0 document; loading it forward-migrates through the chain to the current
     // version, injecting the now-required empty ik/transform/deform timelines (0.2.0, ADR-0004), the
-    // drawOrder/events timelines (0.3.0, ADR-0008), and the path timeline (0.5.0, ADR-0011). The strict
-    // Animation shape is therefore these nine keys (every added collection is present but empty).
+    // drawOrder/events timelines (0.3.0, ADR-0008), the path timeline (0.5.0, ADR-0011), and the physics
+    // timeline (0.6.0, ADR-0014). The strict Animation shape is therefore these ten keys (every added
+    // collection is present but empty).
     expect(Object.keys(RIG.animations[ANIMATION_NAME]!).sort()).toEqual([
       'bones',
       'deform',
@@ -133,6 +134,7 @@ describe('idle-sprite Phase 1 DoD acceptance (WP-1.13)', () => {
       'events',
       'ik',
       'path',
+      'physics',
       'slots',
       'transform',
     ]);

@@ -6,13 +6,16 @@ extends RefCounted
 # triples) iterate exactly as the TS solve's Object.keys() order.
 #
 # Format compatibility (PP-E2 contract): the reader accepts every formatVersion of MAJOR 0 (0.2.0 through
-# 0.4.0). The additive revisions are 0.3.0 (document events, animation drawOrder/events, optional metadata)
-# and 0.4.0 (ADR-0009: IK constraints carry a signed `bend` in place of the bendPositive boolean plus
-# additive depth fields, transform constraints gain local/relative, and linked meshes / sequences / split
-# timelines / skin scoping are additive). It REQUIRES every field the solve consumes, reads the signed bend
-# (mapping it to the same sign the solve keys on), and PERMITS unknown/additive members, so a 0.4.0 rig
-# reads unchanged. It FAILS LOUDLY on a missing required field, a wrong type for a consumed field, or an
-# unsupported format major. A parse failure returns a RigReadError carrying the first offending member.
+# 0.5.0). The additive revisions are 0.3.0 (document events, animation drawOrder/events, optional metadata),
+# 0.4.0 (ADR-0009: IK constraints carry a signed `bend` in place of the bendPositive boolean plus additive
+# depth fields, transform constraints gain local/relative, and linked meshes / sequences / split timelines /
+# skin scoping are additive), and 0.5.0 (ADR-0011: an additive root `pathConstraints` array, a per-animation
+# `path` timeline, and a seventh `path` attachment kind, none of which the solve consumes yet, Lane B PP-B6).
+# It REQUIRES every field the solve consumes, reads the signed bend (mapping it to the same sign the solve
+# keys on), and PERMITS unknown/additive members, so a 0.5.0 rig (empty pathConstraints and per-animation
+# path plus the version bump) reads unchanged. It FAILS LOUDLY on a missing required field, a wrong type for
+# a consumed field, or an unsupported format major. A parse failure returns a RigReadError carrying the first
+# offending member.
 
 const Document = preload("res://core/document.gd")
 

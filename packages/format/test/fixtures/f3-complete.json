@@ -1,7 +1,7 @@
 {
-  "formatVersion": "0.5.0",
+  "formatVersion": "0.6.0",
   "name": "f3-complete",
-  "hash": "d61e9da5d6e6febbe6fde73095ad8ee2dc831af0931ac7656a27dad57ec09142",
+  "hash": "97f7b614dcf124a1a67b9ff51f03bb6c17b7669b5c9c3e0ce229acb3c26f98c2",
   "bones": [
     {
       "name": "root",
@@ -107,6 +107,7 @@
       "mixY": 1
     }
   ],
+  "physicsConstraints": [],
   "events": [],
   "animations": {
     "idle": {
@@ -134,6 +135,7 @@
           }
         ]
       },
+      "physics": {},
       "deform": {},
       "drawOrder": [],
       "events": []

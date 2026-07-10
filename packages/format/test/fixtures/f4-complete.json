@@ -1,7 +1,7 @@
 {
   "formatVersion": "0.6.0",
-  "name": "minimal",
-  "hash": "",
+  "name": "f4-complete",
+  "hash": "110d18f459761b4aee88014373817bd025aba68dfe6538a9f5a635c18b3ad146",
   "bones": [
     {
       "name": "root",
@@ -17,10 +17,10 @@
       "transformMode": "normal"
     },
     {
-      "name": "child",
-      "parent": "ghost",
+      "name": "tail",
+      "parent": "root",
       "length": 100,
-      "x": 0,
+      "x": 100,
       "y": 0,
       "rotation": 0,
       "scaleX": 1,
@@ -67,42 +67,105 @@
             }
           }
         }
-      }
+      },
+      "constraints": [
+        "sway",
+        "wobble"
+      ]
     }
   ],
-  "ikConstraints": [],
+  "ikConstraints": [
+    {
+      "name": "reach",
+      "bones": [
+        "tail"
+      ],
+      "target": "root",
+      "mix": 1,
+      "bend": 1,
+      "softness": 0,
+      "stretch": false,
+      "compress": false,
+      "uniform": false,
+      "order": 0
+    }
+  ],
   "transformConstraints": [],
   "pathConstraints": [],
-  "physicsConstraints": [],
+  "physicsConstraints": [
+    {
+      "name": "sway",
+      "bone": "tail",
+      "channels": [
+        "x",
+        "y",
+        "rotation"
+      ],
+      "step": 0.016666666666666666,
+      "inertia": 0.6,
+      "strength": 120,
+      "damping": 0.85,
+      "mass": 1.5,
+      "wind": 20,
+      "gravity": 980,
+      "mix": 1,
+      "order": 1
+    },
+    {
+      "name": "wobble",
+      "bone": "tail",
+      "channels": [
+        "scaleX"
+      ],
+      "step": 0.016666666666666666,
+      "inertia": 0.3,
+      "strength": 60,
+      "damping": 0.9,
+      "mass": 1,
+      "wind": 0,
+      "gravity": 0,
+      "mix": 0.5,
+      "order": 2
+    }
+  ],
   "events": [],
   "animations": {
     "idle": {
       "duration": 1,
-      "bones": {
-        "root": {
-          "rotate": [
-            {
-              "time": 0,
-              "value": {
-                "angle": 0
-              },
-              "curve": "linear"
-            },
-            {
-              "time": 1,
-              "value": {
-                "angle": 30
-              },
-              "curve": "linear"
-            }
-          ]
-        }
-      },
+      "bones": {},
       "slots": {},
       "ik": {},
       "transform": {},
       "path": {},
-      "physics": {},
+      "physics": {
+        "sway": [
+          {
+            "time": 0,
+            "value": {
+              "mix": 0,
+              "wind": 0
+            },
+            "curve": "linear"
+          },
+          {
+            "time": 0.5,
+            "value": {
+              "mix": 1,
+              "wind": 60,
+              "gravity": 980
+            },
+            "curve": "linear"
+          },
+          {
+            "time": 1,
+            "value": {
+              "mix": 1,
+              "wind": 0
+            },
+            "curve": "linear"
+          }
+        ]
+      },
       "deform": {},
       "drawOrder": [],
       "events": []
@@ -130,5 +193,10 @@
         ]
       }
     ]
+  },
+  "physics": {
+    "gravity": 980,
+    "wind": 10,
+    "mix": 1
   }
 }

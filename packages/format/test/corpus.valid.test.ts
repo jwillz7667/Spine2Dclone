@@ -4,6 +4,7 @@ import minimal from './fixtures/minimal.json';
 import eventsDrawOrder from './fixtures/events-draworder.json';
 import f2Complete from './fixtures/f2-complete.json';
 import f3Complete from './fixtures/f3-complete.json';
+import f4Complete from './fixtures/f4-complete.json';
 
 // WP-0.3: the canonical valid fixture passes clean under the default (verifyHash: true) path, with
 // zero errors and zero warnings, so its committed content hash is correct.
@@ -130,5 +131,35 @@ describe('valid corpus', () => {
     // Skin scoping resolves the path constraint, and the animation keys the path timeline.
     expect(doc.skins[0]?.constraints).toEqual(['pc1']);
     expect(doc.animations['idle']?.path['pc1']).toBeDefined();
+  });
+
+  // Stage F4 (ADR-0014) positive completeness fixture: exercises the new 0.6.0 shapes end to end.
+  it('f4-complete.json validates with zero errors and zero warnings', () => {
+    const report = validateDocument(f4Complete);
+
+    expect(report.ok).toBe(true);
+    expect(report.errors).toEqual([]);
+    expect(report.warnings).toEqual([]);
+  });
+
+  it('f4-complete.json authors every new 0.6.0 shape', () => {
+    const doc = parseDocument(f4Complete);
+
+    // Two physics constraints over distinct channel sets, with a dense order across ik + physics.
+    const sway = doc.physicsConstraints[0];
+    const wobble = doc.physicsConstraints[1];
+    expect(sway?.name).toBe('sway');
+    expect(sway?.bone).toBe('tail');
+    expect(sway?.channels).toEqual(['x', 'y', 'rotation']);
+    expect(sway?.step).toBe(1 / 60);
+    expect(wobble?.channels).toEqual(['scaleX']);
+    expect([doc.ikConstraints[0]?.order, sway?.order, wobble?.order]).toEqual([0, 1, 2]);
+
+    // The optional skeleton physics settings block.
+    expect(doc.physics).toEqual({ gravity: 980, wind: 10, mix: 1 });
+
+    // Skin scoping resolves both physics constraints, and the animation keys the physics timeline.
+    expect(doc.skins[0]?.constraints).toEqual(['sway', 'wobble']);
+    expect(doc.animations['idle']?.physics['sway']).toHaveLength(3);
   });
 });

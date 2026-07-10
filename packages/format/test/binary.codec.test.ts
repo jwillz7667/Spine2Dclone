@@ -36,6 +36,7 @@ function valueCoverageDoc(): SkeletonDocument {
     ik: {},
     transform: {},
     path: {},
+    physics: {},
     deform: {},
     drawOrder: [],
     events: [],

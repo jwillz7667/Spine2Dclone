@@ -1,7 +1,7 @@
 {
-  "formatVersion": "0.5.0",
+  "formatVersion": "0.6.0",
   "name": "minimal",
-  "hash": "0bb3e39848827ab099b3803e22622035b56c8419d9d23ac64742057daeb21554",
+  "hash": "04a5a0e42216aaa10ee35e442b70e76d7d449547c071bea5bbf7603e33224bf7",
   "bones": [
     {
       "name": "root",
@@ -60,6 +60,7 @@
   "ikConstraints": [],
   "transformConstraints": [],
   "pathConstraints": [],
+  "physicsConstraints": [],
   "events": [],
   "animations": {
     "idle": {
@@ -88,6 +89,7 @@
       "ik": {},
       "transform": {},
       "path": {},
+      "physics": {},
       "deform": {},
       "drawOrder": [],
       "events": []

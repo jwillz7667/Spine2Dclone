@@ -3,6 +3,48 @@
 The `formatVersion` is the semver of THE FORMAT (Law 3), independent of the package/app version. Pre-1.0,
 breaking changes bump MINOR and ship a tested migration (format-contract.md section 10.3).
 
+## 0.6.0 (2026-07-09)
+
+Stage F4 presentation additions (ADR-0014): physics constraints. A physics constraint drives one bone with a
+per-channel damped spring toward its animated pose, so secondary motion (tails, ropes, jiggle) emerges
+deterministically from the pose plus world forces. Additive and backward compatible via a migration; no
+existing field is removed or repurposed. The runtime solve (a fixed-timestep semi-implicit integrator on an
+integer step clock, ADR-0014 section 2) is Lane B (PP-B7), landed after this stage.
+
+Added (schema):
+
+- Physics constraint. A new `SkeletonDocument.physicsConstraints: PhysicsConstraint[]` (required array, empty
+  when a rig has none): a single `bone`, a non-empty unique `channels` set over `x`/`y`/`rotation`/`scaleX`/
+  `shearX`, the model parameters `step` (the fixed timestep, > 0), `inertia`/`damping`/`mix` (in `[0, 1]`),
+  `strength` (>= 0), `mass` (> 0), and `wind`/`gravity` (finite world-force inputs), and an optional shared
+  `order`. Physics constraints join the existing constraint name and `order` namespace, which now spans the
+  ik, transform, path, and physics arrays.
+- Skeleton physics settings. A new OPTIONAL `SkeletonDocument.physics` block (`gravity`, `wind`, `mix`): global
+  defaults added to (or, for `mix`, multiplied into) each constraint's values. Absent means gravity 0, wind 0,
+  mix 1.
+- Physics timeline. A new required `Animation.physics` record keying the dynamic physics channels
+  `mix`/`inertia`/`strength`/`damping`/`wind`/`gravity` (partial per frame). `step`/`mass`/`channels` are not
+  keyable (the determinism anchor, a static inertial property, and a structural set).
+
+Added (validation):
+
+- SCHEMA family: `PHYSICS_STEP_RANGE` (step <= 0), `PHYSICS_MASS_RANGE` (mass <= 0), `PHYSICS_STRENGTH_RANGE`
+  (strength < 0), and `PHYSICS_INERTIA_RANGE` / `PHYSICS_DAMPING_RANGE` / `PHYSICS_MIX_RANGE` (a factor outside
+  `[0, 1]`; definition, settings, or frame).
+- CONSTRAINT family: `PHYSICS_CHANNELS_EMPTY` (structural), `PHYSICS_CHANNEL_DUPLICATE` (structural), and
+  `PHYSICS_BONE_MISSING` (the bound bone does not resolve). Name uniqueness and the dense `order` permutation
+  (`CONSTRAINT_NAME_DUPLICATE`, `CONSTRAINT_ORDER_INVALID`) now span all four constraint arrays; skin scoping
+  (`SKIN_CONSTRAINT_UNKNOWN`) resolves physics constraints too.
+- ANIM family: `ANIM_PHYSICS_UNKNOWN` (a physics timeline references a missing physics constraint).
+
+Migration:
+
+- Registered the `0.5.x -> 0.6.0` step: inject the empty root `physicsConstraints` array and the per-animation
+  `physics` record, stamp `formatVersion`, and recompute the content hash when the source carried one. The
+  optional skeleton `physics` settings block is NOT injected (absent is valid). Every other F4 addition is
+  new-and-unreferenced by a 0.5.0 document, so nothing else is injected. A `0.1.0` document still loads through
+  the full six-step chain (backward compatibility suite in `migrate.test.ts`).
+
 ## 0.5.0 (2026-07-09)
 
 Stage F3 presentation additions (ADR-0011): path attachments and path constraints. Additive and backward

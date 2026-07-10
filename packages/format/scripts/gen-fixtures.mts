@@ -4,11 +4,13 @@
 // completeness fixture `phase1-complete.json`, the stage F1 (ADR-0008) positive completeness fixture
 // `events-draworder.json` (event definitions, event and draw-order timelines, metadata), and the stage
 // F2 (ADR-0009) positive completeness fixture `f2-complete.json` (constraint depth and order, a linked
-// mesh, a sequence attachment, per-component and split-color and dark timelines, and skin scoping), plus the
+// mesh, a sequence attachment, per-component and split-color and dark timelines, and skin scoping), the
 // stage F3 (ADR-0011) positive completeness fixture `f3-complete.json` (open/closed/weighted path
-// attachments, a path constraint with position/spacing/rotate modes, skin scoping, and a path timeline). The
-// corpus is committed; this script is its provenance, so a reviewer can see precisely which single field
-// each fixture breaks. Run: pnpm gen:fixtures.
+// attachments, a path constraint with position/spacing/rotate modes, skin scoping, and a path timeline), plus
+// the stage F4 (ADR-0014) positive completeness fixture `f4-complete.json` (two physics constraints over
+// translation/rotation and scale channels with an explicit order, the skeleton physics settings block, skin
+// scoping, and a physics timeline). The corpus is committed; this script is its provenance, so a reviewer can
+// see precisely which single field each fixture breaks. Run: pnpm gen:fixtures.
 //
 // The valid fixtures carry a correct content hash (so they validate with zero warnings). The
 // invalid semantic/structural fixtures carry an empty hash, which yields only a HASH_ABSENT warning
@@ -19,6 +21,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { computeContentHash } from '../src/hash/hash';
 import { validateDocument } from '../src/validate';
+import type { PhysicsConstraint } from '../src/schema/constraint';
 import type { SkeletonDocument } from '../src/schema/document';
 
 const fixturesDir = join(dirname(fileURLToPath(import.meta.url)), '..', 'test', 'fixtures');
@@ -29,7 +32,7 @@ const invalidDir = join(fixturesDir, 'invalid');
 // computed and embedded below.
 function minimalDraft(): SkeletonDocument {
   return {
-    formatVersion: '0.5.0',
+    formatVersion: '0.6.0',
     name: 'minimal',
     hash: '',
     bones: [
@@ -80,6 +83,7 @@ function minimalDraft(): SkeletonDocument {
     ikConstraints: [],
     transformConstraints: [],
     pathConstraints: [],
+    physicsConstraints: [],
     events: [],
     animations: {
       idle: {
@@ -96,6 +100,7 @@ function minimalDraft(): SkeletonDocument {
         ik: {},
         transform: {},
         path: {},
+        physics: {},
         deform: {},
         drawOrder: [],
         events: [],
@@ -144,7 +149,7 @@ function minimalValid(): SkeletonDocument {
 // so the fixture validates with zero errors and zero warnings.
 function phase1CompleteDraft(): SkeletonDocument {
   return {
-    formatVersion: '0.5.0',
+    formatVersion: '0.6.0',
     name: 'phase1-complete',
     hash: '',
     bones: [
@@ -208,6 +213,7 @@ function phase1CompleteDraft(): SkeletonDocument {
     ikConstraints: [],
     transformConstraints: [],
     pathConstraints: [],
+    physicsConstraints: [],
     events: [],
     animations: {
       idle: {
@@ -250,6 +256,7 @@ function phase1CompleteDraft(): SkeletonDocument {
         ik: {},
         transform: {},
         path: {},
+        physics: {},
         deform: {},
         drawOrder: [],
         events: [],
@@ -328,7 +335,7 @@ function eventsDrawOrderDraft(): SkeletonDocument {
     originalH: 64,
   });
   return {
-    formatVersion: '0.5.0',
+    formatVersion: '0.6.0',
     name: 'events-draworder',
     hash: '',
     bones: [
@@ -359,6 +366,7 @@ function eventsDrawOrderDraft(): SkeletonDocument {
     ikConstraints: [],
     transformConstraints: [],
     pathConstraints: [],
+    physicsConstraints: [],
     events: [
       { name: 'footstep', audio: { path: 'sfx/step.wav', volume: 0.8, balance: 0 } },
       { name: 'spawn', int: 3, float: 1.5, string: 'hero' },
@@ -371,6 +379,7 @@ function eventsDrawOrderDraft(): SkeletonDocument {
         ik: {},
         transform: {},
         path: {},
+        physics: {},
         deform: {},
         drawOrder: [
           { time: 0, offsets: [] },
@@ -446,7 +455,7 @@ function f2CompleteDraft(): SkeletonDocument {
   });
   const white = { r: 1, g: 1, b: 1, a: 1 };
   return {
-    formatVersion: '0.5.0',
+    formatVersion: '0.6.0',
     name: 'f2-complete',
     hash: '',
     bones: [bone('root', null, 0), bone('child', 'root', 100), bone('target', 'root', 200)],
@@ -556,6 +565,7 @@ function f2CompleteDraft(): SkeletonDocument {
       },
     ],
     pathConstraints: [],
+    physicsConstraints: [],
     events: [],
     animations: {
       idle: {
@@ -613,6 +623,7 @@ function f2CompleteDraft(): SkeletonDocument {
           tc1: [{ time: 0, value: { mixRotate: 1 }, curve: 'linear' }],
         },
         path: {},
+        physics: {},
         deform: {
           default: {
             limb: {
@@ -673,7 +684,7 @@ function f3CompleteDraft(): SkeletonDocument {
     transformMode: 'normal' as const,
   });
   return {
-    formatVersion: '0.5.0',
+    formatVersion: '0.6.0',
     name: 'f3-complete',
     hash: '',
     bones: [bone('root', null, 0), bone('followerA', 'root', 20), bone('followerB', 'root', 40)],
@@ -736,6 +747,7 @@ function f3CompleteDraft(): SkeletonDocument {
         mixY: 1,
       },
     ],
+    physicsConstraints: [],
     events: [],
     animations: {
       idle: {
@@ -750,6 +762,7 @@ function f3CompleteDraft(): SkeletonDocument {
             { time: 1, value: { position: 1 }, curve: 'linear' },
           ],
         },
+        physics: {},
         deform: {},
         drawOrder: [],
         events: [],
@@ -762,6 +775,165 @@ function f3CompleteDraft(): SkeletonDocument {
 // Build the stage F3 completeness document with its real content hash embedded.
 function f3CompleteValid(): SkeletonDocument {
   const draft = f3CompleteDraft();
+  return { ...draft, hash: computeContentHash(draft) };
+}
+
+// The stage F4 (ADR-0014) positive COMPLETENESS fixture: a rig that exercises every new 0.6.0 shape end to
+// end. A root bone carries a `tail` child; a physics constraint `sway` simulates the tail's x/y translation
+// and rotation as a damped spring (authoring-default step 1/60, with inertia, strength, damping, mass, wind,
+// gravity, and mix set). A second physics constraint `wobble` simulates the tail's scaleX with an explicit
+// `order`, so the two constraints and one IK constraint form a dense [0, 3) order across three of the four
+// arrays. The OPTIONAL skeleton `physics` settings block sets global gravity/wind/mix. The default skin
+// scopes both physics constraints, and the idle animation keys the physics timeline (mix and a wind gust).
+// Authored with an empty hash; the real hash is embedded in f4CompleteValid below.
+function f4CompleteDraft(): SkeletonDocument {
+  const bone = (name: string, parent: string | null, x: number) => ({
+    name,
+    parent,
+    length: 100,
+    x,
+    y: 0,
+    rotation: 0,
+    scaleX: 1,
+    scaleY: 1,
+    shearX: 0,
+    shearY: 0,
+    transformMode: 'normal' as const,
+  });
+  const white = { r: 1, g: 1, b: 1, a: 1 };
+  return {
+    formatVersion: '0.6.0',
+    name: 'f4-complete',
+    hash: '',
+    bones: [bone('root', null, 0), bone('tail', 'root', 100)],
+    slots: [
+      {
+        name: 'body',
+        bone: 'root',
+        color: white,
+        attachment: 'body',
+        blendMode: 'normal',
+      },
+    ],
+    skins: [
+      {
+        name: 'default',
+        attachments: {
+          body: {
+            body: {
+              type: 'region',
+              path: 'body',
+              x: 0,
+              y: 0,
+              rotation: 0,
+              scaleX: 1,
+              scaleY: 1,
+              width: 64,
+              height: 64,
+              color: white,
+            },
+          },
+        },
+        constraints: ['sway', 'wobble'],
+      },
+    ],
+    ikConstraints: [
+      {
+        name: 'reach',
+        bones: ['tail'],
+        target: 'root',
+        mix: 1,
+        bend: 1,
+        softness: 0,
+        stretch: false,
+        compress: false,
+        uniform: false,
+        order: 0,
+      },
+    ],
+    transformConstraints: [],
+    pathConstraints: [],
+    physicsConstraints: [
+      {
+        name: 'sway',
+        bone: 'tail',
+        channels: ['x', 'y', 'rotation'],
+        step: 1 / 60,
+        inertia: 0.6,
+        strength: 120,
+        damping: 0.85,
+        mass: 1.5,
+        wind: 20,
+        gravity: 980,
+        mix: 1,
+        order: 1,
+      },
+      {
+        name: 'wobble',
+        bone: 'tail',
+        channels: ['scaleX'],
+        step: 1 / 60,
+        inertia: 0.3,
+        strength: 60,
+        damping: 0.9,
+        mass: 1,
+        wind: 0,
+        gravity: 0,
+        mix: 0.5,
+        order: 2,
+      },
+    ],
+    events: [],
+    animations: {
+      idle: {
+        duration: 1,
+        bones: {},
+        slots: {},
+        ik: {},
+        transform: {},
+        path: {},
+        physics: {
+          sway: [
+            { time: 0, value: { mix: 0, wind: 0 }, curve: 'linear' },
+            { time: 0.5, value: { mix: 1, wind: 60, gravity: 980 }, curve: 'linear' },
+            { time: 1, value: { mix: 1, wind: 0 }, curve: 'linear' },
+          ],
+        },
+        deform: {},
+        drawOrder: [],
+        events: [],
+      },
+    },
+    atlas: {
+      pages: [
+        {
+          file: 'atlas.png',
+          width: 128,
+          height: 128,
+          regions: [
+            {
+              name: 'body',
+              x: 0,
+              y: 0,
+              w: 64,
+              h: 64,
+              rotated: false,
+              offsetX: 0,
+              offsetY: 0,
+              originalW: 64,
+              originalH: 64,
+            },
+          ],
+        },
+      ],
+    },
+    physics: { gravity: 980, wind: 10, mix: 1 },
+  };
+}
+
+// Build the stage F4 completeness document with its real content hash embedded.
+function f4CompleteValid(): SkeletonDocument {
+  const draft = f4CompleteDraft();
   return { ...draft, hash: computeContentHash(draft) };
 }
 
@@ -863,6 +1035,25 @@ function pathBase(): SkeletonDocument {
     mixY: 1,
   });
   return doc;
+}
+
+// A fully-valid physics constraint on the root bone (ADR-0014). Each physics invalid case spreads this and
+// overrides exactly one field to the fault under test, so the rest of the constraint stays well-formed.
+function basePhysics(over: Partial<PhysicsConstraint> = {}): PhysicsConstraint {
+  return {
+    name: 'phys',
+    bone: 'root',
+    channels: ['rotation'],
+    step: 1 / 60,
+    inertia: 0.5,
+    strength: 100,
+    damping: 0.9,
+    mass: 1,
+    wind: 0,
+    gravity: 0,
+    mix: 1,
+    ...over,
+  };
 }
 
 const invalidCases: readonly InvalidCase[] = [
@@ -1348,6 +1539,93 @@ const invalidCases: readonly InvalidCase[] = [
     },
   },
   {
+    code: 'PHYSICS_STEP_RANGE',
+    build: () => {
+      // A non-positive fixed step has no integer step clock (structural refinement).
+      const doc = draft();
+      doc.physicsConstraints.push(basePhysics({ step: 0 }));
+      return doc;
+    },
+  },
+  {
+    code: 'PHYSICS_INERTIA_RANGE',
+    build: () => {
+      const doc = draft();
+      doc.physicsConstraints.push(basePhysics({ inertia: 1.5 }));
+      return doc;
+    },
+  },
+  {
+    code: 'PHYSICS_STRENGTH_RANGE',
+    build: () => {
+      const doc = draft();
+      doc.physicsConstraints.push(basePhysics({ strength: -1 }));
+      return doc;
+    },
+  },
+  {
+    code: 'PHYSICS_DAMPING_RANGE',
+    build: () => {
+      const doc = draft();
+      doc.physicsConstraints.push(basePhysics({ damping: 2 }));
+      return doc;
+    },
+  },
+  {
+    code: 'PHYSICS_MASS_RANGE',
+    build: () => {
+      // Zero mass is a division by zero in the force-to-acceleration term (structural refinement).
+      const doc = draft();
+      doc.physicsConstraints.push(basePhysics({ mass: 0 }));
+      return doc;
+    },
+  },
+  {
+    code: 'PHYSICS_MIX_RANGE',
+    build: () => {
+      const doc = draft();
+      doc.physicsConstraints.push(basePhysics({ mix: 2 }));
+      return doc;
+    },
+  },
+  {
+    code: 'PHYSICS_CHANNELS_EMPTY',
+    build: () => {
+      // An empty simulated-channel set is a structural refinement; semantic checks never run.
+      const doc = draft();
+      doc.physicsConstraints.push(basePhysics({ channels: [] }));
+      return doc;
+    },
+  },
+  {
+    code: 'PHYSICS_CHANNEL_DUPLICATE',
+    build: () => {
+      const doc = draft();
+      doc.physicsConstraints.push(basePhysics({ channels: ['x', 'x'] }));
+      return doc;
+    },
+  },
+  {
+    code: 'PHYSICS_BONE_MISSING',
+    build: () => {
+      // A structurally-valid physics constraint whose bound bone does not resolve (semantic).
+      const doc = draft();
+      doc.physicsConstraints.push(basePhysics({ bone: 'ghost' }));
+      return doc;
+    },
+  },
+  {
+    code: 'ANIM_PHYSICS_UNKNOWN',
+    build: () => {
+      // The idle animation keys a physics timeline on a constraint the document does not define.
+      const doc = draft();
+      doc.animations.idle!.physics = {
+        ghost: [{ time: 0, value: { mix: 1 }, curve: 'linear' }],
+      };
+      return doc;
+    },
+  },
+  {
     code: 'HASH_MISMATCH',
     build: () => {
       const doc = minimalValid();
@@ -1410,6 +1688,15 @@ function main(): void {
     );
   }
 
+  const f4Complete = f4CompleteValid();
+  writeJson(join(fixturesDir, 'f4-complete.json'), f4Complete);
+  const f4Report = validateDocument(f4Complete);
+  if (!f4Report.ok || f4Report.warnings.length > 0) {
+    throw new Error(
+      `f4-complete.json did not validate clean: ok=${f4Report.ok}, errors=${f4Report.errors.length}, warnings=${f4Report.warnings.length}, codes=[${f4Report.errors.map((e) => e.code).join(', ')}]`,
+    );
+  }
+
   for (const testCase of invalidCases) {
     const document = testCase.build();
     writeJson(join(invalidDir, `${testCase.code}.json`), document);
@@ -1423,7 +1710,7 @@ function main(): void {
   }
 
   console.log(
-    `generated minimal.json + phase1-complete.json + events-draworder.json + f2-complete.json + f3-complete.json + ${invalidCases.length} invalid fixtures`,
+    `generated minimal.json + phase1-complete.json + events-draworder.json + f2-complete.json + f3-complete.json + f4-complete.json + ${invalidCases.length} invalid fixtures`,
   );
 }
 

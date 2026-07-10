@@ -1,7 +1,7 @@
 {
-  "formatVersion": "0.5.0",
+  "formatVersion": "0.6.0",
   "name": "f2-complete",
-  "hash": "7cbab24f9dcee3f4f21cbfa110cb663be7fbd453d243d7b36d53cdf0e364e8e5",
+  "hash": "d832e4fef56d113571f8b92ef0e18a56259db6836880eda6395159f86fdffe97",
   "bones": [
     {
       "name": "root",
@@ -190,6 +190,7 @@
     }
   ],
   "pathConstraints": [],
+  "physicsConstraints": [],
   "events": [],
   "animations": {
     "idle": {
@@ -388,6 +389,7 @@
         ]
       },
       "path": {},
+      "physics": {},
       "deform": {
         "default": {
           "limb": {

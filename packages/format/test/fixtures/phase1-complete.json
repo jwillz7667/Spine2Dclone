@@ -1,7 +1,7 @@
 {
-  "formatVersion": "0.5.0",
+  "formatVersion": "0.6.0",
   "name": "phase1-complete",
-  "hash": "7a205873460ce8c15359acd038aa093df8f0bee8a6e4ce2e2cb95835ac753d52",
+  "hash": "b176eed3e9f42ffe93d4fad299f9ddc5d35db4620e1d8783b832b03c3e485986",
   "bones": [
     {
       "name": "root",
@@ -73,6 +73,7 @@
   "ikConstraints": [],
   "transformConstraints": [],
   "pathConstraints": [],
+  "physicsConstraints": [],
   "events": [],
   "animations": {
     "idle": {
@@ -199,6 +200,7 @@
       "ik": {},
       "transform": {},
       "path": {},
+      "physics": {},
       "deform": {},
       "drawOrder": [],
       "events": []

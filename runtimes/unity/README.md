@@ -69,11 +69,30 @@ The view layer is a UPM-style source package. To use it in a Unity 2021.3 LTS (o
    into your project's `Assets/`. Its asmdef references the two DLLs by name.
 
 3. Create four materials from `Marionette/Slot` and set their `_SrcBlend` / `_DstBlend` per the table in
-   `MarionetteSlot.shader` (normal, additive, multiply, screen).
+   `MarionetteSlot.shader` (normal, additive, multiply, screen). Use the premultiplied-alpha factors below.
 
 4. Add a `SkeletonRenderer` component to a GameObject and assign, in the inspector: the document JSON (a
    `.mrnt` export saved as a `.json` `TextAsset`), the atlas page `Texture2D`(s) named to match the page
    file names in the document atlas, the animation name, and the four materials. Press Play.
+
+### Premultiplied alpha and blend equations (WP-5.2)
+
+Atlas pages are emitted premultiplied by default (the FIXED PMA policy, `premultipliedAlpha` in
+`atlas-targets.json`; see `docs/plan/phase-5-texture-transport.md`). Import the page `Texture2D`(s) with
+`Alpha Is Transparency` off and let the material sample the already-premultiplied texels; the four slot
+materials set `_SrcBlend` / `_DstBlend` to the premultiplied-alpha factors below, identical to the web and
+Godot runtimes so additive/screen blends match:
+
+| Blend mode | `_SrcBlend` | `_DstBlend` |
+|---|---|---|
+| `normal` | `One` | `OneMinusSrcAlpha` |
+| `additive` | `One` | `One` |
+| `multiply` | `DstColor` | `OneMinusSrcAlpha` |
+| `screen` | `One` | `OneMinusSrcColor` |
+
+These are the premultiplied-alpha factors. If a page is consumed straight (`premultipliedAlpha` false),
+`normal` and `additive` change their `_SrcBlend` to `SrcAlpha`; `multiply` and `screen` are unchanged. This
+is a mechanical material setting; the on-device confirmation that the ASTC variant binds is the WP-5.6 layer.
 
 ### Example scene
 

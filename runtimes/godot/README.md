@@ -73,6 +73,24 @@ falls back to Godot's `MIX` canvas blend (Godot has no built-in screen canvas bl
 `CanvasItemMaterial` shader is the extension point), and the two-color dark tint is carried in the batch but
 not applied by the default material.
 
+### Premultiplied alpha and blend equations (WP-5.2)
+
+Atlas pages are emitted premultiplied by default (the FIXED PMA policy, `premultipliedAlpha` in
+`atlas-targets.json`; see `docs/plan/phase-5-texture-transport.md`). Godot's canvas renderer expects
+premultiplied textures for correct `ADD`/`MIX` compositing, so import the page textures with the
+`Fix Alpha Border` / mipmaps flags and treat the texels as already premultiplied. The `CanvasItemMaterial`
+blend modes map to the same premultiplied-alpha GL factors as the web and Unity runtimes:
+
+| Blend mode | GL source factor | GL destination factor | Godot `CanvasItemMaterial` |
+|---|---|---|---|
+| `normal` | `ONE` | `ONE_MINUS_SRC_ALPHA` | `BLEND_MODE_MIX` |
+| `additive` | `ONE` | `ONE` | `BLEND_MODE_ADD` |
+| `multiply` | `DST_COLOR` | `ONE_MINUS_SRC_ALPHA` | `BLEND_MODE_MUL` |
+| `screen` | `ONE` | `ONE_MINUS_SRC_COLOR` | custom shader (no built-in; falls back to `MIX`) |
+
+These are the premultiplied-alpha factors. If a page is consumed straight (`premultipliedAlpha` false),
+`normal` and `additive` change their SOURCE factor to `SRC_ALPHA`; `multiply` and `screen` are unchanged.
+
 The module boundaries mirror `runtime-core` one for one; only the names follow GDScript conventions
 (`snake_case`, and `TimelineCurve`/`SkinDef`/`AnimationDef`/`Curves` where a plain transliteration would
 collide with a native Godot class such as `Curve`, `Skin`, or `Animation`).

@@ -62,6 +62,25 @@ built-ins. Atlas pages can be supplied as URLs (loaded and sliced into region te
 prebuilt `RegionTextureResolver`. Premultiplied alpha is a texture property: pages loaded premultiplied
 compose correctly with the single `blendModeToPixi` mapping every view shares (no second blend path).
 
+### Premultiplied alpha and blend equations (WP-5.2)
+
+Atlas pages are emitted premultiplied by default (the FIXED PMA policy, `premultipliedAlpha` in
+`atlas-targets.json`; see `docs/plan/phase-5-texture-transport.md`). The host reads that flag and calls
+`applyPageAlphaMode(pageTexture, premultipliedAlpha)`, which sets the PixiJS v8 `TextureSource.alphaMode`:
+`premultiplied-alpha` for a premultiplied page (upload as-is), `premultiply-alpha-on-upload` for a straight
+page (PixiJS premultiplies on the GPU). PixiJS composites in premultiplied space, so with the mode set the
+four blend modes resolve to these GL blend factors, identical to the Unity and Godot runtimes:
+
+| Blend mode | GL source factor | GL destination factor |
+|---|---|---|
+| `normal` | `ONE` | `ONE_MINUS_SRC_ALPHA` |
+| `additive` | `ONE` | `ONE` |
+| `multiply` | `DST_COLOR` | `ONE_MINUS_SRC_ALPHA` |
+| `screen` | `ONE` | `ONE_MINUS_SRC_COLOR` |
+
+These are the premultiplied-alpha factors. If a page is consumed straight (`premultipliedAlpha` false),
+`normal` and `additive` change their SOURCE factor to `SRC_ALPHA`; `multiply` and `screen` are unchanged.
+
 ## The three render views
 
 `createPlayer` wires these; use them directly to build a custom host.

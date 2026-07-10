@@ -226,6 +226,122 @@ class ResolvedPathConstraint:
 		sampled_mix_y = base_my
 
 
+# A physics constraint resolved against the pose (ADR-0014, PP-B7). Physics binds to ONE `bone_index` (both
+# the driven bone and its own setpoint reference) and simulates a subset of that bone's LOCAL channels as
+# independent damped-driven springs. `channel_codes` holds one code per simulated channel (PHYSICS_CHANNEL_*
+# in physics_constraint.gd), document order; `channel_x`/`channel_y` are the array positions of the x/y
+# channels (or -1) so the force projection and teleport measure read them without a scan. `base_*` are the
+# definition values; the `sampled_*` scratch is the per-frame values step 2 writes (from the physics timeline,
+# else reset to base) and step 3 reads (step/mass are static, not keyable). The (`p`, `v`, `target_prev`)
+# simulation state and `acc_fixed`/`initialized` are pre-allocated ONCE here and MUTATE ACROSS FRAMES (physics
+# carries velocity), so the per-frame solve allocates nothing; they are the one piece of solve state that
+# persists between sample_skeleton calls, reset by reset_physics.
+class ResolvedPhysicsConstraint:
+	var name: String
+	var bone_index: int
+	var channel_codes: PackedInt32Array
+	var simulates_x: bool
+	var simulates_y: bool
+	var channel_x: int
+	var channel_y: int
+	# Static (non-keyable) model parameters (ADR-0014 section 7): the fixed timestep and the inertial mass.
+	var base_step: float
+	var base_mass: float
+	# The definition base values for the keyable knobs, the reset target for reset_constraints_to_base.
+	var base_inertia: float
+	var base_strength: float
+	var base_damping: float
+	var base_wind: float
+	var base_gravity: float
+	var base_mix: float
+	# The explicit combined-set solve order (ADR-0014 section 4), or -1 when this constraint carries none.
+	var order: int
+	# The names of the skins that SCOPE this constraint (ADR-0009 section 5), or null when unscoped (always
+	# active). Captured once at build. PackedStringArray/Array or null.
+	var scope_skins = null
+	# Per-frame sampled scratch (the keyable knobs), reset to base each frame and overlaid by the timeline.
+	var sampled_inertia: float
+	var sampled_strength: float
+	var sampled_damping: float
+	var sampled_wind: float
+	var sampled_gravity: float
+	var sampled_mix: float
+	# Simulation state, one lane per simulated channel, persisting across frames (mutated in place).
+	var p: PackedFloat64Array
+	var v: PackedFloat64Array
+	var target_prev: PackedFloat64Array
+	# The integer fixed-point step accumulator (ADR-0014 section 2.2) and the first-evaluation flag (false
+	# means "initialize to rest on the pose on the next active solve", which is also the skin-change /
+	# activation reset edge). Mutable scalars: the solve advances them every frame.
+	var acc_fixed: int
+	var initialized: bool
+
+	func _init(
+		n: String,
+		the_bone_index: int,
+		codes: PackedInt32Array,
+		sim_x: bool,
+		sim_y: bool,
+		ch_x: int,
+		ch_y: int,
+		the_step: float,
+		the_mass: float,
+		the_inertia: float,
+		the_strength: float,
+		the_damping: float,
+		the_wind: float,
+		the_gravity: float,
+		the_mix: float,
+		the_order: int,
+		the_scope_skins = null
+	) -> void:
+		name = n
+		bone_index = the_bone_index
+		channel_codes = codes
+		simulates_x = sim_x
+		simulates_y = sim_y
+		channel_x = ch_x
+		channel_y = ch_y
+		base_step = the_step
+		base_mass = the_mass
+		base_inertia = the_inertia
+		base_strength = the_strength
+		base_damping = the_damping
+		base_wind = the_wind
+		base_gravity = the_gravity
+		base_mix = the_mix
+		order = the_order
+		scope_skins = the_scope_skins
+		sampled_inertia = the_inertia
+		sampled_strength = the_strength
+		sampled_damping = the_damping
+		sampled_wind = the_wind
+		sampled_gravity = the_gravity
+		sampled_mix = the_mix
+		var channel_count := codes.size()
+		p = PackedFloat64Array()
+		p.resize(channel_count)
+		v = PackedFloat64Array()
+		v.resize(channel_count)
+		target_prev = PackedFloat64Array()
+		target_prev.resize(channel_count)
+		acc_fixed = 0
+		initialized = false
+
+
+# The skeleton-level physics settings (ADR-0014 section 5): global gravity/wind ADDED to each constraint and a
+# master mix MULTIPLIED into each constraint's mix. Absent block => the identity defaults (0, 0, 1).
+class PhysicsSettings:
+	var gravity: float
+	var wind: float
+	var mix: float
+
+	func _init(the_gravity: float, the_wind: float, the_mix: float) -> void:
+		gravity = the_gravity
+		wind = the_wind
+		mix = the_mix
+
+
 var bone_count: int
 var bone_names: Array
 var parent_indices: PackedInt32Array
@@ -271,13 +387,20 @@ var transform_constraints: Array
 # The document's path constraints (ADR-0013, PP-B6), resolved in document array order. Solved AFTER all IK
 # and all transform constraints by default (ADR-0011 section 2.3). Empty for a rig with none.
 var path_constraints: Array
-# The explicit combined-set solve schedule (ADR-0009 section 1.3, ADR-0010 section 1, ADR-0011 section 2.3)
-# or null when no constraint carries an order. When present it is a dense permutation of [0, N) (N = total
-# constraints across all THREE arrays): solve_order[position] is a constraint CODE selecting
-# ik_constraints[code] when code < ik_count, transform_constraints[code - ik_count] when ik_count <= code <
-# ik_count + transform_count, else path_constraints[code - ik_count - transform_count]. Step 3 walks it in
-# position order. Null keeps the exact default (all IK, then all transform, then all path) path. Precomputed
-# once at build.
+# The document's physics constraints (ADR-0014, PP-B7), resolved in document array order. Solved AFTER all IK,
+# transform, and path constraints by default (ADR-0014 section 4): physics is secondary motion layered on the
+# final posed skeleton. Empty for a rig with none; carries the persistent (p, v) state.
+var physics_constraints: Array
+# The skeleton-level physics globals (ADR-0014 section 5), captured at build (defaults 0, 0, 1 when the
+# document omits the block). Read by every physics constraint's per-frame combine; never mutated.
+var physics_settings: PhysicsSettings
+# The explicit combined-set solve schedule (ADR-0009 section 1.3, ADR-0010 section 1, ADR-0011 section 2.3,
+# ADR-0014 section 4) or null when no constraint carries an order. When present it is a dense permutation of
+# [0, N) (N = total constraints across all FOUR arrays): solve_order[position] is a constraint CODE selecting
+# ik_constraints[code] when code < ik_count, transform_constraints[code - ik_count] when below the path base,
+# path_constraints[code - ik_count - transform_count] when below the physics base, else physics_constraints
+# [code - physics_base]. Step 3 walks it in position order. Null keeps the exact default (all IK, then all
+# transform, then all path, then all physics) path. Precomputed once at build.
 var solve_order = null  # PackedInt32Array or null
 
 # Reused scratch for sampled deform offsets (grows only when a larger mesh is sampled).
@@ -295,7 +418,9 @@ func _init(
 	the_slot_names: Array,
 	the_ik_constraints: Array,
 	the_transform_constraints: Array,
-	the_path_constraints: Array
+	the_path_constraints: Array,
+	the_physics_constraints: Array,
+	the_physics_settings: PhysicsSettings
 ) -> void:
 	bone_count = the_bone_count
 	bone_names = the_bone_names
@@ -331,17 +456,19 @@ func _init(
 	ik_constraints = the_ik_constraints
 	transform_constraints = the_transform_constraints
 	path_constraints = the_path_constraints
-	solve_order = _build_solve_order(the_ik_constraints, the_transform_constraints, the_path_constraints)
+	physics_constraints = the_physics_constraints
+	physics_settings = the_physics_settings
+	solve_order = _build_solve_order(the_ik_constraints, the_transform_constraints, the_path_constraints, the_physics_constraints)
 
 
-# Precompute the explicit combined-set solve schedule (ADR-0010 section 1, ADR-0011 section 2.3, extended to
-# a THIRD range for path constraints). Returns null when no constraint carries an order (the default all-IK,
-# then all-transform, then all-path path). When ANY carries one, the format guarantees a dense unique
-# permutation of [0, N); this builds the position->code map from that. It is defensive against an unvalidated
-# document: a partial, duplicated, gapped, or out-of-range assignment falls back to null (the safe document-
-# order default) rather than producing a corrupt schedule.
-static func _build_solve_order(ik: Array, transform: Array, path: Array):
-	var total := ik.size() + transform.size() + path.size()
+# Precompute the explicit combined-set solve schedule (ADR-0010 section 1, ADR-0011 section 2.3, ADR-0014
+# section 4, extended to a FOURTH range for physics constraints). Returns null when no constraint carries an
+# order (the default all-IK, then all-transform, then all-path, then all-physics path). When ANY carries one,
+# the format guarantees a dense unique permutation of [0, N); this builds the position->code map from that. It
+# is defensive against an unvalidated document: a partial, duplicated, gapped, or out-of-range assignment falls
+# back to null (the safe document-order default) rather than producing a corrupt schedule.
+static func _build_solve_order(ik: Array, transform: Array, path: Array, physics: Array):
+	var total := ik.size() + transform.size() + path.size() + physics.size()
 	if total == 0:
 		return null
 
@@ -354,6 +481,9 @@ static func _build_solve_order(ik: Array, transform: Array, path: Array):
 			any_order = true
 	for i in range(path.size()):
 		if path[i].order >= 0:
+			any_order = true
+	for i in range(physics.size()):
+		if physics[i].order >= 0:
 			any_order = true
 	if not any_order:
 		return null
@@ -370,6 +500,9 @@ static func _build_solve_order(ik: Array, transform: Array, path: Array):
 			return null
 	for k in range(path.size()):
 		if not _place_order(codes, total, path[k].order, ik.size() + transform.size() + k):
+			return null
+	for m in range(physics.size()):
+		if not _place_order(codes, total, physics[m].order, ik.size() + transform.size() + path.size() + m):
 			return null
 	return codes
 

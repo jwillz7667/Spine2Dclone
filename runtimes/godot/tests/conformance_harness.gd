@@ -116,7 +116,12 @@ static func run(rig_id: String) -> Result:
 			continue
 
 		var active_skin = active_skins[s] if s < active_skins.size() else null
-		Sample.sample_skeleton(document, animation_id, time, pose, active_skin)
+		# The per-frame delta advancing the PHYSICS simulation clock (ADR-0014 section 2.2): 0 on the first
+		# frame, then the gap to the previous pose time. Physics carries velocity, so the corpus is sampled
+		# SEQUENTIALLY over poseTimes and each call gets the real dt since the last. A rig with no physics
+		# constraints ignores it (byte-identical to the pre-physics path).
+		var frame_dt := 0.0 if s == 0 else float(pose_times[s]) - float(pose_times[s - 1])
+		Sample.sample_skeleton(document, animation_id, time, pose, active_skin, frame_dt)
 
 		var expected_bones: Dictionary = sample["bones"]
 		for bone_name in expected_bones:

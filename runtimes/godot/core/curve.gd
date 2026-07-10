@@ -21,6 +21,8 @@ enum IkDepthChannel { STRETCH, COMPRESS }
 
 enum PathChannel { POSITION, SPACING, MIX_ROTATE, MIX_X, MIX_Y }
 
+enum PhysicsChannel { MIX, INERTIA, STRENGTH, DAMPING, WIND, GRAVITY }
+
 
 # A cubic bezier coordinate at parameter s, expanded form (no fused multiply add reassociation, so other
 # runtimes match the operation order). P0 and P3 are the implicit easing endpoints (0 and 1).
@@ -379,6 +381,49 @@ static func _select_path_channel(frame, channel: int):
 			return frame.mix_x
 		_:
 			return frame.mix_y
+
+
+# One keyable knob of a physics-constraint timeline (ADR-0014 section 7): mix, inertia, strength, damping,
+# wind, or gravity. Built from ONLY the keyframes that key it (the same absent-channel semantics as the
+# transform/path channels), each interpolated by its own curve. Returns null when no keyframe keys the channel,
+# so step 2 holds the constraint's base value for it. step/mass/channels are NOT keyable and never passed here.
+# Mirrors buildPhysicsTrack in curve.ts.
+static func build_physics_track(frames: Array, channel: int):
+	var present := []
+	for i in range(frames.size()):
+		if _select_physics_channel(frames[i], channel) != null:
+			present.append(frames[i])
+	if present.size() == 0:
+		return null
+
+	var key_count := present.size()
+	var times := PackedFloat64Array()
+	times.resize(key_count)
+	var values := PackedFloat64Array()
+	values.resize(key_count)
+	var curves := []
+	for i in range(key_count):
+		times[i] = present[i].time
+		var v = _select_physics_channel(present[i], channel)
+		values[i] = 0.0 if v == null else float(v)
+		curves.append(present[i].curve)
+	return _build_track(key_count, 1, times, curves, values)
+
+
+static func _select_physics_channel(frame, channel: int):
+	match channel:
+		PhysicsChannel.MIX:
+			return frame.mix
+		PhysicsChannel.INERTIA:
+			return frame.inertia
+		PhysicsChannel.STRENGTH:
+			return frame.strength
+		PhysicsChannel.DAMPING:
+			return frame.damping
+		PhysicsChannel.WIND:
+			return frame.wind
+		_:
+			return frame.gravity
 
 
 static func build_deform_track(frames: Array) -> Prepared.PreparedTrack:

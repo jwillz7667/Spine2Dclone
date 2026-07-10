@@ -96,6 +96,21 @@ class PreparedPathChannel:
 	var mix_y = null
 
 
+# The timelines of one animated physics constraint (ADR-0014 section 7), resolved to the pose's physics-
+# constraint index. Each of the six KEYABLE knobs is prepared from ONLY the keyframes that key it (the same
+# absent-channel semantics as the transform/path channels): a channel no keyframe keys is null and holds the
+# constraint base. step/mass/channels are NOT keyable (the determinism anchor, a static inertial property, and
+# a structural set), so they never appear here.
+class PreparedPhysicsChannel:
+	var constraint_index: int
+	var mix = null  # PreparedTrack or null
+	var inertia = null
+	var strength = null
+	var damping = null
+	var wind = null
+	var gravity = null
+
+
 class PreparedDeformChannel:
 	var skin: String
 	var slot: String
@@ -138,6 +153,8 @@ class PreparedAnimation:
 	var transform_channels: Array = []  # Array[PreparedTransformChannel]
 	# Array[PreparedPathChannel] (ADR-0011 section 3, ADR-0013), or empty when the animation keys no path.
 	var path_channels: Array = []
+	# Array[PreparedPhysicsChannel] (ADR-0014 section 7), or empty when the animation keys no physics.
+	var physics_channels: Array = []
 	var deform_channels: Array = []  # Array[PreparedDeformChannel]
 	# The draw-order reorder timeline (ADR-0008), or null when this animation never reorders. Applied in
 	# step 2 as a discrete greater-weight-wins channel. Event firing is NOT part of PreparedAnimation (it

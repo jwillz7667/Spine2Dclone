@@ -14,6 +14,7 @@ const ResolveWorld = preload("res://core/resolve_world.gd")
 const Ik = preload("res://core/ik.gd")
 const TransformConstraint = preload("res://core/transform_constraint.gd")
 const PathConstraintSolve = preload("res://core/path_constraint.gd")
+const PhysicsConstraintSolve = preload("res://core/physics_constraint.gd")
 
 # Solver owned scratch for an on demand target world matrix (step 3 reads the target's world origin).
 static var _target_world_scratch: PackedFloat64Array = PackedFloat64Array()
@@ -22,7 +23,13 @@ static var _target_world_scratch: PackedFloat64Array = PackedFloat64Array()
 # active_skin (default null) is the active skin for skin-scoped constraints (ADR-0009 section 5, ADR-0011
 # section 4). null leaves only the always-active 'default' skin active, so a scoped constraint stays
 # inactive and every non-scoped rig is unaffected. A constraint no skin scopes is always solved.
-static func sample_skeleton(document: Document.SkeletonDocument, animation_id: String, t: float, out_pose: Pose, active_skin = null) -> void:
+#
+# frame_dt (default 0.0) is the frame delta time in seconds (ADR-0014 section 2.2), advancing the PHYSICS
+# simulation clock ONLY. Physics carries velocity across frames, so a physics rig must be sampled SEQUENTIALLY
+# with the real per-frame dt between consecutive calls (frameDt 0 on the first frame, then poseTimes[i] -
+# poseTimes[i-1]). A rig with no physics constraints ignores it entirely (byte-identical to the pre-physics
+# path), and a frameDt-0 call runs zero physics steps (initializing physics to rest on its pose).
+static func sample_skeleton(document: Document.SkeletonDocument, animation_id: String, t: float, out_pose: Pose, active_skin = null, frame_dt: float = 0.0) -> void:
 	var animation = document.find_animation(animation_id)
 	if animation == null:
 		push_error("animation not found: %s" % animation_id)
@@ -40,9 +47,10 @@ static func sample_skeleton(document: Document.SkeletonDocument, animation_id: S
 	apply_animation_at(out_pose, prepared, t, 1.0, false, true)
 	compose_touched_bones(out_pose)
 
-	# Step 3: solve constraints: ALL IK first, then ALL transform, each in document array order. A skin-
-	# scoped constraint is skipped unless its skin is active.
-	solve_constraints(out_pose, active_skin)
+	# Step 3: solve constraints: ALL IK first, then ALL transform, then all path, then all physics, each in
+	# document array order. A skin-scoped constraint is skipped unless its skin is active. Physics steps its
+	# simulation clock by frame_dt.
+	solve_constraints(out_pose, active_skin, frame_dt)
 
 	# Step 4: world transforms (single forward pass, parents before children).
 	WorldTransform.compute_world_transforms(out_pose)
@@ -122,13 +130,14 @@ static func _blend_add_rotation(current: float, setup_value: float, sampled: flo
 # precomputed dense schedule spanning all THREE arrays and step 3 walks it, dispatching each code to the SAME
 # per-constraint helper the default path uses (so a constraint is bit-identical either way; only the schedule
 # moves).
-static func solve_constraints(pose: Pose, active_skin = null) -> void:
+static func solve_constraints(pose: Pose, active_skin = null, frame_dt: float = 0.0) -> void:
 	if _target_world_scratch.size() != Affine.MAT2X3_STRIDE:
 		_target_world_scratch.resize(Affine.MAT2X3_STRIDE)
 
 	var ik_constraints := pose.ik_constraints
 	var transform_constraints := pose.transform_constraints
 	var path_constraints := pose.path_constraints
+	var physics_constraints := pose.physics_constraints
 	var solve_order = pose.solve_order
 
 	if solve_order == null:
@@ -138,18 +147,23 @@ static func solve_constraints(pose: Pose, active_skin = null) -> void:
 			_solve_one_transform_constraint(pose, transform_constraints[i], active_skin)
 		for i in range(path_constraints.size()):
 			_solve_one_path_constraint(pose, path_constraints[i], active_skin)
+		for i in range(physics_constraints.size()):
+			_solve_one_physics_constraint(pose, physics_constraints[i], active_skin, frame_dt)
 		return
 
 	var ik_count := ik_constraints.size()
 	var path_base := ik_count + transform_constraints.size()
+	var physics_base := path_base + path_constraints.size()
 	for p in range(solve_order.size()):
 		var code: int = solve_order[p]
 		if code < ik_count:
 			_solve_one_ik_constraint(pose, ik_constraints[code], active_skin)
 		elif code < path_base:
 			_solve_one_transform_constraint(pose, transform_constraints[code - ik_count], active_skin)
-		else:
+		elif code < physics_base:
 			_solve_one_path_constraint(pose, path_constraints[code - path_base], active_skin)
+		else:
+			_solve_one_physics_constraint(pose, physics_constraints[code - physics_base], active_skin, frame_dt)
 
 
 # Whether a constraint participates in the solve under the active skin (ADR-0009 section 5, ADR-0011
@@ -236,6 +250,28 @@ static func _solve_one_path_constraint(pose: Pose, constraint, active_skin = nul
 	PathConstraintSolve.solve(pose, constraint)
 
 
+# Solve one physics constraint against the pose (ADR-0014, PP-B7), stepping its simulation by frame_dt. A skin-
+# scoped constraint whose skin is inactive is skipped AND its state is invalidated (initialized set false), so a
+# re-activation (skin change) re-initializes the bone to rest on its pose rather than carrying stale velocity
+# across the gap (ADR-0014 section 6). An active constraint solves; the per-frame sampled scratch (mix/inertia/
+# strength/damping/wind/gravity) was written by step 2 (else reset to the base).
+static func _solve_one_physics_constraint(pose: Pose, constraint, active_skin, frame_dt: float) -> void:
+	if not _is_constraint_scope_active(constraint.scope_skins, active_skin):
+		constraint.initialized = false
+		return
+	PhysicsConstraintSolve.solve(pose, constraint, frame_dt)
+
+
+# Reset every physics constraint's simulation state so the NEXT active solve re-initializes the bone to rest on
+# its pose (ADR-0014 section 6 activation / restart). Physics carries velocity across frames, so a caller that
+# restarts a sampling sequence (rewinds to the first frame, or re-uses a pose for an unrelated run) MUST call
+# this first; otherwise stale velocity leaks into the new sequence. It flips the per-constraint `initialized`
+# flag (the state arrays are re-seeded from the pose on the next solve).
+static func reset_physics(pose: Pose) -> void:
+	for i in range(pose.physics_constraints.size()):
+		pose.physics_constraints[i].initialized = false
+
+
 static func reset_constraints_to_base(pose: Pose) -> void:
 	for i in range(pose.ik_constraints.size()):
 		var constraint = pose.ik_constraints[i]
@@ -256,6 +292,17 @@ static func reset_constraints_to_base(pose: Pose) -> void:
 		constraint.sampled_mix_rotate = constraint.base_mix_rotate
 		constraint.sampled_mix_x = constraint.base_mix_x
 		constraint.sampled_mix_y = constraint.base_mix_y
+	# Physics constraints (ADR-0014 section 7): reset the sampled KEYABLE knobs to the definition base; step 2's
+	# physics timeline then overlays any keyed channel, and an unkeyed channel keeps its base. step/mass are
+	# static (not keyable) and the persistent (p, v) simulation state is untouched here.
+	for i in range(pose.physics_constraints.size()):
+		var constraint = pose.physics_constraints[i]
+		constraint.sampled_inertia = constraint.base_inertia
+		constraint.sampled_strength = constraint.base_strength
+		constraint.sampled_damping = constraint.base_damping
+		constraint.sampled_wind = constraint.base_wind
+		constraint.sampled_gravity = constraint.base_gravity
+		constraint.sampled_mix = constraint.base_mix
 
 
 static func _sample_scalar_track(track: Prepared.PreparedTrack, t: float) -> float:
@@ -501,9 +548,11 @@ static func _apply_constraint_entry(pose: Pose, prepared: Prepared.PreparedAnima
 	var ik_channels := prepared.ik_channels
 	var transform_channels := prepared.transform_channels
 	var path_channels := prepared.path_channels
+	var physics_channels := prepared.physics_channels
 	var ik_constraints := pose.ik_constraints
 	var transform_constraints := pose.transform_constraints
 	var path_constraints := pose.path_constraints
+	var physics_constraints := pose.physics_constraints
 	var ik_bend_win_weight := pose.ik_bend_win_weight
 	var ik_stretch_win_weight := pose.ik_stretch_win_weight
 	var ik_compress_win_weight := pose.ik_compress_win_weight
@@ -584,6 +633,29 @@ static func _apply_constraint_entry(pose: Pose, prepared: Prepared.PreparedAnima
 			constraint.sampled_mix_x = _blend_mix(constraint.sampled_mix_x, constraint.base_mix_x, channel.mix_x, t, alpha, additive)
 		if channel.mix_y != null:
 			constraint.sampled_mix_y = _blend_mix(constraint.sampled_mix_y, constraint.base_mix_y, channel.mix_y, t, alpha, additive)
+
+	# Physics constraints (ADR-0014 section 7): each keyable knob is a continuous interpolated scalar blended
+	# toward its keyed value by alpha (additive adds the delta from the constraint base), exactly like the
+	# transform/path channels. mix/inertia/damping are [0, 1] and strength >= 0 by the format, so no extra clamp
+	# is applied here (the base and keyed values are in range; the solve clamps the mix PRODUCT anyway).
+	for c in range(physics_channels.size()):
+		var channel = physics_channels[c]
+		var index: int = channel.constraint_index
+		if index < 0:
+			continue
+		var constraint = physics_constraints[index]
+		if channel.mix != null:
+			constraint.sampled_mix = _blend_mix(constraint.sampled_mix, constraint.base_mix, channel.mix, t, alpha, additive)
+		if channel.inertia != null:
+			constraint.sampled_inertia = _blend_mix(constraint.sampled_inertia, constraint.base_inertia, channel.inertia, t, alpha, additive)
+		if channel.strength != null:
+			constraint.sampled_strength = _blend_mix(constraint.sampled_strength, constraint.base_strength, channel.strength, t, alpha, additive)
+		if channel.damping != null:
+			constraint.sampled_damping = _blend_mix(constraint.sampled_damping, constraint.base_damping, channel.damping, t, alpha, additive)
+		if channel.wind != null:
+			constraint.sampled_wind = _blend_mix(constraint.sampled_wind, constraint.base_wind, channel.wind, t, alpha, additive)
+		if channel.gravity != null:
+			constraint.sampled_gravity = _blend_mix(constraint.sampled_gravity, constraint.base_gravity, channel.gravity, t, alpha, additive)
 
 
 static func _blend_mix(current: float, base_value: float, track: Prepared.PreparedTrack, t: float, alpha: float, additive: bool) -> float:
@@ -681,6 +753,24 @@ static func _prepare_animation(pose: Pose, animation) -> Prepared.PreparedAnimat
 		channel.mix_x = Curves.build_path_track(frames, Curves.PathChannel.MIX_X)
 		channel.mix_y = Curves.build_path_track(frames, Curves.PathChannel.MIX_Y)
 		result.path_channels.append(channel)
+
+	# Physics-constraint timelines (ADR-0014 section 7). Each keyable knob is prepared from only the frames that
+	# key it; an all-absent knob is null and holds the constraint base. step/mass/channels are NOT keyable and
+	# never appear here.
+	var physics_index_by_name := _name_index_of(pose.physics_constraints)
+	for phys_name in animation.physics:
+		var frames = animation.physics[phys_name]
+		if frames.size() == 0:
+			continue
+		var channel := Prepared.PreparedPhysicsChannel.new()
+		channel.constraint_index = _lookup(physics_index_by_name, phys_name)
+		channel.mix = Curves.build_physics_track(frames, Curves.PhysicsChannel.MIX)
+		channel.inertia = Curves.build_physics_track(frames, Curves.PhysicsChannel.INERTIA)
+		channel.strength = Curves.build_physics_track(frames, Curves.PhysicsChannel.STRENGTH)
+		channel.damping = Curves.build_physics_track(frames, Curves.PhysicsChannel.DAMPING)
+		channel.wind = Curves.build_physics_track(frames, Curves.PhysicsChannel.WIND)
+		channel.gravity = Curves.build_physics_track(frames, Curves.PhysicsChannel.GRAVITY)
+		result.physics_channels.append(channel)
 
 	for entry in animation.deform:
 		if entry.frames.size() == 0:

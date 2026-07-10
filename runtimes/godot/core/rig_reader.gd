@@ -12,7 +12,7 @@ extends RefCounted
 # skin scoping are additive), 0.5.0 (ADR-0011: an additive root `pathConstraints` array, a per-animation
 # `path` timeline, and a seventh `path` attachment kind, ALL now consumed by the PP-B6 path solve, ADR-0013),
 # and 0.6.0 (ADR-0014: an additive root `physicsConstraints` array, an OPTIONAL skeleton `physics` settings
-# block, and a per-animation `physics` timeline, NONE consumed here; the physics solve is Lane B / PP-B7).
+# block, and a per-animation `physics` timeline, ALL now consumed by the PP-B7 physics solve).
 # It REQUIRES every field the solve consumes, reads the signed bend (mapping it to the same sign the solve
 # keys on), and PERMITS unknown/additive members, so a 0.6.0 rig (empty physicsConstraints and per-animation
 # physics plus the version bump) reads unchanged. It FAILS LOUDLY on a missing required field, a wrong type for
@@ -99,6 +99,23 @@ static func _read_document(root: Dictionary) -> Document.SkeletonDocument:
 	if pc_value != null and typeof(pc_value) == TYPE_ARRAY:
 		for pc in pc_value:
 			document.path_constraints.append(_read_path_constraint(pc))
+
+	# The additive root physicsConstraints array (ADR-0014 section 1, PP-B7); absent on a pre-0.6.0 rig, so it
+	# leaves the empty default (the same lenience as the IK/transform/path arrays).
+	var phys_value = root.get("physicsConstraints")
+	if phys_value != null and typeof(phys_value) == TYPE_ARRAY:
+		for phys in phys_value:
+			document.physics_constraints.append(_read_physics_constraint(phys))
+
+	# The OPTIONAL skeleton-level physics settings block (ADR-0014 section 5): gravity/wind ADDED to each
+	# constraint and a master mix MULTIPLIED in. Absent leaves null (build_pose applies the identity defaults).
+	var physics_block = root.get("physics")
+	if physics_block != null and typeof(physics_block) == TYPE_DICTIONARY:
+		document.physics_settings = Document.PhysicsSettings.new(
+			_req_number(physics_block, "gravity"),
+			_req_number(physics_block, "wind"),
+			_req_number(physics_block, "mix")
+		)
 
 	var events_value = root.get("events")
 	if events_value != null and typeof(events_value) == TYPE_ARRAY:
@@ -320,6 +337,29 @@ static func _read_path_constraint(pc: Dictionary) -> Document.PathConstraint:
 	return c
 
 
+# A physics constraint (ADR-0014 section 1, PP-B7): the bound `bone`, the simulated LOCAL `channels`, the
+# static step/mass, and the six keyable knobs (inertia/strength/damping/wind/gravity/mix). The channel strings
+# pass through verbatim (the solve maps them to integer codes); the referential checks are the TS validator's
+# job (already run before a rig is committed), so the reader only requires the consumed fields.
+static func _read_physics_constraint(phys: Dictionary) -> Document.PhysicsConstraint:
+	var c := Document.PhysicsConstraint.new()
+	c.name = _req_string(phys, "name")
+	c.bone = _req_string(phys, "bone")
+	c.channels = _read_string_array(_req_array(phys, "channels"))
+	c.step = _req_number(phys, "step")
+	c.inertia = _req_number(phys, "inertia")
+	c.strength = _req_number(phys, "strength")
+	c.damping = _req_number(phys, "damping")
+	c.mass = _req_number(phys, "mass")
+	c.wind = _req_number(phys, "wind")
+	c.gravity = _req_number(phys, "gravity")
+	c.mix = _req_number(phys, "mix")
+	# The explicit combined-set solve order (ADR-0014 section 4), or -1 when this constraint carries none.
+	var order_value = phys.get("order")
+	c.order = int(order_value) if _is_number(order_value) else -1
+	return c
+
+
 static func _read_animation(animation: Dictionary) -> Document.AnimationDef:
 	var a := Document.AnimationDef.new()
 	a.duration = _req_number(animation, "duration")
@@ -391,6 +431,28 @@ static func _read_animation(animation: Dictionary) -> Document.AnimationDef:
 				kf.mix_y = _opt_number(value, "mixY")
 				frames.append(kf)
 			a.path[pc_name] = frames
+
+	# The per-animation physics timeline (ADR-0014 section 7): keyframes { time, value, curve } where value is a
+	# PARTIAL record of the keyable knobs (mix/inertia/strength/damping/wind/gravity; any subset, absent == not
+	# keyed by this frame). Absent on a pre-0.6.0 rig, so it leaves the empty default. step/mass/channels are
+	# NOT keyable and never appear in a keyframe value.
+	var physics_value = animation.get("physics")
+	if physics_value != null and typeof(physics_value) == TYPE_DICTIONARY:
+		for phys_name in physics_value:
+			var frames := []
+			for frame in physics_value[phys_name]:
+				var value := _req_object(frame, "value")
+				var kf := Document.PhysicsKeyframe.new()
+				kf.time = _req_number(frame, "time")
+				kf.curve = _read_curve(frame)
+				kf.mix = _opt_number(value, "mix")
+				kf.inertia = _opt_number(value, "inertia")
+				kf.strength = _opt_number(value, "strength")
+				kf.damping = _opt_number(value, "damping")
+				kf.wind = _opt_number(value, "wind")
+				kf.gravity = _opt_number(value, "gravity")
+				frames.append(kf)
+			a.physics[phys_name] = frames
 
 	var deform_value = animation.get("deform")
 	if deform_value != null and typeof(deform_value) == TYPE_DICTIONARY:

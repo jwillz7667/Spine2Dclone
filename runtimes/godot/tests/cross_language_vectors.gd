@@ -6,6 +6,7 @@ extends RefCounted
 
 const Prng = preload("res://core/prng.gd")
 const Crc32 = preload("res://core/crc32.gd")
+const Physics = preload("res://core/physics_constraint.gd")
 const RepoPaths = preload("res://tests/repo_paths.gd")
 
 
@@ -28,6 +29,7 @@ static func run() -> Result:
 	_check_mulberry32(result, vectors)
 	_check_crc32_check(result, vectors)
 	_check_crc32_twin_body(result, vectors)
+	_check_physics_step_fixed(result, vectors)
 
 	return result
 
@@ -106,6 +108,37 @@ static func _check_mulberry32(result: Result, vectors: Dictionary) -> void:
 		if actual != expected_value:
 			result.failures.append("mulberry32 nextU32[%d]: expected %d, actual %d" % [i, expected_value, actual])
 	_record(result, "mulberry32", expected.size(), before)
+
+
+# The physics fixed-point step clock (ADR-0014 section 2.2, PP-B7): physicsStepsFixed(frameDt, step) is an
+# integer-exact function of accumulated time, the one determinism surface the physics solve adds. Every value
+# is a uint the GDScript core must reproduce EXACT. Keys are "frameDt,step"; each token is a rational "num/den"
+# or a decimal literal, evaluated to f64 exactly as the TS vector generator wrote it.
+static func _check_physics_step_fixed(result: Result, vectors: Dictionary) -> void:
+	var before := result.failures.size()
+	var checked := 0
+	var step_fixed: Dictionary = vectors["physicsStepFixed"]
+	for key in step_fixed:
+		if key.begins_with("_"):
+			continue
+		checked += 1
+		var parts: PackedStringArray = key.split(",")
+		var frame_dt := _parse_rational(parts[0])
+		var step := _parse_rational(parts[1])
+		var expected := int(step_fixed[key])
+		var actual := Physics.physics_steps_fixed(frame_dt, step)
+		if actual != expected:
+			result.failures.append("physicsStepFixed('%s'): expected %d, actual %d" % [key, expected, actual])
+	_record(result, "physicsStepFixed", checked, before)
+
+
+# Evaluate one vector token: a rational "num/den" (e.g. "1/60") divided as two f64 operands, or a plain decimal
+# literal. Matches the TS generator's parse so the divide happens in the identical order and width.
+static func _parse_rational(token: String) -> float:
+	var slash := token.find("/")
+	if slash < 0:
+		return float(token)
+	return float(token.substr(0, slash)) / float(token.substr(slash + 1))
 
 
 static func _check_crc32_check(result: Result, vectors: Dictionary) -> void:

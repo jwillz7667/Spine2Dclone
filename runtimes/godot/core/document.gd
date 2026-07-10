@@ -197,6 +197,56 @@ class PathConstraint:
 	var order: int = -1
 
 
+# A physics constraint (ADR-0014 section 1, PP-B7): binds ONE `bone` and simulates a subset of its LOCAL
+# `channels` (each of "x", "y", "rotation", "scaleX", "shearX") as independent damped-driven springs. `step`
+# is the fixed integration timestep (the determinism anchor) and `mass` the inertial mass; both are STATIC
+# (not keyable). inertia/strength/damping/wind/gravity/mix are the keyable knobs. The mode/channel set is a
+# closed enum the solve keys on; the referential checks are the TS validator's job (run before commit).
+class PhysicsConstraint:
+	var name: String
+	var bone: String
+	var channels: PackedStringArray
+	var step: float
+	var inertia: float
+	var strength: float
+	var damping: float
+	var mass: float
+	var wind: float
+	var gravity: float
+	var mix: float
+	# The explicit combined-set solve order (ADR-0014 section 4), or -1 when this constraint carries none.
+	var order: int = -1
+
+
+# The skeleton-level physics settings block (ADR-0014 section 5): global gravity/wind ADDED to each physics
+# constraint and a master mix MULTIPLIED into each constraint's mix. Absent from the document => the identity
+# defaults (0, 0, 1), applied in build_pose.
+class PhysicsSettings:
+	var gravity: float
+	var wind: float
+	var mix: float
+
+	func _init(the_gravity: float, the_wind: float, the_mix: float) -> void:
+		gravity = the_gravity
+		wind = the_wind
+		mix = the_mix
+
+
+# A keyed physics-constraint frame (ADR-0014 section 7): a PARTIAL record of the physics constraint's KEYABLE
+# knobs (mix/inertia/strength/damping/wind/gravity). A frame MAY key any subset; null == not keyed by this
+# frame, so only the frames that key a channel drive its prepared track (the constraint base holds otherwise),
+# exactly like the path/transform keyframe channels. step/mass/channels are NOT keyable and never appear here.
+class PhysicsKeyframe:
+	var time: float
+	var curve: TimelineCurve
+	var mix = null
+	var inertia = null
+	var strength = null
+	var damping = null
+	var wind = null
+	var gravity = null
+
+
 # A keyed path-constraint frame (ADR-0011 section 3, ADR-0013): a PARTIAL record of the path constraint's
 # animatable channels (position/spacing along the path, and the three mix blend factors). A frame MAY key
 # any subset; null == not keyed by this frame, so only the frames that key a channel drive its prepared
@@ -364,6 +414,9 @@ class AnimationDef:
 	# path constraint name -> Array[PathKeyframe] (ADR-0011 section 3, ADR-0013). Empty when the animation
 	# keys no path constraint; insertion order preserved (Dictionary), matching the TS Object.keys() walk.
 	var path: Dictionary = {}
+	# physics constraint name -> Array[PhysicsKeyframe] (ADR-0014 section 7). Empty when the animation keys no
+	# physics constraint; insertion order preserved (Dictionary), matching the TS Object.keys() walk.
+	var physics: Dictionary = {}
 	var deform: Array = []  # Array[DeformEntry], nested skin/slot/attachment order preserved
 	var draw_order: Array = []  # Array[DrawOrderKeyframe], ascending time
 	var events: Array = []  # Array[EventKeyframe], non-decreasing time
@@ -377,6 +430,11 @@ class SkeletonDocument:
 	var transform_constraints: Array = []  # Array[TransformConstraint]
 	# Array[PathConstraint] (ADR-0011 section 2.3, ADR-0013). Empty for a rig with no path constraints.
 	var path_constraints: Array = []
+	# Array[PhysicsConstraint] (ADR-0014 section 1, PP-B7). Empty for a rig with no physics constraints.
+	var physics_constraints: Array = []
+	# The optional skeleton-level physics settings block (ADR-0014 section 5), or null when the document omits
+	# it (build_pose then applies the identity defaults 0, 0, 1).
+	var physics_settings = null  # PhysicsSettings or null
 	var events: Array = []  # Array[EventDef], the document-level event payload defaults
 	var animations: Dictionary = {}  # animation id -> Animation
 

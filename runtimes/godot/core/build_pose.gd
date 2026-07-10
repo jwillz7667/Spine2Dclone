@@ -10,6 +10,7 @@ const Pose = preload("res://core/pose.gd")
 const TransformMode = preload("res://core/transform_mode.gd")
 const Affine = preload("res://core/affine.gd")
 const PathConstraintSolve = preload("res://core/path_constraint.gd")
+const PhysicsConstraintSolve = preload("res://core/physics_constraint.gd")
 
 
 static func build(document: Document.SkeletonDocument) -> Pose:
@@ -78,7 +79,22 @@ static func build(document: Document.SkeletonDocument) -> Pose:
 			)
 		)
 
-	var pose := Pose.new(bone_count, bone_names, slot_count, slot_names, ik_constraints, transform_constraints, path_constraints)
+	# Physics constraints (ADR-0014, PP-B7): resolve the bound bone to its index, translate the channel strings
+	# to codes, and pre-allocate the per-channel simulation state. A pre-0.6.0 draft may lack the array
+	# (tolerated as empty, the same lenience as the IK/transform/path arrays).
+	var physics_constraints := []
+	for constraint in document.physics_constraints:
+		physics_constraints.append(_resolve_physics(constraint, index_by_name, scope_by_constraint.get(constraint.name, null)))
+	# The skeleton-level physics settings (ADR-0014 section 5), or the identity defaults when absent.
+	var physics_settings: Pose.PhysicsSettings
+	if document.physics_settings == null:
+		physics_settings = Pose.PhysicsSettings.new(0.0, 0.0, 1.0)
+	else:
+		physics_settings = Pose.PhysicsSettings.new(
+			document.physics_settings.gravity, document.physics_settings.wind, document.physics_settings.mix
+		)
+
+	var pose := Pose.new(bone_count, bone_names, slot_count, slot_names, ik_constraints, transform_constraints, path_constraints, physics_constraints, physics_settings)
 
 	for i in range(bone_count):
 		var bone = bones[i]
@@ -261,6 +277,61 @@ static func _resolve_path(constraint, index_by_name: Dictionary, slot_bone_by_na
 		constraint.mix_x,
 		constraint.mix_y,
 		path,
+		constraint.order,
+		scope_skins
+	)
+
+
+# Translate a physics channel string to its integer code (physics_constraint.gd). The five channels are the
+# bone's local pose properties the constraint simulates (ADR-0014 section 1). Mirrors physicsChannelCode.
+static func _physics_channel_code(channel: String) -> int:
+	match channel:
+		"x":
+			return PhysicsConstraintSolve.PHYSICS_CHANNEL_X
+		"y":
+			return PhysicsConstraintSolve.PHYSICS_CHANNEL_Y
+		"rotation":
+			return PhysicsConstraintSolve.PHYSICS_CHANNEL_ROTATION
+		"scaleX":
+			return PhysicsConstraintSolve.PHYSICS_CHANNEL_SCALEX
+		_:  # "shearX"
+			return PhysicsConstraintSolve.PHYSICS_CHANNEL_SHEARX
+
+
+# Resolve a physics constraint (ADR-0014, PP-B7, mirrors resolvePhysics in build-pose.ts). The bound bone
+# resolves to its index (-1 if unknown, then the solve is a no-op, the same lenience as the other constraints).
+# The channel set becomes integer codes, and the per-channel simulation state (p, v, target_prev), sized to the
+# channel count, is pre-allocated in the Resolved record so the per-frame solve never allocates. `initialized`
+# starts false so the first active solve initializes the bone to rest on its pose (ADR section 6).
+static func _resolve_physics(constraint, index_by_name: Dictionary, scope_skins) -> Pose.ResolvedPhysicsConstraint:
+	var channel_count: int = constraint.channels.size()
+	var channel_codes := PackedInt32Array()
+	channel_codes.resize(channel_count)
+	var channel_x := -1
+	var channel_y := -1
+	for i in range(channel_count):
+		var code := _physics_channel_code(constraint.channels[i])
+		channel_codes[i] = code
+		if code == PhysicsConstraintSolve.PHYSICS_CHANNEL_X:
+			channel_x = i
+		elif code == PhysicsConstraintSolve.PHYSICS_CHANNEL_Y:
+			channel_y = i
+	return Pose.ResolvedPhysicsConstraint.new(
+		constraint.name,
+		_lookup(index_by_name, constraint.bone),
+		channel_codes,
+		channel_x >= 0,
+		channel_y >= 0,
+		channel_x,
+		channel_y,
+		constraint.step,
+		constraint.mass,
+		constraint.inertia,
+		constraint.strength,
+		constraint.damping,
+		constraint.wind,
+		constraint.gravity,
+		constraint.mix,
 		constraint.order,
 		scope_skins
 	)

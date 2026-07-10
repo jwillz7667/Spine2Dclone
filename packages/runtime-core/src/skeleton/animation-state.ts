@@ -331,7 +331,18 @@ function sampleTimeFor(entry: InternalEntry, raw: number): number {
 // entry (rule 4). The blended locals feed the step-3 constraint solve and the step-4 world pass, so the
 // locked six-step order is preserved (mixing lives INSIDE step 2). Allocation-free in steady state: every
 // buffer is the reused pose scratch and the prepared animations are cached on the pose.
-export function applyAnimationState(state: AnimationState, pose: Pose): void {
+//
+// `activeSkin` scopes skin-scoped constraints (ADR-0009 section 5, ADR-0011 section 4) EXACTLY as
+// sampleSkeleton does on the single-animation path: a constraint a skin scopes is solved only when that
+// skin is active (the always-active 'default' skin and every unscoped constraint are unaffected). null
+// (the default) leaves only 'default' active, matching the historical behavior, so existing callers and
+// fixtures are byte-identical. This closes the parity gap where a multi-track render could not turn a
+// costume skin's scoped constraints on the way a single-animation render could.
+export function applyAnimationState(
+  state: AnimationState,
+  pose: Pose,
+  activeSkin: string | null = null,
+): void {
   resetToSetupPose(pose);
   resetSlotsToSetup(pose);
   resetConstraintsToBase(pose);
@@ -345,7 +356,7 @@ export function applyAnimationState(state: AnimationState, pose: Pose): void {
   }
 
   composeTouchedBones(pose);
-  solveConstraints(pose);
+  solveConstraints(pose, activeSkin);
   computeWorldTransforms(pose);
 }
 

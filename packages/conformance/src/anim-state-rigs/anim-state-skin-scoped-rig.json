@@ -1,0 +1,134 @@
+{
+  "formatVersion": "0.4.0",
+  "name": "anim-state-skin-scoped-rig",
+  "hash": "",
+  "bones": [
+    {
+      "name": "root",
+      "parent": null,
+      "length": 30,
+      "x": 0,
+      "y": 0,
+      "rotation": 0,
+      "scaleX": 1,
+      "scaleY": 1,
+      "shearX": 0,
+      "shearY": 0,
+      "transformMode": "normal"
+    },
+    {
+      "name": "boneA",
+      "parent": "root",
+      "length": 30,
+      "x": 0,
+      "y": 0,
+      "rotation": 0,
+      "scaleX": 1,
+      "scaleY": 1,
+      "shearX": 0,
+      "shearY": 0,
+      "transformMode": "normal"
+    },
+    {
+      "name": "boneB",
+      "parent": "root",
+      "length": 30,
+      "x": 0,
+      "y": 0,
+      "rotation": 0,
+      "scaleX": 1,
+      "scaleY": 1,
+      "shearX": 0,
+      "shearY": 0,
+      "transformMode": "normal"
+    },
+    {
+      "name": "target",
+      "parent": "root",
+      "length": 30,
+      "x": 0,
+      "y": 0,
+      "rotation": 40,
+      "scaleX": 1,
+      "scaleY": 1,
+      "shearX": 0,
+      "shearY": 0,
+      "transformMode": "normal"
+    }
+  ],
+  "slots": [],
+  "skins": [
+    {
+      "name": "default",
+      "attachments": {}
+    },
+    {
+      "name": "gold",
+      "attachments": {},
+      "constraints": [
+        "tcGold"
+      ]
+    }
+  ],
+  "ikConstraints": [],
+  "transformConstraints": [
+    {
+      "name": "tcGold",
+      "bones": [
+        "boneA"
+      ],
+      "target": "target",
+      "mixRotate": 1,
+      "mixX": 0,
+      "mixY": 0,
+      "mixScaleX": 0,
+      "mixScaleY": 0,
+      "mixShearY": 0,
+      "offsetRotation": 0,
+      "offsetX": 0,
+      "offsetY": 0,
+      "offsetScaleX": 0,
+      "offsetScaleY": 0,
+      "offsetShearY": 0,
+      "local": false,
+      "relative": false
+    },
+    {
+      "name": "tcAlways",
+      "bones": [
+        "boneB"
+      ],
+      "target": "target",
+      "mixRotate": 1,
+      "mixX": 0,
+      "mixY": 0,
+      "mixScaleX": 0,
+      "mixScaleY": 0,
+      "mixShearY": 0,
+      "offsetRotation": 0,
+      "offsetX": 0,
+      "offsetY": 0,
+      "offsetScaleX": 0,
+      "offsetScaleY": 0,
+      "offsetShearY": 0,
+      "local": false,
+      "relative": false
+    }
+  ],
+  "animations": {
+    "idle": {
+      "duration": 1,
+      "bones": {},
+      "slots": {},
+      "ik": {},
+      "transform": {},
+      "deform": {},
+      "drawOrder": [],
+      "events": []
+    }
+  },
+  "atlas": {
+    "pages": []
+  },
+  "events": []
+}

@@ -328,15 +328,15 @@ export class SkeletonView {
   // When track 0 is empty, meshes render as the pure skin of the state-solved pose (no deform). This is a
   // deliberate, documented scope, NOT invented cross-track deform math.
   //
-  // SKIN-SCOPED CONSTRAINTS under AnimationState (known gap): runtime-core's applyAnimationState takes no
-  // active-skin argument, so a skin-scoped constraint (ADR-0009 section 5) is NOT toggled by the active skin
-  // on this path (it behaves as the default skin does). The single-animation path (syncAnimated) DOES forward
-  // the active skin. Full parity waits on a runtime-core applyAnimationState overload that accepts the active
-  // skin; that is a runtime-core change, out of Lane C's boundary. Attachment resolution under a costume skin
-  // still works here (PP-C6, resolveActive reads the SkinState); only constraint scoping is deferred.
+  // SKIN-SCOPED CONSTRAINTS under AnimationState: the ACTIVE skin is forwarded to applyAnimationState, so a
+  // skin-scoped constraint (ADR-0009 section 5) toggles with the active skin here EXACTLY as on the
+  // single-animation path (syncAnimated). Switching to a costume skin turns its scoped constraints on; an
+  // unscoped rig is unaffected (every constraint is always active). This matches the scoped attachment
+  // resolution this view already does (PP-C6), so multi-track playback and single-animation playback scope
+  // constraints identically.
   syncState(document: SkeletonDocument, state: AnimationState): void {
     const scene = this.ensureScene(document);
-    applyAnimationState(state, scene.pose);
+    applyAnimationState(state, scene.pose, scene.skinState.activeSkin);
     const track0 = getTrackEntry(state, 0);
     if (track0 === null) {
       this.renderFromPose(scene, null, 0);

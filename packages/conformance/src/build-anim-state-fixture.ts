@@ -77,6 +77,10 @@ export function buildAnimStateSamples(
   const samples: AnimStateFixtureSample[] = [];
   let time = 0;
   let captureIndex = 0;
+  // The active skin for skin-scoped constraints (ADR-0011 section 4), set by a `setSkin` op. null leaves only
+  // the always-active 'default' skin active, so every existing scenario (which never sets a skin) captures
+  // exactly as before, byte-identical.
+  let activeSkin: string | null = null;
 
   for (const op of scenario.ops) {
     switch (op.op) {
@@ -103,8 +107,12 @@ export function buildAnimStateSamples(
         time += op.dt;
         break;
       }
+      case 'setSkin': {
+        activeSkin = op.skin;
+        break;
+      }
       case 'capture': {
-        applyAnimationState(state, pose);
+        applyAnimationState(state, pose, activeSkin);
         samples.push(captureSample(pose, captureIndex, time, op.label));
         captureIndex += 1;
         break;

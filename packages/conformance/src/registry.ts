@@ -181,20 +181,29 @@ export const ANIM_STATE_IDS = [
   'anim-state-additive-layer',
   'anim-state-discrete-flip',
   'anim-state-queue-loop-boundary',
+  // Skin-scoped constraints under multi-track playback: applyAnimationState forwards the active skin to the
+  // step-3 constraint solve, so a skin-scoped constraint (ADR-0009 section 5, ADR-0011 section 4) toggles
+  // with the active skin exactly as under single-animation sampleSkeleton. This scenario carries its OWN rig
+  // (a gold-scoped transform constraint plus an always-active one) and drives the active skin via `setSkin`.
+  'anim-state-skin-scoped',
 ] as const;
 
 export type AnimStateId = (typeof ANIM_STATE_IDS)[number];
 
-// The rig every anim-state scenario replays against (one shared rig, catalog-style).
+// The rig MOST anim-state scenarios replay against (one shared rig, catalog-style). Scenarios reference their
+// rig by `scenario.rigId`, so a scenario with a distinct solve need (e.g. skin-scoped constraints) may carry
+// its own rig; the generator and harness both key off scenario.rigId.
 export const ANIM_STATE_RIG_ID = 'anim-state-rig';
 
 // Phase in which each scenario's fixture is committed and the AnimationState features it exercises exist.
-// All four land with ADR-0005 (Phase 5 hardening window); gated on ANIM_STATE_CONFORMANCE_PHASE.
+// The first four land with ADR-0005 (Phase 5 hardening window); anim-state-skin-scoped lands with the
+// activeSkin surface. All gate on ANIM_STATE_CONFORMANCE_PHASE.
 export const ANIM_STATE_PHASE: Readonly<Record<AnimStateId, number>> = {
   'anim-state-crossfade-fractions': 5,
   'anim-state-additive-layer': 5,
   'anim-state-discrete-flip': 5,
   'anim-state-queue-loop-boundary': 5,
+  'anim-state-skin-scoped': 5,
 };
 
 // The committed current conformance phase for the anim-state track. Bumped per phase milestone in this

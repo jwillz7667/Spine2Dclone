@@ -51,6 +51,15 @@ const advanceOp = z
   .strict();
 const captureOp = z.object({ op: z.literal('capture'), label: z.string().optional() }).strict();
 
+// Set the ACTIVE SKIN for the skin-scoped constraint solve (ADR-0009 section 5, ADR-0011 section 4): every
+// subsequent `capture` solves through applyAnimationState with this skin, so a skin-scoped constraint
+// toggles under multi-track playback exactly as it does under single-animation sampleSkeleton. `null`
+// restores the default (only the always-active 'default' skin active). Skin selection is NOT a track edit
+// (it does not advance time or touch a track), so it is its own op.
+const setSkinOp = z
+  .object({ op: z.literal('setSkin'), skin: z.string().min(1).nullable() })
+  .strict();
+
 export const animStateOpSchema = z.discriminatedUnion('op', [
   setOp,
   crossfadeOp,
@@ -58,6 +67,7 @@ export const animStateOpSchema = z.discriminatedUnion('op', [
   clearOp,
   advanceOp,
   captureOp,
+  setSkinOp,
 ]);
 
 export const animStateScenarioSchema = z

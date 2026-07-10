@@ -1,0 +1,12 @@
+{
+  "scenarioId": "anim-state-skin-scoped",
+  "rigId": "anim-state-skin-scoped-rig",
+  "ops": [
+    { "op": "set", "track": 0, "animation": "idle", "loop": false },
+    { "op": "capture", "label": "default-skin-gold-scoped-inactive" },
+    { "op": "setSkin", "skin": "gold" },
+    { "op": "capture", "label": "gold-skin-gold-scoped-active" },
+    { "op": "setSkin", "skin": null },
+    { "op": "capture", "label": "default-skin-again-inactive" }
+  ]
+}

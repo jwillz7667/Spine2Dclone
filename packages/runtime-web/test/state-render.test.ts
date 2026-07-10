@@ -45,6 +45,32 @@ function loadLimbRig(): SkeletonDocument {
   return parseDocument(JSON.parse(readFileSync(RIG_PATH, 'utf8')));
 }
 
+const SKIN_SCOPED_RIG_PATH = join(
+  repoRoot(),
+  'packages',
+  'conformance',
+  'src',
+  'rigs',
+  'rig-skin-scoped.json',
+);
+
+function loadSkinScopedRig(): SkeletonDocument {
+  return parseDocument(JSON.parse(readFileSync(SKIN_SCOPED_RIG_PATH, 'utf8')), { verifyHash: false });
+}
+
+// Solve the empty 'default' animation of rig-skin-scoped under `skin` through a fresh view, returning the
+// rendered bone transforms keyed by bone name. The rig scopes tcGold (drives boneA) to skin 'gold' and
+// leaves tcAlways (drives boneB) unscoped.
+function renderSkinScopedBones(skin: string): Map<string, { x: number; y: number; rotation: number }> {
+  const document = loadSkinScopedRig();
+  const view = new SkeletonView();
+  view.setActiveSkin(skin);
+  const state = makeAnimationState(document);
+  setAnimation(state, 0, 'default', false);
+  view.syncState(document, state);
+  return new Map(view.describe().bones.map((b) => [b.name, b.transform]));
+}
+
 describe('SkeletonView.syncState (ADR-0005)', () => {
   it('a single full-weight track renders identically to syncAnimated at the same time', () => {
     const document = loadLimbRig();
@@ -120,6 +146,17 @@ describe('SkeletonView.syncState (ADR-0005)', () => {
     const withDeform = new Float32Array(rendered.vertexCount * 2);
     sampleMeshVertices(document, 'wave', t, pose, 'default', 'limb', 'limb', withDeform);
     expect(Array.from(withDeform)).not.toEqual(rendered.vertices);
+  });
+
+  it('forwards the active skin so a skin-scoped constraint toggles under multi-track playback', () => {
+    const underDefault = renderSkinScopedBones('default');
+    const underGold = renderSkinScopedBones('gold');
+
+    // boneA is driven by tcGold, scoped to 'gold': its rendered transform differs once gold is active,
+    // proving syncState forwarded the active skin into applyAnimationState's constraint solve.
+    expect(underGold.get('boneA')!.rotation).not.toBeCloseTo(underDefault.get('boneA')!.rotation, 3);
+    // boneB is driven by tcAlways (unscoped): identical under either skin.
+    expect(underGold.get('boneB')!.rotation).toBeCloseTo(underDefault.get('boneB')!.rotation, 6);
   });
 });
 

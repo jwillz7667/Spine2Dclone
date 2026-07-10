@@ -6,6 +6,7 @@ import {
   addBone,
   addIkConstraint,
   addPathConstraint,
+  addPhysicsConstraint,
   addSlot,
   addTransformConstraint,
   createEmptyDocument,
@@ -13,6 +14,7 @@ import {
   setAttachmentKeys,
   setIkKeys,
   setPathKeys,
+  setPhysicsKeys,
   setRotateKeys,
   setSequenceKeys,
   setTransformKeys,
@@ -53,6 +55,11 @@ function transformTimes(doc: Document, animId: AnimationId): number[] {
 
 function pathTimes(doc: Document, animId: AnimationId): number[] {
   const keys = [...anim(doc, animId).path.values()][0];
+  return keys ? keys.map((k) => k.time) : [];
+}
+
+function physicsTimes(doc: Document, animId: AnimationId): number[] {
+  const keys = [...anim(doc, animId).physics.values()][0];
   return keys ? keys.map((k) => k.time) : [];
 }
 
@@ -111,6 +118,22 @@ describe('dopesheet timeline-row drag (PP-D10)', () => {
 
     updateThroughSession(doc, animId, [first.id], 0.3);
     expect(pathTimes(doc, animId)).toEqual([0.5, 0.8]);
+
+    doc.history.undo();
+    expect(doc.model.snapshot()).toEqual(before);
+  });
+
+  it('drags a physics-constraint key and undoes in one step', () => {
+    const doc = createEmptyDocument();
+    const tail = addBone(doc, 'tail');
+    const animId = addAnimation(doc, 'sway', DURATION);
+    const physicsId = addPhysicsConstraint(doc, 'wobble', tail);
+    setPhysicsKeys(doc, animId, physicsId, [0.2, 0.8]);
+    const first = [...anim(doc, animId).physics.values()][0]![0]!;
+    const before = doc.model.snapshot();
+
+    updateThroughSession(doc, animId, [first.id], 0.3);
+    expect(physicsTimes(doc, animId)).toEqual([0.5, 0.8]);
 
     doc.history.undo();
     expect(doc.model.snapshot()).toEqual(before);

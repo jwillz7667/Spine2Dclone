@@ -3,6 +3,7 @@ import {
   CreateBoneCommand,
   CreateIkConstraintCommand,
   CreatePathConstraintCommand,
+  CreatePhysicsConstraintCommand,
   CreateSlotCommand,
   CreateTransformConstraintCommand,
   DefineEventCommand,
@@ -12,6 +13,7 @@ import {
   SetIkKeyframeCommand,
   SetKeyframeCommand,
   SetPathKeyframeCommand,
+  SetPhysicsKeyframeCommand,
   SetSequenceKeyframeCommand,
   SetTransformKeyframeCommand,
   createDocument,
@@ -27,6 +29,7 @@ import {
   type KeyframeTarget,
   type KeyframeValue,
   type PathConstraintId,
+  type PhysicsConstraintId,
   type SlotId,
   type TransformConstraintId,
 } from '../document';
@@ -362,6 +365,51 @@ export function setPathKeys(
         mixRotate: undefined,
         mixX: undefined,
         mixY: undefined,
+      }),
+    );
+  }
+}
+
+// Create a physics constraint on `bone` simulating the local rotation channel, all params at authoring
+// defaults, for the dopesheet physics-row tests.
+export function addPhysicsConstraint(
+  doc: Document,
+  name: string,
+  bone: BoneId,
+): PhysicsConstraintId {
+  const id = doc.ids.mint('physicsConstraint');
+  doc.history.execute(
+    new CreatePhysicsConstraintCommand(id, name, bone, ['rotation'], {
+      step: 1 / 60,
+      inertia: 0.5,
+      strength: 40,
+      damping: 0.9,
+      mass: 1,
+      wind: 0,
+      gravity: 0,
+      mix: 1,
+    }),
+  );
+  return id;
+}
+
+// Key the physics-constraint timeline at each of `times` (only mix present per key), for the dopesheet
+// physics-row tests.
+export function setPhysicsKeys(
+  doc: Document,
+  animId: AnimationId,
+  constraintId: PhysicsConstraintId,
+  times: readonly number[],
+): void {
+  for (const time of times) {
+    doc.history.execute(
+      new SetPhysicsKeyframeCommand(animId, constraintId, time, {
+        mix: 1,
+        inertia: undefined,
+        strength: undefined,
+        damping: undefined,
+        wind: undefined,
+        gravity: undefined,
       }),
     );
   }

@@ -7,6 +7,7 @@ import type {
   KeyframeId,
   KeyframeTarget,
   PathConstraintId,
+  PhysicsConstraintId,
   SlotId,
   TransformConstraintId,
 } from '../document';
@@ -71,6 +72,7 @@ export interface TrackNames {
   ikName(id: IkConstraintId): string;
   transformName(id: TransformConstraintId): string;
   pathName(id: PathConstraintId): string;
+  physicsName(id: PhysicsConstraintId): string;
   skinName(key: DeformSkinKey): string;
 }
 
@@ -284,6 +286,25 @@ export function buildTracks(animation: AnimationEntity, names: TrackNames): Trac
       kind: 'timeline',
       key: `path:${id}:path`,
       label: 'Position/Spacing/Mix',
+      keyframes: keys.map((kf) => ({ id: kf.id, time: kf.time })),
+    });
+  }
+
+  // Physics-constraint timelines (PP-D12), keyed by PhysicsConstraintId like ik/transform/path. Each physics
+  // keyframe carries the animatable mix/inertia/strength/damping/wind/gravity channels at one time (a single
+  // frame per time, ADR-0014 section 7), so a constraint gets ONE timeline row (not a value channel: no
+  // KeyframeTarget, no interpolated scalar); the panel moves/deletes its keys through the physics-keyframe
+  // move/delete commands exactly as it does the ik/transform/path rows.
+  const physicsGroups = [...animation.physics.entries()]
+    .filter(([, keys]) => keys.length > 0)
+    .map(([id, keys]) => ({ id, keys, name: names.physicsName(id) }))
+    .sort((a, b) => compareLabel(a.name, a.id, b.name, b.id));
+  for (const { id, keys, name } of physicsGroups) {
+    rows.push({ kind: 'group', key: `physics:${id}`, label: name });
+    rows.push({
+      kind: 'timeline',
+      key: `physics:${id}:physics`,
+      label: 'Mix/Inertia/Strength/Damping/Wind/Gravity',
       keyframes: keys.map((kf) => ({ id: kf.id, time: kf.time })),
     });
   }

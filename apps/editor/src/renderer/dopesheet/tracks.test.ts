@@ -4,6 +4,7 @@ import type {
   DeformSkinKey,
   IkConstraintId,
   PathConstraintId,
+  PhysicsConstraintId,
   SlotId,
   TransformConstraintId,
 } from '../document';
@@ -13,6 +14,7 @@ import {
   addBone,
   addIkConstraint,
   addPathConstraint,
+  addPhysicsConstraint,
   addSlot,
   addTransformConstraint,
   createEmptyDocument,
@@ -20,6 +22,7 @@ import {
   setComponentKeys,
   setIkKeys,
   setPathKeys,
+  setPhysicsKeys,
   setRotateKeys,
   setSequenceKeys,
   setSlotAlphaKeys,
@@ -34,6 +37,7 @@ function names(doc: ReturnType<typeof createEmptyDocument>): TrackNames {
     ikName: (id: IkConstraintId) => doc.model.getIkConstraint(id)?.name ?? id,
     transformName: (id: TransformConstraintId) => doc.model.getTransformConstraint(id)?.name ?? id,
     pathName: (id: PathConstraintId) => doc.model.getPathConstraint(id)?.name ?? id,
+    physicsName: (id: PhysicsConstraintId) => doc.model.getPhysicsConstraint(id)?.name ?? id,
     skinName: (key: DeformSkinKey) =>
       key === 'default' ? 'default' : (doc.model.getSkin(key)?.name ?? key),
   };
@@ -166,6 +170,27 @@ describe('dopesheet tracks', () => {
     if (pathRow?.kind === 'timeline') {
       expect(pathRow.key).toBe(`path:${path}:path`);
       expect(pathRow.keyframes).toHaveLength(2);
+    }
+  });
+
+  it('emits a physics-constraint timeline row keyed by PhysicsConstraintId', () => {
+    const doc = createEmptyDocument();
+    const bone = addBone(doc, 'tail');
+    const anim = addAnimation(doc, 'sway', 2);
+    const physics = addPhysicsConstraint(doc, 'wobble', bone);
+    setPhysicsKeys(doc, anim, physics, [0.25, 0.75]);
+
+    const rows = buildTracks(doc.model.getAnimation(anim)!, names(doc));
+
+    expect(rows.map((row) => `${row.kind}:${row.label}`)).toEqual([
+      'group:wobble',
+      'timeline:Mix/Inertia/Strength/Damping/Wind/Gravity',
+    ]);
+    const physicsRow = rows[1];
+    expect(physicsRow?.kind).toBe('timeline');
+    if (physicsRow?.kind === 'timeline') {
+      expect(physicsRow.key).toBe(`physics:${physics}:physics`);
+      expect(physicsRow.keyframes).toHaveLength(2);
     }
   });
 

@@ -87,6 +87,7 @@ export function DopesheetPanel(_props: IDockviewPanelProps): ReactElement {
       ikName: (id) => model.getIkConstraint(id)?.name ?? String(id),
       transformName: (id) => model.getTransformConstraint(id)?.name ?? String(id),
       pathName: (id) => model.getPathConstraint(id)?.name ?? String(id),
+      physicsName: (id) => model.getPhysicsConstraint(id)?.name ?? String(id),
       skinName: (key) =>
         key === 'default' ? 'default' : (model.getSkin(key)?.name ?? String(key)),
     }),

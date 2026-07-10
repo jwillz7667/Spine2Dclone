@@ -6,6 +6,7 @@ import {
   addBone,
   addIkConstraint,
   addPathConstraint,
+  addPhysicsConstraint,
   addSlot,
   addTransformConstraint,
   createEmptyDocument,
@@ -16,6 +17,7 @@ import {
   setEventKeys,
   setIkKeys,
   setPathKeys,
+  setPhysicsKeys,
   setRotateKeys,
   setSequenceKeys,
   setTransformKeys,
@@ -58,6 +60,8 @@ function seedAllKinds(doc: Document): {
   setDrawOrderKey(doc, animId, 0.6, front, -1);
   const pc = addPathConstraint(doc, 'follow', bone, back);
   setPathKeys(doc, animId, pc, [0.7]);
+  const ph = addPhysicsConstraint(doc, 'wobble', bone);
+  setPhysicsKeys(doc, animId, ph, [0.8]);
 
   const animation = doc.model.getAnimation(animId);
   if (animation === undefined) throw new Error('animation missing');
@@ -71,6 +75,7 @@ function seedAllKinds(doc: Document): {
     event: animation.events[0]!.id,
     drawOrder: animation.drawOrder[0]!.id,
     path: animation.path.get(pc)![0]!.id,
+    physics: animation.physics.get(ph)![0]!.id,
   };
   return { animId, animation, ids };
 }
@@ -82,7 +87,7 @@ describe('dopesheet unified keyframe deletion (PP-D2)', () => {
 
     const collected = collectKeyframeIds(animation);
 
-    expect(collected.size).toBe(9);
+    expect(collected.size).toBe(10);
     for (const id of Object.values(ids)) expect(collected.has(id)).toBe(true);
   });
 

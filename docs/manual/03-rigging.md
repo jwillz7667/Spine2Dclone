@@ -151,10 +151,47 @@ This is the rig-mechanics workhorse:
 - **Offset copies**: a cape bone that tracks the shoulder with a lag offset.
 
 Constraints solve in a fixed order after timelines: all IK constraints first, then all
-transform constraints, each in creation order. Order within a list matters when constraints
-chain off each other's results; create them in dependency order.
+transform constraints, then all path constraints, each in creation order. Order within a list
+matters when constraints chain off each other's results; create them in dependency order. When
+you need a different order (for example a path constraint that must run before a transform
+constraint that reads its result), set an explicit cross-array solve order in the Constraints
+panel (the Up/Down controls) or over the MCP `constraints.reorder` surface.
 
-## 3.8 Skins
+## 3.8 Path constraints
+
+A path constraint distributes and orients a list of bones ALONG a path attachment: a smooth
+piecewise cubic Bezier spline that lives on a slot (a conveyor rail, a tentacle spine, a
+text-on-a-curve baseline, a motion guide). The constraint names the SLOT that carries the path
+(not a bone, the one structural difference from IK and transform), plus the bones it drives.
+
+Author it in two parts:
+
+- **The rail (a path attachment).** Add a path attachment to a slot (the inspector, the viewport
+  Path tool, or `attach.path.add`). It is a chain of cubic curves stored as control points laid
+  out anchor, handle, handle, anchor: drag the anchors to shape the rail and the handles to bend
+  each curve. Add or drop a curve to lengthen or shorten it, and toggle **Closed** to make it a
+  loop. The editor recomputes the rail's arc-length table on every edit; you never enter it.
+- **The constraint.** Point a path constraint at that slot and list the bones to ride the rail.
+  Its parameters (edited in the Constraints panel or `path.setParams`, and keyframable in the
+  dopesheet):
+  - **`position`** slides the bones along the rail. **`positionMode`** reads it as an absolute
+    arc length (`fixed`) or a `[0,1]` fraction of the whole (`percent`).
+  - **`spacing`** sets the gap between consecutive bones. **`spacingMode`** distributes them by
+    each bone's own `length`, a fixed arc distance (`fixed`), a fraction of the total (`percent`),
+    or a proportional stretch-to-fit (`proportional`).
+  - **`rotateMode`** orients each bone: to the path tangent (`tangent`, points downstream), toward
+    the next bone (`chain`), or chain with length preservation (`chainScale`).
+  - **`offsetRotation`** adds a constant degrees offset, and **`mixRotate`/`mixX`/`mixY`** blend
+    how strongly the constraint writes each channel (a path constraint writes rotation and x/y
+    translation only).
+- **Constant speed.** Toggle **Constant speed** on the rail so a runtime advances `position` at
+  uniform arc-length speed (using the committed length table) rather than the naive Bezier
+  parameter, which bunches near tight curves. Leave it off for the raw parameter.
+
+Path constraints are the tool for anything that follows a curve: a line of ducks gliding down a
+stream, a train on a track, letters riding a banner, a chain of segments whipping along a spline.
+
+## 3.9 Skins
 
 A skin is a named set of attachments overlaying the default one, resolved per (slot,
 attachment-name) address: at runtime the active skin is checked first, then the default skin.
@@ -190,7 +227,7 @@ boundary; clearing the last entry in a dimension leaves the skin unscoped there.
 activation semantics (which scoped bones and constraints participate under a given active skin) are
 the player's to honor; the editor authors and validates the lists.
 
-## 3.9 A rigging order that works
+## 3.10 A rigging order that works
 
 For a typical character:
 

@@ -1,11 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { exportProfileSchema } from '../../shared';
 import {
+  addScaleVariant,
+  currentScaleVariants,
   defaultExportProfile,
   defaultMediaDraft,
+  isValidScaleVariant,
   isVideoFormat,
   resolveFrameRange,
+  setPremultipliedAlpha,
   toggleCompressionTarget,
+  toggleScaleVariant,
   toMediaExportOptions,
   validateExportProfile,
   validateMediaDraft,
@@ -155,5 +160,61 @@ describe('export profile helpers', () => {
     for (const target of ['bc7', 'etc2'] as const) single = toggleCompressionTarget(single, target);
     const stillOne = toggleCompressionTarget(single, 'astc6x6');
     expect(stillOne.atlasExport.compressionTargets).toEqual(['astc6x6']);
+  });
+});
+
+describe('scale-variant + PMA helpers', () => {
+  it('accepts reciprocal-integer scales in (0, 1] and rejects the rest', () => {
+    expect(isValidScaleVariant(1)).toBe(true);
+    expect(isValidScaleVariant(0.5)).toBe(true);
+    expect(isValidScaleVariant(0.25)).toBe(true);
+    expect(isValidScaleVariant(0.1)).toBe(true);
+    expect(isValidScaleVariant(0.75)).toBe(false);
+    expect(isValidScaleVariant(0)).toBe(false);
+    expect(isValidScaleVariant(-0.5)).toBe(false);
+    expect(isValidScaleVariant(2)).toBe(false);
+    expect(isValidScaleVariant(Number.NaN)).toBe(false);
+  });
+
+  it('defaults absent scale variants to the canonical [1]', () => {
+    const bare = defaultExportProfile();
+    delete (bare.atlasExport as { scaleVariants?: readonly number[] }).scaleVariants;
+    expect(currentScaleVariants(bare)).toEqual([1]);
+  });
+
+  it('toggles a variant off and on, keeps the list unique and 1.0-first, and never drops 1.0', () => {
+    const base = defaultExportProfile();
+    expect(base.atlasExport.scaleVariants).toEqual([1, 0.5, 0.25]);
+
+    const without = toggleScaleVariant(base, 0.5);
+    expect(without.atlasExport.scaleVariants).toEqual([1, 0.25]);
+
+    const readded = toggleScaleVariant(without, 0.5);
+    expect(readded.atlasExport.scaleVariants).toEqual([1, 0.5, 0.25]);
+
+    // The canonical 1.0 cannot be removed.
+    const stillCanonical = toggleScaleVariant(base, 1);
+    expect(stillCanonical.atlasExport.scaleVariants).toContain(1);
+  });
+
+  it('adds a free-entry scale, refusing invalid and duplicate values, sorted descending', () => {
+    const base = defaultExportProfile();
+
+    const withTenth = addScaleVariant(base, 0.1);
+    expect(withTenth.atlasExport.scaleVariants).toEqual([1, 0.5, 0.25, 0.1]);
+
+    // A duplicate is a no-op (same reference preserved is not required, but the list is unchanged).
+    expect(addScaleVariant(base, 0.5).atlasExport.scaleVariants).toEqual([1, 0.5, 0.25]);
+    // An invalid scale is refused.
+    expect(addScaleVariant(base, 0.75).atlasExport.scaleVariants).toEqual([1, 0.5, 0.25]);
+
+    // Every produced profile still satisfies the authoritative schema.
+    expect(validateExportProfile(withTenth).ok).toBe(true);
+  });
+
+  it('sets the premultiplied-alpha policy', () => {
+    const base = defaultExportProfile();
+    expect(setPremultipliedAlpha(base, false).atlasExport.premultipliedAlpha).toBe(false);
+    expect(setPremultipliedAlpha(base, true).atlasExport.premultipliedAlpha).toBe(true);
   });
 });

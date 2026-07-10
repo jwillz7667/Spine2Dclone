@@ -273,6 +273,37 @@ export async function loadExportProfile(): Promise<void> {
   }
 }
 
+// Run the shipping-atlas export driven by the current profile (WP-5.2). Main owns the source-sprites and
+// output dialogs; the ATLAS_COMPRESSION_UNSUPPORTED diagnostics are surfaced in the status, not swallowed.
+export async function runAtlasProfileExport(): Promise<void> {
+  const store = useExportStore.getState();
+  const profile = store.profile;
+  if (profile === null) {
+    store.setStatus('Load or start a profile before exporting an atlas.');
+    return;
+  }
+  try {
+    const result = await bridge().exportAtlas(profile);
+    if (!result.ok) {
+      store.setStatus(`Atlas export failed: ${result.error.message}`);
+      return;
+    }
+    if (result.data.status === 'canceled') {
+      store.setStatus('Atlas export canceled.');
+      return;
+    }
+    const { pageFiles, outputDir, diagnostics } = result.data;
+    const unsupported = [...new Set(diagnostics.map((d) => d.target))];
+    const note =
+      unsupported.length > 0
+        ? ` (${unsupported.length} compression target(s) unsupported: ${unsupported.join(', ')})`
+        : '';
+    store.setStatus(`Exported ${pageFiles.length} atlas page(s) to ${outputDir}${note}.`);
+  } catch (error) {
+    store.setStatus(`Atlas export failed: ${messageOf(error, 'atlas export failed')}`);
+  }
+}
+
 // Save the edited export profile through the main-owned dialog (main re-validates before writing).
 export async function saveExportProfile(): Promise<void> {
   const store = useExportStore.getState();

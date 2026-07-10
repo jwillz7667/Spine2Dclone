@@ -1,19 +1,26 @@
-import type { CSSProperties, ReactElement } from 'react';
+import { useState, type CSSProperties, type ReactElement } from 'react';
 import { COMPRESSION_TARGETS, type ExportProfile } from '../../shared';
 import { useExportStore } from '../editor-state/export-store';
 import {
   cancelActiveExport,
   loadExportProfile,
+  runAtlasProfileExport,
   runMediaExport,
   runProjectExport,
   saveExportProfile,
 } from '../actions/export';
 import {
+  addScaleVariant,
+  COMMON_SCALE_VARIANTS,
+  currentScaleVariants,
   defaultExportProfile,
   EXPORT_SECTIONS,
+  isValidScaleVariant,
   isVideoFormat,
   MEDIA_FORMATS,
+  setPremultipliedAlpha,
   toggleCompressionTarget,
+  toggleScaleVariant,
   validateExportProfile,
   type ExportSection,
   type MediaFormat,
@@ -356,6 +363,7 @@ function MediaSection(): ReactElement {
 function ProfileSection(): ReactElement {
   const profile = useExportStore((state) => state.profile);
   const setProfile = useExportStore((state) => state.setProfile);
+  const [scaleInput, setScaleInput] = useState('');
 
   if (profile === null) {
     return (
@@ -384,6 +392,10 @@ function ProfileSection(): ReactElement {
   const setAtlas = (patch: Partial<ExportProfile['atlasExport']>): void =>
     setProfile({ ...profile, atlasExport: { ...atlas, ...patch } });
   const invalid = validateExportProfile(profile);
+  const scales = currentScaleVariants(profile);
+  const parsedScale = Number(scaleInput);
+  const canAddScale =
+    scaleInput.trim() !== '' && isValidScaleVariant(parsedScale) && !scales.includes(parsedScale);
 
   return (
     <section>
@@ -464,6 +476,66 @@ function ProfileSection(): ReactElement {
         </div>
       </div>
 
+      <div style={rowStyle}>
+        <span style={labelStyle}>Premultiplied alpha</span>
+        <label>
+          <input
+            type="checkbox"
+            checked={atlas.premultipliedAlpha ?? true}
+            onChange={(e) => setProfile(setPremultipliedAlpha(profile, e.target.checked))}
+          />{' '}
+          Emit pages premultiplied
+        </label>
+      </div>
+
+      <div style={{ ...rowStyle, alignItems: 'flex-start' }}>
+        <span style={labelStyle}>Scale variants</span>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+            {COMMON_SCALE_VARIANTS.map((scale) => (
+              <label key={scale}>
+                <input
+                  type="checkbox"
+                  checked={scales.includes(scale)}
+                  disabled={scale === 1}
+                  onChange={() => setProfile(toggleScaleVariant(profile, scale))}
+                />{' '}
+                {scale}x
+              </label>
+            ))}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <input
+              style={{ ...inputStyle, width: 80 }}
+              type="number"
+              min={0}
+              max={1}
+              step={0.05}
+              placeholder="e.g. 0.2"
+              value={scaleInput}
+              onChange={(e) => setScaleInput(e.target.value)}
+            />
+            <button
+              type="button"
+              style={buttonStyle}
+              disabled={!canAddScale}
+              onClick={() => {
+                setProfile(addScaleVariant(profile, parsedScale));
+                setScaleInput('');
+              }}
+            >
+              Add
+            </button>
+            <span style={{ color: '#8a8a9a' }}>
+              {[...scales]
+                .sort((a, b) => b - a)
+                .map((scale) => `${scale}x`)
+                .join(', ')}
+            </span>
+          </div>
+        </div>
+      </div>
+
       {!invalid.ok && (
         <div style={{ color: '#ff9e9e', marginBottom: 10 }}>{invalid.errors.join('; ')}</div>
       )}
@@ -479,6 +551,14 @@ function ProfileSection(): ReactElement {
           onClick={() => void saveExportProfile()}
         >
           Save profile...
+        </button>
+        <button
+          type="button"
+          style={buttonStyle}
+          disabled={!invalid.ok}
+          onClick={() => void runAtlasProfileExport()}
+        >
+          Export atlas...
         </button>
       </div>
     </section>

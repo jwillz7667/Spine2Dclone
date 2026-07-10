@@ -247,3 +247,63 @@ export function toggleCompressionTarget(
   const targets = next as [CompressionTarget, ...CompressionTarget[]];
   return { ...profile, atlasExport: { ...profile.atlasExport, compressionTargets: targets } };
 }
+
+// ---- Scale variants + PMA (WP-5.2 atlas-export controls) -------------------------------------------
+
+// The scales the dialog offers as checkboxes; free entry adds any other valid scale. 1.0 is the canonical
+// page and can never be removed (the schema and atlas-pack both require it).
+export const COMMON_SCALE_VARIANTS: readonly number[] = [1, 0.5, 0.25];
+
+// Reciprocal-integer tolerance, matching export-profile-schema's scaleVariantsSchema (1/0.1 is not exactly
+// an integer in IEEE-754, so an exact check would wrongly reject 0.1).
+const SCALE_RECIPROCAL_EPSILON = 1e-9;
+
+// A scale is valid iff it is in (0, 1] with an integer reciprocal (1, 0.5, 0.25, 0.2, 0.1, ...), the exact
+// rule the file/atlas-pack boundaries enforce. The dialog uses this to gate free entry before it reaches
+// the profile (validated positive) so the Add button never produces a schema-invalid profile.
+export function isValidScaleVariant(scale: number): boolean {
+  if (!Number.isFinite(scale) || scale <= 0 || scale > 1) return false;
+  const reciprocal = 1 / scale;
+  return Math.abs(reciprocal - Math.round(reciprocal)) < SCALE_RECIPROCAL_EPSILON;
+}
+
+// The profile's scale variants, defaulting to the canonical-only [1] when the field is absent (an older
+// profile / the frozen ship asset), matching runAtlasExport's own absent-means-[1] default.
+export function currentScaleVariants(profile: ExportProfile): readonly number[] {
+  return profile.atlasExport.scaleVariants ?? [1];
+}
+
+// De-duplicate, drop invalid entries, sort DESCENDING (1.0 first, matching atlas-pack's resolveScaleVariants
+// emit order), and write onto the profile. 1.0 is always kept present, so the result is non-empty.
+function withScaleVariants(profile: ExportProfile, scales: readonly number[]): ExportProfile {
+  const unique = [...new Set(scales)].filter(isValidScaleVariant).sort((a, b) => b - a);
+  const withCanonical = unique.includes(1) ? unique : [1, ...unique];
+  // withCanonical always contains 1.0, so it is non-empty; assert the schema's nonempty tuple type.
+  const variants = withCanonical as [number, ...number[]];
+  return { ...profile, atlasExport: { ...profile.atlasExport, scaleVariants: variants } };
+}
+
+// Toggle a scale variant on/off. The canonical 1.0 cannot be removed (schema + atlas-pack require it);
+// toggling an unknown/invalid scale is a no-op. Returns a new profile (immutable update).
+export function toggleScaleVariant(profile: ExportProfile, scale: number): ExportProfile {
+  if (!isValidScaleVariant(scale)) return profile;
+  const current = currentScaleVariants(profile);
+  const present = current.includes(scale);
+  if (present && scale === 1) return profile;
+  const next = present ? current.filter((s) => s !== scale) : [...current, scale];
+  return withScaleVariants(profile, next);
+}
+
+// Add a free-entry scale variant. Invalid (non-positive, > 1, or non-reciprocal-integer) or duplicate
+// scales are refused (the profile is returned unchanged). Returns a new profile (immutable update).
+export function addScaleVariant(profile: ExportProfile, scale: number): ExportProfile {
+  if (!isValidScaleVariant(scale)) return profile;
+  const current = currentScaleVariants(profile);
+  if (current.includes(scale)) return profile;
+  return withScaleVariants(profile, [...current, scale]);
+}
+
+// Set the fixed premultiplied-alpha policy on the profile. Returns a new profile (immutable update).
+export function setPremultipliedAlpha(profile: ExportProfile, value: boolean): ExportProfile {
+  return { ...profile, atlasExport: { ...profile.atlasExport, premultipliedAlpha: value } };
+}

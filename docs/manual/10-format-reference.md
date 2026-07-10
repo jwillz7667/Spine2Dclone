@@ -10,7 +10,7 @@ independent document formats plus project manifests, each with its own version l
 
 | Format | Version constant | Current |
 |---|---|---|
-| Skeletal (`SkeletonDocument`) | `CURRENT_FORMAT_VERSION` | `0.5.0` |
+| Skeletal (`SkeletonDocument`) | `CURRENT_FORMAT_VERSION` | `0.6.0` |
 | Effects (`EffectsDocument`) | `EFFECTS_FORMAT_VERSION` | `1.0.0` |
 | Slot scene (`SlotSceneDocument`) | `SLOT_SCENE_FORMAT_VERSION` | `0.1.0` |
 | Shared primitives (blend modes, atlas, curves) | `FORMAT_COMMON_VERSION` | `1.0.0` |
@@ -26,7 +26,7 @@ error, not a warning.
 
 ```jsonc
 {
-  "formatVersion": "0.5.0",
+  "formatVersion": "0.6.0",
   "name": "my-character",
   "hash": "…64 lowercase hex, or empty for an unhashed draft…",
   "bones": [ … ],                 // at least one bone
@@ -35,10 +35,12 @@ error, not a warning.
   "ikConstraints": [ … ],         // required, may be empty
   "transformConstraints": [ … ],  // required, may be empty
   "pathConstraints": [ … ],       // required, may be empty (stage F3, 0.5.0)
+  "physicsConstraints": [ … ],    // required, may be empty (stage F4, 0.6.0)
   "events": [ … ],                // required, may be empty (event definitions)
   "animations": { "walk": { … } },
   "atlas": { "pages": [ … ] },
-  "metadata": { … }               // optional (fps, imagesPath, audioPath)
+  "metadata": { … },              // optional (fps, imagesPath, audioPath)
+  "physics": { … }                // optional (global gravity/wind/mix; stage F4, 0.6.0)
 }
 ```
 
@@ -138,10 +140,19 @@ Path constraint (stage F3, 0.5.0): `name`, `target` (a SLOT name whose active at
 (`tangent`|`chain`|`chainScale`), `position`, `spacing`, `offsetRotation` (unbounded finite),
 `mixRotate`/`mixX`/`mixY` (each `[0, 1]`), and an optional `order`.
 
-Constraint names must be unique across ALL THREE arrays (one namespace). The default solve order is
-fixed: all IK constraints, then all transform constraints, then all path constraints, each in array
-order. When any constraint carries `order`, all must, and the values form a dense unique permutation
-of `[0, N)` over the combined set (`CONSTRAINT_ORDER_INVALID`).
+Physics constraint (stage F4, 0.6.0): `name`, `bone` (a single bone that is BOTH the driven bone and
+its own setpoint reference; there is no external target), `channels` (a non-empty, duplicate-free
+subset of `x`|`y`|`rotation`|`scaleX`|`shearX` to simulate), `step` (`> 0`, the fixed simulation
+timestep in seconds), `inertia`/`damping`/`mix` (each `[0, 1]`), `strength` (`>= 0`), `mass` (`> 0`),
+`wind`/`gravity` (unbounded finite world forces), and an optional `order`. The optional skeleton-level
+`physics` settings block carries global `gravity`, `wind`, and a master `mix` (`[0, 1]`) that combine
+with each constraint. The physics SOLVE (a fixed-step damped spring for secondary motion) is owned by
+runtime work, ADR-0014; the format carries the shape and reference validity.
+
+Constraint names must be unique across ALL FOUR arrays (one namespace). The default solve order is
+fixed: all IK constraints, then all transform constraints, then all path constraints, then all
+physics constraints, each in array order. When any constraint carries `order`, all must, and the
+values form a dense unique permutation of `[0, N)` over the combined set (`CONSTRAINT_ORDER_INVALID`).
 
 ### Animation
 
@@ -165,6 +176,7 @@ of `[0, N)` over the combined set (`CONSTRAINT_ORDER_INVALID`).
   "ik":        { "leg-ik": [ { "time": 0, "value": { "mix": 1, "bend": 1 }, "curve": "linear" } ] },
   "transform": { "follow": [ { "time": 0, "value": { "mixRotate": 0.5 }, "curve": "linear" } ] },
   "path":      { "rail": [ { "time": 0, "value": { "position": 0, "mixRotate": 1 }, "curve": "linear" } ] },   // required, may be empty (0.5.0)
+  "physics":   { "tail-jiggle": [ { "time": 0, "value": { "mix": 1, "wind": 0 }, "curve": "linear" } ] },      // required, may be empty (0.6.0)
   "deform":    { "default": { "front-leg": { "leg-mesh": [ { "time": 0, "value": { "offsets": [dx0, dy0, …] }, "curve": "linear" } ] } } },
   "drawOrder": [ { "time": 0.5, "offsets": [ { "slot": "front-leg", "offset": 1 } ] } ],   // required, may be empty
   "events":    [ { "time": 0.5, "name": "footstep", "int": 3 } ]                            // required, may be empty
@@ -257,8 +269,10 @@ the empty per-animation `drawOrder`/`events` timelines; the `0.3.x` to `0.4.0` m
 maps each IK constraint's and IK frame's `bendPositive` boolean to the signed `bend` losslessly
 (`true` to `+1`, `false` to `-1`) and injects the IK depth (`softness`/`stretch`/`compress`/`uniform`)
 and transform variant (`local`/`relative`) no-op defaults; the `0.4.x` to `0.5.0` migration (ADR-0011)
-injects the empty root `pathConstraints` array and the empty per-animation `path` timeline. Each
-recomputes the hash if one was present (an unhashed draft stays a draft).
+injects the empty root `pathConstraints` array and the empty per-animation `path` timeline; the
+`0.5.x` to `0.6.0` migration (ADR-0014) injects the empty root `physicsConstraints` array and the
+empty per-animation `physics` timeline (the optional skeleton `physics` settings block is left absent).
+Each recomputes the hash if one was present (an unhashed draft stays a draft).
 
 Policy (see `docs/plan/cross-cutting/format-contract.md` section 10): a schema or semantic
 change bumps `formatVersion` with a tested migration; a validator refactor or error-message

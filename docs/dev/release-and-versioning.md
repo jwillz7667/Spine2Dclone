@@ -6,7 +6,7 @@ How versions work in this repository, what gates a change, and where the release
 
 | Line | Where | Current | Policy |
 |---|---|---|---|
-| Skeleton format (`formatVersion`) | `packages/format/src/version/constants.ts` | `0.5.0` | `format-contract.md` section 10 |
+| Skeleton format (`formatVersion`) | `packages/format/src/version/constants.ts` | `0.6.0` | `format-contract.md` section 10 |
 | Effects format (`effectsFormatVersion`) | same file | `1.0.0` | same document |
 | Slot-scene format | same file | `0.1.0` | same document |
 | Shared format primitives | same file | `1.0.0` | frozen; a change here is a MAJOR event |
@@ -24,8 +24,8 @@ migrations), regardless of app release cadence.
    section 10. Pre-1.0, a breaking skeleton-format change bumps MINOR.
 2. Bump the right constant in `version/constants.ts`, write the migration step in
    `src/version/migrations/`, test it (the registry holds `0.1.x -> 0.2.0`, `0.2.x -> 0.3.0`,
-   `0.3.x -> 0.4.0`, and `0.4.x -> 0.5.0` as the pattern to follow), and add a `CHANGELOG.md` entry in
-   the format package.
+   `0.3.x -> 0.4.0`, `0.4.x -> 0.5.0`, and `0.5.x -> 0.6.0` as the pattern to follow), and add a
+   `CHANGELOG.md` entry in the format package.
 3. A non-schema change (validator refactor, error wording, comments) must NOT bump the version.
 4. CI enforces both directions: `check:format-semver` fails a PR that touches
    `packages/format/src` without touching the constants file, and `check:format-version-stable`
@@ -33,11 +33,13 @@ migrations), regardless of app release cadence.
 5. Format changes that alter solve semantics also regenerate conformance fixtures in the same PR
    behind the behavior-change gate.
 
-The next planned format change is the 0.6.0 MINOR bump (stage F4 of
-`docs/plan/pro-parity-execution-plan.md`). 0.5.0 (path attachments, path constraints, and the
-per-animation path timeline) landed with ADR-0011; 0.4.0 (constraint depth, linked meshes, sequences,
-per-component curves, two-color tint, skin-scoped bones/constraints) landed with ADR-0009; 0.3.0 (events,
-draw-order timelines, metadata) landed with ADR-0008.
+Stage F4 concludes the F1 to F4 format staging of `docs/plan/pro-parity-execution-plan.md`: 0.6.0
+(physics constraints, the optional skeleton physics settings block, and the per-animation physics
+timeline) landed with ADR-0014, so all four planned format bumps are now in. 0.5.0 (path attachments,
+path constraints, and the per-animation path timeline) landed with ADR-0011; 0.4.0 (constraint depth,
+linked meshes, sequences, per-component curves, two-color tint, skin-scoped bones/constraints) landed
+with ADR-0009; 0.3.0 (events, draw-order timelines, metadata) landed with ADR-0008. No further format
+change is planned; the next format bump would be a new capability with its own ADR and migration.
 
 ## Changing solve behavior
 

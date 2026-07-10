@@ -33,10 +33,7 @@ function threeSlotDoc(animations: Record<string, Animation>): SkeletonDocument {
 }
 
 // A draft animation with only a draw-order timeline (bones/slots empty). drawOrder keys are stepped.
-function drawOrderAnim(
-  duration: number,
-  drawOrder: Animation['drawOrder'],
-): Animation {
+function drawOrderAnim(duration: number, drawOrder: Animation['drawOrder']): Animation {
   return {
     duration,
     bones: {},
@@ -162,10 +159,7 @@ describe('PP-B4 event firing: single-step and range semantics', () => {
   });
 
   it('fires nothing for a zero-length range (dt = 0), the degenerate case', () => {
-    const timeline = prepareEventTimeline(
-      eventAnim(2, [{ time: 0.5, name: 'bare' }]),
-      EVENT_DEFS,
-    )!;
+    const timeline = prepareEventTimeline(eventAnim(2, [{ time: 0.5, name: 'bare' }]), EVENT_DEFS)!;
     const queue = makeEventQueue();
 
     fireEventsInStep(timeline, 0.0, 0, true, 2, queue);
@@ -253,9 +247,15 @@ describe('PP-B4 event firing: single-step and range semantics', () => {
     fireEventsInStep(timeline, 0.0, 1.0, false, 1, queue);
 
     const [inherited, overridden] = [queue.events[0]!, queue.events[1]!];
-    expect([inherited.intValue, inherited.floatValue, inherited.stringValue]).toEqual([7, 1.5, 'default']);
+    expect([inherited.intValue, inherited.floatValue, inherited.stringValue]).toEqual([
+      7,
+      1.5,
+      'default',
+    ]);
     expect([overridden.intValue, overridden.floatValue, overridden.stringValue]).toEqual([
-      42, 1.5, 'override',
+      42,
+      1.5,
+      'override',
     ]);
   });
 
@@ -293,7 +293,10 @@ describe('PP-B4 event firing: single-step and range semantics', () => {
 
 // --- AnimationState event queue -----------------------------------------------------------------------
 
-function stateDoc(animations: Record<string, Animation>, events: readonly EventDef[]): SkeletonDocument {
+function stateDoc(
+  animations: Record<string, Animation>,
+  events: readonly EventDef[],
+): SkeletonDocument {
   return {
     formatVersion: '0.3.0',
     name: 'anim-state-events',
@@ -311,10 +314,7 @@ function stateDoc(animations: Record<string, Animation>, events: readonly EventD
 
 describe('PP-B4 AnimationState event queue (drained per update)', () => {
   it('fills the queue with the events fired by an advancing track and drains it each update', () => {
-    const document = stateDoc(
-      { walk: eventAnim(1, [{ time: 0.5, name: 'step' }]) },
-      EVENT_DEFS,
-    );
+    const document = stateDoc({ walk: eventAnim(1, [{ time: 0.5, name: 'step' }]) }, EVENT_DEFS);
     const state = makeAnimationState(document);
     setAnimation(state, 0, 'walk', true);
 
@@ -356,19 +356,30 @@ describe('PP-B4 AnimationState event queue (drained per update)', () => {
     const state = makeAnimationState(document);
     setAnimation(state, 0, 'loop', true);
 
+    // The worker runs with --expose-gc (vitest.config.ts); collect before AND after the measured
+    // loop like the determinism probe, otherwise heapUsed includes garbage awaiting collection and
+    // the bound flakes on GC timing.
+    const runGc = (globalThis as { gc?: () => void }).gc;
+    if (typeof runGc !== 'function') {
+      throw new Error(
+        'the event-queue allocation probe requires the worker to run with --expose-gc',
+      );
+    }
+
     // Warm the pool: after a few updates the queue capacity has grown to the steady per-update fire count.
     for (let i = 0; i < 200; i += 1) updateAnimationState(state, 0.1);
     const capacityAfterWarmup = state.eventQueue.events.length;
 
-    if (globalThis.gc) globalThis.gc();
+    runGc();
     const before = memoryUsage().heapUsed;
     for (let i = 0; i < 20000; i += 1) updateAnimationState(state, 0.1);
+    runGc();
     const after = memoryUsage().heapUsed;
 
     // The pooled queue array does not grow after warmup (entries are reused in place).
     expect(state.eventQueue.events.length).toBe(capacityAfterWarmup);
-    // And the steady state adds no measurable heap (a loose bound; the exact figure is GC-timing noise).
-    expect(after - before).toBeLessThan(2_000_000);
+    // And the steady state adds no measurable heap (post-collection delta, tight bound).
+    expect(after - before).toBeLessThan(256 * 1024);
   });
 });
 

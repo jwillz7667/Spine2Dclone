@@ -2,7 +2,7 @@
   "scenarioId": "anim-state-crossfade-fractions",
   "rigId": "anim-state-rig",
   "scenarioHash": "sha256:5b643946fee4200c9f69211129af1720a69336e509215ebc76e597aec67a7b12",
-  "rigHash": "sha256:80408dc8607bc0a065e6798b0b4626efe77a8ecea655bb79323a804a89f920dc",
+  "rigHash": "sha256:6d3ce9e0a5d5295824ba6fa2d52a07fa8a59dfb4926a7b8d1654fb5c18fe4f40",
   "coreVersion": "runtime-core@0.0.0",
   "toolchain": "node-22.13.1-v8",
   "generatedBy": "generate-anim-state.ts",

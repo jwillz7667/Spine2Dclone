@@ -1,6 +1,6 @@
 {
   "rigId": "rig-events-draworder",
-  "rigHash": "sha256:2d8cbd5b5e93186b592e13822984f5bdc87b3979dce30a9f06e431d298c4b3d9",
+  "rigHash": "sha256:97a82a2f7bdd4d84ba55d2f74e114e7bd78ce2927680169d3152f0bde9fcc50d",
   "specHash": "sha256:5dc064473988fa32c9327d133ab69ba4beef66c1cfc050ce9363839d06f76b4a",
   "coreVersion": "runtime-core@0.0.0",
   "toolchain": "node-22.13.1-v8",

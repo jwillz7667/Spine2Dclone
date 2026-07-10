@@ -1,5 +1,5 @@
 {
-  "formatVersion": "0.4.0",
+  "formatVersion": "0.5.0",
   "name": "rig-ik-depth",
   "hash": "",
   "bones": [
@@ -86,9 +86,11 @@
       "transform": {},
       "deform": {},
       "drawOrder": [],
-      "events": []
+      "events": [],
+      "path": {}
     }
   },
   "atlas": { "pages": [] },
-  "events": []
+  "events": [],
+  "pathConstraints": []
 }

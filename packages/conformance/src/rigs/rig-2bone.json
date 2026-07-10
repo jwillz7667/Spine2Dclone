@@ -1,5 +1,5 @@
 {
-  "formatVersion": "0.4.0",
+  "formatVersion": "0.5.0",
   "name": "rig-2bone",
   "hash": "",
   "bones": [
@@ -72,11 +72,13 @@
       "transform": {},
       "deform": {},
       "drawOrder": [],
-      "events": []
+      "events": [],
+      "path": {}
     }
   },
   "atlas": { "pages": [] },
   "ikConstraints": [],
   "transformConstraints": [],
-  "events": []
+  "events": [],
+  "pathConstraints": []
 }

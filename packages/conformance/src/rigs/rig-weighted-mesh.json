@@ -1,5 +1,5 @@
 {
-  "formatVersion": "0.4.0",
+  "formatVersion": "0.5.0",
   "name": "rig-weighted-mesh",
   "hash": "",
   "bones": [
@@ -102,7 +102,8 @@
       "transform": {},
       "deform": {},
       "drawOrder": [],
-      "events": []
+      "events": [],
+      "path": {}
     }
   },
   "atlas": {
@@ -128,5 +129,6 @@
       }
     ]
   },
-  "events": []
+  "events": [],
+  "pathConstraints": []
 }

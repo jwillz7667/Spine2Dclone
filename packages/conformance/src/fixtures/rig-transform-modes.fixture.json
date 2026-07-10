@@ -1,6 +1,6 @@
 {
   "rigId": "rig-transform-modes",
-  "rigHash": "sha256:b5d88fa7ab551fdf2bd3463f9c2f477bfa53d88ec72dfebb69f1edcd5ac44ada",
+  "rigHash": "sha256:29b4a9b360f105e52b730340a19cff96fcf534604153eb816e34d219147e005f",
   "specHash": "sha256:3f8ebfa6c1654fb4b14413d3a94301a1888e88b52523471a9a5c157ff8928ad8",
   "coreVersion": "runtime-core@0.0.0",
   "toolchain": "node-22.13.1-v8",

@@ -1,5 +1,5 @@
 {
-  "formatVersion": "0.4.0",
+  "formatVersion": "0.5.0",
   "name": "anim-state-rig",
   "hash": "",
   "bones": [
@@ -90,7 +90,8 @@
       "transform": {},
       "deform": {},
       "drawOrder": [],
-      "events": []
+      "events": [],
+      "path": {}
     },
     "spinB": {
       "duration": 1,
@@ -113,7 +114,8 @@
       "transform": {},
       "deform": {},
       "drawOrder": [],
-      "events": []
+      "events": [],
+      "path": {}
     },
     "wave": {
       "duration": 1,
@@ -131,7 +133,8 @@
       "transform": {},
       "deform": {},
       "drawOrder": [],
-      "events": []
+      "events": [],
+      "path": {}
     }
   },
   "atlas": {
@@ -169,5 +172,6 @@
       }
     ]
   },
-  "events": []
+  "events": [],
+  "pathConstraints": []
 }

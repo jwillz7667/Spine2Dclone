@@ -1,5 +1,5 @@
 {
-  "formatVersion": "0.4.0",
+  "formatVersion": "0.5.0",
   "name": "rig-clipping",
   "hash": "",
   "bones": [
@@ -114,7 +114,8 @@
         }
       },
       "drawOrder": [{ "time": 0.5, "offsets": [{ "slot": "meshslot", "offset": -1 }] }],
-      "events": []
+      "events": [],
+      "path": {}
     }
   },
   "atlas": {
@@ -140,5 +141,6 @@
       }
     ]
   },
-  "events": []
+  "events": [],
+  "pathConstraints": []
 }

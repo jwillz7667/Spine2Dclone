@@ -2,6 +2,9 @@ import type {
   Attachment,
   BlendMode,
   CurveType,
+  PathPositionMode,
+  PathRotateMode,
+  PathSpacingMode,
   RGBA,
   Sequence,
   SequenceMode,
@@ -27,6 +30,7 @@ import type {
   IkKeyframeEntity,
   KeyframeEntity,
   KeyframeValue,
+  PathConstraintEntity,
   PreservedContent,
   SequenceKeyframeEntity,
   SkinEntity,
@@ -48,6 +52,7 @@ import type {
   BoneId,
   EventDefId,
   IkConstraintId,
+  PathConstraintId,
   SkinId,
   SlotId,
   TransformConstraintId,
@@ -82,6 +87,10 @@ export interface DocumentReadModel {
   getTransformConstraint(id: TransformConstraintId): TransformConstraintEntity | undefined;
   // Transform constraints in stored solve order, solved AFTER all IK constraints (ADR-0003).
   transformConstraints(): readonly TransformConstraintEntity[];
+  getPathConstraint(id: PathConstraintId): PathConstraintEntity | undefined;
+  // Path constraints in stored solve order (Stage F3, ADR-0011 section 2.3), within the single combined
+  // constraint order space (default: after all IK and transform).
+  pathConstraints(): readonly PathConstraintEntity[];
   getSkin(id: SkinId): SkinEntity | undefined;
   // The NON-default named skins in skinOrder. The default skin is implicit (its attachments are the
   // editable default-skin attachments reached via attachments()); it is never a SkinEntity.
@@ -408,6 +417,25 @@ export interface TransformConstraintSnapshot {
   readonly order?: number;
 }
 
+// A plain path-constraint projection (Stage F3, ADR-0011 section 2). `target` is the SLOT id (a path lives
+// on a slot); `bones` are the constrained bone ids. Modes are the format enums; `order` is emitted when set.
+export interface PathConstraintSnapshot {
+  readonly id: string;
+  readonly name: string;
+  readonly target: string;
+  readonly bones: readonly string[];
+  readonly positionMode: PathPositionMode;
+  readonly spacingMode: PathSpacingMode;
+  readonly rotateMode: PathRotateMode;
+  readonly position: number;
+  readonly spacing: number;
+  readonly offsetRotation: number;
+  readonly mixRotate: number;
+  readonly mixX: number;
+  readonly mixY: number;
+  readonly order?: number;
+}
+
 // A plain named-skin projection: its attachments as a flat sorted list (by slotId then name), the same
 // shape the default skin uses in DocSnapshot.attachments.
 export interface SkinSnapshot {
@@ -469,6 +497,8 @@ export interface DocSnapshot {
   readonly ikConstraintOrder: readonly string[]; // order-significant (solve order)
   readonly transformConstraints: readonly TransformConstraintSnapshot[]; // sorted by id
   readonly transformConstraintOrder: readonly string[]; // order-significant (solve order)
+  readonly pathConstraints: readonly PathConstraintSnapshot[]; // sorted by id
+  readonly pathConstraintOrder: readonly string[]; // order-significant (solve order)
   readonly skins: readonly SkinSnapshot[]; // sorted by id (NON-default named skins)
   readonly skinOrder: readonly string[]; // order-significant
   readonly events: readonly EventDefSnapshot[]; // sorted by id (document-level event definitions)
@@ -783,6 +813,26 @@ export function transformConstraintToSnapshot(
     offsetShearY: c.offsetShearY,
     local: c.local,
     relative: c.relative,
+    ...(c.order !== undefined ? { order: c.order } : {}),
+  };
+}
+
+// Project a path constraint to its snapshot shape (Stage F3, ADR-0011 section 2). `target` is the SLOT id.
+export function pathConstraintToSnapshot(c: PathConstraintEntity): PathConstraintSnapshot {
+  return {
+    id: c.id,
+    name: c.name,
+    target: c.target,
+    bones: c.bones.slice(),
+    positionMode: c.positionMode,
+    spacingMode: c.spacingMode,
+    rotateMode: c.rotateMode,
+    position: c.position,
+    spacing: c.spacing,
+    offsetRotation: c.offsetRotation,
+    mixRotate: c.mixRotate,
+    mixX: c.mixX,
+    mixY: c.mixY,
     ...(c.order !== undefined ? { order: c.order } : {}),
   };
 }

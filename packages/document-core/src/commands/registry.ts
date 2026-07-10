@@ -2,6 +2,9 @@ import { addBoneToMeshBindingSpec } from './add-bone-to-mesh-binding.command';
 import { addMeshVertexSpec } from './add-mesh-vertex.command';
 import { clearAttachmentDeformSpec } from './clear-attachment-deform.command';
 import { createIkConstraintSpec } from './create-ik-constraint.command';
+import { createPathConstraintSpec } from './create-path-constraint.command';
+import { deletePathConstraintSpec } from './delete-path-constraint.command';
+import { setPathConstraintParamsSpec } from './set-path-constraint-params.command';
 import { createPathAttachmentSpec } from './create-path-attachment.command';
 import { movePathControlPointSpec } from './move-path-control-point.command';
 import { addPathCurveSpec } from './add-path-curve.command';
@@ -251,4 +254,8 @@ export const commandRegistry: readonly CommandSpec[] = [
   removePathCurveSpec,
   setPathClosedSpec,
   setPathConstantSpeedSpec,
+  // Stage F3 (PP-D11) path constraint authoring
+  createPathConstraintSpec,
+  setPathConstraintParamsSpec,
+  deletePathConstraintSpec,
 ];

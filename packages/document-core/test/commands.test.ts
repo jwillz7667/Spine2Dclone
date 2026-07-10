@@ -393,6 +393,8 @@ function danglingSlotState(): DocState {
     ikConstraintOrder: [],
     transformConstraints: new Map(),
     transformConstraintOrder: [],
+    pathConstraints: new Map(),
+    pathConstraintOrder: [],
     skins: new Map(),
     skinOrder: [],
     events: new Map(),

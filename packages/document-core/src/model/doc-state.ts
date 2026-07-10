@@ -5,7 +5,9 @@ import type {
   AtlasRef,
   BlendMode,
   CurveType,
-  PathConstraint,
+  PathPositionMode,
+  PathRotateMode,
+  PathSpacingMode,
   RegionAttachment,
   RGB,
   RGBA,
@@ -31,6 +33,7 @@ import type {
   EventDefId,
   IkConstraintId,
   KeyframeId,
+  PathConstraintId,
   SkinId,
   SlotId,
   TransformConstraintId,
@@ -586,6 +589,30 @@ export interface TransformConstraintEntity {
   readonly order?: number;
 }
 
+// A path constraint (Stage F3, ADR-0011 section 2; format PathConstraint) promoted to editable (PP-D11).
+// Mirrored BY VALUE except the references: `target` is a SLOT id (a path lives on a slot, not a bone, the one
+// structural difference from ik/transform) and `bones` is a non-empty BoneId list, so a rename never breaks
+// the constraint. It distributes and orients its bones along the target slot's path attachment; the modes and
+// scalars carry the ADR-0011 meaning. Solve order is the stored order in DocState.pathConstraintOrder, AFTER
+// all IK and transform in the default order but within the single combined order space (ADR-0011 section 2.3).
+export interface PathConstraintEntity {
+  readonly id: PathConstraintId;
+  readonly name: string;
+  readonly target: SlotId;
+  readonly bones: readonly BoneId[];
+  readonly positionMode: PathPositionMode;
+  readonly spacingMode: PathSpacingMode;
+  readonly rotateMode: PathRotateMode;
+  readonly position: number;
+  readonly spacing: number;
+  readonly offsetRotation: number;
+  readonly mixRotate: number;
+  readonly mixX: number;
+  readonly mixY: number;
+  // OPTIONAL explicit solve order across ALL THREE constraint arrays (ADR-0011 section 2.3); absent by default.
+  readonly order?: number;
+}
+
 // A named (NON-default) skin (WP-2.8, format Skin): its own `attachments` map keyed by owning SlotId then
 // attachment name, exactly the shape of the default skin's editable attachment map. The 'default' skin is
 // implicit (materialized from DocState.attachments) and is NOT a SkinEntity; CreateSkin/DeleteSkin operate
@@ -607,10 +634,6 @@ export interface SkinEntity {
 // DocState.metadata by PP-D9 (Stage F1); non-default skins were promoted to DocState.skins by WP-2.8.
 export interface PreservedContent {
   readonly atlas: AtlasRef;
-  // Stage F3 (ADR-0011, formatVersion 0.5.0) root path-constraint array, carried verbatim as on-disk
-  // names (no command authors path constraints yet, PP-D11), mirroring how the Stage F2 skin-scoping name
-  // lists are carried. REQUIRED and empty ([]) when the rig has none; a round-trip preserves it exactly.
-  readonly pathConstraints: readonly PathConstraint[];
 }
 
 // The full internal document state. Bones, slots, animations, constraints, and named skins are the
@@ -634,6 +657,10 @@ export interface DocState {
   readonly ikConstraintOrder: readonly IkConstraintId[];
   readonly transformConstraints: ReadonlyMap<TransformConstraintId, TransformConstraintEntity>;
   readonly transformConstraintOrder: readonly TransformConstraintId[];
+  // Stage F3 (ADR-0011 section 2, PP-D11) path constraints, id-keyed with an explicit pathConstraintOrder,
+  // mirroring the ik/transform pair. The three orders together realize the single combined solve-order space.
+  readonly pathConstraints: ReadonlyMap<PathConstraintId, PathConstraintEntity>;
+  readonly pathConstraintOrder: readonly PathConstraintId[];
   readonly skins: ReadonlyMap<SkinId, SkinEntity>;
   readonly skinOrder: readonly SkinId[];
   // Document-level event definitions (Stage F1, ADR-0008; PP-D9), keyed by EventDefId with an explicit
@@ -657,7 +684,6 @@ export interface DocState {
 export function emptyPreservedContent(): PreservedContent {
   return {
     atlas: { pages: [] },
-    pathConstraints: [],
   };
 }
 
@@ -679,6 +705,8 @@ export function newDocState(name: string): DocState {
     ikConstraintOrder: [],
     transformConstraints: new Map(),
     transformConstraintOrder: [],
+    pathConstraints: new Map(),
+    pathConstraintOrder: [],
     skins: new Map(),
     skinOrder: [],
     events: new Map(),

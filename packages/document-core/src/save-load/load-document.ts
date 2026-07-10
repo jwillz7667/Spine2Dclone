@@ -5,6 +5,7 @@ import type {
   Attachment,
   CurveType,
   IkConstraint,
+  PathConstraint,
   SequenceMode,
   Skin,
   SkeletonDocument,
@@ -28,6 +29,7 @@ import type {
   IkKeyframeEntity,
   KeyframeEntity,
   KeyframeValue,
+  PathConstraintEntity,
   SequenceKeyframeEntity,
   SkinEntity,
   SlotEntity,
@@ -55,6 +57,7 @@ import type {
   EventDefId,
   IdFactory,
   IkConstraintId,
+  PathConstraintId,
   SkinId,
   SlotId,
   TransformConstraintId,
@@ -200,6 +203,34 @@ function ikConstraintToEntity(
     stretch: c.stretch,
     compress: c.compress,
     uniform: c.uniform,
+    ...(c.order !== undefined ? { order: c.order } : {}),
+  };
+}
+
+// Promote a format path constraint (Stage F3, ADR-0011 section 2) to its editable entity: the `target` is a
+// SLOT name resolved to a SlotId (a path lives on a slot), and each `bones` NAME resolves to a BoneId, so a
+// rename never breaks the constraint. The validator already guaranteed the references resolve, so resolveId
+// is total here.
+function pathConstraintToEntity(
+  id: PathConstraintId,
+  c: PathConstraint,
+  boneNameToId: ReadonlyMap<string, BoneId>,
+  slotNameToId: ReadonlyMap<string, SlotId>,
+): PathConstraintEntity {
+  return {
+    id,
+    name: c.name,
+    target: resolveId(c.target, slotNameToId, 'path constraint target slot'),
+    bones: c.bones.map((boneName) => resolveId(boneName, boneNameToId, 'path constraint bone')),
+    positionMode: c.positionMode,
+    spacingMode: c.spacingMode,
+    rotateMode: c.rotateMode,
+    position: c.position,
+    spacing: c.spacing,
+    offsetRotation: c.offsetRotation,
+    mixRotate: c.mixRotate,
+    mixX: c.mixX,
+    mixY: c.mixY,
     ...(c.order !== undefined ? { order: c.order } : {}),
   };
 }
@@ -355,6 +386,17 @@ function formatToDocState(document: SkeletonDocument, ids: IdFactory): DocState 
     transformConstraintOrder.push(id);
     transformConstraints.set(id, transformConstraintToEntity(id, c, boneNameToId));
   }
+  // Path constraints (Stage F3, ADR-0011 section 2; PP-D11): mint a PathConstraintId per constraint, resolve
+  // the target SLOT name and bone NAME references to ids, and keep the stored array order (pathConstraintOrder)
+  // within the single combined solve-order space. The per-animation path TIMELINE stays carried by constraint
+  // NAME (its own id-keyed promotion is PP-D11 slice 2), so no name->id map is threaded to the timelines here.
+  const pathConstraintOrder: PathConstraintId[] = [];
+  const pathConstraints = new Map<PathConstraintId, PathConstraintEntity>();
+  for (const c of document.pathConstraints) {
+    const id = ids.mint('pathConstraint');
+    pathConstraintOrder.push(id);
+    pathConstraints.set(id, pathConstraintToEntity(id, c, boneNameToId, slotNameToId));
+  }
 
   // The deform skin key resolves 'default' to itself and a named skin to its SkinId, so a deform track
   // survives a skin rename.
@@ -459,6 +501,8 @@ function formatToDocState(document: SkeletonDocument, ids: IdFactory): DocState 
     ikConstraintOrder,
     transformConstraints,
     transformConstraintOrder,
+    pathConstraints,
+    pathConstraintOrder,
     skins: skinsMap,
     skinOrder,
     events,
@@ -484,9 +528,6 @@ function formatToDocState(document: SkeletonDocument, ids: IdFactory): DocState 
     slotScene: defaultSlotSceneState(),
     preserved: {
       atlas: document.atlas,
-      // Stage F3 (ADR-0011 section 2) root path constraints, carried verbatim as on-disk names until an
-      // authoring command lands (PP-D11); deep-frozen so the model never aliases the parsed document.
-      pathConstraints: carry(document.pathConstraints),
     },
   };
 }

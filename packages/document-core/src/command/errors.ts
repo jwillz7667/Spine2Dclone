@@ -251,6 +251,9 @@ export type ConstraintErrorReason =
   | 'cycle'
   | 'duplicateName'
   | 'notFound'
+  // A path constraint's target SLOT carries a non-path setup attachment (ADR-0011 section 2.2's
+  // PATH_TARGET_NOT_PATH, checked at the command boundary where statically decidable).
+  | 'targetNotPath'
   // A ReorderConstraints permutation that is not a dense, unique cover of the current constraint set
   // (a missing id, a duplicate, an unknown id, or a wrong length), mirroring the format's
   // CONSTRAINT_ORDER_INVALID (ADR-0009 section 1.3).

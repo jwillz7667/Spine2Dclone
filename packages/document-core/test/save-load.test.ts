@@ -825,8 +825,9 @@ describe('Stage F3 (0.5.0) path carry through load and export', () => {
       expect(spline.lengths).toEqual([100]);
       expect(spline.vertices).toEqual([0, 0, 33, 0, 66, 0, 100, 0]);
     }
-    // The root path constraints and the per-animation path timeline are carried, not dropped.
-    expect(doc.model.preserved().pathConstraints.map((c) => c.name)).toEqual(['pc1']);
+    // The path constraint is promoted to an editable entity (PP-D11) and its bones/target resolve to ids;
+    // the per-animation path timeline is still carried by name. Both export deep-equal (below).
+    expect(doc.model.pathConstraints().map((c) => c.name)).toEqual(['pc1']);
     const glide = doc.model.animations().find((a) => a.name === 'glide')!;
     expect(Object.keys(glide.path)).toEqual(['pc1']);
     expect(glide.path['pc1']).toHaveLength(2);

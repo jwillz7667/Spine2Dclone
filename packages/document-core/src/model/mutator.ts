@@ -24,6 +24,7 @@ import type {
   IkKeyframeEntity,
   KeyframeEntity,
   MeshGeometry,
+  PathConstraintEntity,
   PathGeometry,
   RegionAttachmentEntity,
   SkinEntity,
@@ -38,6 +39,7 @@ import type {
   BoneId,
   EventDefId,
   IkConstraintId,
+  PathConstraintId,
   SkinId,
   SlotId,
   TransformConstraintId,
@@ -145,6 +147,15 @@ export interface Mutator extends DocumentReadModel {
     patch: Partial<Omit<TransformConstraintEntity, 'id'>>,
   ): void;
   setTransformConstraintOrder(id: TransformConstraintId, order: number | undefined): void;
+  insertPathConstraint(entity: PathConstraintEntity, index: number): void;
+  removePathConstraint(id: PathConstraintId): void;
+  patchPathConstraint(id: PathConstraintId, patch: Partial<Omit<PathConstraintEntity, 'id'>>): void;
+  setPathConstraintOrder(id: PathConstraintId, order: number | undefined): void;
+  setCarriedPathTimeline(
+    animId: AnimationId,
+    constraintName: string,
+    frames: AnimationEntity['path'][string] | null,
+  ): void;
   insertSkin(entity: SkinEntity, index: number): void;
   removeSkin(id: SkinId): void;
   patchSkin(id: SkinId, patch: { readonly name?: string }): void;
@@ -200,6 +211,8 @@ export function createMutator(model: DocumentModelInternal): Mutator {
     ikConstraints: () => model.ikConstraints(),
     getTransformConstraint: (id) => model.getTransformConstraint(id),
     transformConstraints: () => model.transformConstraints(),
+    getPathConstraint: (id) => model.getPathConstraint(id),
+    pathConstraints: () => model.pathConstraints(),
     getSkin: (id) => model.getSkin(id),
     skins: () => model.skins(),
     getEventDef: (id) => model.getEventDef(id),
@@ -261,6 +274,12 @@ export function createMutator(model: DocumentModelInternal): Mutator {
     removeTransformConstraint: (id) => model.removeTransformConstraint(id),
     patchTransformConstraint: (id, patch) => model.patchTransformConstraint(id, patch),
     setTransformConstraintOrder: (id, order) => model.setTransformConstraintOrder(id, order),
+    insertPathConstraint: (entity, index) => model.insertPathConstraint(entity, index),
+    removePathConstraint: (id) => model.removePathConstraint(id),
+    patchPathConstraint: (id, patch) => model.patchPathConstraint(id, patch),
+    setPathConstraintOrder: (id, order) => model.setPathConstraintOrder(id, order),
+    setCarriedPathTimeline: (animId, name, frames) =>
+      model.setCarriedPathTimeline(animId, name, frames),
     insertSkin: (entity, index) => model.insertSkin(entity, index),
     removeSkin: (id) => model.removeSkin(id),
     patchSkin: (id, patch) => model.patchSkin(id, patch),

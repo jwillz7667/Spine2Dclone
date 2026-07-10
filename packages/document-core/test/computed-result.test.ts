@@ -46,6 +46,8 @@ describe('computed-result command replays its stored result on redo', () => {
         ikConstraintOrder: [],
         transformConstraints: new Map(),
         transformConstraintOrder: [],
+        pathConstraints: new Map(),
+        pathConstraintOrder: [],
         skins: new Map(),
         skinOrder: [],
         events: new Map(),

@@ -276,6 +276,22 @@ export {
   curveCountOf,
   controlPointCount,
 } from './path-support';
+// Stage F3 (PP-D11) path constraint authoring
+export {
+  CreatePathConstraintCommand,
+  createPathConstraintSpec,
+} from './create-path-constraint.command';
+export type { PathConstraintParams } from './create-path-constraint.command';
+export {
+  DeletePathConstraintCommand,
+  deletePathConstraintSpec,
+} from './delete-path-constraint.command';
+export {
+  SetPathConstraintParamsCommand,
+  setPathConstraintParamsSpec,
+} from './set-path-constraint-params.command';
+export type { PathConstraintParamPatch } from './set-path-constraint-params.command';
+export { assertValidPathConstraint } from './constraint-support';
 export { sortEventKeysByTime } from './event-support';
 export { assertConsistentDrawOrder, sortDrawOrderKeysByTime } from './draw-order-support';
 export {

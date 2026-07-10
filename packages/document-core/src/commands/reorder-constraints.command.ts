@@ -4,29 +4,32 @@ import {
   CommandTargetMissingError,
   ConstraintError,
 } from '../command/errors';
-import type { IkConstraintId, TransformConstraintId } from '../model/ids';
+import type { IkConstraintId, PathConstraintId, TransformConstraintId } from '../model/ids';
 import type { DocumentReadModel } from '../model/read-model';
 import type { CommandSpec } from './spec';
 
-// One constraint's captured prior order across both arrays (for the undo memento). A discriminated union on
-// `kind` keeps each id its proper brand (IK and transform share one name namespace but distinct id brands,
-// ADR-0004), so applyOrders dispatches to the right typed mutator method with no `as` cast.
+// One constraint's captured prior order across all three arrays (for the undo memento). A discriminated union
+// on `kind` keeps each id its proper brand (IK, transform, and path share one name namespace but distinct id
+// brands, ADR-0004/ADR-0011), so applyOrders dispatches to the right typed mutator method with no `as` cast.
 type ConstraintOrderMemento =
   | { readonly kind: 'ik'; readonly id: IkConstraintId; readonly order: number | undefined }
   | {
       readonly kind: 'transform';
       readonly id: TransformConstraintId;
       readonly order: number | undefined;
-    };
+    }
+  | { readonly kind: 'path'; readonly id: PathConstraintId; readonly order: number | undefined };
 
-// Enumerate every constraint (all IK in solve order, then all transform), each with its current explicit
-// `order` field, as the before-memento AND the identity of the current constraint set the reorder covers.
+// Enumerate every constraint (all IK in solve order, then all transform, then all path), each with its
+// current explicit `order` field, as the before-memento AND the identity of the current constraint set the
+// reorder covers. The order matches the default solve order (ADR-0011 section 2.3: IK, transform, path).
 function captureOrders(model: DocumentReadModel): ConstraintOrderMemento[] {
   const out: ConstraintOrderMemento[] = [];
   for (const c of model.ikConstraints()) out.push({ kind: 'ik', id: c.id, order: c.order });
   for (const c of model.transformConstraints()) {
     out.push({ kind: 'transform', id: c.id, order: c.order });
   }
+  for (const c of model.pathConstraints()) out.push({ kind: 'path', id: c.id, order: c.order });
   return out;
 }
 
@@ -102,7 +105,9 @@ function assignOrders(
 
 // Re-stamp one memento with a new order value, preserving its discriminated (kind, branded id) identity.
 function withOrder(c: ConstraintOrderMemento, order: number | undefined): ConstraintOrderMemento {
-  return c.kind === 'ik' ? { kind: 'ik', id: c.id, order } : { kind: 'transform', id: c.id, order };
+  if (c.kind === 'ik') return { kind: 'ik', id: c.id, order };
+  if (c.kind === 'transform') return { kind: 'transform', id: c.id, order };
+  return { kind: 'path', id: c.id, order };
 }
 
 // Write an order assignment to the model through the dedicated set-order mutator methods (which DELETE the
@@ -110,7 +115,8 @@ function withOrder(c: ConstraintOrderMemento, order: number | undefined): Constr
 function applyOrders(ctx: CommandContext, orders: readonly ConstraintOrderMemento[]): void {
   for (const c of orders) {
     if (c.kind === 'ik') ctx.mutate.setIkConstraintOrder(c.id, c.order);
-    else ctx.mutate.setTransformConstraintOrder(c.id, c.order);
+    else if (c.kind === 'transform') ctx.mutate.setTransformConstraintOrder(c.id, c.order);
+    else ctx.mutate.setPathConstraintOrder(c.id, c.order);
   }
 }
 

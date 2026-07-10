@@ -49,6 +49,8 @@ function state(partial: Partial<DocState> & Pick<DocState, 'bones' | 'boneOrder'
     ikConstraintOrder: [],
     transformConstraints: new Map(),
     transformConstraintOrder: [],
+    pathConstraints: new Map(),
+    pathConstraintOrder: [],
     skins: new Map(),
     skinOrder: [],
     events: new Map(),

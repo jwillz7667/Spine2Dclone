@@ -36,6 +36,12 @@ export type KeyframeId = Id<'keyframe'>;
 // boneOrder accompanies the bones map.
 export type IkConstraintId = Id<'ikConstraint'>;
 export type TransformConstraintId = Id<'transformConstraint'>;
+// Stage F3 (ADR-0011, formatVersion 0.5.0) promotes path constraints to id-keyed editable entities (PP-D11).
+// A PathConstraintEntity is addressed by PathConstraintId, never by name (the mutable on-disk key), so a
+// constraint rename or a sibling delete never invalidates a captured command. Path constraints share the
+// single combined solve-order space with IK and transform (ADR-0011 section 2.3), so the model keeps an
+// explicit id order alongside the id-keyed map, exactly as the ik/transform orders accompany their maps.
+export type PathConstraintId = Id<'pathConstraint'>;
 export type SkinId = Id<'skin'>;
 
 // Stage F1 (ADR-0008, formatVersion 0.3.0) promotes document-level event definitions to id-keyed

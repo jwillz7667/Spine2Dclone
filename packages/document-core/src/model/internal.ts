@@ -27,6 +27,7 @@ import type {
   KeyframeEntity,
   MeshAttachmentEntity,
   MeshGeometry,
+  PathConstraintEntity,
   PathGeometry,
   PreservedContent,
   RegionAttachmentEntity,
@@ -59,6 +60,7 @@ import type {
   EventDefId,
   IdFactory,
   IkConstraintId,
+  PathConstraintId,
   SkinId,
   SlotId,
   TransformConstraintId,
@@ -70,6 +72,7 @@ import {
   eventDefToSnapshot,
   freezeSlotSceneForReadOut,
   ikConstraintToSnapshot,
+  pathConstraintToSnapshot,
   skinToSnapshot,
   slotSceneToSnapshot,
   slotToSnapshot,
@@ -80,6 +83,7 @@ import {
   type DocumentReadModel,
   type EventDefSnapshot,
   type IkConstraintSnapshot,
+  type PathConstraintSnapshot,
   type SkinSnapshot,
   type TransformConstraintSnapshot,
 } from './read-model';
@@ -590,6 +594,31 @@ function freezeTransform(c: MutableTransformConstraint): TransformConstraintEnti
   return Object.freeze({ ...c, bones: Object.freeze(c.bones.slice()) });
 }
 
+interface MutablePathConstraint {
+  id: PathConstraintId;
+  name: string;
+  target: SlotId;
+  bones: readonly BoneId[];
+  positionMode: PathConstraintEntity['positionMode'];
+  spacingMode: PathConstraintEntity['spacingMode'];
+  rotateMode: PathConstraintEntity['rotateMode'];
+  position: number;
+  spacing: number;
+  offsetRotation: number;
+  mixRotate: number;
+  mixX: number;
+  mixY: number;
+  order?: number;
+}
+
+function toMutablePath(c: PathConstraintEntity): MutablePathConstraint {
+  return { ...c, bones: c.bones.slice() };
+}
+
+function freezePath(c: MutablePathConstraint): PathConstraintEntity {
+  return Object.freeze({ ...c, bones: Object.freeze(c.bones.slice()) });
+}
+
 function toMutableSkin(skin: SkinEntity): MutableSkin {
   return {
     id: skin.id,
@@ -642,6 +671,8 @@ export class DocumentModelInternal implements DocumentReadModel {
   private ikConstraintOrderArr: IkConstraintId[];
   private transformConstraintsMap: Map<TransformConstraintId, MutableTransformConstraint>;
   private transformConstraintOrderArr: TransformConstraintId[];
+  private pathConstraintsMap: Map<PathConstraintId, MutablePathConstraint>;
+  private pathConstraintOrderArr: PathConstraintId[];
   private skinsMap: Map<SkinId, MutableSkin>;
   private skinOrderArr: SkinId[];
   // Document-level event definitions (Stage F1, PP-D9), keyed by EventDefId with an explicit order array
@@ -684,6 +715,9 @@ export class DocumentModelInternal implements DocumentReadModel {
       this.transformConstraintsMap.set(id, toMutableTransform(c));
     }
     this.transformConstraintOrderArr = state.transformConstraintOrder.slice();
+    this.pathConstraintsMap = new Map();
+    for (const [id, c] of state.pathConstraints) this.pathConstraintsMap.set(id, toMutablePath(c));
+    this.pathConstraintOrderArr = state.pathConstraintOrder.slice();
     this.skinsMap = new Map();
     for (const [id, skin] of state.skins) this.skinsMap.set(id, toMutableSkin(skin));
     this.skinOrderArr = state.skinOrder.slice();
@@ -699,7 +733,6 @@ export class DocumentModelInternal implements DocumentReadModel {
     this.slotSceneValue = cloneSlotSceneState(state.slotScene);
     this.preservedContent = deepFreeze({
       atlas: state.preserved.atlas,
-      pathConstraints: state.preserved.pathConstraints,
     });
   }
 
@@ -803,6 +836,20 @@ export class DocumentModelInternal implements DocumentReadModel {
     return out;
   }
 
+  getPathConstraint(id: PathConstraintId): PathConstraintEntity | undefined {
+    const c = this.pathConstraintsMap.get(id);
+    return c ? freezePath(c) : undefined;
+  }
+
+  pathConstraints(): readonly PathConstraintEntity[] {
+    const out: PathConstraintEntity[] = [];
+    for (const id of this.pathConstraintOrderArr) {
+      const c = this.pathConstraintsMap.get(id);
+      if (c) out.push(freezePath(c));
+    }
+    return out;
+  }
+
   getSkin(id: SkinId): SkinEntity | undefined {
     const skin = this.skinsMap.get(id);
     return skin ? freezeSkin(skin) : undefined;
@@ -896,6 +943,9 @@ export class DocumentModelInternal implements DocumentReadModel {
     ]
       .map((c) => transformConstraintToSnapshot(freezeTransform(c)))
       .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+    const pathConstraints: PathConstraintSnapshot[] = [...this.pathConstraintsMap.values()]
+      .map((c) => pathConstraintToSnapshot(freezePath(c)))
+      .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
     const skins: SkinSnapshot[] = [...this.skinsMap.values()]
       .map((skin) => skinToSnapshot(freezeSkin(skin)))
       .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
@@ -915,6 +965,8 @@ export class DocumentModelInternal implements DocumentReadModel {
       ikConstraintOrder: this.ikConstraintOrderArr.slice(),
       transformConstraints,
       transformConstraintOrder: this.transformConstraintOrderArr.slice(),
+      pathConstraints,
+      pathConstraintOrder: this.pathConstraintOrderArr.slice(),
       skins,
       skinOrder: this.skinOrderArr.slice(),
       events,
@@ -1709,6 +1761,96 @@ export class DocumentModelInternal implements DocumentReadModel {
     this.revisionValue += 1;
   }
 
+  // ----- path-constraint write surface (Stage F3, PP-D11, reached only through the Mutator) -----
+
+  insertPathConstraint(entity: PathConstraintEntity, index: number): void {
+    const c = toMutablePath(entity);
+    if (this.batching) {
+      this.pathConstraintsMap.set(c.id, c);
+      this.pathConstraintOrderArr.splice(index, 0, c.id);
+    } else {
+      const next = new Map(this.pathConstraintsMap);
+      next.set(c.id, c);
+      this.pathConstraintsMap = next;
+      const order = this.pathConstraintOrderArr.slice();
+      order.splice(index, 0, c.id);
+      this.pathConstraintOrderArr = order;
+    }
+    this.revisionValue += 1;
+  }
+
+  removePathConstraint(id: PathConstraintId): void {
+    if (this.batching) {
+      this.pathConstraintsMap.delete(id);
+      const i = this.pathConstraintOrderArr.indexOf(id);
+      if (i >= 0) this.pathConstraintOrderArr.splice(i, 1);
+    } else {
+      const next = new Map(this.pathConstraintsMap);
+      next.delete(id);
+      this.pathConstraintsMap = next;
+      this.pathConstraintOrderArr = this.pathConstraintOrderArr.filter((x) => x !== id);
+    }
+    this.revisionValue += 1;
+  }
+
+  patchPathConstraint(id: PathConstraintId, patch: Partial<Omit<PathConstraintEntity, 'id'>>): void {
+    const current = this.pathConstraintsMap.get(id);
+    if (!current) return;
+    if (this.batching) {
+      Object.assign(current, patch);
+    } else {
+      const next = new Map(this.pathConstraintsMap);
+      next.set(id, { ...current, ...patch });
+      this.pathConstraintsMap = next;
+    }
+    this.revisionValue += 1;
+  }
+
+  // Set or CLEAR a path constraint's OPTIONAL explicit solve order (ADR-0011 section 2.3), the mirror of
+  // setIkConstraintOrder / setTransformConstraintOrder. `undefined` deletes the key. Used by ReorderConstraints.
+  setPathConstraintOrder(id: PathConstraintId, order: number | undefined): void {
+    const current = this.pathConstraintsMap.get(id);
+    if (!current) return;
+    if (this.batching) {
+      if (order === undefined) delete current.order;
+      else current.order = order;
+    } else {
+      const updated: MutablePathConstraint = { ...current };
+      if (order === undefined) delete updated.order;
+      else updated.order = order;
+      const next = new Map(this.pathConstraintsMap);
+      next.set(id, updated);
+      this.pathConstraintsMap = next;
+    }
+    this.revisionValue += 1;
+  }
+
+  // Set or DELETE one animation's carried path timeline track, keyed by constraint NAME (the path timeline is
+  // still carried verbatim by name until its own id-keyed promotion, PP-D11 slice 2). `null` removes the key
+  // so a deleted path constraint leaves no orphan timeline (which would fail ANIM_PATH_UNKNOWN on export); a
+  // non-empty array restores it on undo. A missing animation is a no-op (the delete command enumerates live
+  // animations). The record is replaced WHOLESALE (its frames are frozen on-disk shapes, shared by reference).
+  setCarriedPathTimeline(
+    animId: AnimationId,
+    constraintName: string,
+    frames: MutableAnimation['path'][string] | null,
+  ): void {
+    const animation = this.animationsMap.get(animId);
+    if (!animation) return;
+    const nextPath: Record<string, MutableAnimation['path'][string]> = { ...animation.path };
+    if (frames === null) delete nextPath[constraintName];
+    else nextPath[constraintName] = frames;
+    const frozen = Object.freeze(nextPath);
+    if (this.batching) {
+      animation.path = frozen;
+    } else {
+      const next = new Map(this.animationsMap);
+      next.set(animId, { ...animation, path: frozen });
+      this.animationsMap = next;
+    }
+    this.revisionValue += 1;
+  }
+
   // ----- named-skin write surface (WP-2.8, reached only through the Mutator) -----
 
   insertSkin(entity: SkinEntity, index: number): void {
@@ -1901,11 +2043,7 @@ export class DocumentModelInternal implements DocumentReadModel {
   // a discrete edit, never part of a drag. NO content hash is computed here (the exporter is the sole hash
   // owner, LAW 3).
   setAtlas(atlas: AtlasRef): void {
-    // Replace only the atlas; the carried Stage F3 path constraints (PP-D11) ride through unchanged.
-    this.preservedContent = deepFreeze({
-      atlas,
-      pathConstraints: this.preservedContent.pathConstraints,
-    });
+    this.preservedContent = deepFreeze({ atlas });
     this.revisionValue += 1;
   }
 
@@ -2022,6 +2160,8 @@ export function createReadModel(model: DocumentModelInternal): DocumentReadModel
     ikConstraints: () => model.ikConstraints(),
     getTransformConstraint: (id) => model.getTransformConstraint(id),
     transformConstraints: () => model.transformConstraints(),
+    getPathConstraint: (id) => model.getPathConstraint(id),
+    pathConstraints: () => model.pathConstraints(),
     getSkin: (id) => model.getSkin(id),
     skins: () => model.skins(),
     getEventDef: (id) => model.getEventDef(id),

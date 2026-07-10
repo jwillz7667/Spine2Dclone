@@ -513,31 +513,90 @@ export const seeds = {
   }),
 } as const;
 
-// A Stage F3 (0.5.0) seed carrying an UNWEIGHTED PATH attachment ('rail' on 'path_slot'), a straight
-// two-curve open spline along the x axis with hand-computed cumulative arc lengths [90, 180] (each straight,
-// evenly-spaced curve is 90 long). Target of the PP-D11 path attachment commands: MovePathControlPoint has
-// control points to drag, AddPathCurve/RemovePathCurve grow and shrink the spline (two curves so a remove
-// leaves a valid single curve), and SetPathClosed/SetPathConstantSpeed flip the flags. A path renders no
-// pixels, so it references no atlas region.
-export const pathedSeed = doc('pathed', [bone('root', null), bone('arm', 'root', { x: 50 })], {
-  slots: [slot('body', 'root'), slot('path_slot', 'arm', { attachment: 'rail' })],
-  skins: [
-    {
-      name: 'default',
-      attachments: {
-        path_slot: {
-          rail: {
-            type: 'path',
-            closed: false,
-            constantSpeed: true,
-            lengths: [90, 180],
-            vertices: [0, 0, 30, 0, 60, 0, 90, 0, 120, 0, 150, 0, 180, 0],
+// A Stage F3 (0.5.0) seed carrying an UNWEIGHTED PATH attachment ('rail' on 'path_slot'), a PATH CONSTRAINT
+// ('rail-follow' distributing 'rider' along the rail), and an animation ('glide') that keys the path
+// timeline. The rail is a straight two-curve open spline along the x axis with hand-computed cumulative arc
+// lengths [90, 180] (each straight, evenly-spaced curve is 90 long). Target of BOTH the PP-D11 path
+// attachment commands (MovePathControlPoint drags control points, AddPathCurve/RemovePathCurve grow and
+// shrink the spline, SetPathClosed/SetPathConstantSpeed flip flags) AND the path constraint commands
+// (CreatePathConstraint adds a second, SetPathConstraintParams edits, DeletePathConstraint cascades the
+// carried path timeline). Built at the current version (0.5.0) so no migration injects the collections.
+// A path renders no pixels, so it references no atlas region.
+function pathedDoc(): SkeletonDocument {
+  const glide: Animation = {
+    duration: 1,
+    // One authored bone track so anim.duplicate (which counts bone/slot/event/drawOrder keyframes, not the
+    // carried path timeline) has real keyframes to copy on this seed.
+    bones: {
+      rider: {
+        rotate: [
+          { time: 0, value: { angle: 0 }, curve: 'linear' },
+          { time: 1, value: { angle: 10 }, curve: 'linear' },
+        ],
+      },
+    },
+    slots: {},
+    ik: {},
+    transform: {},
+    // The carried path timeline keying the base position and the rotate mix over time (partial frames),
+    // so DeletePathConstraint exercises the carried-track prune cascade.
+    path: {
+      'rail-follow': [
+        { time: 0, value: { position: 0, mixRotate: 1 }, curve: 'linear' },
+        { time: 1, value: { position: 1, mixRotate: 0 }, curve: 'stepped' },
+      ],
+    },
+    deform: {},
+    drawOrder: [],
+    events: [],
+  };
+  return {
+    formatVersion: CURRENT_FORMAT_VERSION,
+    name: 'pathed',
+    hash: '',
+    bones: [bone('root', null), bone('arm', 'root', { x: 50 }), bone('rider', 'root', { x: 20 })],
+    slots: [slot('body', 'root'), slot('path_slot', 'arm', { attachment: 'rail' })],
+    skins: [
+      {
+        name: 'default',
+        attachments: {
+          path_slot: {
+            rail: {
+              type: 'path',
+              closed: false,
+              constantSpeed: true,
+              lengths: [90, 180],
+              vertices: [0, 0, 30, 0, 60, 0, 90, 0, 120, 0, 150, 0, 180, 0],
+            },
           },
         },
       },
-    },
-  ],
-});
+    ],
+    ikConstraints: [],
+    transformConstraints: [],
+    pathConstraints: [
+      {
+        name: 'rail-follow',
+        target: 'path_slot',
+        bones: ['rider'],
+        positionMode: 'percent',
+        spacingMode: 'length',
+        rotateMode: 'tangent',
+        position: 0,
+        spacing: 0,
+        offsetRotation: 0,
+        mixRotate: 1,
+        mixX: 1,
+        mixY: 1,
+      },
+    ],
+    events: [],
+    animations: { glide },
+    atlas: { pages: [] },
+  };
+}
+
+export const pathedSeed = pathedDoc();
 
 export interface Seed {
   readonly id: string;

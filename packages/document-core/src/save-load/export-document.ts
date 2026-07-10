@@ -13,6 +13,7 @@ import type {
   LinkedMeshAttachment,
   MeshAttachment,
   PathAttachment,
+  PathConstraint,
   RegionAttachment,
   Skin,
   SkeletonDocument,
@@ -31,6 +32,7 @@ import type {
   IkConstraintEntity,
   IkKeyframeEntity,
   KeyframeEntity,
+  PathConstraintEntity,
   SkinEntity,
   SlotTimelineSet,
   TransformConstraintEntity,
@@ -422,6 +424,31 @@ function transformConstraintToFormat(
   };
 }
 
+// Project a path constraint (Stage F3, ADR-0011 section 2) BACK to the format shape: the SLOT target id and
+// each bone id resolve to their CURRENT names, so a rename since load emits the current name (LAW 3 fail-loud
+// on a dangling id). `order` is emitted only when set (exactOptionalPropertyTypes).
+function pathConstraintToFormat(
+  c: PathConstraintEntity,
+  boneIdToName: ReadonlyMap<string, string>,
+  slotIdToName: ReadonlyMap<string, string>,
+): PathConstraint {
+  return {
+    name: c.name,
+    target: resolveName(c.target, slotIdToName, 'path constraint target slot'),
+    bones: c.bones.map((boneId) => resolveName(boneId, boneIdToName, 'path constraint bone')),
+    positionMode: c.positionMode,
+    spacingMode: c.spacingMode,
+    rotateMode: c.rotateMode,
+    position: c.position,
+    spacing: c.spacing,
+    offsetRotation: c.offsetRotation,
+    mixRotate: c.mixRotate,
+    mixX: c.mixX,
+    mixY: c.mixY,
+    ...(c.order !== undefined ? { order: c.order } : {}),
+  };
+}
+
 // Materialize a named skin's attachments to the format record, keyed by each owning slot's CURRENT name.
 // The Stage F2 (ADR-0009 section 5) scoping lists are carried verbatim (as on-disk names) when present.
 function skinToFormat(skin: SkinEntity, slotIdToName: ReadonlyMap<string, string>): Skin {
@@ -503,6 +530,11 @@ export function exportDocument(model: DocumentReadModel): SkeletonDocument {
   const transformConstraints: TransformConstraint[] = model
     .transformConstraints()
     .map((c) => transformConstraintToFormat(c, boneIdToName));
+  // Path constraints (Stage F3, ADR-0011 section 2; PP-D11) emit from the promoted model in stored order,
+  // resolving the SLOT target and bone ids back to their current names.
+  const pathConstraints: PathConstraint[] = model
+    .pathConstraints()
+    .map((c) => pathConstraintToFormat(c, boneIdToName, slotIdToName));
 
   // Event definitions (Stage F1, PP-D9) emit in eventOrder; an event key resolves its EventDefId back to the
   // definition's CURRENT name through this map.
@@ -542,9 +574,9 @@ export function exportDocument(model: DocumentReadModel): SkeletonDocument {
     skins,
     ikConstraints,
     transformConstraints,
-    // Stage F3 (ADR-0011 section 2): the carried root path constraints are emitted verbatim as on-disk
-    // names (PP-D11); REQUIRED, empty ([]) when the rig has none.
-    pathConstraints: [...model.preserved().pathConstraints],
+    // Stage F3 (ADR-0011 section 2): the promoted path constraints emit in stored solve order (PP-D11);
+    // REQUIRED, empty ([]) when the rig has none.
+    pathConstraints,
     events: orderedEventDefs.map((event) => ({
       name: event.name,
       ...(event.int !== undefined ? { int: event.int } : {}),

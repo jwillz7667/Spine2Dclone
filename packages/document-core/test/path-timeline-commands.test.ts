@@ -113,9 +113,7 @@ describe('MovePathKeyframe', () => {
     const before = doc.model.snapshot();
 
     expect(() =>
-      doc.history.execute(
-        new MovePathKeyframeCommand(animId, constraintId, second.id, first.time),
-      ),
+      doc.history.execute(new MovePathKeyframeCommand(animId, constraintId, second.id, first.time)),
     ).toThrow();
     expect(doc.model.snapshot()).toEqual(before);
   });

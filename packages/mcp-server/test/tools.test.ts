@@ -1250,7 +1250,9 @@ describe('MCP path constraint + timeline tools (PP-D11)', () => {
   it('creates, edits, keys, and reads a path constraint through the AI surface', async () => {
     const deps = makeDeps();
     const { documentId } = asRecord(await call(deps, 'document.new', { name: 'rig' }));
-    const { boneId: rootId } = asRecord(await call(deps, 'bone.create', { documentId, name: 'root' }));
+    const { boneId: rootId } = asRecord(
+      await call(deps, 'bone.create', { documentId, name: 'root' }),
+    );
     const { boneId: riderId } = asRecord(
       await call(deps, 'bone.create', { documentId, parentId: rootId, name: 'rider' }),
     );
@@ -1317,7 +1319,9 @@ describe('MCP path constraint + timeline tools (PP-D11)', () => {
   it('rejects a target slot without a path (CONSTRAINT) and a keyframe collision (KEYFRAME_COLLISION)', async () => {
     const deps = makeDeps();
     const { documentId } = asRecord(await call(deps, 'document.new', { name: 'rig' }));
-    const { boneId: rootId } = asRecord(await call(deps, 'bone.create', { documentId, name: 'root' }));
+    const { boneId: rootId } = asRecord(
+      await call(deps, 'bone.create', { documentId, name: 'root' }),
+    );
     const { slotId } = asRecord(
       await call(deps, 'slot.create', { documentId, boneId: rootId, name: 'plain' }),
     );

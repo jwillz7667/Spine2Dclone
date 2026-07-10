@@ -48,7 +48,13 @@ describe('CreatePathConstraint', () => {
     const startCount = doc.model.pathConstraints().length;
 
     doc.history.execute(
-      new CreatePathConstraintCommand(doc.ids.mint('pathConstraint'), 'pc2', slot.id, [bone.id], PARAMS),
+      new CreatePathConstraintCommand(
+        doc.ids.mint('pathConstraint'),
+        'pc2',
+        slot.id,
+        [bone.id],
+        PARAMS,
+      ),
     );
     expect(doc.model.pathConstraints().map((c) => c.name)).toContain('pc2');
 
@@ -134,9 +140,7 @@ describe('SetPathConstraintParams', () => {
 
     doc.history.beginInteraction();
     for (let i = 1; i <= 8; i += 1) {
-      doc.history.execute(
-        new SetPathConstraintParamsCommand(constraint.id, { position: i / 10 }),
-      );
+      doc.history.execute(new SetPathConstraintParamsCommand(constraint.id, { position: i / 10 }));
     }
     const event = doc.history.endInteraction('Set Path Constraint');
     expect(event?.kind).toBe('path.setParams'); // one merged command, not a composite of eight
@@ -191,7 +195,9 @@ function threeConstraintDoc(): SkeletonDocument {
     name: 'three',
     hash: '',
     bones: [b('root', null), b('arm', 'root', 50), b('rider', 'root', 20)],
-    slots: [{ name: 'rail_slot', bone: 'root', color: white, attachment: 'rail', blendMode: 'normal' }],
+    slots: [
+      { name: 'rail_slot', bone: 'root', color: white, attachment: 'rail', blendMode: 'normal' },
+    ],
     skins: [
       {
         name: 'default',

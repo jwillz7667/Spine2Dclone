@@ -75,3 +75,7 @@ demo/little-aliens/little-aliens.rig.json
 demo/little-aliens/little-aliens.effects.json
 demo/little-aliens/source-manifest.json
 slot-assets/
+
+# Native build artifacts (gitignored; excluded so a local dotnet build does not pollute format:check)
+runtimes/**/bin/
+runtimes/**/obj/

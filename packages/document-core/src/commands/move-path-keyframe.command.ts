@@ -107,7 +107,8 @@ export const movePathKeyframeSpec: CommandSpec = {
   },
   assertApplied: (before, after) => {
     const animBefore = before.animations.find((a) => a.name === 'glide') ?? before.animations[0];
-    if (animBefore === undefined) throw new Error('path.moveKeyframe fixture seed had no animations');
+    if (animBefore === undefined)
+      throw new Error('path.moveKeyframe fixture seed had no animations');
     const track = animBefore.path[0];
     if (track === undefined) throw new Error('path.moveKeyframe fixture seed had no path track');
     const b = pathTimes(findAnimationSnapshot(before, animBefore.id), track.constraintId);
@@ -115,7 +116,8 @@ export const movePathKeyframeSpec: CommandSpec = {
     if (a.length !== b.length) throw new Error('path.moveKeyframe changed the keyframe count');
     if (a.join(',') === b.join(',')) throw new Error('path.moveKeyframe produced no time delta');
     for (let i = 1; i < a.length; i += 1) {
-      if (a[i]! <= a[i - 1]!) throw new Error('path.moveKeyframe left the channel out of time order');
+      if (a[i]! <= a[i - 1]!)
+        throw new Error('path.moveKeyframe left the channel out of time order');
     }
   },
 };

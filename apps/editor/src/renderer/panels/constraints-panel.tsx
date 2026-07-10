@@ -69,9 +69,7 @@ export function ConstraintsPanel(_props: IDockviewPanelProps): ReactElement {
   );
   const selectedPath = useMemo(
     () =>
-      selection?.kind === 'path'
-        ? pathConstraints.find((c) => c.id === selection.id)
-        : undefined,
+      selection?.kind === 'path' ? pathConstraints.find((c) => c.id === selection.id) : undefined,
     [selection, pathConstraints],
   );
 
@@ -455,7 +453,9 @@ function PathConstraintDetail(props: { readonly constraint: PathConstraintEntity
         <select
           style={selectStyle}
           value={c.positionMode}
-          onChange={(event) => setPathParams(c.id, { positionMode: readPositionMode(event.target.value) })}
+          onChange={(event) =>
+            setPathParams(c.id, { positionMode: readPositionMode(event.target.value) })
+          }
         >
           {POSITION_MODES.map((mode) => (
             <option key={mode} value={mode}>
@@ -470,7 +470,9 @@ function PathConstraintDetail(props: { readonly constraint: PathConstraintEntity
         <select
           style={selectStyle}
           value={c.spacingMode}
-          onChange={(event) => setPathParams(c.id, { spacingMode: readSpacingMode(event.target.value) })}
+          onChange={(event) =>
+            setPathParams(c.id, { spacingMode: readSpacingMode(event.target.value) })
+          }
         >
           {SPACING_MODES.map((mode) => (
             <option key={mode} value={mode}>
@@ -485,7 +487,9 @@ function PathConstraintDetail(props: { readonly constraint: PathConstraintEntity
         <select
           style={selectStyle}
           value={c.rotateMode}
-          onChange={(event) => setPathParams(c.id, { rotateMode: readRotateMode(event.target.value) })}
+          onChange={(event) =>
+            setPathParams(c.id, { rotateMode: readRotateMode(event.target.value) })
+          }
         >
           {ROTATE_MODES.map((mode) => (
             <option key={mode} value={mode}>
@@ -538,7 +542,9 @@ function PathConstraintDetail(props: { readonly constraint: PathConstraintEntity
         commit={(v) => setPathParams(c.id, { mixY: v })}
       />
 
-      <div style={noteStyle}>Path timeline keys are authored in the dopesheet and the MCP path.* surface.</div>
+      <div style={noteStyle}>
+        Path timeline keys are authored in the dopesheet and the MCP path.* surface.
+      </div>
     </div>
   );
 }

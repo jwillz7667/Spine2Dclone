@@ -97,11 +97,18 @@ export const setPathKeyframeSpec: CommandSpec = {
   },
   assertApplied: (before, after) => {
     const animBefore = before.animations.find((a) => a.name === 'glide') ?? before.animations[0];
-    if (animBefore === undefined) throw new Error('path.setKeyframe fixture seed had no animations');
+    if (animBefore === undefined)
+      throw new Error('path.setKeyframe fixture seed had no animations');
     const track = animBefore.path[0];
     if (track === undefined) throw new Error('path.setKeyframe fixture seed had no path track');
-    const beforeCount = countPathFrames(findAnimationSnapshot(before, animBefore.id), track.constraintId);
-    const afterCount = countPathFrames(findAnimationSnapshot(after, animBefore.id), track.constraintId);
+    const beforeCount = countPathFrames(
+      findAnimationSnapshot(before, animBefore.id),
+      track.constraintId,
+    );
+    const afterCount = countPathFrames(
+      findAnimationSnapshot(after, animBefore.id),
+      track.constraintId,
+    );
     if (afterCount !== beforeCount + 1) {
       throw new Error('path.setKeyframe did not insert exactly one path keyframe');
     }

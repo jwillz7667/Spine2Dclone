@@ -61,11 +61,18 @@ export const deletePathKeyframeSpec: CommandSpec = {
   },
   assertApplied: (before, after) => {
     const animBefore = before.animations.find((a) => a.name === 'glide') ?? before.animations[0];
-    if (animBefore === undefined) throw new Error('path.deleteKeyframe fixture seed had no animations');
+    if (animBefore === undefined)
+      throw new Error('path.deleteKeyframe fixture seed had no animations');
     const track = animBefore.path[0];
     if (track === undefined) throw new Error('path.deleteKeyframe fixture seed had no path track');
-    const beforeCount = countPathFrames(findAnimationSnapshot(before, animBefore.id), track.constraintId);
-    const afterCount = countPathFrames(findAnimationSnapshot(after, animBefore.id), track.constraintId);
+    const beforeCount = countPathFrames(
+      findAnimationSnapshot(before, animBefore.id),
+      track.constraintId,
+    );
+    const afterCount = countPathFrames(
+      findAnimationSnapshot(after, animBefore.id),
+      track.constraintId,
+    );
     if (afterCount !== beforeCount - 1) {
       throw new Error('path.deleteKeyframe did not remove exactly one path keyframe');
     }

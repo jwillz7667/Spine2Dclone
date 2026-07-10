@@ -1799,7 +1799,10 @@ export class DocumentModelInternal implements DocumentReadModel {
     this.revisionValue += 1;
   }
 
-  patchPathConstraint(id: PathConstraintId, patch: Partial<Omit<PathConstraintEntity, 'id'>>): void {
+  patchPathConstraint(
+    id: PathConstraintId,
+    patch: Partial<Omit<PathConstraintEntity, 'id'>>,
+  ): void {
     const current = this.pathConstraintsMap.get(id);
     if (!current) return;
     if (this.batching) {

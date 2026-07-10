@@ -1008,7 +1008,9 @@ function PathAttachmentRow(props: {
         </button>
         <button
           type="button"
-          style={curveCount > 1 ? smallButtonStyle : { ...smallButtonStyle, ...buttonDisabledStyle }}
+          style={
+            curveCount > 1 ? smallButtonStyle : { ...smallButtonStyle, ...buttonDisabledStyle }
+          }
           disabled={curveCount <= 1}
           title="Drop the last curve (a path keeps at least one)"
           onClick={() => removePathCurve(slotId, path.name)}

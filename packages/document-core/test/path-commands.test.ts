@@ -3,6 +3,7 @@ import {
   AddPathCurveCommand,
   computePathLengthsFromFlat,
   CreatePathAttachmentCommand,
+  DeletePathControlPointCommand,
   MovePathControlPointCommand,
   PathError,
   RemovePathCurveCommand,
@@ -152,6 +153,45 @@ describe('AddPathCurve / RemovePathCurve', () => {
 
     doc.history.execute(new RemovePathCurveCommand(slotId, name)); // 2 -> 1 curve
     expect(() => doc.history.execute(new RemovePathCurveCommand(slotId, name))).toThrow(PathError);
+  });
+});
+
+describe('DeletePathControlPoint', () => {
+  it('deletes an anchor, collapsing exactly one curve and recomputing lengths, and undoes', () => {
+    const { env } = makeTestEnv();
+    const doc = loadDocument(pathedSeed, env);
+    const { slotId, name } = pathTarget(doc);
+    const before = currentPath(doc, slotId, name);
+    expect(before.vertices).toHaveLength(14); // 7 control points, two open curves
+
+    // Delete the middle anchor (control-point index 3), merging the two curves into one.
+    doc.history.execute(new DeletePathControlPointCommand(slotId, name, 3));
+    const after = currentPath(doc, slotId, name);
+    expect(after.vertices).toHaveLength(8); // 4 control points, one curve
+    expect(after.lengths).toHaveLength(1);
+    expect(after.lengths).toEqual(computePathLengthsFromFlat(after.vertices, false));
+
+    doc.history.undo();
+    expect(currentPath(doc, slotId, name).vertices).toEqual(before.vertices);
+  });
+
+  it('rejects a handle index and the last curve of a single-curve path', () => {
+    const { env } = makeTestEnv();
+    const doc = loadDocument(pathedSeed, env);
+    const { slotId, name } = pathTarget(doc);
+    const before = doc.model.snapshot();
+
+    // Index 1 is a handle, not an anchor: rejected before any mutation.
+    expect(() => doc.history.execute(new DeletePathControlPointCommand(slotId, name, 1))).toThrow(
+      PathError,
+    );
+    expect(doc.model.snapshot()).toEqual(before);
+
+    // Collapse to a single curve, then a further delete is refused (minCurves).
+    doc.history.execute(new DeletePathControlPointCommand(slotId, name, 0));
+    expect(() => doc.history.execute(new DeletePathControlPointCommand(slotId, name, 0))).toThrow(
+      PathError,
+    );
   });
 });
 

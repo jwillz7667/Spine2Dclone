@@ -20,6 +20,7 @@ import { movePhysicsKeyframeSpec } from './move-physics-keyframe.command';
 import { deletePhysicsKeyframeSpec } from './delete-physics-keyframe.command';
 import { createPathAttachmentSpec } from './create-path-attachment.command';
 import { movePathControlPointSpec } from './move-path-control-point.command';
+import { deletePathControlPointSpec } from './delete-path-control-point.command';
 import { addPathCurveSpec } from './add-path-curve.command';
 import { removePathCurveSpec } from './remove-path-curve.command';
 import { setPathClosedSpec } from './set-path-closed.command';
@@ -263,6 +264,7 @@ export const commandRegistry: readonly CommandSpec[] = [
   // Stage F3 (PP-D11) path attachment authoring
   createPathAttachmentSpec,
   movePathControlPointSpec,
+  deletePathControlPointSpec,
   addPathCurveSpec,
   removePathCurveSpec,
   setPathClosedSpec,

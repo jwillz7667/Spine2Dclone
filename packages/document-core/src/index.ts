@@ -380,6 +380,7 @@ export {
   SetDocumentMetadataCommand,
   CreatePathAttachmentCommand,
   MovePathControlPointCommand,
+  DeletePathControlPointCommand,
   AddPathCurveCommand,
   RemovePathCurveCommand,
   SetPathClosedCommand,

@@ -263,6 +263,10 @@ export {
   MovePathControlPointCommand,
   movePathControlPointSpec,
 } from './move-path-control-point.command';
+export {
+  DeletePathControlPointCommand,
+  deletePathControlPointSpec,
+} from './delete-path-control-point.command';
 export { AddPathCurveCommand, addPathCurveSpec } from './add-path-curve.command';
 export { RemovePathCurveCommand, removePathCurveSpec } from './remove-path-curve.command';
 export { SetPathClosedCommand, setPathClosedSpec } from './set-path-closed.command';

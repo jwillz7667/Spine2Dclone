@@ -11,6 +11,7 @@ import {
   CreateBoneCommand,
   DeleteBoneCommand,
   ExportValidationError,
+  RenameBoneCommand,
   assertInvariants,
   createDocument,
   exportDocument,
@@ -932,19 +933,22 @@ function f4Document(): SkeletonDocument {
   return { ...draft, hash: computeContentHash(draft) };
 }
 
-describe('Stage F4 (0.6.0) physics carry through load and export', () => {
+describe('Stage F4 (0.6.0) physics promotion through load and export (PP-D12)', () => {
   it('round-trips a physics constraint, settings block, and physics timeline deep-equal (hash included)', () => {
     const original = f4Document();
 
     const doc = loadDocument(original, makeTestEnv().env);
 
     // The root physics constraints, the global settings block, and the per-animation physics timeline are
-    // carried verbatim (PP-D12), not dropped: physics is data at no-op defaults, its solve is Lane B (PP-B7).
-    expect(doc.model.preserved().physicsConstraints.map((c) => c.name)).toEqual(['tail-jiggle']);
-    expect(doc.model.preserved().physics).toEqual({ gravity: 9.8, wind: 2, mix: 0.75 });
+    // promoted to first-class editable entities (PP-D12): the constraint rides DocState.physicsConstraints
+    // (its bone/target resolved to a BoneId), the settings block DocState.physicsSettings, and the timeline is
+    // id-keyed by PhysicsConstraintId on the animation.
+    expect(doc.model.physicsConstraints().map((c) => c.name)).toEqual(['tail-jiggle']);
+    expect(doc.model.physicsSettings()).toEqual({ gravity: 9.8, wind: 2, mix: 0.75 });
+    const constraintId = doc.model.physicsConstraints()[0]!.id;
     const idle = doc.model.animations().find((a) => a.name === 'idle')!;
-    expect(Object.keys(idle.physics)).toEqual(['tail-jiggle']);
-    expect(idle.physics['tail-jiggle']).toHaveLength(2);
+    expect([...idle.physics.keys()]).toEqual([constraintId]);
+    expect(idle.physics.get(constraintId)).toHaveLength(2);
 
     const exported = exportDocument(doc.model);
     expect(exported).toEqual(original); // lossless, hash included
@@ -952,11 +956,11 @@ describe('Stage F4 (0.6.0) physics carry through load and export', () => {
     expect(verifyContentHash(exported)).toBe(true);
   });
 
-  it('survives a History snapshot round-trip without dropping carried physics data', () => {
+  it('survives a History snapshot round-trip without dropping promoted physics data', () => {
     const original = f4Document();
     const doc = loadDocument(original, makeTestEnv().env);
 
-    // A non-physics edit forces a full-state snapshot/restore; undo must return the carried physics intact.
+    // A non-physics edit forces a full-state snapshot/restore; undo must return the promoted physics intact.
     const before = doc.model.snapshot();
     doc.history.execute(
       new CreateBoneCommand(doc.ids.mint('bone'), null, { name: 'tmp', ...GEOM }),
@@ -975,10 +979,22 @@ describe('Stage F4 (0.6.0) physics carry through load and export', () => {
     const original: SkeletonDocument = { ...draft, hash: computeContentHash(draft) };
 
     const doc = loadDocument(original, makeTestEnv().env);
-    expect(doc.model.preserved().physics).toBeUndefined();
+    expect(doc.model.physicsSettings()).toBeUndefined();
 
     const exported = exportDocument(doc.model);
     expect('physics' in exported).toBe(false);
     expect(exported).toEqual(original); // lossless, hash included
+  });
+
+  it('survives a bone rename with the physics constraint bone reference intact', () => {
+    const original = f4Document();
+    const doc = loadDocument(original, makeTestEnv().env);
+    const tail = doc.model.findBoneByName('tail')!;
+
+    doc.history.execute(new RenameBoneCommand(tail.id, 'tail-renamed'));
+
+    // The physics constraint tracks the bone by id, so the rename cascades into its exported `bone` name.
+    const exported = exportDocument(doc.model);
+    expect(exported.physicsConstraints[0]!.bone).toBe('tail-renamed');
   });
 });

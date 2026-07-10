@@ -1,3 +1,4 @@
+import type { PhysicsChannel } from '@marionette/format/types';
 import { ConstraintError } from '../command/errors';
 import type { BoneId, SlotId } from '../model/ids';
 import type { DocumentReadModel } from '../model/read-model';
@@ -25,9 +26,9 @@ export function isStrictAncestor(
   return false;
 }
 
-// Reject a constraint name already used by ANY existing IK, transform, OR path constraint (excluding the
-// constraint being renamed, identified by its current name when given). Constraint names are unique across
-// ALL THREE arrays, one namespace (ADR-0011 section 2.3 extends CONSTRAINT_NAME_DUPLICATE to path).
+// Reject a constraint name already used by ANY existing IK, transform, path, OR physics constraint (excluding
+// the constraint being renamed, identified by its current name when given). Constraint names are unique across
+// ALL FOUR arrays, one namespace (ADR-0014 section 4 extends CONSTRAINT_NAME_DUPLICATE to physics).
 export function assertConstraintNameFree(
   model: DocumentReadModel,
   name: string,
@@ -36,8 +37,45 @@ export function assertConstraintNameFree(
   const used =
     model.ikConstraints().some((c) => c.name === name && c.name !== exceptName) ||
     model.transformConstraints().some((c) => c.name === name && c.name !== exceptName) ||
-    model.pathConstraints().some((c) => c.name === name && c.name !== exceptName);
+    model.pathConstraints().some((c) => c.name === name && c.name !== exceptName) ||
+    model.physicsConstraints().some((c) => c.name === name && c.name !== exceptName);
   if (used) throw new ConstraintError('duplicateName', name);
+}
+
+// Validate a physics constraint's channel set before authoring (ADR-0014 section 1: PHYSICS_CHANNELS_EMPTY and
+// PHYSICS_CHANNEL_DUPLICATE mirrored at the command boundary). The set must be non-empty and each channel
+// listed at most once. Throws a typed ConstraintError BEFORE any mutation.
+export function assertValidPhysicsChannels(channels: readonly PhysicsChannel[]): void {
+  if (channels.length < 1) {
+    throw new ConstraintError(
+      'channelsEmpty',
+      'physics constraint must simulate at least one channel',
+    );
+  }
+  const seen = new Set<PhysicsChannel>();
+  for (const channel of channels) {
+    if (seen.has(channel)) {
+      throw new ConstraintError(
+        'channelDuplicate',
+        `physics channel "${channel}" is listed more than once`,
+      );
+    }
+    seen.add(channel);
+  }
+}
+
+// Validate a physics constraint's `bone` and channel set before authoring (CreatePhysicsConstraint; ADR-0014
+// section 1): the bone exists and the channel set is non-empty and unique. A physics constraint binds to
+// exactly ONE bone (both the driven bone and its own setpoint reference), which never forms a solver cycle
+// (it constrains a bone toward its OWN animated pose), so no ancestor/cycle check applies. Throws a typed
+// ConstraintError BEFORE any mutation.
+export function assertValidPhysicsConstraint(
+  model: DocumentReadModel,
+  bone: BoneId,
+  channels: readonly PhysicsChannel[],
+): void {
+  if (model.getBone(bone) === undefined) throw new ConstraintError('boneMissing', bone);
+  assertValidPhysicsChannels(channels);
 }
 
 // Validate a path constraint's target SLOT and bones before authoring (CreatePathConstraint; ADR-0011

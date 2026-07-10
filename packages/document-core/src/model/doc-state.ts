@@ -1,6 +1,5 @@
 import { CURRENT_FORMAT_VERSION } from '@marionette/format';
 import type {
-  Animation,
   Attachment,
   AtlasRef,
   BlendMode,
@@ -8,7 +7,7 @@ import type {
   PathPositionMode,
   PathRotateMode,
   PathSpacingMode,
-  PhysicsConstraint,
+  PhysicsChannel,
   PhysicsSettings,
   RegionAttachment,
   RGB,
@@ -23,13 +22,6 @@ import type {
 // so a 0.4.0 document round-trips. They are non-empty arrays of the exact on-disk shape (a NonNullable of
 // the optional format channel), deep-frozen and shared by reference (never mutated in place).
 type CarriedSequence = NonNullable<RegionAttachment['sequence']>;
-// Stage F4 (ADR-0014, formatVersion 0.6.0) carried physics-constraint timelines: the per-animation `physics`
-// record (constraintName -> Keyframe<PhysicsFrame>[]), held VERBATIM as the on-disk shape. Document-core
-// authors no physics yet (that is PP-D12); it carries the record losslessly through load and export so a
-// 0.6.0 document round-trips, deep-frozen and shared by reference (never mutated in place). This mirrors how
-// the Stage F3 path timeline was carried verbatim BEFORE its PP-D11 promotion; the physics promotion (a
-// PhysicsConstraintId-keyed Map, like `path` is today) is deferred to PP-D12.
-type CarriedPhysicsTimelines = Animation['physics'];
 import type {
   AnimationId,
   BoneId,
@@ -37,6 +29,7 @@ import type {
   IkConstraintId,
   KeyframeId,
   PathConstraintId,
+  PhysicsConstraintId,
   SkinId,
   SlotId,
   TransformConstraintId,
@@ -456,6 +449,25 @@ export interface PathKeyframeEntity {
   readonly curve: CurveType;
 }
 
+// A keyed physics-constraint frame (Stage F4, ADR-0014 section 7; format PhysicsFrame) promoted to editable
+// (PP-D12): a PARTIAL record of the constraint's DYNAMIC (keyable) knobs. `step`/`mass`/`channels` are NOT
+// keyable (the determinism anchor, a static inertial property, and a structural set respectively), so a frame
+// keys only mix/inertia/strength/damping/wind/gravity. A frame MAY carry a subset; an absent channel keeps its
+// base value (SOLVE semantics, not format), so each channel is a number or `undefined` (not optional) so a
+// caller states intent, exactly like PathKeyframeEntity. `curve` interpolates the present channels. Immutable
+// and deep-frozen (makePhysicsKeyframe), so it is shared by reference without aliasing.
+export interface PhysicsKeyframeEntity {
+  readonly id: KeyframeId;
+  readonly time: number;
+  readonly mix: number | undefined;
+  readonly inertia: number | undefined;
+  readonly strength: number | undefined;
+  readonly damping: number | undefined;
+  readonly wind: number | undefined;
+  readonly gravity: number | undefined;
+  readonly curve: CurveType;
+}
+
 // A keyed deform frame (WP-2.9, format Keyframe<{ offsets }>): per-LOGICAL-vertex (dx, dy) offsets from
 // the setup mesh, flat as [dx0, dy0, dx1, dy1, ...] (offsets.length === 2 * V), applied AFTER skinning in
 // world space (ADR-0003 section 9). Immutable and deep-frozen; the offsets array is copied at construction
@@ -556,10 +568,10 @@ export interface AnimationEntity {
   // keyed by the constraint's PathConstraintId (never by name, so a constraint rename never breaks a track),
   // exactly like the ik/transform timelines above. Empty when an animation keys no path constraint.
   readonly path: ReadonlyMap<PathConstraintId, readonly PathKeyframeEntity[]>;
-  // Stage F4 (ADR-0014 section 7) physics-constraint timeline record, carried verbatim (no command authors it
-  // yet, PP-D12). REQUIRED and empty ({}) when an animation keys no physics constraint, mirroring how the path
-  // timeline was carried BEFORE its PP-D11 promotion; a load/export round-trip preserves it exactly.
-  readonly physics: CarriedPhysicsTimelines;
+  // Stage F4 (ADR-0014 section 7) physics-constraint timelines, promoted to id-keyed editable keyframes (PP-D12),
+  // keyed by the constraint's PhysicsConstraintId (never by name, so a constraint rename never breaks a track),
+  // exactly like the ik/transform/path timelines above. Empty when an animation keys no physics constraint.
+  readonly physics: ReadonlyMap<PhysicsConstraintId, readonly PhysicsKeyframeEntity[]>;
 }
 
 // An IK constraint (WP-2.6, format IkConstraint), mirrored BY VALUE except `bones`/`target`, which are
@@ -637,6 +649,31 @@ export interface PathConstraintEntity {
   readonly order?: number;
 }
 
+// A physics constraint (Stage F4, ADR-0014 section 1; format PhysicsConstraint) promoted to editable (PP-D12).
+// Mirrored BY VALUE except `bone`, which is a BoneId reference (both the driven bone AND its own setpoint
+// reference, the one structural difference from ik/transform/path: physics binds to exactly ONE bone), so a
+// rename never breaks the constraint. It simulates a non-empty, unique subset of that bone's local `channels`
+// (x/y/rotation/scaleX/shearX) as a damped-driven spring toward the animated pose: `step` is the fixed
+// simulation timestep (> 0), `inertia`/`damping`/`mix` are [0, 1], `strength` is >= 0, `mass` is > 0, and
+// `wind`/`gravity` are unbounded finite world-force inputs. Solve order is DocState.physicsConstraintOrder,
+// within the single combined order space (ADR-0014 section 4: after IK, transform, and path in the default).
+export interface PhysicsConstraintEntity {
+  readonly id: PhysicsConstraintId;
+  readonly name: string;
+  readonly bone: BoneId;
+  readonly channels: readonly PhysicsChannel[];
+  readonly step: number;
+  readonly inertia: number;
+  readonly strength: number;
+  readonly damping: number;
+  readonly mass: number;
+  readonly wind: number;
+  readonly gravity: number;
+  readonly mix: number;
+  // OPTIONAL explicit solve order across ALL FOUR constraint arrays (ADR-0014 section 4); absent by default.
+  readonly order?: number;
+}
+
 // A named (NON-default) skin (WP-2.8, format Skin): its own `attachments` map keyed by owning SlotId then
 // attachment name, exactly the shape of the default skin's editable attachment map. The 'default' skin is
 // implicit (materialized from DocState.attachments) and is NOT a SkinEntity; CreateSkin/DeleteSkin operate
@@ -656,19 +693,11 @@ export interface SkinEntity {
 // preserved until its own editing lands beyond WP-1.3's SetAtlasRef. Document-level events and the skeleton
 // metadata block were promoted to first-class DocState.events / DocState.metadata by PP-D9 (Stage F1);
 // non-default skins were promoted to DocState.skins by WP-2.8; path constraints were promoted to
-// DocState.pathConstraints by PP-D11. Stage F4 (ADR-0014) re-introduces a preserved physics carriage: the
-// root physics-constraint array and the OPTIONAL skeleton physics settings block are carried VERBATIM here
-// (no command authors physics yet, PP-D12), following the same pre-promotion pattern path constraints used.
+// DocState.pathConstraints by PP-D11; physics constraints and the skeleton physics settings block were
+// promoted to DocState.physicsConstraints / DocState.physicsSettings by PP-D12. PreservedContent is now
+// atlas-only again (the Stage F4 physics carriage this replaced was the exact pre-promotion shape).
 export interface PreservedContent {
   readonly atlas: AtlasRef;
-  // Stage F4 (ADR-0014 section 1) root physics-constraint array, carried verbatim as on-disk names (no
-  // command authors physics constraints yet, PP-D12), mirroring how the Stage F3 path constraints were
-  // carried before promotion. REQUIRED and empty ([]) when the rig has none; a round-trip preserves it.
-  readonly physicsConstraints: readonly PhysicsConstraint[];
-  // Stage F4 (ADR-0014 section 5) OPTIONAL skeleton physics settings block (global gravity/wind/master mix),
-  // carried verbatim. Undefined when the document defines none (a meaningful default: no global weather, unit
-  // master mix), exactly like DocState.metadata; the migration injects nothing for it.
-  readonly physics?: PhysicsSettings;
 }
 
 // The full internal document state. Bones, slots, animations, constraints, and named skins are the
@@ -696,6 +725,13 @@ export interface DocState {
   // mirroring the ik/transform pair. The three orders together realize the single combined solve-order space.
   readonly pathConstraints: ReadonlyMap<PathConstraintId, PathConstraintEntity>;
   readonly pathConstraintOrder: readonly PathConstraintId[];
+  // Stage F4 (ADR-0014 section 1, PP-D12) physics constraints, id-keyed with an explicit physicsConstraintOrder,
+  // mirroring the ik/transform/path trio. All four orders together realize the single combined solve-order space.
+  // `physicsSettings` is the OPTIONAL skeleton physics settings block (global gravity/wind/master mix), undefined
+  // when the document defines none (its meaningful default: no global weather, unit master mix).
+  readonly physicsConstraints: ReadonlyMap<PhysicsConstraintId, PhysicsConstraintEntity>;
+  readonly physicsConstraintOrder: readonly PhysicsConstraintId[];
+  readonly physicsSettings: PhysicsSettings | undefined;
   readonly skins: ReadonlyMap<SkinId, SkinEntity>;
   readonly skinOrder: readonly SkinId[];
   // Document-level event definitions (Stage F1, ADR-0008; PP-D9), keyed by EventDefId with an explicit
@@ -719,9 +755,6 @@ export interface DocState {
 export function emptyPreservedContent(): PreservedContent {
   return {
     atlas: { pages: [] },
-    // Stage F4 (ADR-0014): a fresh document has no physics constraints and no global physics settings block
-    // (the optional `physics` member is left absent, its meaningful default).
-    physicsConstraints: [],
   };
 }
 
@@ -745,6 +778,9 @@ export function newDocState(name: string): DocState {
     transformConstraintOrder: [],
     pathConstraints: new Map(),
     pathConstraintOrder: [],
+    physicsConstraints: new Map(),
+    physicsConstraintOrder: [],
+    physicsSettings: undefined,
     skins: new Map(),
     skinOrder: [],
     events: new Map(),
@@ -900,6 +936,34 @@ export function makePathKeyframe(
   });
 }
 
+// Construct an immutable, deep-frozen physics-constraint keyframe (PP-D12). The six dynamic channels are each a
+// number or undefined (an absent channel keeps its base value, ADR-0014 section 7); they are copied as given.
+export function makePhysicsKeyframe(
+  id: KeyframeId,
+  time: number,
+  channels: {
+    readonly mix: number | undefined;
+    readonly inertia: number | undefined;
+    readonly strength: number | undefined;
+    readonly damping: number | undefined;
+    readonly wind: number | undefined;
+    readonly gravity: number | undefined;
+  },
+  curve: CurveType,
+): PhysicsKeyframeEntity {
+  return Object.freeze({
+    id,
+    time,
+    mix: channels.mix,
+    inertia: channels.inertia,
+    strength: channels.strength,
+    damping: channels.damping,
+    wind: channels.wind,
+    gravity: channels.gravity,
+    curve: typeof curve === 'string' ? curve : Object.freeze(cloneCurve(curve)),
+  });
+}
+
 // Construct an immutable, deep-frozen deform keyframe (WP-2.9). The offsets array is sliced and frozen so
 // the model never aliases the caller's array and a handed-out reference cannot mutate it.
 export function makeDeformKeyframe(
@@ -1045,13 +1109,18 @@ export function isSlotTimelineSetEmpty(set: SlotTimelineSet): boolean {
 }
 
 // The empty ik/transform/deform/path/physics constraint timelines a fresh animation starts with (Phase 2,
-// extended with the Stage F3 path map and the Stage F4 physics record). They stay empty until a keyframe
-// command writes one (path is authored by PP-D11 commands; physics has no authoring command yet, PP-D12), so
-// a fresh animation projects empty `{ ik, transform, deform }` maps, an empty `path` map, and an empty
-// `physics` record on export (the format requires all five keys).
+// extended with the Stage F3 path map and the Stage F4 physics map). They stay empty until a keyframe command
+// writes one (path by PP-D11 commands, physics by PP-D12 commands), so a fresh animation projects empty maps on
+// export (the format requires all five keys).
 export function emptyAnimationConstraintTimelines(): Pick<
   AnimationEntity,
   'ik' | 'transform' | 'deform' | 'path' | 'physics'
 > {
-  return { ik: new Map(), transform: new Map(), deform: new Map(), path: new Map(), physics: {} };
+  return {
+    ik: new Map(),
+    transform: new Map(),
+    deform: new Map(),
+    path: new Map(),
+    physics: new Map(),
+  };
 }

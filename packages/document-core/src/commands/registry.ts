@@ -8,6 +8,16 @@ import { setPathConstraintParamsSpec } from './set-path-constraint-params.comman
 import { setPathKeyframeSpec } from './set-path-keyframe.command';
 import { deletePathKeyframeSpec } from './delete-path-keyframe.command';
 import { movePathKeyframeSpec } from './move-path-keyframe.command';
+import { createPhysicsConstraintSpec } from './create-physics-constraint.command';
+import { deletePhysicsConstraintSpec } from './delete-physics-constraint.command';
+import { renamePhysicsConstraintSpec } from './rename-physics-constraint.command';
+import { setPhysicsConstraintTargetBoneSpec } from './set-physics-constraint-target-bone.command';
+import { setPhysicsConstraintChannelsSpec } from './set-physics-constraint-channels.command';
+import { setPhysicsConstraintParamsSpec } from './set-physics-constraint-params.command';
+import { setPhysicsSettingsSpec } from './set-physics-settings.command';
+import { setPhysicsKeyframeSpec } from './set-physics-keyframe.command';
+import { movePhysicsKeyframeSpec } from './move-physics-keyframe.command';
+import { deletePhysicsKeyframeSpec } from './delete-physics-keyframe.command';
 import { createPathAttachmentSpec } from './create-path-attachment.command';
 import { movePathControlPointSpec } from './move-path-control-point.command';
 import { addPathCurveSpec } from './add-path-curve.command';
@@ -265,4 +275,16 @@ export const commandRegistry: readonly CommandSpec[] = [
   setPathKeyframeSpec,
   movePathKeyframeSpec,
   deletePathKeyframeSpec,
+  // Stage F4 (PP-D12) physics constraint authoring
+  createPhysicsConstraintSpec,
+  deletePhysicsConstraintSpec,
+  renamePhysicsConstraintSpec,
+  setPhysicsConstraintTargetBoneSpec,
+  setPhysicsConstraintChannelsSpec,
+  setPhysicsConstraintParamsSpec,
+  setPhysicsSettingsSpec,
+  // Stage F4 (PP-D12) physics constraint timeline authoring
+  setPhysicsKeyframeSpec,
+  movePhysicsKeyframeSpec,
+  deletePhysicsKeyframeSpec,
 ];

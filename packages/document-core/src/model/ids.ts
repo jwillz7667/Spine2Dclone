@@ -42,6 +42,12 @@ export type TransformConstraintId = Id<'transformConstraint'>;
 // single combined solve-order space with IK and transform (ADR-0011 section 2.3), so the model keeps an
 // explicit id order alongside the id-keyed map, exactly as the ik/transform orders accompany their maps.
 export type PathConstraintId = Id<'pathConstraint'>;
+// Stage F4 (ADR-0014, formatVersion 0.6.0) promotes physics constraints to id-keyed editable entities (PP-D12).
+// A PhysicsConstraintEntity is addressed by PhysicsConstraintId, never by name (the mutable on-disk key), so a
+// constraint rename or a sibling delete never invalidates a captured command. Physics joins the single combined
+// solve-order space with IK, transform, and path (ADR-0014 section 4), so the model keeps an explicit id order
+// alongside the id-keyed map, exactly as the other three constraint orders accompany their maps.
+export type PhysicsConstraintId = Id<'physicsConstraint'>;
 export type SkinId = Id<'skin'>;
 
 // Stage F1 (ADR-0008, formatVersion 0.3.0) promotes document-level event definitions to id-keyed

@@ -297,6 +297,46 @@ export { SetPathKeyframeCommand, setPathKeyframeSpec } from './set-path-keyframe
 export type { PathKeyframeChannels } from './set-path-keyframe.command';
 export { DeletePathKeyframeCommand, deletePathKeyframeSpec } from './delete-path-keyframe.command';
 export { MovePathKeyframeCommand, movePathKeyframeSpec } from './move-path-keyframe.command';
+// Stage F4 (PP-D12) physics constraint authoring
+export {
+  CreatePhysicsConstraintCommand,
+  createPhysicsConstraintSpec,
+} from './create-physics-constraint.command';
+export type { PhysicsConstraintParams } from './create-physics-constraint.command';
+export {
+  DeletePhysicsConstraintCommand,
+  deletePhysicsConstraintSpec,
+} from './delete-physics-constraint.command';
+export {
+  RenamePhysicsConstraintCommand,
+  renamePhysicsConstraintSpec,
+} from './rename-physics-constraint.command';
+export {
+  SetPhysicsConstraintTargetBoneCommand,
+  setPhysicsConstraintTargetBoneSpec,
+} from './set-physics-constraint-target-bone.command';
+export {
+  SetPhysicsConstraintChannelsCommand,
+  setPhysicsConstraintChannelsSpec,
+} from './set-physics-constraint-channels.command';
+export {
+  SetPhysicsConstraintParamsCommand,
+  setPhysicsConstraintParamsSpec,
+} from './set-physics-constraint-params.command';
+export type { PhysicsConstraintParamPatch } from './set-physics-constraint-params.command';
+export { SetPhysicsSettingsCommand, setPhysicsSettingsSpec } from './set-physics-settings.command';
+export { assertValidPhysicsConstraint, assertValidPhysicsChannels } from './constraint-support';
+// Stage F4 (PP-D12) physics constraint timeline authoring
+export { SetPhysicsKeyframeCommand, setPhysicsKeyframeSpec } from './set-physics-keyframe.command';
+export type { PhysicsKeyframeChannels } from './set-physics-keyframe.command';
+export {
+  DeletePhysicsKeyframeCommand,
+  deletePhysicsKeyframeSpec,
+} from './delete-physics-keyframe.command';
+export {
+  MovePhysicsKeyframeCommand,
+  movePhysicsKeyframeSpec,
+} from './move-physics-keyframe.command';
 export { sortEventKeysByTime } from './event-support';
 export { assertConsistentDrawOrder, sortDrawOrderKeysByTime } from './draw-order-support';
 export {

@@ -1,5 +1,5 @@
 import { decodeWeightedVertices, encodeWeightedVertices } from '@marionette/format';
-import type { AtlasRef, SkeletonMeta, Sequence } from '@marionette/format/types';
+import type { AtlasRef, PhysicsSettings, SkeletonMeta, Sequence } from '@marionette/format/types';
 import type {
   FeatureFlowGraph,
   GridConfig,
@@ -30,6 +30,8 @@ import type {
   PathConstraintEntity,
   PathGeometry,
   PathKeyframeEntity,
+  PhysicsConstraintEntity,
+  PhysicsKeyframeEntity,
   PreservedContent,
   RegionAttachmentEntity,
   SkinEntity,
@@ -62,6 +64,7 @@ import type {
   IdFactory,
   IkConstraintId,
   PathConstraintId,
+  PhysicsConstraintId,
   SkinId,
   SlotId,
   TransformConstraintId,
@@ -74,6 +77,7 @@ import {
   freezeSlotSceneForReadOut,
   ikConstraintToSnapshot,
   pathConstraintToSnapshot,
+  physicsConstraintToSnapshot,
   skinToSnapshot,
   slotSceneToSnapshot,
   slotToSnapshot,
@@ -85,6 +89,7 @@ import {
   type EventDefSnapshot,
   type IkConstraintSnapshot,
   type PathConstraintSnapshot,
+  type PhysicsConstraintSnapshot,
   type SkinSnapshot,
   type TransformConstraintSnapshot,
 } from './read-model';
@@ -312,9 +317,9 @@ interface MutableAnimation {
   // Stage F3 (ADR-0011 section 3) path-constraint timelines, id-keyed editable keyframes (PP-D11), the same
   // shape as ik/transform above; replaced per-channel by setPathChannel, never patched in place.
   path: Map<PathConstraintId, PathKeyframeEntity[]>;
-  // Stage F4 (ADR-0014 section 7) physics-constraint timeline record, carried verbatim (no authoring command
-  // yet, PP-D12). Deep-frozen at load and never mutated in place, so a shared reference is safe like above.
-  physics: AnimationEntity['physics'];
+  // Stage F4 (ADR-0014 section 7) physics-constraint timelines, id-keyed editable keyframes (PP-D12), the same
+  // shape as ik/transform/path above; replaced per-channel by setPhysicsChannel, never patched in place.
+  physics: Map<PhysicsConstraintId, PhysicsKeyframeEntity[]>;
 }
 
 function toMutableBoneSet(set: BoneTimelineSet): MutableBoneTimelineSet {
@@ -419,6 +424,8 @@ function toMutableAnimation(animation: AnimationEntity): MutableAnimation {
   for (const [id, frames] of animation.transform) transform.set(id, frames.slice());
   const path = new Map<PathConstraintId, PathKeyframeEntity[]>();
   for (const [id, frames] of animation.path) path.set(id, frames.slice());
+  const physics = new Map<PhysicsConstraintId, PhysicsKeyframeEntity[]>();
+  for (const [id, frames] of animation.physics) physics.set(id, frames.slice());
   return {
     id: animation.id,
     name: animation.name,
@@ -431,8 +438,7 @@ function toMutableAnimation(animation: AnimationEntity): MutableAnimation {
     drawOrder: animation.drawOrder,
     events: animation.events,
     path,
-    // Carried verbatim (PP-D12): deep-frozen at load and never mutated in place, so share the reference.
-    physics: animation.physics,
+    physics,
   };
 }
 
@@ -449,6 +455,8 @@ function cloneMutableAnimation(a: MutableAnimation): MutableAnimation {
   for (const [id, frames] of a.transform) transform.set(id, frames.slice());
   const path = new Map<PathConstraintId, PathKeyframeEntity[]>();
   for (const [id, frames] of a.path) path.set(id, frames.slice());
+  const physics = new Map<PhysicsConstraintId, PhysicsKeyframeEntity[]>();
+  for (const [id, frames] of a.physics) physics.set(id, frames.slice());
   return {
     id: a.id,
     name: a.name,
@@ -461,8 +469,7 @@ function cloneMutableAnimation(a: MutableAnimation): MutableAnimation {
     drawOrder: a.drawOrder,
     events: a.events,
     path,
-    // Carried verbatim (PP-D12): deep-frozen at load and never mutated in place, so share the reference.
-    physics: a.physics,
+    physics,
   };
 }
 
@@ -507,6 +514,8 @@ function freezeAnimation(a: MutableAnimation): AnimationEntity {
   for (const [id, frames] of a.transform) transform.set(id, Object.freeze(frames.slice()));
   const path = new Map<PathConstraintId, readonly PathKeyframeEntity[]>();
   for (const [id, frames] of a.path) path.set(id, Object.freeze(frames.slice()));
+  const physics = new Map<PhysicsConstraintId, readonly PhysicsKeyframeEntity[]>();
+  for (const [id, frames] of a.physics) physics.set(id, Object.freeze(frames.slice()));
   return Object.freeze({
     id: a.id,
     name: a.name,
@@ -519,8 +528,7 @@ function freezeAnimation(a: MutableAnimation): AnimationEntity {
     drawOrder: Object.freeze(a.drawOrder.slice()),
     events: Object.freeze(a.events.slice()),
     path,
-    // Carried verbatim (PP-D12): already deep-frozen at load and never mutated, so share the reference.
-    physics: a.physics,
+    physics,
   });
 }
 
@@ -634,6 +642,30 @@ function freezePath(c: MutablePathConstraint): PathConstraintEntity {
   return Object.freeze({ ...c, bones: Object.freeze(c.bones.slice()) });
 }
 
+interface MutablePhysicsConstraint {
+  id: PhysicsConstraintId;
+  name: string;
+  bone: BoneId;
+  channels: readonly PhysicsConstraintEntity['channels'][number][];
+  step: number;
+  inertia: number;
+  strength: number;
+  damping: number;
+  mass: number;
+  wind: number;
+  gravity: number;
+  mix: number;
+  order?: number;
+}
+
+function toMutablePhysics(c: PhysicsConstraintEntity): MutablePhysicsConstraint {
+  return { ...c, channels: c.channels.slice() };
+}
+
+function freezePhysics(c: MutablePhysicsConstraint): PhysicsConstraintEntity {
+  return Object.freeze({ ...c, channels: Object.freeze(c.channels.slice()) });
+}
+
 function toMutableSkin(skin: SkinEntity): MutableSkin {
   return {
     id: skin.id,
@@ -688,6 +720,9 @@ export class DocumentModelInternal implements DocumentReadModel {
   private transformConstraintOrderArr: TransformConstraintId[];
   private pathConstraintsMap: Map<PathConstraintId, MutablePathConstraint>;
   private pathConstraintOrderArr: PathConstraintId[];
+  private physicsConstraintsMap: Map<PhysicsConstraintId, MutablePhysicsConstraint>;
+  private physicsConstraintOrderArr: PhysicsConstraintId[];
+  private physicsSettingsValue: PhysicsSettings | undefined;
   private skinsMap: Map<SkinId, MutableSkin>;
   private skinOrderArr: SkinId[];
   // Document-level event definitions (Stage F1, PP-D9), keyed by EventDefId with an explicit order array
@@ -733,6 +768,15 @@ export class DocumentModelInternal implements DocumentReadModel {
     this.pathConstraintsMap = new Map();
     for (const [id, c] of state.pathConstraints) this.pathConstraintsMap.set(id, toMutablePath(c));
     this.pathConstraintOrderArr = state.pathConstraintOrder.slice();
+    this.physicsConstraintsMap = new Map();
+    for (const [id, c] of state.physicsConstraints) {
+      this.physicsConstraintsMap.set(id, toMutablePhysics(c));
+    }
+    this.physicsConstraintOrderArr = state.physicsConstraintOrder.slice();
+    // The optional physics settings block is a plain value; copy and freeze it so the model never aliases the
+    // caller's DocState (the same isolation the optional metadata block gets above).
+    this.physicsSettingsValue =
+      state.physicsSettings === undefined ? undefined : Object.freeze({ ...state.physicsSettings });
     this.skinsMap = new Map();
     for (const [id, skin] of state.skins) this.skinsMap.set(id, toMutableSkin(skin));
     this.skinOrderArr = state.skinOrder.slice();
@@ -748,10 +792,6 @@ export class DocumentModelInternal implements DocumentReadModel {
     this.slotSceneValue = cloneSlotSceneState(state.slotScene);
     this.preservedContent = deepFreeze({
       atlas: state.preserved.atlas,
-      // Stage F4 (ADR-0014): carry the physics constraints and the optional global physics settings verbatim
-      // (PP-D12). The settings block is emitted only when present, matching the optional-metadata isolation.
-      physicsConstraints: state.preserved.physicsConstraints,
-      ...(state.preserved.physics !== undefined ? { physics: state.preserved.physics } : {}),
     });
   }
 
@@ -869,6 +909,24 @@ export class DocumentModelInternal implements DocumentReadModel {
     return out;
   }
 
+  getPhysicsConstraint(id: PhysicsConstraintId): PhysicsConstraintEntity | undefined {
+    const c = this.physicsConstraintsMap.get(id);
+    return c ? freezePhysics(c) : undefined;
+  }
+
+  physicsConstraints(): readonly PhysicsConstraintEntity[] {
+    const out: PhysicsConstraintEntity[] = [];
+    for (const id of this.physicsConstraintOrderArr) {
+      const c = this.physicsConstraintsMap.get(id);
+      if (c) out.push(freezePhysics(c));
+    }
+    return out;
+  }
+
+  physicsSettings(): PhysicsSettings | undefined {
+    return this.physicsSettingsValue === undefined ? undefined : { ...this.physicsSettingsValue };
+  }
+
   getSkin(id: SkinId): SkinEntity | undefined {
     const skin = this.skinsMap.get(id);
     return skin ? freezeSkin(skin) : undefined;
@@ -965,6 +1023,9 @@ export class DocumentModelInternal implements DocumentReadModel {
     const pathConstraints: PathConstraintSnapshot[] = [...this.pathConstraintsMap.values()]
       .map((c) => pathConstraintToSnapshot(freezePath(c)))
       .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+    const physicsConstraints: PhysicsConstraintSnapshot[] = [...this.physicsConstraintsMap.values()]
+      .map((c) => physicsConstraintToSnapshot(freezePhysics(c)))
+      .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
     const skins: SkinSnapshot[] = [...this.skinsMap.values()]
       .map((skin) => skinToSnapshot(freezeSkin(skin)))
       .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
@@ -986,6 +1047,10 @@ export class DocumentModelInternal implements DocumentReadModel {
       transformConstraintOrder: this.transformConstraintOrderArr.slice(),
       pathConstraints,
       pathConstraintOrder: this.pathConstraintOrderArr.slice(),
+      physicsConstraints,
+      physicsConstraintOrder: this.physicsConstraintOrderArr.slice(),
+      physicsSettings:
+        this.physicsSettingsValue === undefined ? undefined : { ...this.physicsSettingsValue },
       skins,
       skinOrder: this.skinOrderArr.slice(),
       events,
@@ -1862,6 +1927,99 @@ export class DocumentModelInternal implements DocumentReadModel {
     });
   }
 
+  // ----- physics-constraint write surface (Stage F4, PP-D12, reached only through the Mutator) -----
+
+  insertPhysicsConstraint(entity: PhysicsConstraintEntity, index: number): void {
+    const c = toMutablePhysics(entity);
+    if (this.batching) {
+      this.physicsConstraintsMap.set(c.id, c);
+      this.physicsConstraintOrderArr.splice(index, 0, c.id);
+    } else {
+      const next = new Map(this.physicsConstraintsMap);
+      next.set(c.id, c);
+      this.physicsConstraintsMap = next;
+      const order = this.physicsConstraintOrderArr.slice();
+      order.splice(index, 0, c.id);
+      this.physicsConstraintOrderArr = order;
+    }
+    this.revisionValue += 1;
+  }
+
+  removePhysicsConstraint(id: PhysicsConstraintId): void {
+    if (this.batching) {
+      this.physicsConstraintsMap.delete(id);
+      const i = this.physicsConstraintOrderArr.indexOf(id);
+      if (i >= 0) this.physicsConstraintOrderArr.splice(i, 1);
+    } else {
+      const next = new Map(this.physicsConstraintsMap);
+      next.delete(id);
+      this.physicsConstraintsMap = next;
+      this.physicsConstraintOrderArr = this.physicsConstraintOrderArr.filter((x) => x !== id);
+    }
+    this.revisionValue += 1;
+  }
+
+  patchPhysicsConstraint(
+    id: PhysicsConstraintId,
+    patch: Partial<Omit<PhysicsConstraintEntity, 'id'>>,
+  ): void {
+    const current = this.physicsConstraintsMap.get(id);
+    if (!current) return;
+    // A channels patch is replaced WHOLESALE (never merged), so slice it to a fresh array; the other fields are
+    // scalar. Object.assign / spread carries the (already-copied) channels array by reference safely.
+    const applied =
+      patch.channels === undefined ? patch : { ...patch, channels: patch.channels.slice() };
+    if (this.batching) {
+      Object.assign(current, applied);
+    } else {
+      const next = new Map(this.physicsConstraintsMap);
+      next.set(id, { ...current, ...applied });
+      this.physicsConstraintsMap = next;
+    }
+    this.revisionValue += 1;
+  }
+
+  // Set or CLEAR a physics constraint's OPTIONAL explicit solve order (ADR-0014 section 4), the mirror of
+  // setPathConstraintOrder. `undefined` deletes the key. Used by ReorderConstraints.
+  setPhysicsConstraintOrder(id: PhysicsConstraintId, order: number | undefined): void {
+    const current = this.physicsConstraintsMap.get(id);
+    if (!current) return;
+    if (this.batching) {
+      if (order === undefined) delete current.order;
+      else current.order = order;
+    } else {
+      const updated: MutablePhysicsConstraint = { ...current };
+      if (order === undefined) delete updated.order;
+      else updated.order = order;
+      const next = new Map(this.physicsConstraintsMap);
+      next.set(id, updated);
+      this.physicsConstraintsMap = next;
+    }
+    this.revisionValue += 1;
+  }
+
+  // Replace a physics constraint's keyframe array on one animation (PP-D12), the mirror of setPathChannel. An
+  // empty array PRUNES the constraint entry (so clearing exactly reverses a set and a deleted constraint leaves
+  // no orphan track, which would fail ANIM_PHYSICS_UNKNOWN on export). The caller passes a time-sorted array.
+  setPhysicsChannel(
+    animId: AnimationId,
+    constraintId: PhysicsConstraintId,
+    keyframes: readonly PhysicsKeyframeEntity[],
+  ): void {
+    this.writeAnimation(animId, (animation) => {
+      if (keyframes.length === 0) animation.physics.delete(constraintId);
+      else animation.physics.set(constraintId, keyframes.slice());
+    });
+  }
+
+  // Set or CLEAR the OPTIONAL skeleton physics settings block (ADR-0014 section 5), the mirror of setMetadata.
+  // `undefined` clears it (its meaningful default: no global weather, unit master mix); a block is copied and
+  // frozen so the model never aliases the caller's value.
+  setPhysicsSettings(settings: PhysicsSettings | undefined): void {
+    this.physicsSettingsValue = settings === undefined ? undefined : Object.freeze({ ...settings });
+    this.revisionValue += 1;
+  }
+
   // ----- named-skin write surface (WP-2.8, reached only through the Mutator) -----
 
   insertSkin(entity: SkinEntity, index: number): void {
@@ -2054,14 +2212,8 @@ export class DocumentModelInternal implements DocumentReadModel {
   // a discrete edit, never part of a drag. NO content hash is computed here (the exporter is the sole hash
   // owner, LAW 3).
   setAtlas(atlas: AtlasRef): void {
-    // Replace only the atlas; the carried Stage F4 physics constraints and optional settings (PP-D12) ride
-    // through unchanged, exactly as the Stage F3 path carriage did before its promotion.
-    const previous = this.preservedContent;
-    this.preservedContent = deepFreeze({
-      atlas,
-      physicsConstraints: previous.physicsConstraints,
-      ...(previous.physics !== undefined ? { physics: previous.physics } : {}),
-    });
+    // PreservedContent is atlas-only (PP-D12 promoted the Stage F4 physics carriage to first-class DocState).
+    this.preservedContent = deepFreeze({ atlas });
     this.revisionValue += 1;
   }
 
@@ -2180,6 +2332,9 @@ export function createReadModel(model: DocumentModelInternal): DocumentReadModel
     transformConstraints: () => model.transformConstraints(),
     getPathConstraint: (id) => model.getPathConstraint(id),
     pathConstraints: () => model.pathConstraints(),
+    getPhysicsConstraint: (id) => model.getPhysicsConstraint(id),
+    physicsConstraints: () => model.physicsConstraints(),
+    physicsSettings: () => model.physicsSettings(),
     getSkin: (id) => model.getSkin(id),
     skins: () => model.skins(),
     getEventDef: (id) => model.getEventDef(id),

@@ -607,6 +607,74 @@ function pathedDoc(): SkeletonDocument {
 
 export const pathedSeed = pathedDoc();
 
+// A Stage F4 (ADR-0014, formatVersion 0.6.0) document exercising the physics authoring surface (PP-D12): two
+// bones, a physics CONSTRAINT ('tail-jiggle') driving `tail` rotation as a damped spring, an animation
+// ('jiggle') whose physics timeline keys the constraint's dynamic knobs, and the OPTIONAL skeleton physics
+// settings block. The physicsed seed is the representative for every physics.* command's round-trip.
+function physicsedDoc(): SkeletonDocument {
+  const jiggle: Animation = {
+    duration: 1,
+    // One authored bone track so anim.duplicate (which counts bone/slot/event/drawOrder keyframes) has real
+    // keyframes to copy on this seed.
+    bones: {
+      tail: {
+        rotate: [
+          { time: 0, value: { angle: 0 }, curve: 'linear' },
+          { time: 1, value: { angle: 15 }, curve: 'linear' },
+        ],
+      },
+    },
+    slots: {},
+    ik: {},
+    transform: {},
+    path: {},
+    deform: {},
+    drawOrder: [],
+    events: [],
+    // The physics timeline keying the dynamic knobs (a wind gust and a mix fade over the beat), two partial
+    // frames, so DeletePhysicsConstraint exercises the timeline prune cascade and the keyframe commands have a
+    // real track to edit.
+    physics: {
+      'tail-jiggle': [
+        { time: 0, value: { mix: 1, wind: 0 }, curve: 'linear' },
+        { time: 1, value: { mix: 0, wind: 5 }, curve: 'stepped' },
+      ],
+    },
+  };
+  return {
+    formatVersion: CURRENT_FORMAT_VERSION,
+    name: 'physicsed',
+    hash: '',
+    bones: [bone('root', null), bone('tail', 'root', { x: 40 })],
+    slots: [slot('body', 'root')],
+    skins: [{ name: 'default', attachments: {} }],
+    ikConstraints: [],
+    transformConstraints: [],
+    pathConstraints: [],
+    physicsConstraints: [
+      {
+        name: 'tail-jiggle',
+        bone: 'tail',
+        channels: ['rotation'],
+        step: 1 / 60,
+        inertia: 0.5,
+        strength: 40,
+        damping: 0.9,
+        mass: 1,
+        wind: 0,
+        gravity: 0,
+        mix: 1,
+      },
+    ],
+    events: [],
+    animations: { jiggle },
+    atlas: { pages: [] },
+    physics: { gravity: 9.8, wind: 2, mix: 0.75 },
+  };
+}
+
+export const physicsedSeed = physicsedDoc();
+
 export interface Seed {
   readonly id: string;
   readonly json: SkeletonDocument;
@@ -624,6 +692,7 @@ export const seedList: readonly Seed[] = [
   { id: 'evented', json: seeds.evented },
   { id: 'linked', json: seeds.linked },
   { id: 'pathed', json: pathedSeed },
+  { id: 'physicsed', json: physicsedSeed },
 ];
 
 // A deterministic test environment: a controllable fake clock (so coalescing-window tests are

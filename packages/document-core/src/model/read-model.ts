@@ -5,6 +5,8 @@ import type {
   PathPositionMode,
   PathRotateMode,
   PathSpacingMode,
+  PhysicsChannel,
+  PhysicsSettings,
   RGBA,
   Sequence,
   SequenceMode,
@@ -32,6 +34,8 @@ import type {
   KeyframeValue,
   PathConstraintEntity,
   PathKeyframeEntity,
+  PhysicsConstraintEntity,
+  PhysicsKeyframeEntity,
   PreservedContent,
   SequenceKeyframeEntity,
   SkinEntity,
@@ -54,6 +58,7 @@ import type {
   EventDefId,
   IkConstraintId,
   PathConstraintId,
+  PhysicsConstraintId,
   SkinId,
   SlotId,
   TransformConstraintId,
@@ -92,6 +97,12 @@ export interface DocumentReadModel {
   // Path constraints in stored solve order (Stage F3, ADR-0011 section 2.3), within the single combined
   // constraint order space (default: after all IK and transform).
   pathConstraints(): readonly PathConstraintEntity[];
+  getPhysicsConstraint(id: PhysicsConstraintId): PhysicsConstraintEntity | undefined;
+  // Physics constraints in stored solve order (Stage F4, ADR-0014 section 4), within the single combined
+  // constraint order space (default: after all IK, transform, and path).
+  physicsConstraints(): readonly PhysicsConstraintEntity[];
+  // The OPTIONAL skeleton physics settings block (global gravity/wind/master mix), or undefined.
+  physicsSettings(): PhysicsSettings | undefined;
   getSkin(id: SkinId): SkinEntity | undefined;
   // The NON-default named skins in skinOrder. The default skin is implicit (its attachments are the
   // editable default-skin attachments reached via attachments()); it is never a SkinEntity.
@@ -307,6 +318,18 @@ export interface PathKeyframeSnapshot {
   readonly curve: CurveType;
 }
 
+export interface PhysicsKeyframeSnapshot {
+  readonly id: string;
+  readonly time: number;
+  readonly mix: number | undefined;
+  readonly inertia: number | undefined;
+  readonly strength: number | undefined;
+  readonly damping: number | undefined;
+  readonly wind: number | undefined;
+  readonly gravity: number | undefined;
+  readonly curve: CurveType;
+}
+
 // A per-constraint IK timeline projection, keyed by the internal IkConstraintId string.
 export interface IkTimelineSnapshot {
   readonly constraintId: string;
@@ -323,6 +346,13 @@ export interface TransformTimelineSnapshot {
 export interface PathTimelineSnapshot {
   readonly constraintId: string;
   readonly keyframes: readonly PathKeyframeSnapshot[];
+}
+
+// A per-constraint physics timeline projection, keyed by the internal PhysicsConstraintId string (Stage F4,
+// PP-D12).
+export interface PhysicsTimelineSnapshot {
+  readonly constraintId: string;
+  readonly keyframes: readonly PhysicsKeyframeSnapshot[];
 }
 
 // A per-(skin, slot, attachment) deform timeline projection. `skin` is the DeformSkinKey string ('default'
@@ -374,10 +404,7 @@ export interface AnimationSnapshot {
   readonly drawOrder: readonly DrawOrderKeySnapshot[]; // in time order (strictly ascending)
   readonly events: readonly EventKeySnapshot[]; // in time order (non-decreasing)
   readonly path: readonly PathTimelineSnapshot[]; // sorted by constraintId (Stage F3, PP-D11)
-  // Stage F4 (ADR-0014 section 7) carried physics-constraint timeline record, keyed by the on-disk constraint
-  // NAME (physics is carried verbatim, not id-resolved, until PP-D12). Projected into the snapshot so the
-  // round-trip harness compares it; a deep copy with sorted names for a deterministic projection.
-  readonly physics: AnimationEntity['physics'];
+  readonly physics: readonly PhysicsTimelineSnapshot[]; // sorted by constraintId (Stage F4, PP-D12)
 }
 
 // A plain event-definition projection (Stage F1): the internal EventDefId, the name, the payload defaults,
@@ -455,6 +482,25 @@ export interface PathConstraintSnapshot {
   readonly order?: number;
 }
 
+// A plain physics-constraint projection (Stage F4, ADR-0014 section 1). `bone` is the internal BoneId string
+// (the single driven/setpoint bone); `channels` is the simulated local-channel subset. `order` is emitted when
+// set. The scalars round-trip verbatim, so a do/undo deep-equal covers a param edit.
+export interface PhysicsConstraintSnapshot {
+  readonly id: string;
+  readonly name: string;
+  readonly bone: string;
+  readonly channels: readonly PhysicsChannel[];
+  readonly step: number;
+  readonly inertia: number;
+  readonly strength: number;
+  readonly damping: number;
+  readonly mass: number;
+  readonly wind: number;
+  readonly gravity: number;
+  readonly mix: number;
+  readonly order?: number;
+}
+
 // A plain named-skin projection: its attachments as a flat sorted list (by slotId then name), the same
 // shape the default skin uses in DocSnapshot.attachments.
 export interface SkinSnapshot {
@@ -518,6 +564,9 @@ export interface DocSnapshot {
   readonly transformConstraintOrder: readonly string[]; // order-significant (solve order)
   readonly pathConstraints: readonly PathConstraintSnapshot[]; // sorted by id
   readonly pathConstraintOrder: readonly string[]; // order-significant (solve order)
+  readonly physicsConstraints: readonly PhysicsConstraintSnapshot[]; // sorted by id
+  readonly physicsConstraintOrder: readonly string[]; // order-significant (solve order)
+  readonly physicsSettings: PhysicsSettings | undefined; // the optional skeleton physics settings block
   readonly skins: readonly SkinSnapshot[]; // sorted by id (NON-default named skins)
   readonly skinOrder: readonly string[]; // order-significant
   readonly events: readonly EventDefSnapshot[]; // sorted by id (document-level event definitions)
@@ -679,6 +728,20 @@ function pathKeyframeToSnapshot(kf: PathKeyframeEntity): PathKeyframeSnapshot {
   };
 }
 
+function physicsKeyframeToSnapshot(kf: PhysicsKeyframeEntity): PhysicsKeyframeSnapshot {
+  return {
+    id: kf.id,
+    time: kf.time,
+    mix: kf.mix,
+    inertia: kf.inertia,
+    strength: kf.strength,
+    damping: kf.damping,
+    wind: kf.wind,
+    gravity: kf.gravity,
+    curve: cloneCurve(kf.curve),
+  };
+}
+
 function deformKeyframeToSnapshot(kf: DeformKeyframeEntity): DeformKeyframeSnapshot {
   return { id: kf.id, time: kf.time, offsets: kf.offsets.slice(), curve: cloneCurve(kf.curve) };
 }
@@ -787,16 +850,13 @@ export function animationToSnapshot(animation: AnimationEntity): AnimationSnapsh
   path.sort((a, b) =>
     a.constraintId < b.constraintId ? -1 : a.constraintId > b.constraintId ? 1 : 0,
   );
-  // Carried physics timelines (PP-D12): deep-copy each name-keyed track (partial value + curve) so the
-  // snapshot never aliases the frozen model, with the constraint names sorted for a stable projection.
-  const physics: AnimationEntity['physics'] = {};
-  for (const name of Object.keys(animation.physics).sort()) {
-    physics[name] = animation.physics[name]!.map((frame) => ({
-      time: frame.time,
-      value: { ...frame.value },
-      curve: cloneCurve(frame.curve),
-    }));
+  const physics: PhysicsTimelineSnapshot[] = [];
+  for (const [constraintId, frames] of animation.physics) {
+    physics.push({ constraintId, keyframes: frames.map(physicsKeyframeToSnapshot) });
   }
+  physics.sort((a, b) =>
+    a.constraintId < b.constraintId ? -1 : a.constraintId > b.constraintId ? 1 : 0,
+  );
   return {
     id: animation.id,
     name: animation.name,
@@ -873,6 +933,26 @@ export function pathConstraintToSnapshot(c: PathConstraintEntity): PathConstrain
     mixRotate: c.mixRotate,
     mixX: c.mixX,
     mixY: c.mixY,
+    ...(c.order !== undefined ? { order: c.order } : {}),
+  };
+}
+
+// Project a physics constraint to its snapshot shape (Stage F4, ADR-0014 section 1). `bone` is the internal
+// BoneId string; `channels` is copied so the snapshot never aliases the live entity.
+export function physicsConstraintToSnapshot(c: PhysicsConstraintEntity): PhysicsConstraintSnapshot {
+  return {
+    id: c.id,
+    name: c.name,
+    bone: c.bone,
+    channels: c.channels.slice(),
+    step: c.step,
+    inertia: c.inertia,
+    strength: c.strength,
+    damping: c.damping,
+    mass: c.mass,
+    wind: c.wind,
+    gravity: c.gravity,
+    mix: c.mix,
     ...(c.order !== undefined ? { order: c.order } : {}),
   };
 }

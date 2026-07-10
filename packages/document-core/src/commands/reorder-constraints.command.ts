@@ -4,13 +4,19 @@ import {
   CommandTargetMissingError,
   ConstraintError,
 } from '../command/errors';
-import type { IkConstraintId, PathConstraintId, TransformConstraintId } from '../model/ids';
+import type {
+  IkConstraintId,
+  PathConstraintId,
+  PhysicsConstraintId,
+  TransformConstraintId,
+} from '../model/ids';
 import type { DocumentReadModel } from '../model/read-model';
 import type { CommandSpec } from './spec';
 
-// One constraint's captured prior order across all three arrays (for the undo memento). A discriminated union
-// on `kind` keeps each id its proper brand (IK, transform, and path share one name namespace but distinct id
-// brands, ADR-0004/ADR-0011), so applyOrders dispatches to the right typed mutator method with no `as` cast.
+// One constraint's captured prior order across all four arrays (for the undo memento). A discriminated union on
+// `kind` keeps each id its proper brand (IK, transform, path, and physics share one name namespace but distinct
+// id brands, ADR-0004/ADR-0011/ADR-0014), so applyOrders dispatches to the right typed mutator method with no
+// `as` cast.
 type ConstraintOrderMemento =
   | { readonly kind: 'ik'; readonly id: IkConstraintId; readonly order: number | undefined }
   | {
@@ -18,11 +24,16 @@ type ConstraintOrderMemento =
       readonly id: TransformConstraintId;
       readonly order: number | undefined;
     }
-  | { readonly kind: 'path'; readonly id: PathConstraintId; readonly order: number | undefined };
+  | { readonly kind: 'path'; readonly id: PathConstraintId; readonly order: number | undefined }
+  | {
+      readonly kind: 'physics';
+      readonly id: PhysicsConstraintId;
+      readonly order: number | undefined;
+    };
 
-// Enumerate every constraint (all IK in solve order, then all transform, then all path), each with its
+// Enumerate every constraint (all IK in solve order, then transform, then path, then physics), each with its
 // current explicit `order` field, as the before-memento AND the identity of the current constraint set the
-// reorder covers. The order matches the default solve order (ADR-0011 section 2.3: IK, transform, path).
+// reorder covers. The order matches the default solve order (ADR-0014 section 4: IK, transform, path, physics).
 function captureOrders(model: DocumentReadModel): ConstraintOrderMemento[] {
   const out: ConstraintOrderMemento[] = [];
   for (const c of model.ikConstraints()) out.push({ kind: 'ik', id: c.id, order: c.order });
@@ -30,6 +41,9 @@ function captureOrders(model: DocumentReadModel): ConstraintOrderMemento[] {
     out.push({ kind: 'transform', id: c.id, order: c.order });
   }
   for (const c of model.pathConstraints()) out.push({ kind: 'path', id: c.id, order: c.order });
+  for (const c of model.physicsConstraints()) {
+    out.push({ kind: 'physics', id: c.id, order: c.order });
+  }
   return out;
 }
 
@@ -107,7 +121,8 @@ function assignOrders(
 function withOrder(c: ConstraintOrderMemento, order: number | undefined): ConstraintOrderMemento {
   if (c.kind === 'ik') return { kind: 'ik', id: c.id, order };
   if (c.kind === 'transform') return { kind: 'transform', id: c.id, order };
-  return { kind: 'path', id: c.id, order };
+  if (c.kind === 'path') return { kind: 'path', id: c.id, order };
+  return { kind: 'physics', id: c.id, order };
 }
 
 // Write an order assignment to the model through the dedicated set-order mutator methods (which DELETE the
@@ -116,7 +131,8 @@ function applyOrders(ctx: CommandContext, orders: readonly ConstraintOrderMement
   for (const c of orders) {
     if (c.kind === 'ik') ctx.mutate.setIkConstraintOrder(c.id, c.order);
     else if (c.kind === 'transform') ctx.mutate.setTransformConstraintOrder(c.id, c.order);
-    else ctx.mutate.setPathConstraintOrder(c.id, c.order);
+    else if (c.kind === 'path') ctx.mutate.setPathConstraintOrder(c.id, c.order);
+    else ctx.mutate.setPhysicsConstraintOrder(c.id, c.order);
   }
 }
 

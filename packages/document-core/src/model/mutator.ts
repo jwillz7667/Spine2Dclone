@@ -1,4 +1,4 @@
-import type { AtlasRef, Sequence, SkeletonMeta } from '@marionette/format/types';
+import type { AtlasRef, PhysicsSettings, Sequence, SkeletonMeta } from '@marionette/format/types';
 import type {
   FeatureFlowGraph,
   GridConfig,
@@ -27,6 +27,8 @@ import type {
   PathConstraintEntity,
   PathGeometry,
   PathKeyframeEntity,
+  PhysicsConstraintEntity,
+  PhysicsKeyframeEntity,
   RegionAttachmentEntity,
   SkinEntity,
   SequenceKeyframeEntity,
@@ -41,6 +43,7 @@ import type {
   EventDefId,
   IkConstraintId,
   PathConstraintId,
+  PhysicsConstraintId,
   SkinId,
   SlotId,
   TransformConstraintId,
@@ -157,6 +160,19 @@ export interface Mutator extends DocumentReadModel {
     constraintId: PathConstraintId,
     keyframes: readonly PathKeyframeEntity[],
   ): void;
+  insertPhysicsConstraint(entity: PhysicsConstraintEntity, index: number): void;
+  removePhysicsConstraint(id: PhysicsConstraintId): void;
+  patchPhysicsConstraint(
+    id: PhysicsConstraintId,
+    patch: Partial<Omit<PhysicsConstraintEntity, 'id'>>,
+  ): void;
+  setPhysicsConstraintOrder(id: PhysicsConstraintId, order: number | undefined): void;
+  setPhysicsChannel(
+    animId: AnimationId,
+    constraintId: PhysicsConstraintId,
+    keyframes: readonly PhysicsKeyframeEntity[],
+  ): void;
+  setPhysicsSettings(settings: PhysicsSettings | undefined): void;
   insertSkin(entity: SkinEntity, index: number): void;
   removeSkin(id: SkinId): void;
   patchSkin(id: SkinId, patch: { readonly name?: string }): void;
@@ -214,6 +230,9 @@ export function createMutator(model: DocumentModelInternal): Mutator {
     transformConstraints: () => model.transformConstraints(),
     getPathConstraint: (id) => model.getPathConstraint(id),
     pathConstraints: () => model.pathConstraints(),
+    getPhysicsConstraint: (id) => model.getPhysicsConstraint(id),
+    physicsConstraints: () => model.physicsConstraints(),
+    physicsSettings: () => model.physicsSettings(),
     getSkin: (id) => model.getSkin(id),
     skins: () => model.skins(),
     getEventDef: (id) => model.getEventDef(id),
@@ -281,6 +300,13 @@ export function createMutator(model: DocumentModelInternal): Mutator {
     setPathConstraintOrder: (id, order) => model.setPathConstraintOrder(id, order),
     setPathChannel: (animId, constraintId, keyframes) =>
       model.setPathChannel(animId, constraintId, keyframes),
+    insertPhysicsConstraint: (entity, index) => model.insertPhysicsConstraint(entity, index),
+    removePhysicsConstraint: (id) => model.removePhysicsConstraint(id),
+    patchPhysicsConstraint: (id, patch) => model.patchPhysicsConstraint(id, patch),
+    setPhysicsConstraintOrder: (id, order) => model.setPhysicsConstraintOrder(id, order),
+    setPhysicsChannel: (animId, constraintId, keyframes) =>
+      model.setPhysicsChannel(animId, constraintId, keyframes),
+    setPhysicsSettings: (settings) => model.setPhysicsSettings(settings),
     insertSkin: (entity, index) => model.insertSkin(entity, index),
     removeSkin: (id) => model.removeSkin(id),
     patchSkin: (id, patch) => model.patchSkin(id, patch),

@@ -6,6 +6,7 @@ import type {
   CurveType,
   IkConstraint,
   PathConstraint,
+  PhysicsConstraint,
   SequenceMode,
   Skin,
   SkeletonDocument,
@@ -31,6 +32,8 @@ import type {
   KeyframeValue,
   PathConstraintEntity,
   PathKeyframeEntity,
+  PhysicsConstraintEntity,
+  PhysicsKeyframeEntity,
   SequenceKeyframeEntity,
   SkinEntity,
   SlotEntity,
@@ -49,6 +52,7 @@ import {
   makeLinkedMeshAttachment,
   makePathAttachment,
   makePathKeyframe,
+  makePhysicsKeyframe,
   makeSequenceKeyframe,
   makeTransformKeyframe,
 } from '../model/doc-state';
@@ -60,6 +64,7 @@ import type {
   IdFactory,
   IkConstraintId,
   PathConstraintId,
+  PhysicsConstraintId,
   SkinId,
   SlotId,
   TransformConstraintId,
@@ -237,6 +242,31 @@ function pathConstraintToEntity(
   };
 }
 
+// Promote a format physics constraint (Stage F4, ADR-0014 section 1) to its editable entity: the `bone` NAME
+// resolves to a BoneId (the single driven/setpoint bone), so a rename never breaks the constraint, and the
+// `channels` array is copied. The validator already guaranteed the reference resolves, so resolveId is total.
+function physicsConstraintToEntity(
+  id: PhysicsConstraintId,
+  c: PhysicsConstraint,
+  boneNameToId: ReadonlyMap<string, BoneId>,
+): PhysicsConstraintEntity {
+  return {
+    id,
+    name: c.name,
+    bone: resolveId(c.bone, boneNameToId, 'physics constraint bone'),
+    channels: c.channels.slice(),
+    step: c.step,
+    inertia: c.inertia,
+    strength: c.strength,
+    damping: c.damping,
+    mass: c.mass,
+    wind: c.wind,
+    gravity: c.gravity,
+    mix: c.mix,
+    ...(c.order !== undefined ? { order: c.order } : {}),
+  };
+}
+
 function transformConstraintToEntity(
   id: TransformConstraintId,
   c: TransformConstraint,
@@ -401,6 +431,19 @@ function formatToDocState(document: SkeletonDocument, ids: IdFactory): DocState 
     pathConstraintOrder.push(id);
     pathConstraints.set(id, pathConstraintToEntity(id, c, boneNameToId, slotNameToId));
   }
+  // Physics constraints (Stage F4, ADR-0014 section 1; PP-D12): mint a PhysicsConstraintId per constraint,
+  // resolve the single `bone` NAME reference to a BoneId, and keep the stored array order
+  // (physicsConstraintOrder) within the single combined solve-order space. Its per-animation TIMELINE resolves
+  // by the same name->id map below (the timeline is promoted to id-keyed keyframes too).
+  const physicsNameToId = new Map<string, PhysicsConstraintId>();
+  const physicsConstraintOrder: PhysicsConstraintId[] = [];
+  const physicsConstraints = new Map<PhysicsConstraintId, PhysicsConstraintEntity>();
+  for (const c of document.physicsConstraints) {
+    const id = ids.mint('physicsConstraint');
+    physicsNameToId.set(c.name, id);
+    physicsConstraintOrder.push(id);
+    physicsConstraints.set(id, physicsConstraintToEntity(id, c, boneNameToId));
+  }
 
   // The deform skin key resolves 'default' to itself and a named skin to its SkinId, so a deform track
   // survives a skin rename.
@@ -437,6 +480,15 @@ function formatToDocState(document: SkeletonDocument, ids: IdFactory): DocState 
     for (const [constraintName, frames] of Object.entries(animation.path)) {
       const constraintId = resolveId(constraintName, pathNameToId, 'animation path constraint');
       pathTracks.set(constraintId, loadPathFrames(frames, ids));
+    }
+    const physicsTracks = new Map<PhysicsConstraintId, readonly PhysicsKeyframeEntity[]>();
+    for (const [constraintName, frames] of Object.entries(animation.physics)) {
+      const constraintId = resolveId(
+        constraintName,
+        physicsNameToId,
+        'animation physics constraint',
+      );
+      physicsTracks.set(constraintId, loadPhysicsFrames(frames, ids));
     }
     const deformTracks = new Map<
       DeformSkinKey,
@@ -493,10 +545,9 @@ function formatToDocState(document: SkeletonDocument, ids: IdFactory): DocState 
       // Stage F3 (ADR-0011 section 3) path-constraint timelines, promoted to id-keyed editable keyframes
       // (PP-D11): each on-disk constraint NAME resolves to its PathConstraintId.
       path: pathTracks,
-      // Stage F4 (ADR-0014 section 7) physics-constraint timelines, carried verbatim as the on-disk record
-      // (constraintName -> frames) until an authoring command lands (PP-D12); deep-frozen so the model never
-      // aliases the parsed document.
-      physics: carry(animation.physics),
+      // Stage F4 (ADR-0014 section 7) physics-constraint timelines, promoted to id-keyed editable keyframes
+      // (PP-D12): each on-disk constraint NAME resolves to its PhysicsConstraintId.
+      physics: physicsTracks,
     });
   }
 
@@ -515,6 +566,19 @@ function formatToDocState(document: SkeletonDocument, ids: IdFactory): DocState 
     transformConstraintOrder,
     pathConstraints,
     pathConstraintOrder,
+    physicsConstraints,
+    physicsConstraintOrder,
+    // Stage F4 (ADR-0014 section 5) OPTIONAL skeleton physics settings block, promoted to first-class
+    // DocState.physicsSettings (PP-D12); copied so the model never aliases the parsed document, undefined when
+    // the document defines none (its meaningful default: no global weather, unit master mix).
+    physicsSettings:
+      document.physics === undefined
+        ? undefined
+        : {
+            gravity: document.physics.gravity,
+            wind: document.physics.wind,
+            mix: document.physics.mix,
+          },
     skins: skinsMap,
     skinOrder,
     events,
@@ -540,12 +604,6 @@ function formatToDocState(document: SkeletonDocument, ids: IdFactory): DocState 
     slotScene: defaultSlotSceneState(),
     preserved: {
       atlas: document.atlas,
-      // Stage F4 (ADR-0014 section 1) root physics constraints, carried verbatim as on-disk names until an
-      // authoring command lands (PP-D12); deep-frozen so the model never aliases the parsed document.
-      physicsConstraints: carry(document.physicsConstraints),
-      // Stage F4 (ADR-0014 section 5) OPTIONAL global physics settings block, carried verbatim when present
-      // (absent means the identity defaults, so nothing is stored), mirroring the optional metadata block.
-      ...(document.physics !== undefined ? { physics: carry(document.physics) } : {}),
     },
   };
 }
@@ -657,6 +715,30 @@ function loadPathFrames(
         mixRotate: frame.value.mixRotate,
         mixX: frame.value.mixX,
         mixY: frame.value.mixY,
+      },
+      frame.curve,
+    ),
+  );
+}
+
+// Promote a format physics timeline (Stage F4, ADR-0014 section 7) to editable id-keyed keyframes: each partial
+// PhysicsFrame's present dynamic channels are carried as given (an absent channel is undefined, keeping its base
+// value, SOLVE semantics), minting a fresh KeyframeId per frame.
+function loadPhysicsFrames(
+  frames: SkeletonDocument['animations'][string]['physics'][string],
+  ids: IdFactory,
+): PhysicsKeyframeEntity[] {
+  return frames.map((frame) =>
+    makePhysicsKeyframe(
+      ids.mint('keyframe'),
+      frame.time,
+      {
+        mix: frame.value.mix,
+        inertia: frame.value.inertia,
+        strength: frame.value.strength,
+        damping: frame.value.damping,
+        wind: frame.value.wind,
+        gravity: frame.value.gravity,
       },
       frame.curve,
     ),

@@ -15,6 +15,8 @@ import type {
   PathAttachment,
   PathConstraint,
   PathFrame,
+  PhysicsConstraint,
+  PhysicsFrame,
   RegionAttachment,
   Skin,
   SkeletonDocument,
@@ -35,6 +37,8 @@ import type {
   KeyframeEntity,
   PathConstraintEntity,
   PathKeyframeEntity,
+  PhysicsConstraintEntity,
+  PhysicsKeyframeEntity,
   SkinEntity,
   SlotTimelineSet,
   TransformConstraintEntity,
@@ -306,6 +310,22 @@ function pathFramesToFormat(frames: readonly PathKeyframeEntity[]): Keyframe<Pat
   });
 }
 
+// Project a physics timeline (Keyframe<PhysicsFrame>[]) to the format shape, emitting only the present dynamic
+// channels of each partial frame (an absent channel is omitted, mirroring pathFramesToFormat).
+function physicsFramesToFormat(frames: readonly PhysicsKeyframeEntity[]): Keyframe<PhysicsFrame>[] {
+  return frames.map((kf) => {
+    const value: PhysicsFrame = {
+      ...(kf.mix !== undefined ? { mix: kf.mix } : {}),
+      ...(kf.inertia !== undefined ? { inertia: kf.inertia } : {}),
+      ...(kf.strength !== undefined ? { strength: kf.strength } : {}),
+      ...(kf.damping !== undefined ? { damping: kf.damping } : {}),
+      ...(kf.wind !== undefined ? { wind: kf.wind } : {}),
+      ...(kf.gravity !== undefined ? { gravity: kf.gravity } : {}),
+    };
+    return { time: kf.time, value, curve: kf.curve };
+  });
+}
+
 function animationToFormat(
   animation: AnimationEntity,
   boneIdToName: ReadonlyMap<string, string>,
@@ -313,6 +333,7 @@ function animationToFormat(
   ikIdToName: ReadonlyMap<string, string>,
   transformIdToName: ReadonlyMap<string, string>,
   pathIdToName: ReadonlyMap<string, string>,
+  physicsIdToName: ReadonlyMap<string, string>,
   skinIdToName: ReadonlyMap<string, string>,
   eventIdToName: ReadonlyMap<string, string>,
 ): Animation {
@@ -381,6 +402,14 @@ function animationToFormat(
     path[resolveName(constraintId, pathIdToName, 'animation path constraint')] =
       pathFramesToFormat(frames);
   }
+  // Stage F4 (ADR-0014 section 7): the promoted physics-constraint timelines resolve each PhysicsConstraintId
+  // back to its CURRENT name; REQUIRED, empty ({}) when the animation keys none.
+  const physics: Record<string, Keyframe<PhysicsFrame>[]> = {};
+  for (const [constraintId, frames] of animation.physics) {
+    if (frames.length === 0) continue;
+    physics[resolveName(constraintId, physicsIdToName, 'animation physics constraint')] =
+      physicsFramesToFormat(frames);
+  }
   return {
     duration: animation.duration,
     bones,
@@ -391,9 +420,7 @@ function animationToFormat(
     drawOrder,
     events,
     path,
-    // Stage F4 (ADR-0014 section 7): the carried physics-constraint timeline record is emitted verbatim (it is
-    // already the on-disk shape, keyed by constraint name); REQUIRED, empty ({}) when the animation keys none.
-    physics: animation.physics,
+    physics,
   };
 }
 
@@ -472,6 +499,29 @@ function pathConstraintToFormat(
     mixRotate: c.mixRotate,
     mixX: c.mixX,
     mixY: c.mixY,
+    ...(c.order !== undefined ? { order: c.order } : {}),
+  };
+}
+
+// Project a physics constraint (Stage F4, ADR-0014 section 1) BACK to the format shape: the single `bone` id
+// resolves to its CURRENT name (LAW 3 fail-loud on a dangling id), and the channels array is copied. `order` is
+// emitted only when set (exactOptionalPropertyTypes).
+function physicsConstraintToFormat(
+  c: PhysicsConstraintEntity,
+  boneIdToName: ReadonlyMap<string, string>,
+): PhysicsConstraint {
+  return {
+    name: c.name,
+    bone: resolveName(c.bone, boneIdToName, 'physics constraint bone'),
+    channels: c.channels.slice(),
+    step: c.step,
+    inertia: c.inertia,
+    strength: c.strength,
+    damping: c.damping,
+    mass: c.mass,
+    wind: c.wind,
+    gravity: c.gravity,
+    mix: c.mix,
     ...(c.order !== undefined ? { order: c.order } : {}),
   };
 }
@@ -564,6 +614,13 @@ export function exportDocument(model: DocumentReadModel): SkeletonDocument {
   const pathConstraints: PathConstraint[] = model
     .pathConstraints()
     .map((c) => pathConstraintToFormat(c, boneIdToName, slotIdToName));
+  // Physics constraints (Stage F4, ADR-0014 section 1; PP-D12) emit from the promoted model in stored order,
+  // resolving the single bone id back to its current name.
+  const physicsIdToName = new Map<string, string>();
+  for (const c of model.physicsConstraints()) physicsIdToName.set(c.id, c.name);
+  const physicsConstraints: PhysicsConstraint[] = model
+    .physicsConstraints()
+    .map((c) => physicsConstraintToFormat(c, boneIdToName));
 
   // Event definitions (Stage F1, PP-D9) emit in eventOrder; an event key resolves its EventDefId back to the
   // definition's CURRENT name through this map.
@@ -586,6 +643,7 @@ export function exportDocument(model: DocumentReadModel): SkeletonDocument {
       ikIdToName,
       transformIdToName,
       pathIdToName,
+      physicsIdToName,
       skinIdToName,
       eventIdToName,
     );
@@ -594,9 +652,9 @@ export function exportDocument(model: DocumentReadModel): SkeletonDocument {
   // Document-level events emit from the first-class event definitions (Stage F1, PP-D9), in eventOrder;
   // `events` is REQUIRED (empty when the rig defines none). The optional metadata block is emitted only when
   // present, per exactOptionalPropertyTypes. The atlas is still carried from preserved content. Stage F4
-  // (ADR-0014) carries the physics constraints and the optional global physics settings from preserved.
+  // (ADR-0014, PP-D12) emits the promoted physics constraints and the optional global physics settings block.
   const metadata = model.metadata();
-  const physics = model.preserved().physics;
+  const physics = model.physicsSettings();
   const draft: SkeletonDocument = {
     formatVersion: CURRENT_FORMAT_VERSION,
     name: model.name,
@@ -609,9 +667,9 @@ export function exportDocument(model: DocumentReadModel): SkeletonDocument {
     // Stage F3 (ADR-0011 section 2): the promoted path constraints emit in stored solve order (PP-D11);
     // REQUIRED, empty ([]) when the rig has none.
     pathConstraints,
-    // Stage F4 (ADR-0014 section 1): the carried root physics constraints emit verbatim as on-disk names
-    // (PP-D12); REQUIRED, empty ([]) when the rig has none.
-    physicsConstraints: [...model.preserved().physicsConstraints],
+    // Stage F4 (ADR-0014 section 1): the promoted physics constraints emit in stored solve order (PP-D12);
+    // REQUIRED, empty ([]) when the rig has none.
+    physicsConstraints,
     events: orderedEventDefs.map((event) => ({
       name: event.name,
       ...(event.int !== undefined ? { int: event.int } : {}),

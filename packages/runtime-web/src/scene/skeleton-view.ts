@@ -321,13 +321,20 @@ export class SkeletonView {
   // render from it. The document MUST already be validated (the player validates on load): per-frame
   // re-validation is not a sane cost, so this trusts the typed SkeletonDocument. The pose is built once
   // per document and reused, so a steady-state frame allocates only the region products (TASK-1.10.5).
-  syncAnimated(document: SkeletonDocument, animationId: string, t: number): void {
+  //
+  // `frameDt` (seconds, default 0) advances the PHYSICS simulation clock ONLY (ADR-0014 section 2.2).
+  // Physics carries velocity across frames, so a live player must call this SEQUENTIALLY with the real
+  // per-frame delta (this view owns the reused pose, so the physics state persists between calls). The
+  // default 0 keeps every existing caller byte-identical: a rig with no physics constraints ignores it,
+  // and a frameDt-0 call runs zero physics steps (physics rests on its pose). It forwards straight to
+  // sampleSkeleton, which owns the physics stepping exactly as it owns the animation sampling.
+  syncAnimated(document: SkeletonDocument, animationId: string, t: number, frameDt = 0): void {
     const scene = this.ensureScene(document);
     // Forward the ACTIVE skin so skin-scoped constraints (ADR-0009 section 5) solve only under the skin that
     // scopes them: switching to a costume skin turns its scoped constraints on, matching the scoped
     // attachment resolution this view already does (PP-C8). An unscoped rig is unaffected (every constraint
     // is always active). The headless samplePlaybackWorlds forwards the active skin the same way for parity.
-    sampleSkeleton(document, animationId, t, scene.pose, scene.skinState.activeSkin);
+    sampleSkeleton(document, animationId, t, scene.pose, scene.skinState.activeSkin, frameDt);
     this.renderFromPose(scene, animationId, t);
   }
 

@@ -2,7 +2,13 @@ import { z } from 'zod';
 import { animationSchema } from './animation';
 import { atlasRefSchema } from './atlas';
 import { boneSchema } from './bone';
-import { ikConstraintSchema, pathConstraintSchema, transformConstraintSchema } from './constraint';
+import {
+  ikConstraintSchema,
+  pathConstraintSchema,
+  physicsConstraintSchema,
+  physicsSettingsSchema,
+  transformConstraintSchema,
+} from './constraint';
 import { eventDefSchema } from './event';
 import { skeletonMetaSchema } from './metadata';
 import { skinSchema } from './skin';
@@ -24,8 +30,12 @@ import { slotSchema } from './slot';
 // animation timelines (in animationSchema). A pre-0.3.0 document lacking these is migrated (empties
 // injected). Stage F3 (ADR-0011, formatVersion 0.5.0) ADDS the `pathConstraints` root collection
 // (PathConstraint[], REQUIRED, empty when the rig has none) and the per-animation `path` timeline (in
-// animationSchema). A pre-0.5.0 document lacking these is migrated (empties injected). Growing the format
-// further is a MINOR bump with its own ADR and migration (format-contract section 10.3).
+// animationSchema). A pre-0.5.0 document lacking these is migrated (empties injected). Stage F4 (ADR-0014,
+// formatVersion 0.6.0) ADDS the `physicsConstraints` root collection (PhysicsConstraint[], REQUIRED, empty
+// when the rig has none), the OPTIONAL `physics` settings block (global gravity/wind/mix defaults), and the
+// per-animation `physics` timeline (in animationSchema). A pre-0.6.0 document lacking the required additions
+// is migrated (empties injected); the optional settings block is left absent. Growing the format further is
+// a MINOR bump with its own ADR and migration (format-contract section 10.3).
 export const skeletonDocumentSchema = z
   .object({
     formatVersion: z.string(),
@@ -37,10 +47,12 @@ export const skeletonDocumentSchema = z
     ikConstraints: z.array(ikConstraintSchema),
     transformConstraints: z.array(transformConstraintSchema),
     pathConstraints: z.array(pathConstraintSchema),
+    physicsConstraints: z.array(physicsConstraintSchema),
     events: z.array(eventDefSchema),
     animations: z.record(z.string(), animationSchema),
     atlas: atlasRefSchema,
     metadata: skeletonMetaSchema.optional(),
+    physics: physicsSettingsSchema.optional(),
   })
   .strict();
 

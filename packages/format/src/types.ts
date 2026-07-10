@@ -25,6 +25,9 @@ export type {
   PathPositionMode,
   PathSpacingMode,
   PathRotateMode,
+  PhysicsConstraint,
+  PhysicsChannel,
+  PhysicsSettings,
 } from './schema/constraint';
 export type {
   Animation,
@@ -34,6 +37,7 @@ export type {
   IkFrame,
   TransformFrame,
   PathFrame,
+  PhysicsFrame,
   DeformTimelines,
   DrawOrderOffset,
   DrawOrderKeyframe,

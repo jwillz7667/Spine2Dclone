@@ -25,6 +25,7 @@ import { resolveWeightPaintTarget } from './weight-paint';
 import { WeightPaintOverlay } from './weight-overlay';
 import { MarqueeOverlay } from './marquee-overlay';
 import { solveWorldById } from './scene-solve';
+import { derivePhysicsFrameDt } from './physics-preview';
 import { attachToolInput } from './tool-input';
 import { CreateBoneTool } from './tools/create-bone-tool';
 import { MeshTool } from './tools/mesh-tool';
@@ -285,9 +286,25 @@ export function ViewportPanelContent(): ReactElement {
         // Advance the transport from the real frame delta (LAW 1: the playhead is editor state, this never
         // touches the document or History). The store loops or auto-stops at the tail; with no active
         // animation or a zero-length one there is no clock to advance.
-        if (playback.isPlaying && activeAnimation !== null && activeAnimation.duration > 0) {
-          playback.tick(ticker.deltaMS / 1000, activeAnimation.duration);
+        const realDeltaSeconds = ticker.deltaMS / 1000;
+        const isAdvancing =
+          playback.isPlaying && activeAnimation !== null && activeAnimation.duration > 0;
+        if (isAdvancing) {
+          playback.tick(realDeltaSeconds, activeAnimation.duration);
         }
+
+        // The physics simulation delta for THIS frame (ADR-0014): the real elapsed animation time while the
+        // transport advances the playhead, 0 otherwise (paused, scrubbing, or nothing to play), so authored
+        // physics constraints animate during playback and go inert the moment it stops. It is derived from the
+        // SAME playback ticker delta the playhead advances on (never Date.now), scaled by the playback speed and
+        // capped so a stalled frame cannot explode the sim. Pure scalar math, no per-frame allocation; a rig
+        // with no physics ignores it (the solve stays byte-identical), and a scrub jump teleports through the
+        // solve's own RESET_DISTANCE contract (no editor-side reset hack).
+        const physicsFrameDt = derivePhysicsFrameDt(
+          isAdvancing,
+          realDeltaSeconds,
+          playback.playbackSpeed,
+        );
 
         // Decide the frame from the POST-advance playhead, so it shows the time the transport just produced.
         const target = resolveRenderTarget(
@@ -308,7 +325,7 @@ export function ViewportPanelContent(): ReactElement {
           !renderTargetsEqual(target, lastTarget)
         ) {
           if (target.kind === 'animated') {
-            view.syncAnimated(cachedDoc, target.animation, target.time);
+            view.syncAnimated(cachedDoc, target.animation, target.time, physicsFrameDt);
           } else {
             // cachedDoc is already validated, but sync() is the setup render path; it is gated by the
             // change detector so this re-validates only on a real change, not every frame.

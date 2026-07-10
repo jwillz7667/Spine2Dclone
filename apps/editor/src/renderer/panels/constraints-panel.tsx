@@ -1,6 +1,10 @@
 import type { IDockviewPanelProps } from 'dockview';
 import { useEffect, useMemo, type CSSProperties, type ReactElement } from 'react';
 import {
+  ConstraintError,
+  CreatePhysicsConstraintCommand,
+  DeletePhysicsConstraintCommand,
+  RenamePhysicsConstraintCommand,
   ReorderConstraintsCommand,
   SetIkBendPositiveCommand,
   SetIkDepthParamsCommand,
@@ -13,10 +17,15 @@ import {
   type PathConstraintEntity,
   type PathConstraintId,
   type PathConstraintParamPatch,
+  type PhysicsConstraintEntity,
+  type PhysicsConstraintId,
+  type PhysicsConstraintParams,
   type TransformConstraintEntity,
   type TransformConstraintId,
 } from '../document';
+import type { PhysicsChannel } from '@marionette/format/types';
 import { useDocumentRevision } from '../editor-state/use-document-revision';
+import { useSelectionStore } from '../editor-state/selection-store';
 import {
   useConstraintSelectionStore,
   type ConstraintSelection,
@@ -26,8 +35,25 @@ import {
   parseSoftnessInput,
   reconcileConstraintSelection,
   solveOrderView,
+  uniquePhysicsName,
   type OrderedConstraint,
 } from './constraints-logic';
+
+// A fresh physics constraint's default parameters (ADR-0014 authoring defaults, matching the document-core
+// create fixture): a 1/60s fixed step, a middle follow-through, a firm spring, near-undamped, unit mass, no
+// world weather, full mix. The default channel set simulates the local rotation, the most common tail/rope
+// setup. Both are plain values passed to CreatePhysicsConstraint (LAW 2); the command validates them.
+const DEFAULT_PHYSICS_PARAMS: PhysicsConstraintParams = {
+  step: 1 / 60,
+  inertia: 0.5,
+  strength: 40,
+  damping: 0.9,
+  mass: 1,
+  wind: 0,
+  gravity: 0,
+  mix: 1,
+};
+const DEFAULT_PHYSICS_CHANNELS: readonly PhysicsChannel[] = ['rotation'];
 
 const ACCENT = '#5aa0ff';
 
@@ -46,15 +72,18 @@ export function ConstraintsPanel(_props: IDockviewPanelProps): ReactElement {
   const ikConstraints = useMemo(() => model.ikConstraints(), [model, revision]);
   const transformConstraints = useMemo(() => model.transformConstraints(), [model, revision]);
   const pathConstraints = useMemo(() => model.pathConstraints(), [model, revision]);
+  const physicsConstraints = useMemo(() => model.physicsConstraints(), [model, revision]);
+  const boneCount = useMemo(() => model.bones().length, [model, revision]);
   const ikIds = useMemo(() => ikConstraints.map((c) => c.id), [ikConstraints]);
   const transformIds = useMemo(() => transformConstraints.map((c) => c.id), [transformConstraints]);
   const pathIds = useMemo(() => pathConstraints.map((c) => c.id), [pathConstraints]);
+  const physicsIds = useMemo(() => physicsConstraints.map((c) => c.id), [physicsConstraints]);
 
   // Clear a dangling selection when its constraint no longer resolves (a delete/undo the panel did not drive).
   useEffect(() => {
-    const next = reconcileConstraintSelection(selection, ikIds, transformIds, pathIds);
+    const next = reconcileConstraintSelection(selection, ikIds, transformIds, pathIds, physicsIds);
     if (next !== selection) useConstraintSelectionStore.getState().select(next);
-  }, [selection, ikIds, transformIds, pathIds]);
+  }, [selection, ikIds, transformIds, pathIds, physicsIds]);
 
   const selectedIk = useMemo(
     () => (selection?.kind === 'ik' ? ikConstraints.find((c) => c.id === selection.id) : undefined),
@@ -71,6 +100,13 @@ export function ConstraintsPanel(_props: IDockviewPanelProps): ReactElement {
     () =>
       selection?.kind === 'path' ? pathConstraints.find((c) => c.id === selection.id) : undefined,
     [selection, pathConstraints],
+  );
+  const selectedPhysics = useMemo(
+    () =>
+      selection?.kind === 'physics'
+        ? physicsConstraints.find((c) => c.id === selection.id)
+        : undefined,
+    [selection, physicsConstraints],
   );
 
   const solveOrder = useMemo<OrderedConstraint[]>(
@@ -94,20 +130,43 @@ export function ConstraintsPanel(_props: IDockviewPanelProps): ReactElement {
           name: c.name,
           order: c.order,
         })),
+        physicsConstraints.map((c) => ({
+          kind: 'physics',
+          id: c.id,
+          name: c.name,
+          order: c.order,
+        })),
       ),
-    [ikConstraints, transformConstraints, pathConstraints],
+    [ikConstraints, transformConstraints, pathConstraints, physicsConstraints],
   );
   const hasExplicitOrder = useMemo(
     () => solveOrder.some((c) => c.order !== undefined),
     [solveOrder],
   );
 
-  const total = ikConstraints.length + transformConstraints.length + pathConstraints.length;
+  const total =
+    ikConstraints.length +
+    transformConstraints.length +
+    pathConstraints.length +
+    physicsConstraints.length;
 
   return (
     <div style={rootStyle}>
       <div style={toolbarStyle}>
         <span style={headerStyle}>Constraints</span>
+        <button
+          type="button"
+          style={boneCount > 0 ? smallButtonStyle : { ...smallButtonStyle, ...buttonDisabledStyle }}
+          disabled={boneCount === 0}
+          title={
+            boneCount === 0
+              ? 'Add a bone first: a physics constraint drives one bone.'
+              : 'Create a physics constraint on the selected bone (or the first bone)'
+          }
+          onClick={createPhysicsConstraint}
+        >
+          New Physics
+        </button>
         <span style={countStyle}>
           {total} {total === 1 ? 'constraint' : 'constraints'}
         </span>
@@ -116,7 +175,8 @@ export function ConstraintsPanel(_props: IDockviewPanelProps): ReactElement {
       <div style={listStyle}>
         {total === 0 && (
           <div style={emptyStyle}>
-            No constraints. Create one from the viewport IK tool or the MCP surface.
+            No constraints. Create a physics constraint above, or an IK/transform/path constraint
+            from the viewport tools or the MCP surface.
           </div>
         )}
         {ikConstraints.map((c) => (
@@ -161,6 +221,20 @@ export function ConstraintsPanel(_props: IDockviewPanelProps): ReactElement {
             <span style={badgeStyle}>PA</span>
           </div>
         ))}
+        {physicsConstraints.map((c) => (
+          <div
+            key={c.id}
+            style={
+              selection?.kind === 'physics' && selection.id === c.id
+                ? { ...rowStyle, ...rowActiveStyle }
+                : rowStyle
+            }
+            onClick={() => selectConstraint({ kind: 'physics', id: c.id })}
+          >
+            <span style={nameStyle}>{c.name}</span>
+            <span style={badgeStyle}>PH</span>
+          </div>
+        ))}
       </div>
 
       <div style={detailStyle}>
@@ -170,6 +244,8 @@ export function ConstraintsPanel(_props: IDockviewPanelProps): ReactElement {
           <TransformConstraintDetail constraint={selectedTransform} />
         ) : selectedPath !== undefined ? (
           <PathConstraintDetail constraint={selectedPath} />
+        ) : selectedPhysics !== undefined ? (
+          <PhysicsConstraintManage constraint={selectedPhysics} />
         ) : (
           <div style={emptyStyle}>Select a constraint to edit it.</div>
         )}
@@ -194,7 +270,13 @@ export function ConstraintsPanel(_props: IDockviewPanelProps): ReactElement {
                 <span style={orderIndexStyle}>{index + 1}</span>
                 <span style={nameStyle}>{c.name}</span>
                 <span style={badgeStyle}>
-                  {c.kind === 'ik' ? 'IK' : c.kind === 'transform' ? 'TR' : 'PA'}
+                  {c.kind === 'ik'
+                    ? 'IK'
+                    : c.kind === 'transform'
+                      ? 'TR'
+                      : c.kind === 'path'
+                        ? 'PA'
+                        : 'PH'}
                 </span>
                 <button
                   type="button"
@@ -282,6 +364,53 @@ function setTransformRelative(id: TransformConstraintId, relative: boolean): voi
 // (LAW 2). The panel dropdowns and number fields each pass a single-key patch.
 function setPathParams(id: PathConstraintId, patch: PathConstraintParamPatch): void {
   documentHost.current().history.execute(new SetPathConstraintParamsCommand(id, patch));
+}
+
+// Create a physics constraint on the selected bone (or the first bone when none is selected) through
+// CreatePhysicsConstraint on the live History (LAW 2). The button is disabled with no bones; this returns
+// defensively in that case. The id is minted here so redo reuses it, the name is uniquified against ALL
+// constraint names (the shared namespace, ADR-0014) so the command's duplicate guard never fires on the
+// default, and the new constraint is selected so the Inspector opens on it immediately.
+function createPhysicsConstraint(): void {
+  const doc = documentHost.current();
+  const first = doc.model.bones()[0];
+  if (first === undefined) return;
+  const selectedBone = useSelectionStore.getState().selectedBoneIds[0];
+  const bone = selectedBone ?? first.id;
+  const existingNames = [
+    ...doc.model.ikConstraints(),
+    ...doc.model.transformConstraints(),
+    ...doc.model.pathConstraints(),
+    ...doc.model.physicsConstraints(),
+  ].map((c) => c.name);
+  const id = doc.ids.mint('physicsConstraint');
+  doc.history.execute(
+    new CreatePhysicsConstraintCommand(
+      id,
+      uniquePhysicsName(existingNames),
+      bone,
+      [...DEFAULT_PHYSICS_CHANNELS],
+      DEFAULT_PHYSICS_PARAMS,
+    ),
+  );
+  useConstraintSelectionStore.getState().select({ kind: 'physics', id });
+}
+
+// Rename a physics constraint through RenamePhysicsConstraint (LAW 2). A blank or unchanged name is dropped
+// (no command). A duplicate name is rejected by the command with a typed ConstraintError; that is swallowed
+// at this UI edge (the field reverts on the panel re-render) rather than surfaced as an uncaught throw.
+function renamePhysicsConstraint(id: PhysicsConstraintId, name: string): void {
+  try {
+    documentHost.current().history.execute(new RenamePhysicsConstraintCommand(id, name));
+  } catch (error) {
+    if (!(error instanceof ConstraintError)) throw error;
+  }
+}
+
+// Delete a physics constraint through DeletePhysicsConstraint (LAW 2), cascading its timeline tracks and its
+// slot in the combined solve order in ONE undo step. The reconcile effect clears the now-dangling selection.
+function deletePhysicsConstraint(id: PhysicsConstraintId): void {
+  documentHost.current().history.execute(new DeletePhysicsConstraintCommand(id));
 }
 
 function IkConstraintDetail(props: { readonly constraint: IkConstraintEntity }): ReactElement {
@@ -561,6 +690,58 @@ function readRotateMode(value: string): PathConstraintEntity['rotateMode'] {
   return value === 'chain' || value === 'chainScale' ? value : 'tangent';
 }
 
+// The physics-constraint management block (PP-D12): rename and delete only. The parameter editing (target
+// bone, simulated channels, the model/force knobs, and the skeleton settings block) lives in the Inspector,
+// which the selection drives, so this block stays a compact list-management surface mirroring the create/
+// delete verbs the other three constraint kinds get from the viewport tools. The rename field remounts on
+// its committed value (a committed command, an undo/redo, or a rejected duplicate all re-sync it).
+function PhysicsConstraintManage(props: {
+  readonly constraint: PhysicsConstraintEntity;
+}): ReactElement {
+  const c = props.constraint;
+  return (
+    <div style={detailBodyStyle}>
+      <div style={subHeaderStyle}>{c.name}</div>
+
+      <label style={fieldRowStyle}>
+        <span style={labelStyle}>Name</span>
+        <input
+          type="text"
+          defaultValue={c.name}
+          key={`ph-name-${c.id}-${c.name}`}
+          spellCheck={false}
+          style={nameInputStyle}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') event.currentTarget.blur();
+            else if (event.key === 'Escape') {
+              event.currentTarget.value = c.name;
+              event.currentTarget.blur();
+            }
+          }}
+          onBlur={(event) => {
+            const next = event.currentTarget.value.trim();
+            if (next !== '' && next !== c.name) renamePhysicsConstraint(c.id, next);
+            else event.currentTarget.value = c.name;
+          }}
+        />
+        <button
+          type="button"
+          style={smallButtonStyle}
+          title="Delete this physics constraint (removes its timeline keys in one undo step)"
+          onClick={() => deletePhysicsConstraint(c.id)}
+        >
+          Delete
+        </button>
+      </label>
+
+      <div style={noteStyle}>
+        Physics parameters (target bone, simulated channels, model and force knobs, and the skeleton
+        physics settings) are edited in the Inspector.
+      </div>
+    </div>
+  );
+}
+
 const rootStyle: CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
@@ -658,6 +839,22 @@ const numberInputStyle: CSSProperties = {
   border: '1px solid #3a3a3a',
   borderRadius: 3,
   padding: '2px 6px',
+};
+
+const nameInputStyle: CSSProperties = {
+  flex: '1 1 auto',
+  minWidth: 0,
+  fontSize: 12,
+  color: '#eeeeee',
+  background: '#222222',
+  border: '1px solid #3a3a3a',
+  borderRadius: 3,
+  padding: '2px 6px',
+};
+
+const buttonDisabledStyle: CSSProperties = {
+  opacity: 0.45,
+  cursor: 'not-allowed',
 };
 
 const checkRowStyle: CSSProperties = {

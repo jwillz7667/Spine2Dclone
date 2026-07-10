@@ -123,5 +123,6 @@ export function spinAtlasPages(): AtlasImportPage[] {
     }
   }
   const image: DecodedImage = { width: size, height: size, rgba };
-  return [{ file: 'spin.png', data: encodePng(image) }];
+  // Copy into a fresh ArrayBuffer-backed view so the type matches AtlasImportPage.data exactly.
+  return [{ file: 'spin.png', data: new Uint8Array(encodePng(image)) }];
 }

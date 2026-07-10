@@ -18,12 +18,14 @@ import {
   hitTestHandle,
   keyToPixel,
   laneSegmentHandles,
+  panValueViewByPixels,
   pixelToHandlePoint,
   sampleLaneValueSpace,
   sampleSegmentValueSpace,
   valueSpaceToHandle,
   valueToY,
   yToValue,
+  zoomValueViewAround,
   type BezierCurve,
   type ValueSegment,
   type ValueView,
@@ -69,6 +71,26 @@ describe('value graph vertical transform', () => {
     for (const v of [-1, -0.3, 0, 0.42, 1]) {
       expect(yToValue(VALUE_VIEW, valueToY(VALUE_VIEW, v))).toBeCloseTo(v, 9);
     }
+  });
+});
+
+describe('value graph pan and zoom', () => {
+  it('keeps the value under the cursor fixed while zooming', () => {
+    const anchorY = 60;
+    const anchorValue = yToValue(VALUE_VIEW, anchorY);
+    const zoomed = zoomValueViewAround(VALUE_VIEW, anchorY, 2);
+    // The span halved (zoomed in 2x) and the anchor value still maps to the same y.
+    expect(zoomed.vMax - zoomed.vMin).toBeCloseTo((VALUE_VIEW.vMax - VALUE_VIEW.vMin) / 2, 9);
+    expect(valueToY(zoomed, anchorValue)).toBeCloseTo(anchorY, 9);
+  });
+
+  it('pans the value window by a pixel delta and is reversible', () => {
+    const panned = panValueViewByPixels(VALUE_VIEW, 20);
+    const back = panValueViewByPixels(panned, -20);
+    expect(back.vMin).toBeCloseTo(VALUE_VIEW.vMin, 9);
+    expect(back.vMax).toBeCloseTo(VALUE_VIEW.vMax, 9);
+    // A downward drag slides the window up in value (higher values appear).
+    expect(panned.vMin).toBeGreaterThan(VALUE_VIEW.vMin);
   });
 });
 

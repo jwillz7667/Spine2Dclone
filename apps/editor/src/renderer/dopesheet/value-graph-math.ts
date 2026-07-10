@@ -81,6 +81,28 @@ export function frameTimeView(
   return { scrollX, zoomX };
 }
 
+// Zoom the value axis around a fixed screen y (the cursor), keeping the value under it stationary. factor > 1
+// zooms in (a smaller value span, more detail); the value at anchorY maps back to anchorY afterwards.
+export function zoomValueViewAround(view: ValueView, anchorY: number, factor: number): ValueView {
+  const anchorValue = yToValue(view, anchorY);
+  const fracFromBottom = (anchorValue - view.vMin) / (view.vMax - view.vMin || 1);
+  const span = (view.vMax - view.vMin) / factor;
+  const vMin = anchorValue - fracFromBottom * span;
+  return { vMin, vMax: vMin + span, heightPx: view.heightPx, padPx: view.padPx };
+}
+
+// Pan the value axis by a pixel delta, shifting the visible value window so the content follows the drag. A
+// downward drag (dyPx > 0) reveals higher values at the top (the window slides up in value).
+export function panValueViewByPixels(view: ValueView, dyPx: number): ValueView {
+  const dValue = (dyPx / plotHeight(view)) * (view.vMax - view.vMin);
+  return {
+    vMin: view.vMin + dValue,
+    vMax: view.vMax + dValue,
+    heightPx: view.heightPx,
+    padPx: view.padPx,
+  };
+}
+
 // Map a lane key to a pixel point through the shared time transform and the value transform.
 export function keyToPixel(
   timeView: DopesheetView,

@@ -13,6 +13,7 @@ import {
   InspectorPanel,
   SkinsPanel,
   SlotPanel,
+  ValueGraphPanel,
   ViewportPanel,
 } from './panels';
 import { attachKeybindings } from './viewport/keybindings';
@@ -29,6 +30,7 @@ const components = {
   animations: AnimationPanel,
   dopesheet: DopesheetPanel,
   curveeditor: CurveEditorPanel,
+  valuegraph: ValueGraphPanel,
   events: EventsPanel,
   draworder: DrawOrderPanel,
   skins: SkinsPanel,
@@ -125,12 +127,21 @@ function onReady(event: DockviewReadyEvent): void {
     title: 'Dopesheet',
     position: { referencePanel: animations, direction: 'right' },
   });
-  event.api.addPanel({
+  const curveeditor = event.api.addPanel({
     id: 'curveeditor',
     component: 'curveeditor',
     title: 'Curve Editor',
     position: { referencePanel: dopesheet, direction: 'right' },
     initialWidth: 280,
+  });
+  // The Value Graph editor (PP-D3) tabs alongside the Curve Editor: both author keyframe interpolation, the
+  // curve editor as a normalized easing square and the graph as value-vs-time. It shares the dopesheet's time
+  // view and key selection, so switching tabs keeps the same frame and selection.
+  event.api.addPanel({
+    id: 'valuegraph',
+    component: 'valuegraph',
+    title: 'Value Graph',
+    position: { referencePanel: curveeditor, direction: 'within' },
   });
 }
 

@@ -1168,6 +1168,78 @@ async function buildConstraintRig(deps: ToolDeps): Promise<{
   };
 }
 
+describe('MCP path attachment tools (PP-D11)', () => {
+  it('creates, reads, edits, and reshapes a path attachment through the AI surface', async () => {
+    const deps = makeDeps();
+    const { documentId } = asRecord(await call(deps, 'document.new', { name: 'rig' }));
+    const { boneId } = asRecord(await call(deps, 'bone.create', { documentId, name: 'root' }));
+    const { slotId } = asRecord(await call(deps, 'slot.create', { documentId, boneId, name: 'rail' }));
+
+    const created = asRecord(await call(deps, 'attach.path.add', { documentId, slotId, name: 'spline' }));
+    expect(created['revision']).toBeTypeOf('number');
+
+    // path.get projects the promoted control points and the recomputed arc-length table.
+    const got = asRecord(await call(deps, 'path.get', { documentId, slotId, name: 'spline' }));
+    const path = asRecord(got['path']);
+    expect(path['closed']).toBe(false);
+    expect(path['constantSpeed']).toBe(true);
+    expect((path['vertices'] as number[]).length).toBe(14); // default two-curve open rail
+    expect((path['lengths'] as number[]).length).toBe(2);
+
+    await call(deps, 'path.moveControlPoint', {
+      documentId,
+      slotId,
+      name: 'spline',
+      pointIndex: 3,
+      x: 90,
+      y: 60,
+    });
+    await call(deps, 'path.addCurve', { documentId, slotId, name: 'spline' });
+    const grown = asRecord(
+      asRecord(await call(deps, 'path.get', { documentId, slotId, name: 'spline' }))['path'],
+    );
+    expect((grown['lengths'] as number[]).length).toBe(3);
+
+    await call(deps, 'path.removeCurve', { documentId, slotId, name: 'spline' });
+    await call(deps, 'path.setClosed', { documentId, slotId, name: 'spline', closed: true });
+    await call(deps, 'path.setConstantSpeed', {
+      documentId,
+      slotId,
+      name: 'spline',
+      constantSpeed: false,
+    });
+    const final = asRecord(
+      asRecord(await call(deps, 'path.get', { documentId, slotId, name: 'spline' }))['path'],
+    );
+    expect(final['closed']).toBe(true);
+    expect(final['constantSpeed']).toBe(false);
+  });
+
+  it('rejects an out-of-range point index (PATH) and a missing path (PATH_NOT_FOUND)', async () => {
+    const deps = makeDeps();
+    const { documentId } = asRecord(await call(deps, 'document.new', { name: 'rig' }));
+    const { boneId } = asRecord(await call(deps, 'bone.create', { documentId, name: 'root' }));
+    const { slotId } = asRecord(await call(deps, 'slot.create', { documentId, boneId, name: 'rail' }));
+    await call(deps, 'attach.path.add', { documentId, slotId, name: 'spline' });
+
+    await expectToolError(
+      call(deps, 'path.moveControlPoint', {
+        documentId,
+        slotId,
+        name: 'spline',
+        pointIndex: 99,
+        x: 0,
+        y: 0,
+      }),
+      'PATH',
+    );
+    await expectToolError(
+      call(deps, 'path.get', { documentId, slotId, name: 'absent' }),
+      'PATH_NOT_FOUND',
+    );
+  });
+});
+
 describe('MCP IK constraint tools (WP-2.6)', () => {
   it('creates, edits, keys, and deletes an IK constraint through the AI surface', async () => {
     const deps = makeDeps();
@@ -2381,6 +2453,22 @@ describe('MCP tool catalog', () => {
 
   it('exposes every Stage F1 event / draw-order / metadata tool with a unique name', () => {
     for (const name of PP_D9_EVENT_TOOLS) {
+      expect(byName.has(name), `missing tool ${name}`).toBe(true);
+    }
+  });
+
+  const PP_D11_PATH_TOOLS = [
+    'attach.path.add',
+    'path.moveControlPoint',
+    'path.addCurve',
+    'path.removeCurve',
+    'path.setClosed',
+    'path.setConstantSpeed',
+    'path.get',
+  ] as const;
+
+  it('exposes every Stage F3 path attachment tool with a unique name', () => {
+    for (const name of PP_D11_PATH_TOOLS) {
       expect(byName.has(name), `missing tool ${name}`).toBe(true);
     }
   });

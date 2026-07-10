@@ -45,7 +45,7 @@ casino-style games and can be ignored entirely otherwise.
 | [6. VFX and Particles](06-vfx-particles.md) | Effects, emitter layers, life curves, determinism and seeds, bundles, budgets |
 | [7. Slot Composition](07-slot-composition.md) | The math boundary, grids, symbols, win sequences, feature flows, tumbles, the presentation timeline |
 | [8. Playback and Export](08-playback-and-export.md) | The runtimes, rendering, saving and exporting, the binary format, conformance |
-| [9. Tool Reference](09-tool-reference.md) | The complete MCP tool reference (172 tools), which is also the editor's full capability map |
+| [9. Tool Reference](09-tool-reference.md) | The complete MCP tool reference (179 tools), which is also the editor's full capability map |
 | [10. Format Reference](10-format-reference.md) | Every document type, field by field, plus validation codes, versioning, and the MRNT binary container |
 
 ## A note on current status

@@ -1,7 +1,7 @@
 # @marionette/mcp-server
 
 The headless control surface: a Model Context Protocol (MCP) server exposing the complete authoring
-capability of Armature 2D as 172 tools over stdio. An AI agent (or any MCP client) can build,
+capability of Armature 2D as 179 tools over stdio. An AI agent (or any MCP client) can build,
 inspect, render, and save everything the GUI can, because every mutating tool drives the same
 `@marionette/document-core` commands through the same `History` (LAW 2, ADR-0001). The complete
 tool-by-tool reference is the user manual chapter `docs/manual/09-tool-reference.md`.
@@ -31,7 +31,7 @@ MCP host configuration:
 }
 ```
 
-## Tool catalog (172 tools)
+## Tool catalog (179 tools)
 
 Assembled in `src/tools.ts` (plus the spread-in effects and slot-composer tool sets); a catalog
 test asserts the names are unique and the count matches.

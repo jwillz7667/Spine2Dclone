@@ -1,6 +1,7 @@
 import {
   AddBoneToMeshBindingCommand,
   AddMeshVertexCommand,
+  AddPathCurveCommand,
   AddRegionAttachmentCommand,
   AnimationDurationError,
   AutoGridFillMeshCommand,
@@ -42,6 +43,12 @@ import {
   LinkedMeshError,
   SequenceError,
   CreateLinkedMeshCommand,
+  CreatePathAttachmentCommand,
+  MovePathControlPointCommand,
+  RemovePathCurveCommand,
+  SetPathClosedCommand,
+  SetPathConstantSpeedCommand,
+  PathError,
   UnlinkMeshCommand,
   SetAttachmentSequenceCommand,
   SetSequenceKeyframeCommand,
@@ -385,6 +392,22 @@ function executeConstraintEdit(session: Session, cmd: Command): number {
   } catch (error) {
     if (error instanceof ConstraintError) {
       throw new McpToolError('CONSTRAINT', error.message, { reason: error.reason });
+    }
+    throw error;
+  }
+  return session.document.model.revision;
+}
+
+// Execute a path attachment edit (PP-D11), converting the path guard into a typed PATH tool error carrying
+// the reason (the target is absent or not an editable path, a control-point index is out of range, or a
+// remove would leave no curve). The guard throws before any mutation, so a rejected edit changes nothing
+// and pushes no history entry.
+function executePathEdit(session: Session, cmd: Command): number {
+  try {
+    session.document.history.execute(cmd);
+  } catch (error) {
+    if (error instanceof PathError) {
+      throw new McpToolError('PATH', error.message, { reason: error.reason });
     }
     throw error;
   }
@@ -3749,6 +3772,190 @@ export const TOOLS: readonly ToolDefinition[] = [
         new RemoveAttachmentCommand(asSlotId(input.slotId), input.name),
       );
       return { revision: session.document.model.revision };
+    },
+  ),
+  // Stage F3 (ADR-0011) path attachment authoring (PP-D11). A path is an UNWEIGHTED piecewise cubic Bezier
+  // rail on a slot; the arc-length `lengths` table is recomputed by the command layer on every edit, never
+  // supplied by the caller. Control points are the flat [x0, y0, x1, y1, ...] stream (anchor, handle,
+  // handle, anchor, ...); `pointIndex` addresses a logical control point.
+  defineTool(
+    {
+      name: 'attach.path.add',
+      title: 'Add path attachment',
+      description:
+        'Add a path attachment (a cubic Bezier rail) to a slot. Omitting `vertices` lays down the ' +
+        'default two-curve open path. `vertices` is the flat [x0,y0,x1,y1,...] control-point stream; the ' +
+        'arc-length table is computed from it. A path renders no pixels (no atlas region).',
+      input: z
+        .object({
+          documentId,
+          slotId,
+          name: z.string().min(1),
+          closed: z.boolean().default(false),
+          constantSpeed: z.boolean().default(true),
+          vertices: z.array(z.number().finite()).optional(),
+        })
+        .strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireSlot(session, input.slotId);
+      const init =
+        input.vertices === undefined
+          ? { closed: input.closed, constantSpeed: input.constantSpeed }
+          : { closed: input.closed, constantSpeed: input.constantSpeed, vertices: input.vertices };
+      session.document.history.execute(
+        new CreatePathAttachmentCommand(asSlotId(input.slotId), input.name, init),
+      );
+      return { revision: session.document.model.revision };
+    },
+  ),
+  defineTool(
+    {
+      name: 'path.moveControlPoint',
+      title: 'Move path control point',
+      description:
+        'Move one path control point (anchor or handle). The arc-length table is recomputed. Rejected ' +
+        'as PATH (reason: notFound or pointRange).',
+      input: z
+        .object({
+          documentId,
+          slotId,
+          name: z.string().min(1),
+          pointIndex: z.number().int().nonnegative(),
+          x: z.number().finite(),
+          y: z.number().finite(),
+        })
+        .strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireSlot(session, input.slotId);
+      return {
+        revision: executePathEdit(
+          session,
+          new MovePathControlPointCommand(
+            asSlotId(input.slotId),
+            input.name,
+            input.pointIndex,
+            input.x,
+            input.y,
+          ),
+        ),
+      };
+    },
+  ),
+  defineTool(
+    {
+      name: 'path.addCurve',
+      title: 'Add path curve',
+      description:
+        'Append one cubic curve (three control points) to the end of a path spline; the arc-length ' +
+        'table is recomputed. Rejected as PATH (reason: notFound).',
+      input: z.object({ documentId, slotId, name: z.string().min(1) }).strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireSlot(session, input.slotId);
+      return {
+        revision: executePathEdit(
+          session,
+          new AddPathCurveCommand(asSlotId(input.slotId), input.name),
+        ),
+      };
+    },
+  ),
+  defineTool(
+    {
+      name: 'path.removeCurve',
+      title: 'Remove path curve',
+      description:
+        'Drop the last cubic curve from a path spline (a path keeps at least one curve). Rejected as ' +
+        'PATH (reason: notFound or minCurves).',
+      input: z.object({ documentId, slotId, name: z.string().min(1) }).strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireSlot(session, input.slotId);
+      return {
+        revision: executePathEdit(
+          session,
+          new RemovePathCurveCommand(asSlotId(input.slotId), input.name),
+        ),
+      };
+    },
+  ),
+  defineTool(
+    {
+      name: 'path.setClosed',
+      title: 'Set path closed',
+      description:
+        'Set a path spline open or closed. Closing drops the trailing anchor; opening appends one at the ' +
+        'first anchor, so the control-point count stays valid. Rejected as PATH (reason: notFound).',
+      input: z.object({ documentId, slotId, name: z.string().min(1), closed: z.boolean() }).strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireSlot(session, input.slotId);
+      return {
+        revision: executePathEdit(
+          session,
+          new SetPathClosedCommand(asSlotId(input.slotId), input.name, input.closed),
+        ),
+      };
+    },
+  ),
+  defineTool(
+    {
+      name: 'path.setConstantSpeed',
+      title: 'Set path constant speed',
+      description:
+        'Set a path spline arc-length (constant-speed) vs naive-t parametrization. A pure flag flip. ' +
+        'Rejected as PATH (reason: notFound).',
+      input: z
+        .object({ documentId, slotId, name: z.string().min(1), constantSpeed: z.boolean() })
+        .strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireSlot(session, input.slotId);
+      return {
+        revision: executePathEdit(
+          session,
+          new SetPathConstantSpeedCommand(asSlotId(input.slotId), input.name, input.constantSpeed),
+        ),
+      };
+    },
+  ),
+  defineTool(
+    {
+      name: 'path.get',
+      title: 'Get path attachment',
+      description:
+        'Read a path attachment: its openness, parametrization flag, flat control-point stream, and ' +
+        'cumulative arc-length table. Errors PATH_NOT_FOUND when the attachment is absent or not a path.',
+      input: z.object({ documentId, slotId, name: z.string().min(1) }).strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireSlot(session, input.slotId);
+      const att = session.document.model.getAttachment(asSlotId(input.slotId), input.name);
+      if (att === undefined || att.kind !== 'path') {
+        throw new McpToolError(
+          'PATH_NOT_FOUND',
+          `slot "${input.slotId}" has no path attachment "${input.name}"`,
+        );
+      }
+      return {
+        path: {
+          slotId: input.slotId,
+          name: att.name,
+          closed: att.closed,
+          constantSpeed: att.constantSpeed,
+          lengths: [...att.lengths],
+          vertices: [...att.vertices],
+        },
+      };
     },
   ),
   defineTool(

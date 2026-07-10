@@ -5,7 +5,7 @@ The GUI panels and the MCP tools drive the exact same command layer (`@marionett
 so everything in this reference is also a precise description of what the editor itself can do.
 Anything you can click, you can script; anything you can script, you can undo.
 
-This chapter is the complete reference: 172 tools across 23 namespaces. For a guided walkthrough
+This chapter is the complete reference: 179 tools across 24 namespaces. For a guided walkthrough
 that uses a small subset of these, read Chapter 1 (Getting Started) first.
 
 ## Conventions used by every tool
@@ -107,7 +107,25 @@ after `attach.region.add` or nothing renders.
 | `attach.linkedmesh.create` | Add a linked mesh reusing a parent mesh's geometry | `slotId`, `name`, `path`, `parent`, `skin?`, `timelines`, `width`, `height`, `color` |
 | `attach.linkedmesh.unlink` | Bake a linked mesh to a plain mesh | `slotId`, `name` |
 | `attach.sequence.set` | Set or clear a region/mesh frame-sequence | `slotId`, `name`, `sequence` (count/start/digits/setupIndex) or null |
+| `attach.path.add` | Add a path (cubic Bezier rail) attachment; omit `vertices` for the default two-curve open path | `slotId`, `name`, `closed`, `constantSpeed`, `vertices?` (flat [x0,y0,...] control points) |
 | `attach.remove` | Remove an attachment from a slot | `slotId`, `name` |
+
+## Paths (Bezier rails): `path.*`
+
+A path attachment is an unweighted piecewise cubic Bezier spline on a slot, used as a rail that a path
+constraint distributes bones along. The cumulative arc-length `lengths` table is recomputed by the tool on
+every control-point edit (authoring owns it, ADR-0011); callers never supply it. Control points are the flat
+`[x0, y0, x1, y1, ...]` stream laid out anchor, handle, handle, anchor; `pointIndex` addresses a logical
+control point. Edits are rejected as `PATH` with a `reason` (`notFound`, `pointRange`, `minCurves`).
+
+| Tool | Purpose | Key input |
+|---|---|---|
+| `path.get` | Read a path's openness, parametrization flag, control points, and arc-length table | `slotId`, `name` |
+| `path.moveControlPoint` | Move one control point (anchor or handle); recomputes lengths | `slotId`, `name`, `pointIndex`, `x`, `y` |
+| `path.addCurve` | Append one cubic curve (three control points) to the end | `slotId`, `name` |
+| `path.removeCurve` | Drop the last curve (a path keeps at least one) | `slotId`, `name` |
+| `path.setClosed` | Toggle openness; adjusts the control-point stream to stay valid | `slotId`, `name`, `closed` |
+| `path.setConstantSpeed` | Flip arc-length vs naive-`t` parametrization | `slotId`, `name`, `constantSpeed` |
 
 ## Meshes and weights: `mesh.*`
 

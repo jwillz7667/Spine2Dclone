@@ -5,7 +5,7 @@ The GUI panels and the MCP tools drive the exact same command layer (`@marionett
 so everything in this reference is also a precise description of what the editor itself can do.
 Anything you can click, you can script; anything you can script, you can undo.
 
-This chapter is the complete reference: 179 tools across 24 namespaces. For a guided walkthrough
+This chapter is the complete reference: 187 tools across 24 namespaces. For a guided walkthrough
 that uses a small subset of these, read Chapter 1 (Getting Started) first.
 
 ## Conventions used by every tool
@@ -192,11 +192,31 @@ and six offsets (`offsetRotation`, `offsetX`, `offsetY`, `offsetScaleX`, `offset
 | `transform.list` | List in solve order | |
 | `transform.get` | Get one constraint | `transformConstraintId` |
 
+## Path constraints and timelines: `path.*`
+
+A path constraint distributes and orients a list of bones along the path attachment carried by a target
+SLOT (Stage F3, ADR-0011). It shares the single combined solve-order namespace with IK and transform. The
+`position`/`spacing`/`offsetRotation` scalars are unbounded; the three mix channels are in `[0,1]`. Create and
+param edits are rejected as `CONSTRAINT` with a `reason` (`targetMissing`, `targetNotPath`, `boneMissing`,
+`chainArity`, `duplicateName`). The timeline tools mirror `ik.*`: each keyframe carries a partial set of the
+five channels (an omitted channel keeps its base value at solve time).
+
+| Tool | Purpose | Key input |
+|---|---|---|
+| `path.createConstraint` | Create a path constraint over a target slot and a bone list | `name`, `targetSlotId`, `boneIds`, `params` (modes + scalars + mix) |
+| `path.setParams` | Patch modes/scalars/mix (only the named fields) | `pathConstraintId`, any of the parameter fields |
+| `path.deleteConstraint` | Delete a constraint, cascading its path timelines | `pathConstraintId` |
+| `path.listConstraints` | List path constraints in solve order | `documentId` |
+| `path.getConstraint` | Get one path constraint by id | `pathConstraintId` |
+| `path.setKeyframe` | Insert or update a path keyframe | `animationId`, `pathConstraintId`, `time`, optional `position`/`spacing`/`mixRotate`/`mixX`/`mixY`, `curve?` |
+| `path.moveKeyframe` | Retime a keyframe (`KEYFRAME_COLLISION` if occupied) | `animationId`, `pathConstraintId`, `keyframeId`, `time` |
+| `path.deleteKeyframe` | Delete a keyframe by id | `animationId`, `pathConstraintId`, `keyframeId` |
+
 ## Constraint order: `constraints.*`
 
 | Tool | Purpose | Key input |
 |---|---|---|
-| `constraints.reorder` | Set the explicit cross-array solve order, or clear it | `order` (combined IK-then-transform ids), or `order: null` to restore the default |
+| `constraints.reorder` | Set the explicit cross-array solve order, or clear it | `order` (combined IK-then-transform-then-path ids), or `order: null` to restore the default |
 
 ## Skins: `skin.*`
 

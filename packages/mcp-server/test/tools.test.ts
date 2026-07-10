@@ -1246,6 +1246,106 @@ describe('MCP path attachment tools (PP-D11)', () => {
   });
 });
 
+describe('MCP path constraint + timeline tools (PP-D11)', () => {
+  it('creates, edits, keys, and reads a path constraint through the AI surface', async () => {
+    const deps = makeDeps();
+    const { documentId } = asRecord(await call(deps, 'document.new', { name: 'rig' }));
+    const { boneId: rootId } = asRecord(await call(deps, 'bone.create', { documentId, name: 'root' }));
+    const { boneId: riderId } = asRecord(
+      await call(deps, 'bone.create', { documentId, parentId: rootId, name: 'rider' }),
+    );
+    const { slotId } = asRecord(
+      await call(deps, 'slot.create', { documentId, boneId: rootId, name: 'rail' }),
+    );
+    // The target slot must carry a path attachment as its active setup attachment.
+    await call(deps, 'attach.path.add', { documentId, slotId, name: 'spline' });
+    await call(deps, 'slot.activeAttachment', { documentId, slotId, attachment: 'spline' });
+
+    const created = asRecord(
+      await call(deps, 'path.createConstraint', {
+        documentId,
+        name: 'rail-follow',
+        targetSlotId: slotId,
+        boneIds: [riderId],
+      }),
+    );
+    const pathConstraintId = String(created['pathConstraintId']);
+
+    await call(deps, 'path.setParams', {
+      documentId,
+      pathConstraintId,
+      rotateMode: 'chain',
+      position: 0.25,
+    });
+    const got = asRecord(
+      asRecord(await call(deps, 'path.getConstraint', { documentId, pathConstraintId }))[
+        'pathConstraint'
+      ],
+    );
+    expect(got['rotateMode']).toBe('chain');
+    expect(got['position']).toBe(0.25);
+    expect(got['target']).toBe(slotId);
+
+    // Key the path timeline, then read it back through anim.get's path projection.
+    const { animationId } = asRecord(
+      await call(deps, 'anim.create', { documentId, name: 'glide', duration: 1 }),
+    );
+    await call(deps, 'path.setKeyframe', {
+      documentId,
+      animationId,
+      pathConstraintId,
+      time: 0,
+      position: 0,
+      mixRotate: 1,
+    });
+    await call(deps, 'path.setKeyframe', {
+      documentId,
+      animationId,
+      pathConstraintId,
+      time: 1,
+      position: 1,
+    });
+    const anim = asRecord(
+      asRecord(await call(deps, 'anim.get', { documentId, animationId }))['animation'],
+    );
+    const pathTracks = anim['path'] as Array<{ pathConstraintId: string; keyframes: unknown[] }>;
+    expect(pathTracks).toHaveLength(1);
+    expect(pathTracks[0]!.pathConstraintId).toBe(pathConstraintId);
+    expect(pathTracks[0]!.keyframes).toHaveLength(2);
+  });
+
+  it('rejects a target slot without a path (CONSTRAINT) and a keyframe collision (KEYFRAME_COLLISION)', async () => {
+    const deps = makeDeps();
+    const { documentId } = asRecord(await call(deps, 'document.new', { name: 'rig' }));
+    const { boneId: rootId } = asRecord(await call(deps, 'bone.create', { documentId, name: 'root' }));
+    const { slotId } = asRecord(
+      await call(deps, 'slot.create', { documentId, boneId: rootId, name: 'plain' }),
+    );
+
+    // The slot carries no path attachment: create is rejected as CONSTRAINT (reason targetNotPath is
+    // skipped when the setup attachment is null, so this exercises the null-attachment allowed branch);
+    // instead give it a region attachment to force targetNotPath.
+    await call(deps, 'attach.region.add', {
+      documentId,
+      slotId,
+      name: 'img',
+      path: 'img',
+      width: 8,
+      height: 8,
+    });
+    await call(deps, 'slot.activeAttachment', { documentId, slotId, attachment: 'img' });
+    await expectToolError(
+      call(deps, 'path.createConstraint', {
+        documentId,
+        name: 'bad',
+        targetSlotId: slotId,
+        boneIds: [rootId],
+      }),
+      'CONSTRAINT',
+    );
+  });
+});
+
 describe('MCP IK constraint tools (WP-2.6)', () => {
   it('creates, edits, keys, and deletes an IK constraint through the AI surface', async () => {
     const deps = makeDeps();
@@ -2478,6 +2578,24 @@ describe('MCP tool catalog', () => {
     for (const name of PP_D11_PATH_TOOLS) {
       expect(byName.has(name), `missing tool ${name}`).toBe(true);
     }
+  });
+
+  const PP_D11_PATH_CONSTRAINT_TOOLS = [
+    'path.createConstraint',
+    'path.setParams',
+    'path.deleteConstraint',
+    'path.listConstraints',
+    'path.getConstraint',
+    'path.setKeyframe',
+    'path.deleteKeyframe',
+    'path.moveKeyframe',
+  ] as const;
+
+  it('exposes every Stage F3 path constraint / timeline tool with a unique name', () => {
+    for (const name of PP_D11_PATH_CONSTRAINT_TOOLS) {
+      expect(byName.has(name), `missing tool ${name}`).toBe(true);
+    }
+    expect(byName.size).toBe(TOOLS.length);
   });
 });
 

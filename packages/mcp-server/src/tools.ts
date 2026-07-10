@@ -48,6 +48,12 @@ import {
   RemovePathCurveCommand,
   SetPathClosedCommand,
   SetPathConstantSpeedCommand,
+  CreatePathConstraintCommand,
+  SetPathConstraintParamsCommand,
+  DeletePathConstraintCommand,
+  SetPathKeyframeCommand,
+  DeletePathKeyframeCommand,
+  MovePathKeyframeCommand,
   PathError,
   UnlinkMeshCommand,
   SetAttachmentSequenceCommand,
@@ -178,6 +184,11 @@ import {
   type KeyframeValue,
   type PaintMode,
   type PastedKeyframe,
+  type PathConstraintEntity,
+  type PathConstraintId,
+  type PathConstraintParams,
+  type PathConstraintParamPatch,
+  type PathKeyframeChannels,
   type SkinEntity,
   type SkinId,
   type SlotEntity,
@@ -536,6 +547,19 @@ function requireTransformConstraint(session: Session, id: string): TransformCons
   return constraint;
 }
 
+function asPathConstraintId(id: string): PathConstraintId {
+  return id as PathConstraintId;
+}
+
+// Require an existing path constraint by id (Stage F3, PP-D11), rejected as PATH_CONSTRAINT_NOT_FOUND.
+function requirePathConstraint(session: Session, id: string): PathConstraintEntity {
+  const constraint = session.document.model.getPathConstraint(asPathConstraintId(id));
+  if (constraint === undefined) {
+    throw new McpToolError('PATH_CONSTRAINT_NOT_FOUND', `no path constraint with id "${id}"`);
+  }
+  return constraint;
+}
+
 function asSkinId(id: string): SkinId {
   return id as SkinId;
 }
@@ -743,6 +767,28 @@ function transformConstraintView(c: TransformConstraintEntity): Record<string, u
   };
 }
 
+// Project a path constraint for `path.listConstraints` / `path.getConstraint` (Stage F3, PP-D11). `target`
+// is the SLOT id whose active attachment is the path; `bones` are the constrained bone ids. `order` is
+// emitted only when the constraint carries an explicit cross-array solve order.
+function pathConstraintView(c: PathConstraintEntity): Record<string, unknown> {
+  return {
+    id: c.id,
+    name: c.name,
+    target: c.target,
+    bones: [...c.bones],
+    positionMode: c.positionMode,
+    spacingMode: c.spacingMode,
+    rotateMode: c.rotateMode,
+    position: c.position,
+    spacing: c.spacing,
+    offsetRotation: c.offsetRotation,
+    mixRotate: c.mixRotate,
+    mixX: c.mixX,
+    mixY: c.mixY,
+    ...(c.order !== undefined ? { order: c.order } : {}),
+  };
+}
+
 // Project a named skin for `skin.list` / `skin.get`: its attachments as a flat list of (slotId, name, kind)
 // addresses (the geometry detail lives on the slot's default-skin attachment query, mirroring slot.get).
 function skinView(skin: SkinEntity): Record<string, unknown> {
@@ -852,6 +898,22 @@ function animationView(animation: AnimationEntity): Record<string, unknown> {
         mixScaleX: kf.mixScaleX,
         mixScaleY: kf.mixScaleY,
         mixShearY: kf.mixShearY,
+        curve: kf.curve,
+      })),
+    })),
+    // Stage F3 (ADR-0011 section 3, PP-D11) path-constraint timelines, keyed by path constraint id. Each
+    // keyframe carries its id so path.deleteKeyframe / path.moveKeyframe have a target to name; each channel
+    // is a value or null (an absent partial channel keeps its base value at solve time).
+    path: [...animation.path.entries()].map(([constraintIdKey, frames]) => ({
+      pathConstraintId: constraintIdKey,
+      keyframes: frames.map((kf) => ({
+        id: kf.id,
+        time: kf.time,
+        position: kf.position,
+        spacing: kf.spacing,
+        mixRotate: kf.mixRotate,
+        mixX: kf.mixX,
+        mixY: kf.mixY,
         curve: kf.curve,
       })),
     })),
@@ -983,7 +1045,31 @@ const curveSchema = z.union([z.literal('linear'), z.literal('stepped'), bezierCu
 // require* helpers, so a non-existent id is a typed *_NOT_FOUND rather than a silent no-op.
 const ikConstraintId = z.string().min(1);
 const transformConstraintId = z.string().min(1);
+const pathConstraintId = z.string().min(1);
 const skinId = z.string().min(1);
+
+// Path-constraint mode enums and channel schemas (Stage F3, ADR-0011 section 2). `position`/`spacing`/
+// `offsetRotation` are unbounded finite (wrap/clamp is solve behavior); the three mix channels are [0, 1].
+const pathPositionModeSchema = z.enum(['fixed', 'percent']);
+const pathSpacingModeSchema = z.enum(['length', 'fixed', 'percent', 'proportional']);
+const pathRotateModeSchema = z.enum(['tangent', 'chain', 'chainScale']);
+const pathMixSchema = z.number().finite().min(0).max(1);
+
+// The nine path-constraint parameters on create (three modes, three unbounded scalars, three [0, 1] mix
+// channels). The boundary validates ranges; the command stores them verbatim.
+const pathParamsSchema = z
+  .object({
+    positionMode: pathPositionModeSchema.default('percent'),
+    spacingMode: pathSpacingModeSchema.default('length'),
+    rotateMode: pathRotateModeSchema.default('tangent'),
+    position: z.number().finite().default(0),
+    spacing: z.number().finite().default(0),
+    offsetRotation: z.number().finite().default(0),
+    mixRotate: pathMixSchema.default(1),
+    mixX: pathMixSchema.default(1),
+    mixY: pathMixSchema.default(1),
+  })
+  .strict();
 
 // An IK constraint's mix blend and bend direction (WP-2.6). `mix` is the [0, 1] blend toward the solved
 // pose; `bendPositive` is the bend-direction flag (sampled stepped at solve time).
@@ -5029,10 +5115,10 @@ export const TOOLS: readonly ToolDefinition[] = [
       name: 'constraints.reorder',
       title: 'Reorder constraints',
       description:
-        'Set the explicit cross-array constraint solve order (ADR-0009): `order` is the combined IK-then-' +
-        'transform constraint ids in the desired solve order, a dense unique cover of the current set (a ' +
-        'wrong length, duplicate, or unknown id is CONSTRAINT with reason orderInvalid). Pass `order: null` ' +
-        'to CLEAR the explicit order and restore the default (all IK in array order, then all transform).',
+        'Set the explicit cross-array constraint solve order (ADR-0009/ADR-0011): `order` is the combined ' +
+        'IK-then-transform-then-path constraint ids in the desired solve order, a dense unique cover of the ' +
+        'current set (a wrong length, duplicate, or unknown id is CONSTRAINT with reason orderInvalid). Pass ' +
+        '`order: null` to CLEAR the explicit order and restore the default (all IK, then transform, then path).',
       input: z.object({ documentId, order: z.array(z.string().min(1)).nullable() }).strict(),
     },
     (deps, input) => {
@@ -5040,6 +5126,256 @@ export const TOOLS: readonly ToolDefinition[] = [
       return {
         revision: executeConstraintEdit(session, new ReorderConstraintsCommand(input.order)),
       };
+    },
+  ),
+
+  // ----- path constraints + timelines (Stage F3, PP-D11, same command + History as the GUI, LAW 2) -----
+  defineTool(
+    {
+      name: 'path.createConstraint',
+      title: 'Create path constraint',
+      description:
+        'Create a path constraint that distributes a set of bones along the path attachment carried by a ' +
+        'target SLOT, and return its id. Rejected as CONSTRAINT (reason: targetMissing, targetNotPath, ' +
+        'boneMissing, chainArity, or duplicateName).',
+      input: z
+        .object({
+          documentId,
+          name: z.string().min(1),
+          targetSlotId: slotId,
+          boneIds: z.array(boneId).min(1),
+          params: pathParamsSchema.default({}),
+        })
+        .strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      const target = requireSlot(session, input.targetSlotId).id;
+      const bones = input.boneIds.map((id) => requireBone(session, id).id);
+      const newId = session.document.ids.mint('pathConstraint');
+      const params: PathConstraintParams = input.params;
+      executeConstraintEdit(
+        session,
+        new CreatePathConstraintCommand(
+          asPathConstraintId(newId),
+          input.name,
+          target,
+          bones,
+          params,
+        ),
+      );
+      return { pathConstraintId: newId };
+    },
+  ),
+  defineTool(
+    {
+      name: 'path.setParams',
+      title: 'Set path constraint params',
+      description:
+        'Patch a path constraint parameter: the modes (positionMode/spacingMode/rotateMode), the scalars ' +
+        '(position/spacing/offsetRotation), or the mix channels (mixRotate/mixX/mixY in [0,1]). Only the ' +
+        'named fields change; at least one is required.',
+      input: z
+        .object({
+          documentId,
+          pathConstraintId,
+          positionMode: pathPositionModeSchema.optional(),
+          spacingMode: pathSpacingModeSchema.optional(),
+          rotateMode: pathRotateModeSchema.optional(),
+          position: z.number().finite().optional(),
+          spacing: z.number().finite().optional(),
+          offsetRotation: z.number().finite().optional(),
+          mixRotate: pathMixSchema.optional(),
+          mixX: pathMixSchema.optional(),
+          mixY: pathMixSchema.optional(),
+        })
+        .strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requirePathConstraint(session, input.pathConstraintId);
+      const patch: PathConstraintParamPatch = {
+        ...(input.positionMode !== undefined ? { positionMode: input.positionMode } : {}),
+        ...(input.spacingMode !== undefined ? { spacingMode: input.spacingMode } : {}),
+        ...(input.rotateMode !== undefined ? { rotateMode: input.rotateMode } : {}),
+        ...(input.position !== undefined ? { position: input.position } : {}),
+        ...(input.spacing !== undefined ? { spacing: input.spacing } : {}),
+        ...(input.offsetRotation !== undefined ? { offsetRotation: input.offsetRotation } : {}),
+        ...(input.mixRotate !== undefined ? { mixRotate: input.mixRotate } : {}),
+        ...(input.mixX !== undefined ? { mixX: input.mixX } : {}),
+        ...(input.mixY !== undefined ? { mixY: input.mixY } : {}),
+      };
+      if (Object.keys(patch).length === 0) {
+        throw new McpToolError('INVALID_INPUT', 'patch must name at least one path parameter');
+      }
+      session.document.history.execute(
+        new SetPathConstraintParamsCommand(asPathConstraintId(input.pathConstraintId), patch),
+      );
+      return { revision: session.document.model.revision };
+    },
+  ),
+  defineTool(
+    {
+      name: 'path.deleteConstraint',
+      title: 'Delete path constraint',
+      description:
+        'Delete a path constraint, cascading every animation path timeline keyed to it (one undo step).',
+      input: z.object({ documentId, pathConstraintId }).strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requirePathConstraint(session, input.pathConstraintId);
+      session.document.history.execute(
+        new DeletePathConstraintCommand(asPathConstraintId(input.pathConstraintId)),
+      );
+      return { revision: session.document.model.revision };
+    },
+  ),
+  defineTool(
+    {
+      name: 'path.listConstraints',
+      title: 'List path constraints',
+      description: 'List the path constraints in solve order.',
+      input: z.object({ documentId }).strict(),
+    },
+    (deps, input) => ({
+      pathConstraints: deps.sessions
+        .get(input.documentId)
+        .document.model.pathConstraints()
+        .map(pathConstraintView),
+    }),
+  ),
+  defineTool(
+    {
+      name: 'path.getConstraint',
+      title: 'Get path constraint',
+      description: 'Get one path constraint by id.',
+      input: z.object({ documentId, pathConstraintId }).strict(),
+    },
+    (deps, input) => ({
+      pathConstraint: pathConstraintView(
+        requirePathConstraint(deps.sessions.get(input.documentId), input.pathConstraintId),
+      ),
+    }),
+  ),
+  defineTool(
+    {
+      name: 'path.setKeyframe',
+      title: 'Set path keyframe',
+      description:
+        'Insert or update a path-constraint keyframe at a time. Each channel (position/spacing/mixRotate/' +
+        'mixX/mixY) is optional; an omitted channel keeps its base value at solve time. Updating an existing ' +
+        'time keeps its curve; a new keyframe takes the optional insert `curve` (default linear).',
+      input: z
+        .object({
+          documentId,
+          animationId,
+          pathConstraintId,
+          time: z.number().finite().nonnegative(),
+          position: z.number().finite().optional(),
+          spacing: z.number().finite().optional(),
+          mixRotate: pathMixSchema.optional(),
+          mixX: pathMixSchema.optional(),
+          mixY: pathMixSchema.optional(),
+          curve: curveSchema.optional(),
+        })
+        .strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireAnimation(session, input.animationId);
+      requirePathConstraint(session, input.pathConstraintId);
+      const channels: PathKeyframeChannels = {
+        position: input.position,
+        spacing: input.spacing,
+        mixRotate: input.mixRotate,
+        mixX: input.mixX,
+        mixY: input.mixY,
+      };
+      session.document.history.execute(
+        input.curve === undefined
+          ? new SetPathKeyframeCommand(
+              asAnimationId(input.animationId),
+              asPathConstraintId(input.pathConstraintId),
+              input.time,
+              channels,
+            )
+          : new SetPathKeyframeCommand(
+              asAnimationId(input.animationId),
+              asPathConstraintId(input.pathConstraintId),
+              input.time,
+              channels,
+              input.curve,
+            ),
+      );
+      return { revision: session.document.model.revision };
+    },
+  ),
+  defineTool(
+    {
+      name: 'path.deleteKeyframe',
+      title: 'Delete path keyframe',
+      description: 'Delete a path keyframe (by id) from a constraint path channel.',
+      input: z.object({ documentId, animationId, pathConstraintId, keyframeId }).strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireAnimation(session, input.animationId);
+      requirePathConstraint(session, input.pathConstraintId);
+      session.document.history.execute(
+        new DeletePathKeyframeCommand(
+          asAnimationId(input.animationId),
+          asPathConstraintId(input.pathConstraintId),
+          asKeyframeId(input.keyframeId),
+        ),
+      );
+      return { revision: session.document.model.revision };
+    },
+  ),
+  defineTool(
+    {
+      name: 'path.moveKeyframe',
+      title: 'Move path keyframe',
+      description:
+        'Move a path keyframe (by id) to a new time (path times are strictly ascending). Landing on an ' +
+        'occupied time is a typed KEYFRAME_COLLISION; a missing key is a typed KEYFRAME_NOT_FOUND. The moved ' +
+        'keyframe keeps its channels/curve.',
+      input: z
+        .object({
+          documentId,
+          animationId,
+          pathConstraintId,
+          keyframeId,
+          time: z.number().finite().nonnegative(),
+        })
+        .strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireAnimation(session, input.animationId);
+      requirePathConstraint(session, input.pathConstraintId);
+      try {
+        session.document.history.execute(
+          new MovePathKeyframeCommand(
+            asAnimationId(input.animationId),
+            asPathConstraintId(input.pathConstraintId),
+            asKeyframeId(input.keyframeId),
+            input.time,
+          ),
+        );
+      } catch (error) {
+        if (error instanceof KeyframeCollisionError) {
+          throw new McpToolError('KEYFRAME_COLLISION', error.message);
+        }
+        if (error instanceof CommandTargetMissingError) {
+          throw new McpToolError(
+            'KEYFRAME_NOT_FOUND',
+            `no path keyframe "${input.keyframeId}" on constraint "${input.pathConstraintId}"`,
+          );
+        }
+        throw error;
+      }
+      return { revision: session.document.model.revision };
     },
   ),
 

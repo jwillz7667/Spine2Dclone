@@ -23,6 +23,7 @@
     "@marionette/atlas-pack": "workspace:*",
     "@marionette/document-core": "workspace:*",
     "@marionette/format": "workspace:*",
+    "@marionette/import-spine": "workspace:*",
     "@marionette/render-preview": "workspace:*",
     "@marionette/runtime-core": "workspace:*",
     "@modelcontextprotocol/sdk": "1.29.0",

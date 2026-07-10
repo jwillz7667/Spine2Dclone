@@ -2781,6 +2781,11 @@ describe('MCP tool catalog', () => {
     }
     expect(byName.size).toBe(TOOLS.length);
   });
+
+  it('exposes the PP-A5 Spine import tool with a unique name', () => {
+    expect(byName.has('import.spineProject'), 'missing tool import.spineProject').toBe(true);
+    expect(byName.size).toBe(TOOLS.length);
+  });
 });
 
 // A one-page atlas ref with a single named region that fills the page, the shape the editor atlas-pack

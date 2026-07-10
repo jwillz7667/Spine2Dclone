@@ -645,6 +645,9 @@ export default tseslint.config(
                 // headlessly through a FileStore-backed AtlasFileStore adapter. The pipeline is
                 // renderer-free (no PixiJS), so it does not breach the no-renderer boundary.
                 'atlas-pack',
+                // import-spine (PP-A5): the import.spineProject tool converts a user-owned Spine export
+                // into a validated format document. The importer is a leaf over format (import only).
+                'import-spine',
               ],
             },
             // conformance is the cross-runtime behavioral-truth suite (conformance-and-ci.md A.1). It
@@ -674,6 +677,9 @@ export default tseslint.config(
                 // atlas-pack (ADR-0007): the main-process atlas import handler runs the shared pipeline;
                 // rembg (editor-only) stays in editor-main and reuses the package's AtlasError.
                 'atlas-pack',
+                // import-spine (PP-A5): the main-process Import Spine Project handler converts a
+                // user-owned Spine export to a validated format document off the renderer document path.
+                'import-spine',
               ],
             },
             { from: ['editor-preload'], allow: ['editor-preload', 'editor-shared'] },

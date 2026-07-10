@@ -238,6 +238,7 @@ import {
   type DrawOrderOffsetEntity,
 } from '@marionette/document-core';
 import { FormatValidationError } from '@marionette/format';
+import { importSpineJson, importSpineSkel, type SpineImportResult } from '@marionette/import-spine';
 import type {
   AtlasRef,
   PhysicsSettings,
@@ -3388,6 +3389,87 @@ export const TOOLS: readonly ToolDefinition[] = [
     (deps, input) => {
       deps.sessions.close(input.documentId);
       return { closed: true };
+    },
+  ),
+  defineTool(
+    {
+      name: 'import.spineProject',
+      title: 'Import Spine project',
+      description:
+        'Import a user-owned exported Spine project (a .json or a .skel binary) through the clean-room ' +
+        'importer, open it as a new editable document, and return a summary plus any lossy-conversion ' +
+        'warnings. Import only: this never writes or exports any Spine format (LAW 4 / PP-A5).',
+      input: z.object({ path: z.string().min(1), name: z.string().min(1).optional() }).strict(),
+    },
+    async (deps, input) => {
+      const isBinary = input.path.toLowerCase().endsWith('.skel');
+      const options = input.name === undefined ? undefined : { name: input.name };
+      let result: SpineImportResult;
+      if (isBinary) {
+        let bytes: Uint8Array;
+        try {
+          bytes = await deps.files.readBinary(input.path);
+        } catch {
+          throw new McpToolError('FILE_READ_ERROR', `could not read file "${input.path}"`);
+        }
+        result = importSpineSkel(bytes, options);
+      } else {
+        let raw: string;
+        try {
+          raw = await deps.files.read(input.path);
+        } catch {
+          throw new McpToolError('FILE_READ_ERROR', `could not read file "${input.path}"`);
+        }
+        let parsed: unknown;
+        try {
+          parsed = JSON.parse(raw);
+        } catch {
+          throw new McpToolError('INVALID_JSON', `file "${input.path}" is not valid JSON`);
+        }
+        result = importSpineJson(parsed, options);
+      }
+
+      if (!result.ok) {
+        throw new McpToolError(
+          'SPINE_IMPORT_FAILED',
+          `could not import Spine project "${input.path}"`,
+          { errors: result.errors, warnings: result.warnings },
+        );
+      }
+
+      // The importer already produced a validated document; open re-validates it (LAW 3) and yields an
+      // editable session driven by the same commands as any other document (dual user + AI control).
+      let session;
+      try {
+        session = deps.sessions.open(result.document);
+      } catch (error) {
+        if (error instanceof FormatValidationError) {
+          throw new McpToolError(
+            'INVALID_DOCUMENT',
+            'imported document failed validation',
+            error.report.errors,
+          );
+        }
+        throw error;
+      }
+
+      const doc = result.document;
+      return {
+        documentId: session.id,
+        name: doc.name,
+        format: isBinary ? 'skel' : 'json',
+        summary: {
+          bones: doc.bones.length,
+          slots: doc.slots.length,
+          skins: doc.skins.length,
+          animations: Object.keys(doc.animations).length,
+          ikConstraints: doc.ikConstraints.length,
+          transformConstraints: doc.transformConstraints.length,
+          pathConstraints: doc.pathConstraints.length,
+          events: doc.events.length,
+        },
+        warnings: result.warnings,
+      };
     },
   ),
   defineTool(

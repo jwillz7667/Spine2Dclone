@@ -222,6 +222,9 @@ importers:
       '@marionette/format':
         specifier: workspace:*
         version: link:../format
+      '@marionette/import-spine':
+        specifier: workspace:*
+        version: link:../import-spine
       '@marionette/render-preview':
         specifier: workspace:*
         version: link:../render-preview

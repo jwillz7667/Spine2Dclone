@@ -4,8 +4,9 @@
 // format-contract section 10.3). WP-0.8 (save/load) reads these exact identifiers. Stage F1
 // (ADR-0008) moved it 0.2.0 -> 0.3.0 (events, draw-order timelines, metadata); stage F2 (ADR-0009)
 // moved it 0.3.0 -> 0.4.0 (constraint depth, linked meshes, sequences, split timelines, skin scoping);
-// stage F3 (ADR-0011) moves it 0.4.0 -> 0.5.0 (path attachments and path constraints + timelines).
-export const CURRENT_FORMAT_VERSION = '0.5.0';
+// stage F3 (ADR-0011) moved it 0.4.0 -> 0.5.0 (path attachments and path constraints + timelines);
+// stage F4 (ADR-0014) moves it 0.5.0 -> 0.6.0 (physics constraints + settings + timelines).
+export const CURRENT_FORMAT_VERSION = '0.6.0';
 
 // The MAJOR component of CURRENT_FORMAT_VERSION. Exported for tooling that wants the accepted
 // MAJOR; the gate itself keys on the MIGRATION KEY (MINOR while MAJOR is 0), not on MAJOR alone.

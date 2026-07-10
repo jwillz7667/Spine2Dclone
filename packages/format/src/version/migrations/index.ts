@@ -235,10 +235,55 @@ function migrate04xTo05(input: unknown): unknown {
   return next;
 }
 
+// Inject the stage F4 (ADR-0014) `physics` timeline into each animation, preserving any existing content. A
+// 0.5.x animation has { duration, bones, slots, ik, transform, path, deform, drawOrder, events }; the empty
+// record makes it a valid 0.6.0 animation. Pure: returns a new record, never mutates the input.
+function migrate05xAnimations(animations: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [name, anim] of Object.entries(animations)) {
+    if (isRecord(anim)) {
+      out[name] = {
+        ...anim,
+        physics: isRecord(anim['physics']) ? anim['physics'] : {},
+      };
+    } else {
+      out[name] = anim;
+    }
+  }
+  return out;
+}
+
+// 0.5.x -> 0.6.0 (ADR-0014): add the root `physicsConstraints` array and the per-animation `physics` timeline,
+// stamp formatVersion 0.6.0, and recompute the content hash when the source carried one (a draft with an empty
+// hash stays a draft). The injected content changes the canonical bytes, so a non-empty hash MUST be recomputed
+// or the load path's hash layer would reject the migrated document. The physics CONSTRAINT fields, the OPTIONAL
+// physics settings block, and the `order` addition are new-and-unreferenced by a 0.5.0 document, so nothing
+// else is injected (the settings block stays absent, which is its valid default).
+function migrate05xTo06(input: unknown): unknown {
+  if (!isRecord(input)) return input;
+  const animations = isRecord(input['animations'])
+    ? migrate05xAnimations(input['animations'])
+    : input['animations'];
+  const next: Record<string, unknown> = {
+    ...input,
+    physicsConstraints: Array.isArray(input['physicsConstraints'])
+      ? input['physicsConstraints']
+      : [],
+    animations,
+    formatVersion: '0.6.0',
+  };
+  const sourceHash = input['hash'];
+  if (typeof sourceHash === 'string' && sourceHash !== '') {
+    next['hash'] = canonicalContentHash(next);
+  }
+  return next;
+}
+
 // Production registry. Contiguous by construction: each step's toKey is the next step's fromKey.
 export const MIGRATIONS: readonly MigrationStep[] = [
   { fromKey: 1, toKey: 2, targetVersion: '0.2.0', migrate: migrate01xTo02 },
   { fromKey: 2, toKey: 3, targetVersion: '0.3.0', migrate: migrate02xTo03 },
   { fromKey: 3, toKey: 4, targetVersion: '0.4.0', migrate: migrate03xTo04 },
   { fromKey: 4, toKey: 5, targetVersion: '0.5.0', migrate: migrate04xTo05 },
+  { fromKey: 5, toKey: 6, targetVersion: '0.6.0', migrate: migrate05xTo06 },
 ];

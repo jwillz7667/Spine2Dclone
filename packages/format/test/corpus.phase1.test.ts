@@ -120,9 +120,9 @@ describe('Phase 1 positive completeness fixture (WP-1.11 TASK-1.11.3)', () => {
     if (idle === undefined) throw new Error('fixture invariant: idle animation');
 
     // Phase 2 (ADR-0004) added the ik/transform/deform timelines, stage F1 (ADR-0008) added the
-    // drawOrder/events timelines, and stage F3 (ADR-0011) added the path timeline as REQUIRED
-    // collections; the Phase-1 completeness fixture carries them empty, so the strict Animation shape is
-    // now nine keys.
+    // drawOrder/events timelines, stage F3 (ADR-0011) added the path timeline, and stage F4 (ADR-0014)
+    // added the physics timeline as REQUIRED collections; the Phase-1 completeness fixture carries them
+    // empty, so the strict Animation shape is now ten keys.
     expect(Object.keys(idle).sort()).toEqual([
       'bones',
       'deform',
@@ -131,6 +131,7 @@ describe('Phase 1 positive completeness fixture (WP-1.11 TASK-1.11.3)', () => {
       'events',
       'ik',
       'path',
+      'physics',
       'slots',
       'transform',
     ]);
@@ -222,14 +223,24 @@ describe('Phase 1 contract guardrails (WP-1.11)', () => {
     'PATH_BONE_MISSING',
     'PATH_MIX_RANGE',
     'ANIM_PATH_UNKNOWN',
+    'PHYSICS_STEP_RANGE',
+    'PHYSICS_INERTIA_RANGE',
+    'PHYSICS_STRENGTH_RANGE',
+    'PHYSICS_DAMPING_RANGE',
+    'PHYSICS_MASS_RANGE',
+    'PHYSICS_MIX_RANGE',
+    'PHYSICS_CHANNELS_EMPTY',
+    'PHYSICS_CHANNEL_DUPLICATE',
+    'PHYSICS_BONE_MISSING',
+    'ANIM_PHYSICS_UNKNOWN',
   ];
 
   it('adds no new FormatErrorCode members and reorders none (union frozen)', () => {
     expect([...FORMAT_ERROR_CODES]).toEqual([...COMMITTED_FORMAT_ERROR_CODES]);
   });
 
-  it('tracks the format version at 0.5.0 / major 0 after the stage F3 additive bump (ADR-0011)', () => {
-    expect(CURRENT_FORMAT_VERSION).toBe('0.5.0');
+  it('tracks the format version at 0.6.0 / major 0 after the stage F4 additive bump (ADR-0014)', () => {
+    expect(CURRENT_FORMAT_VERSION).toBe('0.6.0');
     expect(SUPPORTED_FORMAT_MAJOR).toBe(0);
   });
 

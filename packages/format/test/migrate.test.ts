@@ -6,11 +6,11 @@ import { migrateToCurrent, runMigrations } from '../src/version/migrate';
 import type { MigrationStep } from '../src/version/migrations';
 import { cloneMinimal } from './helpers';
 
-// WP-2.2 / ADR-0004, stage F1 / ADR-0008, stage F2 / ADR-0009, and stage F3 / ADR-0011 (format-contract
-// section 10.4, 10.5): the migration framework and the 0.1.x -> 0.2.0 -> 0.3.0 -> 0.4.0 -> 0.5.0 chain. A
-// pre-current document is forward-migrated on import (empties injected, constraints reshaped, version
-// stamped, hash recomputed) so every committed older document still loads (backward compatibility). A
-// 0.1.0 document walks every step to reach 0.5.0.
+// WP-2.2 / ADR-0004, stage F1 / ADR-0008, stage F2 / ADR-0009, stage F3 / ADR-0011, and stage F4 / ADR-0014
+// (format-contract section 10.4, 10.5): the migration framework and the
+// 0.1.x -> 0.2.0 -> 0.3.0 -> 0.4.0 -> 0.5.0 -> 0.6.0 chain. A pre-current document is forward-migrated on
+// import (empties injected, constraints reshaped, version stamped, hash recomputed) so every committed older
+// document still loads (backward compatibility). A 0.1.0 document walks every step to reach 0.6.0.
 
 // A Phase-1 (0.1.0) document: no ikConstraints/transformConstraints, an animation without the
 // ik/transform/deform timelines. Returned as a plain object (it does NOT satisfy the current schema).
@@ -56,13 +56,13 @@ function oldMinimal(hash: string): Record<string, unknown> {
   return base;
 }
 
-describe('0.1.x -> 0.5.0 migration chain (ADR-0004, ADR-0008, ADR-0009, ADR-0011)', () => {
-  it('injects every added collection through the chain and stamps 0.5.0', () => {
+describe('0.1.x -> 0.6.0 migration chain (ADR-0004, ADR-0008, ADR-0009, ADR-0011, ADR-0014)', () => {
+  it('injects every added collection through the chain and stamps 0.6.0', () => {
     const result = migrateToCurrent(oldMinimal(''));
     expect(result.kind).toBe('migrated');
     if (result.kind !== 'migrated') return;
     const doc = result.doc as SkeletonDocument;
-    expect(doc.formatVersion).toBe('0.5.0');
+    expect(doc.formatVersion).toBe('0.6.0');
     // Phase 2 (0.2.0) additions.
     expect(doc.ikConstraints).toEqual([]);
     expect(doc.transformConstraints).toEqual([]);
@@ -76,6 +76,9 @@ describe('0.1.x -> 0.5.0 migration chain (ADR-0004, ADR-0008, ADR-0009, ADR-0011
     // Stage F3 (0.5.0) additions.
     expect(doc.pathConstraints).toEqual([]);
     expect(doc.animations['idle']?.path).toEqual({});
+    // Stage F4 (0.6.0) additions.
+    expect(doc.physicsConstraints).toEqual([]);
+    expect(doc.animations['idle']?.physics).toEqual({});
     // The pre-existing bone timeline survives unchanged.
     expect(doc.animations['idle']?.bones['root']?.rotate?.length).toBe(2);
   });
@@ -105,13 +108,14 @@ describe('0.1.x -> 0.5.0 migration chain (ADR-0004, ADR-0008, ADR-0009, ADR-0011
   it('validateDocument forward-migrates a 0.1.0 document end to end', () => {
     const report = validateDocument(oldMinimal(''));
     expect(report.ok).toBe(true);
-    expect(report.document?.formatVersion).toBe('0.5.0');
+    expect(report.document?.formatVersion).toBe('0.6.0');
     expect(report.document?.ikConstraints).toEqual([]);
     expect(report.document?.events).toEqual([]);
     expect(report.document?.pathConstraints).toEqual([]);
+    expect(report.document?.physicsConstraints).toEqual([]);
   });
 
-  it('migrateToCurrent on a current 0.5.0 document is unchanged', () => {
+  it('migrateToCurrent on a current 0.6.0 document is unchanged', () => {
     const result = migrateToCurrent(cloneMinimal());
     expect(result.kind).toBe('unchanged');
   });
@@ -154,10 +158,10 @@ describe('0.1.x -> 0.5.0 migration chain (ADR-0004, ADR-0008, ADR-0009, ADR-0011
     expect(validateDocument(doc).ok).toBe(true);
   });
 
-  it('injects the path constraints array and per-animation path timeline (0.4.x -> 0.5.0, ADR-0011)', () => {
-    // A fully-shaped 0.4.0 document has no pathConstraints and no per-animation path record; the step
-    // injects both empties, preserving every other collection, and stamps 0.5.0. cloneMinimal() is a
-    // current (0.5.0) document, so strip the new fields and relabel it 0.4.0 to model a genuine 0.4.0 doc.
+  it('injects the path constraints array and per-animation path timeline (0.4.x -> 0.5.0 step, ADR-0011)', () => {
+    // A fully-shaped 0.4.0 document has no pathConstraints and no per-animation path record; the 0.4->0.5
+    // step injects both empties, preserving every other collection. migrateToCurrent then runs the chain on
+    // to 0.6.0. cloneMinimal() is a current (0.6.0) document, so strip the path fields and relabel it 0.4.0.
     const current = cloneMinimal() as unknown as Record<string, unknown>;
     const animations = current['animations'] as Record<string, Record<string, unknown>>;
     for (const anim of Object.values(animations)) delete anim['path'];
@@ -172,9 +176,37 @@ describe('0.1.x -> 0.5.0 migration chain (ADR-0004, ADR-0008, ADR-0009, ADR-0011
     expect(result.kind).toBe('migrated');
     if (result.kind !== 'migrated') return;
     const doc = result.doc as SkeletonDocument;
-    expect(doc.formatVersion).toBe('0.5.0');
+    expect(doc.formatVersion).toBe('0.6.0');
     expect(doc.pathConstraints).toEqual([]);
     expect(doc.animations['idle']?.path).toEqual({});
+    // The pre-existing bone timeline survives unchanged.
+    expect(doc.animations['idle']?.bones['root']?.rotate?.length).toBe(2);
+    expect(validateDocument(doc).ok).toBe(true);
+  });
+
+  it('injects the physics constraints array and per-animation physics timeline (0.5.x -> 0.6.0, ADR-0014)', () => {
+    // A fully-shaped 0.5.0 document has no physicsConstraints and no per-animation physics record; the step
+    // injects both empties, preserving every other collection, and stamps 0.6.0. cloneMinimal() is a current
+    // (0.6.0) document, so strip the new fields and relabel it 0.5.0 to model a genuine 0.5.0 doc.
+    const current = cloneMinimal() as unknown as Record<string, unknown>;
+    const animations = current['animations'] as Record<string, Record<string, unknown>>;
+    for (const anim of Object.values(animations)) delete anim['physics'];
+    const source = {
+      ...current,
+      formatVersion: '0.5.0',
+      hash: '',
+    };
+    delete (source as Record<string, unknown>)['physicsConstraints'];
+
+    const result = migrateToCurrent(source);
+    expect(result.kind).toBe('migrated');
+    if (result.kind !== 'migrated') return;
+    const doc = result.doc as SkeletonDocument;
+    expect(doc.formatVersion).toBe('0.6.0');
+    expect(doc.physicsConstraints).toEqual([]);
+    expect(doc.animations['idle']?.physics).toEqual({});
+    // The optional physics settings block is NOT injected (absent is valid).
+    expect(doc.physics).toBeUndefined();
     // The pre-existing bone timeline survives unchanged.
     expect(doc.animations['idle']?.bones['root']?.rotate?.length).toBe(2);
     expect(validateDocument(doc).ok).toBe(true);

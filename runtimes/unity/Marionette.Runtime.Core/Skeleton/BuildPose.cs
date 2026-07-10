@@ -105,6 +105,20 @@ namespace Marionette.Runtime.Core.Skeleton
                     ScopeFor(scopeByConstraint, constraint.Name)));
             }
 
+            // Physics constraints (ADR-0014, PP-B7): resolve the bound bone to its index, translate the channel
+            // set to codes, and pre-allocate the per-channel simulation state. A pre-0.6.0 draft may lack the
+            // array (tolerated as empty, the same lenience as the IK/transform/path arrays). Mirrors buildPose's
+            // physicsConstraints build in build-pose.ts.
+            var physicsConstraints = new List<ResolvedPhysicsConstraint>();
+            foreach (PhysicsConstraint constraint in document.PhysicsConstraints)
+            {
+                physicsConstraints.Add(
+                    ResolvePhysics(constraint, indexByName, ScopeFor(scopeByConstraint, constraint.Name)));
+            }
+
+            // The skeleton-level physics settings (ADR-0014 section 5), or the identity defaults when absent.
+            PhysicsSettings physicsSettings = document.Physics ?? new PhysicsSettings(0, 0, 1);
+
             var pose = new Pose(
                 boneCount,
                 boneNames,
@@ -112,7 +126,9 @@ namespace Marionette.Runtime.Core.Skeleton
                 slotNames,
                 ikConstraints,
                 transformConstraints,
-                pathConstraints);
+                pathConstraints,
+                physicsConstraints,
+                physicsSettings);
 
             for (int i = 0; i < boneCount; i += 1)
             {
@@ -326,6 +342,75 @@ namespace Marionette.Runtime.Core.Skeleton
                 constraint.MixX,
                 constraint.MixY,
                 path,
+                constraint.Order,
+                scopeSkins);
+        }
+
+        // Translate a physics channel to its integer code (PhysicsConstraintSolve). The five channels are the
+        // bone's local pose properties the constraint simulates (ADR-0014 section 1). Mirrors physicsChannelCode
+        // in build-pose.ts.
+        private static int PhysicsChannelCode(PhysicsChannel channel)
+        {
+            switch (channel)
+            {
+                case PhysicsChannel.X:
+                    return PhysicsConstraintSolve.PhysicsChannelX;
+                case PhysicsChannel.Y:
+                    return PhysicsConstraintSolve.PhysicsChannelY;
+                case PhysicsChannel.Rotation:
+                    return PhysicsConstraintSolve.PhysicsChannelRotation;
+                case PhysicsChannel.ScaleX:
+                    return PhysicsConstraintSolve.PhysicsChannelScaleX;
+                default:
+                    return PhysicsConstraintSolve.PhysicsChannelShearX;
+            }
+        }
+
+        // Resolve a physics constraint (ADR-0014, PP-B7). The bound bone resolves to its index (-1 if unknown,
+        // then the solve is a no-op, the same lenience as the other constraints). The channel set becomes
+        // integer codes, and the per-channel simulation state (P, V, TargetPrev) is pre-allocated in the
+        // ResolvedPhysicsConstraint constructor so the per-frame solve never allocates. Initialized starts false
+        // so the first active solve initializes the bone to rest on its pose. Mirrors resolvePhysics in
+        // build-pose.ts.
+        private static ResolvedPhysicsConstraint ResolvePhysics(
+            PhysicsConstraint constraint,
+            Dictionary<string, int> indexByName,
+            IReadOnlyList<string>? scopeSkins)
+        {
+            int channelCount = constraint.Channels.Count;
+            var channelCodes = new sbyte[channelCount];
+            int channelX = -1;
+            int channelY = -1;
+            for (int i = 0; i < channelCount; i += 1)
+            {
+                int code = PhysicsChannelCode(constraint.Channels[i]);
+                channelCodes[i] = (sbyte)code;
+                if (code == PhysicsConstraintSolve.PhysicsChannelX)
+                {
+                    channelX = i;
+                }
+                else if (code == PhysicsConstraintSolve.PhysicsChannelY)
+                {
+                    channelY = i;
+                }
+            }
+
+            return new ResolvedPhysicsConstraint(
+                constraint.Name,
+                LookupOrMinusOne(indexByName, constraint.Bone),
+                channelCodes,
+                channelX >= 0,
+                channelY >= 0,
+                channelX,
+                channelY,
+                constraint.Step,
+                constraint.Mass,
+                constraint.Inertia,
+                constraint.Strength,
+                constraint.Damping,
+                constraint.Wind,
+                constraint.Gravity,
+                constraint.Mix,
                 constraint.Order,
                 scopeSkins);
         }

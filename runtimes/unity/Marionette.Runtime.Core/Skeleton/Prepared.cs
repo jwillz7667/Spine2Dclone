@@ -229,6 +229,40 @@ namespace Marionette.Runtime.Core.Skeleton
         }
     }
 
+    // The timelines of one animated physics constraint (ADR-0014 section 7, PP-B7), resolved to the pose's
+    // physics-constraint index (mirrors PreparedPhysicsChannel in prepared.ts). Each of the six KEYABLE knobs
+    // is prepared from ONLY the keyframes that key it: a channel no keyframe keys is null and holds the
+    // constraint base. Step/Mass/Channels are NOT keyable and never appear here. Mix/Inertia/Damping are
+    // [0, 1] value tracks, Strength is >= 0, and Wind/Gravity are unbounded finite value tracks.
+    public sealed class PreparedPhysicsChannel
+    {
+        public int ConstraintIndex { get; }
+        public PreparedTrack? Mix { get; }
+        public PreparedTrack? Inertia { get; }
+        public PreparedTrack? Strength { get; }
+        public PreparedTrack? Damping { get; }
+        public PreparedTrack? Wind { get; }
+        public PreparedTrack? Gravity { get; }
+
+        public PreparedPhysicsChannel(
+            int constraintIndex,
+            PreparedTrack? mix,
+            PreparedTrack? inertia,
+            PreparedTrack? strength,
+            PreparedTrack? damping,
+            PreparedTrack? wind,
+            PreparedTrack? gravity)
+        {
+            ConstraintIndex = constraintIndex;
+            Mix = mix;
+            Inertia = inertia;
+            Strength = strength;
+            Damping = damping;
+            Wind = wind;
+            Gravity = gravity;
+        }
+    }
+
     public sealed class PreparedDeformChannel
     {
         public string Skin { get; }
@@ -309,6 +343,9 @@ namespace Marionette.Runtime.Core.Skeleton
 
         // The path-constraint timelines (ADR-0011 section 3, ADR-0013), empty when the animation keys none.
         public IReadOnlyList<PreparedPathChannel> PathChannels { get; }
+
+        // The physics-constraint timelines (ADR-0014 section 7, PP-B7), empty when the animation keys none.
+        public IReadOnlyList<PreparedPhysicsChannel> PhysicsChannels { get; }
         public IReadOnlyList<PreparedDeformChannel> DeformChannels { get; }
 
         // The draw-order reorder timeline, or null when this animation never reorders (PP-B4).
@@ -320,6 +357,7 @@ namespace Marionette.Runtime.Core.Skeleton
             IReadOnlyList<PreparedIkChannel> ikChannels,
             IReadOnlyList<PreparedTransformChannel> transformChannels,
             IReadOnlyList<PreparedPathChannel> pathChannels,
+            IReadOnlyList<PreparedPhysicsChannel> physicsChannels,
             IReadOnlyList<PreparedDeformChannel> deformChannels,
             PreparedDrawOrderTimeline? drawOrder)
         {
@@ -328,6 +366,7 @@ namespace Marionette.Runtime.Core.Skeleton
             IkChannels = ikChannels;
             TransformChannels = transformChannels;
             PathChannels = pathChannels;
+            PhysicsChannels = physicsChannels;
             DeformChannels = deformChannels;
             DrawOrder = drawOrder;
         }

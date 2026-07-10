@@ -196,6 +196,119 @@ namespace Marionette.Runtime.Core.Skeleton
         }
     }
 
+    // A physics constraint resolved against the pose (mirrors ResolvedPhysicsConstraint in pose.ts, ADR-0014,
+    // PP-B7). Physics binds to ONE BoneIndex (both the driven bone and its own setpoint reference) and
+    // simulates a subset of that bone's LOCAL channels as independent damped-driven springs. ChannelCodes
+    // holds one code per simulated channel (PhysicsConstraintSolve.PhysicsChannel*), document order; ChannelX/
+    // ChannelY are the array positions of the x/y channels (or -1) so the force projection and teleport measure
+    // read them without a scan. Base* are the constraint definition's values; the Sampled* fields are the
+    // per-frame scratch step 2 writes (from the physics timeline, else reset to base) and step 3 reads (step/
+    // mass are static, not keyable). The (P, V, TargetPrev) simulation state and AccFixed/Initialized are
+    // pre-allocated ONCE here and MUTATE ACROSS FRAMES (physics carries velocity), so the per-frame solve
+    // allocates nothing; they are reset by ResetPhysics.
+    public sealed class ResolvedPhysicsConstraint
+    {
+        public string Name { get; }
+        public int BoneIndex { get; }
+
+        // One channel code per simulated channel, document order (PhysicsConstraintSolve.PhysicsChannel*).
+        public sbyte[] ChannelCodes { get; }
+        public bool SimulatesX { get; }
+        public bool SimulatesY { get; }
+
+        // The array position of the x / y channel within ChannelCodes (or -1 when not simulated), so the force
+        // projection and the teleport translation-jump measure index the state arrays directly.
+        public int ChannelX { get; }
+        public int ChannelY { get; }
+
+        // Static (non-keyable) model parameters (ADR-0014 section 7): the fixed timestep and the inertial mass.
+        public double BaseStep { get; }
+        public double BaseMass { get; }
+
+        // The definition base values for the keyable knobs, the reset target for ResetConstraintsToBase.
+        public double BaseInertia { get; }
+        public double BaseStrength { get; }
+        public double BaseDamping { get; }
+        public double BaseWind { get; }
+        public double BaseGravity { get; }
+        public double BaseMix { get; }
+
+        // The explicit combined-set solve order (ADR-0014 section 4), or -1 when this constraint carries none.
+        public int Order { get; }
+
+        // The skins that SCOPE this constraint (ADR-0009 section 5), or null when unscoped.
+        public IReadOnlyList<string>? ScopeSkins { get; }
+
+        // Per-frame sampled scratch (the keyable knobs), reset to base each frame and overlaid by the timeline.
+        public double SampledInertia;
+        public double SampledStrength;
+        public double SampledDamping;
+        public double SampledWind;
+        public double SampledGravity;
+        public double SampledMix;
+
+        // Simulation state, one lane per simulated channel, persisting across frames (mutated in place).
+        public double[] P { get; }
+        public double[] V { get; }
+        public double[] TargetPrev { get; }
+
+        // The integer fixed-point step accumulator (ADR-0014 section 2.2) and the first-evaluation flag (false
+        // means "initialize to rest on the pose on the next active solve", which is also the skin-change /
+        // activation reset edge). Mutable: the solve advances them every frame. AccFixed is a 32-bit int so its
+        // >> 16 / << 16 match the TS bitwise coercion exactly.
+        public int AccFixed;
+        public bool Initialized;
+
+        public ResolvedPhysicsConstraint(
+            string name,
+            int boneIndex,
+            sbyte[] channelCodes,
+            bool simulatesX,
+            bool simulatesY,
+            int channelX,
+            int channelY,
+            double baseStep,
+            double baseMass,
+            double baseInertia,
+            double baseStrength,
+            double baseDamping,
+            double baseWind,
+            double baseGravity,
+            double baseMix,
+            int order,
+            IReadOnlyList<string>? scopeSkins)
+        {
+            Name = name;
+            BoneIndex = boneIndex;
+            ChannelCodes = channelCodes;
+            SimulatesX = simulatesX;
+            SimulatesY = simulatesY;
+            ChannelX = channelX;
+            ChannelY = channelY;
+            BaseStep = baseStep;
+            BaseMass = baseMass;
+            BaseInertia = baseInertia;
+            BaseStrength = baseStrength;
+            BaseDamping = baseDamping;
+            BaseWind = baseWind;
+            BaseGravity = baseGravity;
+            BaseMix = baseMix;
+            Order = order;
+            ScopeSkins = scopeSkins;
+            SampledInertia = baseInertia;
+            SampledStrength = baseStrength;
+            SampledDamping = baseDamping;
+            SampledWind = baseWind;
+            SampledGravity = baseGravity;
+            SampledMix = baseMix;
+            P = new double[channelCodes.Length];
+            V = new double[channelCodes.Length];
+            TargetPrev = new double[channelCodes.Length];
+            AccFixed = 0;
+            Initialized = false;
+        }
+    }
+
     // Pre allocated, index addressed storage for a skeleton solve (mirrors pose.ts). Every buffer is
     // sized once and reused across solves, so the per frame solve allocates nothing. Bones are stored in
     // document order, which the format validator guarantees is parent before child.
@@ -264,6 +377,15 @@ namespace Marionette.Runtime.Core.Skeleton
         // IK and all transform constraints by default (ADR-0011 section 2.3). Empty for a rig with none.
         public IReadOnlyList<ResolvedPathConstraint> PathConstraints { get; }
 
+        // The document's physics constraints (ADR-0014, PP-B7), resolved in document array order. Solved AFTER
+        // all IK, transform, and path constraints by default (ADR-0014 section 4): physics is secondary motion
+        // layered on the final posed skeleton. Empty for a rig with none; carries the persistent (P, V) state.
+        public IReadOnlyList<ResolvedPhysicsConstraint> PhysicsConstraints { get; }
+
+        // The skeleton-level physics globals (ADR-0014 section 5), captured at build (defaults 0, 0, 1 when the
+        // document omits the block). Read by every physics constraint's per-frame combine; never mutated.
+        public PhysicsSettings PhysicsSettings { get; }
+
         // The explicit combined-set solve schedule (ADR-0009 section 1.3, ADR-0010 section 1, ADR-0011 section
         // 2.3) or null when no constraint carries an order. When present it is a dense permutation of [0, N)
         // (N = total constraints across all THREE arrays): SolveOrder[pos] is a constraint CODE selecting
@@ -287,7 +409,9 @@ namespace Marionette.Runtime.Core.Skeleton
             IReadOnlyList<string> slotNames,
             IReadOnlyList<ResolvedIkConstraint> ikConstraints,
             IReadOnlyList<ResolvedTransformConstraint> transformConstraints,
-            IReadOnlyList<ResolvedPathConstraint> pathConstraints)
+            IReadOnlyList<ResolvedPathConstraint> pathConstraints,
+            IReadOnlyList<ResolvedPhysicsConstraint> physicsConstraints,
+            PhysicsSettings physicsSettings)
         {
             BoneCount = boneCount;
             BoneNames = boneNames;
@@ -321,7 +445,10 @@ namespace Marionette.Runtime.Core.Skeleton
             IkConstraints = ikConstraints;
             TransformConstraints = transformConstraints;
             PathConstraints = pathConstraints;
-            SolveOrder = BuildSolveOrder(ikConstraints, transformConstraints, pathConstraints);
+            PhysicsConstraints = physicsConstraints;
+            PhysicsSettings = physicsSettings;
+            SolveOrder = BuildSolveOrder(
+                ikConstraints, transformConstraints, pathConstraints, physicsConstraints);
             DeformScratch = new double[0];
             PreparedAnimations = new Dictionary<Animation, PreparedAnimation>();
         }
@@ -345,11 +472,13 @@ namespace Marionette.Runtime.Core.Skeleton
         private static int[]? BuildSolveOrder(
             IReadOnlyList<ResolvedIkConstraint> ikConstraints,
             IReadOnlyList<ResolvedTransformConstraint> transformConstraints,
-            IReadOnlyList<ResolvedPathConstraint> pathConstraints)
+            IReadOnlyList<ResolvedPathConstraint> pathConstraints,
+            IReadOnlyList<ResolvedPhysicsConstraint> physicsConstraints)
         {
             int ikCount = ikConstraints.Count;
             int transformCount = transformConstraints.Count;
-            int total = ikCount + transformCount + pathConstraints.Count;
+            int pathCount = pathConstraints.Count;
+            int total = ikCount + transformCount + pathCount + physicsConstraints.Count;
             if (total == 0)
             {
                 return null;
@@ -372,9 +501,17 @@ namespace Marionette.Runtime.Core.Skeleton
                 }
             }
 
-            for (int i = 0; i < pathConstraints.Count; i += 1)
+            for (int i = 0; i < pathCount; i += 1)
             {
                 if (pathConstraints[i].Order >= 0)
+                {
+                    anyOrder = true;
+                }
+            }
+
+            for (int i = 0; i < physicsConstraints.Count; i += 1)
+            {
+                if (physicsConstraints[i].Order >= 0)
                 {
                     anyOrder = true;
                 }
@@ -407,9 +544,17 @@ namespace Marionette.Runtime.Core.Skeleton
                 }
             }
 
-            for (int k = 0; k < pathConstraints.Count; k += 1)
+            for (int k = 0; k < pathCount; k += 1)
             {
                 if (!Place(codes, total, pathConstraints[k].Order, ikCount + transformCount + k))
+                {
+                    return null;
+                }
+            }
+
+            for (int m = 0; m < physicsConstraints.Count; m += 1)
+            {
+                if (!Place(codes, total, physicsConstraints[m].Order, ikCount + transformCount + pathCount + m))
                 {
                     return null;
                 }

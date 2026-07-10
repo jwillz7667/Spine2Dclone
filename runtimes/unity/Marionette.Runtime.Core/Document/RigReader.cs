@@ -84,6 +84,28 @@ namespace Marionette.Runtime.Core.Document
                 }
             }
 
+            // Physics constraints (ADR-0014 section 1, PP-B7), tolerated as absent for a pre-0.6.0 draft, the
+            // same lenience the ik/transform/path arrays get.
+            var physicsConstraints = new List<PhysicsConstraint>();
+            JsonValue? physConstraintsValue = root.Member("physicsConstraints");
+            if (physConstraintsValue != null && physConstraintsValue.Kind == JsonKind.Array)
+            {
+                foreach (JsonValue pc in physConstraintsValue.AsArray())
+                {
+                    physicsConstraints.Add(ReadPhysicsConstraint(pc));
+                }
+            }
+
+            // The optional skeleton-level physics settings block (ADR-0014 section 5). Absent stays null;
+            // buildPose then uses the identity defaults (0, 0, 1).
+            JsonValue? physicsValue = root.Member("physics");
+            PhysicsSettings? physics = physicsValue != null && physicsValue.Kind == JsonKind.Object
+                ? new PhysicsSettings(
+                    ReqNumber(physicsValue, "gravity"),
+                    ReqNumber(physicsValue, "wind"),
+                    ReqNumber(physicsValue, "mix"))
+                : (PhysicsSettings?)null;
+
             var events = new List<EventDef>();
             JsonValue? eventsValue = root.Member("events");
             if (eventsValue != null && eventsValue.Kind == JsonKind.Array)
@@ -114,6 +136,8 @@ namespace Marionette.Runtime.Core.Document
                 ikConstraints,
                 transformConstraints,
                 pathConstraints,
+                physicsConstraints,
+                physics,
                 events,
                 animations);
         }
@@ -435,6 +459,51 @@ namespace Marionette.Runtime.Core.Document
             }
         }
 
+        private static PhysicsConstraint ReadPhysicsConstraint(JsonValue pc)
+        {
+            // The bound bone plus the simulated channel set (a closed enum; an unknown channel fails loudly).
+            // step/mass are static; inertia/strength/damping/wind/gravity/mix are the keyable knobs. The
+            // optional explicit solve order (ADR-0014 section 4) feeds the interleaved schedule; absent is -1.
+            var channels = new List<PhysicsChannel>();
+            foreach (JsonValue channel in ReqMember(pc, "channels", JsonKind.Array).AsArray())
+            {
+                channels.Add(ParsePhysicsChannel(channel.AsString()));
+            }
+
+            return new PhysicsConstraint(
+                ReqString(pc, "name"),
+                ReqString(pc, "bone"),
+                channels,
+                ReqNumber(pc, "step"),
+                ReqNumber(pc, "inertia"),
+                ReqNumber(pc, "strength"),
+                ReqNumber(pc, "damping"),
+                ReqNumber(pc, "mass"),
+                ReqNumber(pc, "wind"),
+                ReqNumber(pc, "gravity"),
+                ReqNumber(pc, "mix"),
+                OptInt(pc, "order") ?? -1);
+        }
+
+        private static PhysicsChannel ParsePhysicsChannel(string channel)
+        {
+            switch (channel)
+            {
+                case "x":
+                    return PhysicsChannel.X;
+                case "y":
+                    return PhysicsChannel.Y;
+                case "rotation":
+                    return PhysicsChannel.Rotation;
+                case "scaleX":
+                    return PhysicsChannel.ScaleX;
+                case "shearX":
+                    return PhysicsChannel.ShearX;
+                default:
+                    throw new RigReadException($"unknown physics channel '{channel}'");
+            }
+        }
+
         private static Animation ReadAnimation(JsonValue animation)
         {
             double duration = ReqNumber(animation, "duration");
@@ -544,6 +613,36 @@ namespace Marionette.Runtime.Core.Document
                 }
             }
 
+            // Physics-constraint timelines (ADR-0014 section 7, PP-B7): each frame is a PARTIAL record of the
+            // keyable knobs (mix/inertia/strength/damping/wind/gravity); absent == null so the track build drops
+            // the channel and the constraint base holds. step/mass/channels are NOT keyable and never appear
+            // here. Member order is preserved (Object.keys order).
+            var physics = new List<KeyValuePair<string, IReadOnlyList<PhysicsKeyframe>>>();
+            JsonValue? physicsValue = animation.Member("physics");
+            if (physicsValue != null && physicsValue.Kind == JsonKind.Object)
+            {
+                foreach (KeyValuePair<string, JsonValue> entry in physicsValue.Members())
+                {
+                    var frames = new List<PhysicsKeyframe>();
+                    foreach (JsonValue frame in entry.Value.AsArray())
+                    {
+                        JsonValue value = ReqMember(frame, "value", JsonKind.Object);
+                        frames.Add(
+                            new PhysicsKeyframe(
+                                ReqNumber(frame, "time"),
+                                ReadCurve(frame),
+                                OptNumber(value, "mix"),
+                                OptNumber(value, "inertia"),
+                                OptNumber(value, "strength"),
+                                OptNumber(value, "damping"),
+                                OptNumber(value, "wind"),
+                                OptNumber(value, "gravity")));
+                    }
+
+                    physics.Add(new KeyValuePair<string, IReadOnlyList<PhysicsKeyframe>>(entry.Key, frames));
+                }
+            }
+
             var deform = new List<DeformEntry>();
             JsonValue? deformValue = animation.Member("deform");
             if (deformValue != null && deformValue.Kind == JsonKind.Object)
@@ -615,7 +714,8 @@ namespace Marionette.Runtime.Core.Document
                 }
             }
 
-            return new Animation(duration, bones, slots, ik, transform, path, deform, drawOrder, events);
+            return new Animation(
+                duration, bones, slots, ik, transform, path, physics, deform, drawOrder, events);
         }
 
         private static BoneTimelines ReadBoneTimelines(JsonValue timelines)

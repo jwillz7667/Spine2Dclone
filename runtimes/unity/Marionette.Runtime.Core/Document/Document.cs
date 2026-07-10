@@ -514,6 +514,85 @@ namespace Marionette.Runtime.Core.Document
         }
     }
 
+    // The simulated LOCAL pose channels of a physics constraint (ADR-0014 section 1, PP-B7). A closed enum,
+    // so an unknown channel string is a rig-read error (RigReader.ParsePhysicsChannel), never a silent
+    // default. Mirrors the physicsChannel enum in @marionette/format.
+    public enum PhysicsChannel
+    {
+        X,
+        Y,
+        Rotation,
+        ScaleX,
+        ShearX,
+    }
+
+    // The skeleton-level physics settings (ADR-0014 section 5): global gravity/wind ADDED to each constraint
+    // and a master mix MULTIPLIED into each constraint's mix. Absent block => the identity defaults (0, 0, 1).
+    // Mirrors the physics settings block in @marionette/format and PhysicsSettings in pose.ts.
+    public readonly struct PhysicsSettings
+    {
+        public readonly double Gravity;
+        public readonly double Wind;
+        public readonly double Mix;
+
+        public PhysicsSettings(double gravity, double wind, double mix)
+        {
+            Gravity = gravity;
+            Wind = wind;
+            Mix = mix;
+        }
+    }
+
+    // A physics constraint (ADR-0014 section 1, PP-B7): binds ONE Bone and simulates a subset of that bone's
+    // LOCAL Channels as independent damped-driven springs so secondary motion (tails, ropes, jiggle) emerges
+    // deterministically from the animated pose plus world forces. Step and Mass are static (not keyable); the
+    // remaining knobs (Inertia/Strength/Damping/Wind/Gravity/Mix) are keyable via the physics timeline. Order
+    // is the explicit combined-set solve order (ADR-0014 section 4), or -1 when none is carried. Mirrors
+    // PhysicsConstraint in @marionette/format.
+    public sealed class PhysicsConstraint
+    {
+        public string Name { get; }
+        public string Bone { get; }
+        public IReadOnlyList<PhysicsChannel> Channels { get; }
+        public double Step { get; }
+        public double Inertia { get; }
+        public double Strength { get; }
+        public double Damping { get; }
+        public double Mass { get; }
+        public double Wind { get; }
+        public double Gravity { get; }
+        public double Mix { get; }
+        public int Order { get; }
+
+        public PhysicsConstraint(
+            string name,
+            string bone,
+            IReadOnlyList<PhysicsChannel> channels,
+            double step,
+            double inertia,
+            double strength,
+            double damping,
+            double mass,
+            double wind,
+            double gravity,
+            double mix,
+            int order)
+        {
+            Name = name;
+            Bone = bone;
+            Channels = channels;
+            Step = step;
+            Inertia = inertia;
+            Strength = strength;
+            Damping = damping;
+            Mass = mass;
+            Wind = wind;
+            Gravity = gravity;
+            Mix = mix;
+            Order = order;
+        }
+    }
+
     public sealed class ScalarKeyframe
     {
         public double Time { get; }
@@ -725,6 +804,42 @@ namespace Marionette.Runtime.Core.Document
         }
     }
 
+    // A keyed physics-constraint frame (ADR-0014 section 7, PP-B7): a PARTIAL record of the physics
+    // constraint's KEYABLE knobs (Mix/Inertia/Strength/Damping/Wind/Gravity). A frame MAY key any subset; a
+    // null channel is absent from that keyframe (the track build drops it so the constraint base holds).
+    // Step/Mass/Channels are NOT keyable and never appear here. Mirrors PhysicsFrame in @marionette/format.
+    public sealed class PhysicsKeyframe
+    {
+        public double Time { get; }
+        public Curve Curve { get; }
+        public double? Mix { get; }
+        public double? Inertia { get; }
+        public double? Strength { get; }
+        public double? Damping { get; }
+        public double? Wind { get; }
+        public double? Gravity { get; }
+
+        public PhysicsKeyframe(
+            double time,
+            Curve curve,
+            double? mix,
+            double? inertia,
+            double? strength,
+            double? damping,
+            double? wind,
+            double? gravity)
+        {
+            Time = time;
+            Curve = curve;
+            Mix = mix;
+            Inertia = inertia;
+            Strength = strength;
+            Damping = damping;
+            Wind = wind;
+            Gravity = gravity;
+        }
+    }
+
     public sealed class DeformKeyframe
     {
         public double Time { get; }
@@ -911,6 +1026,11 @@ namespace Marionette.Runtime.Core.Document
         // Path-constraint timelines (ADR-0011 section 3, ADR-0013), keyed by constraint name in insertion
         // order. Empty when the animation keys no path constraint. Mirrors Animation.path in @marionette/format.
         public IReadOnlyList<KeyValuePair<string, IReadOnlyList<PathKeyframe>>> Path { get; }
+
+        // Physics-constraint timelines (ADR-0014 section 7, PP-B7), keyed by constraint name in insertion
+        // order. Empty when the animation keys no physics constraint. Mirrors Animation.physics in
+        // @marionette/format.
+        public IReadOnlyList<KeyValuePair<string, IReadOnlyList<PhysicsKeyframe>>> Physics { get; }
         public IReadOnlyList<DeformEntry> Deform { get; }
         public IReadOnlyList<DrawOrderKeyframe> DrawOrder { get; }
         public IReadOnlyList<EventKeyframe> Events { get; }
@@ -922,6 +1042,7 @@ namespace Marionette.Runtime.Core.Document
             IReadOnlyList<KeyValuePair<string, IReadOnlyList<IkKeyframe>>> ik,
             IReadOnlyList<KeyValuePair<string, IReadOnlyList<TransformKeyframe>>> transform,
             IReadOnlyList<KeyValuePair<string, IReadOnlyList<PathKeyframe>>> path,
+            IReadOnlyList<KeyValuePair<string, IReadOnlyList<PhysicsKeyframe>>> physics,
             IReadOnlyList<DeformEntry> deform,
             IReadOnlyList<DrawOrderKeyframe> drawOrder,
             IReadOnlyList<EventKeyframe> events)
@@ -932,6 +1053,7 @@ namespace Marionette.Runtime.Core.Document
             Ik = ik;
             Transform = transform;
             Path = path;
+            Physics = physics;
             Deform = deform;
             DrawOrder = drawOrder;
             Events = events;
@@ -949,6 +1071,14 @@ namespace Marionette.Runtime.Core.Document
         // The document's path constraints (ADR-0011 section 2, ADR-0013), in document array order. Empty for a
         // rig with none. Mirrors SkeletonDocument.pathConstraints in @marionette/format.
         public IReadOnlyList<PathConstraint> PathConstraints { get; }
+
+        // The document's physics constraints (ADR-0014 section 1, PP-B7), in document array order. Empty for a
+        // rig with none. Mirrors SkeletonDocument.physicsConstraints in @marionette/format.
+        public IReadOnlyList<PhysicsConstraint> PhysicsConstraints { get; }
+
+        // The optional skeleton-level physics settings (ADR-0014 section 5), or null when the document omits
+        // the block (buildPose then uses the identity defaults 0, 0, 1). Mirrors SkeletonDocument.physics.
+        public PhysicsSettings? Physics { get; }
         public IReadOnlyList<EventDef> Events { get; }
         public IReadOnlyList<KeyValuePair<string, Animation>> Animations { get; }
 
@@ -959,6 +1089,8 @@ namespace Marionette.Runtime.Core.Document
             IReadOnlyList<IkConstraint> ikConstraints,
             IReadOnlyList<TransformConstraint> transformConstraints,
             IReadOnlyList<PathConstraint> pathConstraints,
+            IReadOnlyList<PhysicsConstraint> physicsConstraints,
+            PhysicsSettings? physics,
             IReadOnlyList<EventDef> events,
             IReadOnlyList<KeyValuePair<string, Animation>> animations)
         {
@@ -968,6 +1100,8 @@ namespace Marionette.Runtime.Core.Document
             IkConstraints = ikConstraints;
             TransformConstraints = transformConstraints;
             PathConstraints = pathConstraints;
+            PhysicsConstraints = physicsConstraints;
+            Physics = physics;
             Events = events;
             Animations = animations;
         }

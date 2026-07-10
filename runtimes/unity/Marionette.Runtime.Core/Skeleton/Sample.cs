@@ -42,7 +42,12 @@ namespace Marionette.Runtime.Core.Skeleton
             // The active skin for skin-scoped constraints (ADR-0009 section 5, ADR-0011 section 4). null (the
             // default) leaves only the always-active 'default' skin active, so a scoped constraint stays inactive
             // and every non-scoped rig is unaffected. A constraint no skin scopes is always solved.
-            string? activeSkin = null)
+            string? activeSkin = null,
+            // The frame delta time in seconds (ADR-0014 section 2.2), advancing the PHYSICS simulation clock
+            // ONLY. Physics carries velocity across frames, so a physics rig must be sampled SEQUENTIALLY with
+            // the real per-frame dt between consecutive calls (frameDt 0 on the first frame, then
+            // poseTimes[i]-poseTimes[i-1]). Default 0: a rig with no physics constraints ignores it entirely.
+            double frameDt = 0)
         {
             Animation? animation = document.FindAnimation(animationId);
             if (animation == null)
@@ -62,9 +67,10 @@ namespace Marionette.Runtime.Core.Skeleton
             ApplyAnimationAt(outPose, prepared, t, 1, false, true);
             ComposeTouchedBones(outPose);
 
-            // Step 3: solve constraints: ALL IK first, then ALL transform, each in document array order. A
-            // skin-scoped constraint is skipped unless its skin is active.
-            SolveConstraints(outPose, activeSkin);
+            // Step 3: solve constraints: ALL IK first, then ALL transform, then all path, then all physics, each
+            // in document array order (ADR-0014 section 4). A skin-scoped constraint is skipped unless its skin
+            // is active. Physics steps its simulation clock by frameDt.
+            SolveConstraints(outPose, activeSkin, frameDt);
 
             // Step 4: world transforms (single forward pass, parents before children).
             WorldTransform.ComputeWorldTransforms(outPose);
@@ -166,11 +172,12 @@ namespace Marionette.Runtime.Core.Skeleton
         // is the precomputed dense schedule spanning all three arrays and step 3 walks it, dispatching each code
         // to the SAME per-constraint helper the default path uses (so a constraint is bit-identical either way;
         // only the schedule moves).
-        public static void SolveConstraints(Pose pose, string? activeSkin = null)
+        public static void SolveConstraints(Pose pose, string? activeSkin = null, double frameDt = 0)
         {
             IReadOnlyList<ResolvedIkConstraint> ikConstraints = pose.IkConstraints;
             IReadOnlyList<ResolvedTransformConstraint> transformConstraints = pose.TransformConstraints;
             IReadOnlyList<ResolvedPathConstraint> pathConstraints = pose.PathConstraints;
+            IReadOnlyList<ResolvedPhysicsConstraint> physicsConstraints = pose.PhysicsConstraints;
             int[]? solveOrder = pose.SolveOrder;
 
             if (solveOrder == null)
@@ -190,12 +197,18 @@ namespace Marionette.Runtime.Core.Skeleton
                     SolveOnePathConstraint(pose, pathConstraints[i], activeSkin);
                 }
 
+                for (int i = 0; i < physicsConstraints.Count; i += 1)
+                {
+                    SolveOnePhysicsConstraint(pose, physicsConstraints[i], activeSkin, frameDt);
+                }
+
                 return;
             }
 
             int ikCount = ikConstraints.Count;
             int transformCount = transformConstraints.Count;
             int pathBase = ikCount + transformCount;
+            int physicsBase = pathBase + pathConstraints.Count;
             for (int p = 0; p < solveOrder.Length; p += 1)
             {
                 int code = solveOrder[p];
@@ -207,9 +220,13 @@ namespace Marionette.Runtime.Core.Skeleton
                 {
                     SolveOneTransformConstraint(pose, transformConstraints[code - ikCount], activeSkin);
                 }
-                else
+                else if (code < physicsBase)
                 {
                     SolveOnePathConstraint(pose, pathConstraints[code - pathBase], activeSkin);
+                }
+                else
+                {
+                    SolveOnePhysicsConstraint(pose, physicsConstraints[code - physicsBase], activeSkin, frameDt);
                 }
             }
         }
@@ -360,6 +377,40 @@ namespace Marionette.Runtime.Core.Skeleton
             PathConstraintSolve.Solve(pose, constraint);
         }
 
+        // Solve one physics constraint against the pose (ADR-0014, PP-B7), stepping its simulation by frameDt. A
+        // skin-scoped constraint whose skin is inactive is skipped AND its state is invalidated (Initialized set
+        // false), so a re-activation (skin change) re-initializes the bone to rest on its pose rather than
+        // carrying stale velocity across the gap (ADR-0014 section 6). An active constraint solves; the per-frame
+        // sampled scratch (mix/inertia/strength/damping/wind/gravity) was written by step 2 (else reset to base).
+        // Mirrors solveOnePhysicsConstraint in sample.ts.
+        private static void SolveOnePhysicsConstraint(
+            Pose pose,
+            ResolvedPhysicsConstraint constraint,
+            string? activeSkin,
+            double frameDt)
+        {
+            if (!IsConstraintScopeActive(constraint.ScopeSkins, activeSkin))
+            {
+                constraint.Initialized = false;
+                return;
+            }
+
+            PhysicsConstraintSolve.Solve(pose, constraint, frameDt);
+        }
+
+        // Reset every physics constraint's simulation state so the NEXT active solve re-initializes the bone to
+        // rest on its pose (ADR-0014 section 6 activation / restart). Physics carries velocity across frames, so
+        // a caller that restarts a sampling sequence (rewinds to the first frame, or re-uses a pose for an
+        // unrelated run) MUST call this first; otherwise stale velocity leaks into the new sequence. Mirrors
+        // resetPhysics in sample.ts.
+        public static void ResetPhysics(Pose pose)
+        {
+            for (int i = 0; i < pose.PhysicsConstraints.Count; i += 1)
+            {
+                pose.PhysicsConstraints[i].Initialized = false;
+            }
+        }
+
         public static void ResetConstraintsToBase(Pose pose)
         {
             IReadOnlyList<ResolvedIkConstraint> ikConstraints = pose.IkConstraints;
@@ -391,6 +442,21 @@ namespace Marionette.Runtime.Core.Skeleton
                 constraint.SampledMixRotate = constraint.BaseMixRotate;
                 constraint.SampledMixX = constraint.BaseMixX;
                 constraint.SampledMixY = constraint.BaseMixY;
+            }
+
+            // Physics constraints (ADR-0014 section 7): reset the sampled KEYABLE knobs to the definition base;
+            // step 2's physics timeline then overlays any keyed channel, and an unkeyed channel keeps its base.
+            // step/mass are static (not keyable) and the persistent (P, V) simulation state is untouched here.
+            IReadOnlyList<ResolvedPhysicsConstraint> physicsConstraints = pose.PhysicsConstraints;
+            for (int i = 0; i < physicsConstraints.Count; i += 1)
+            {
+                ResolvedPhysicsConstraint constraint = physicsConstraints[i];
+                constraint.SampledInertia = constraint.BaseInertia;
+                constraint.SampledStrength = constraint.BaseStrength;
+                constraint.SampledDamping = constraint.BaseDamping;
+                constraint.SampledWind = constraint.BaseWind;
+                constraint.SampledGravity = constraint.BaseGravity;
+                constraint.SampledMix = constraint.BaseMix;
             }
         }
 
@@ -716,9 +782,11 @@ namespace Marionette.Runtime.Core.Skeleton
             IReadOnlyList<PreparedIkChannel> ikChannels = prepared.IkChannels;
             IReadOnlyList<PreparedTransformChannel> transformChannels = prepared.TransformChannels;
             IReadOnlyList<PreparedPathChannel> pathChannels = prepared.PathChannels;
+            IReadOnlyList<PreparedPhysicsChannel> physicsChannels = prepared.PhysicsChannels;
             IReadOnlyList<ResolvedIkConstraint> ikConstraints = pose.IkConstraints;
             IReadOnlyList<ResolvedTransformConstraint> transformConstraints = pose.TransformConstraints;
             IReadOnlyList<ResolvedPathConstraint> pathConstraints = pose.PathConstraints;
+            IReadOnlyList<ResolvedPhysicsConstraint> physicsConstraints = pose.PhysicsConstraints;
             double[] ikBendWinWeight = pose.IkBendWinWeight;
             double[] ikStretchWinWeight = pose.IkStretchWinWeight;
             double[] ikCompressWinWeight = pose.IkCompressWinWeight;
@@ -860,6 +928,74 @@ namespace Marionette.Runtime.Core.Skeleton
                         constraint.SampledMixY, constraint.BaseMixY, channel.MixY, t, alpha, additive);
                 }
             }
+
+            // Physics constraints (ADR-0014 section 7): each keyable knob is a continuous interpolated scalar
+            // blended toward its keyed value by alpha (additive adds the delta from the constraint base), exactly
+            // like the transform/path channels. mix/inertia/damping are [0, 1] and strength >= 0 by the format,
+            // so no extra clamp is applied here (the solve clamps the mix PRODUCT anyway).
+            for (int c = 0; c < physicsChannels.Count; c += 1)
+            {
+                PreparedPhysicsChannel channel = physicsChannels[c];
+                int index = channel.ConstraintIndex;
+                if (index < 0)
+                {
+                    continue;
+                }
+
+                ResolvedPhysicsConstraint constraint = physicsConstraints[index];
+                if (channel.Mix != null)
+                {
+                    constraint.SampledMix = BlendPhysicsScalar(
+                        constraint.SampledMix, constraint.BaseMix, channel.Mix, t, alpha, additive);
+                }
+
+                if (channel.Inertia != null)
+                {
+                    constraint.SampledInertia = BlendPhysicsScalar(
+                        constraint.SampledInertia, constraint.BaseInertia, channel.Inertia, t, alpha, additive);
+                }
+
+                if (channel.Strength != null)
+                {
+                    constraint.SampledStrength = BlendPhysicsScalar(
+                        constraint.SampledStrength, constraint.BaseStrength, channel.Strength, t, alpha, additive);
+                }
+
+                if (channel.Damping != null)
+                {
+                    constraint.SampledDamping = BlendPhysicsScalar(
+                        constraint.SampledDamping, constraint.BaseDamping, channel.Damping, t, alpha, additive);
+                }
+
+                if (channel.Wind != null)
+                {
+                    constraint.SampledWind = BlendPhysicsScalar(
+                        constraint.SampledWind, constraint.BaseWind, channel.Wind, t, alpha, additive);
+                }
+
+                if (channel.Gravity != null)
+                {
+                    constraint.SampledGravity = BlendPhysicsScalar(
+                        constraint.SampledGravity, constraint.BaseGravity, channel.Gravity, t, alpha, additive);
+                }
+            }
+        }
+
+        // Blend one physics-constraint sampled knob toward its keyed value by alpha (additive adds the delta from
+        // the constraint's base value), the same rule as the path/transform channels. Mirrors blendPhysicsScalar
+        // in sample.ts. The caller guards on a non-null track (a null channel leaves the running value).
+        private static double BlendPhysicsScalar(
+            double current,
+            double baseValue,
+            PreparedTrack track,
+            double t,
+            double alpha,
+            bool additive)
+        {
+            double value = SampleScalarTrack(track, t);
+            return additive
+                ? BlendAddLinear(current, baseValue, value, alpha)
+                : BlendReplaceLinear(current, value, alpha);
         }
 
         // Blend one path-constraint sampled scalar toward its keyed value by alpha (additive adds the delta from
@@ -1006,6 +1142,30 @@ namespace Marionette.Runtime.Core.Skeleton
                     Curves.BuildPathTrack(frames, Curves.PathChannel.MixY)));
             }
 
+            // Physics-constraint timelines (ADR-0014 section 7, PP-B7): each keyable knob is prepared from only
+            // the frames that key it (an all-absent knob is null and holds the constraint base). step/mass/
+            // channels are NOT keyable and never appear here. Mirrors the physicsChannels build in
+            // prepareAnimation (sample.ts).
+            Dictionary<string, int> physicsIndexByName = NameIndexOf(pose.PhysicsConstraints);
+            var physicsChannels = new List<PreparedPhysicsChannel>();
+            foreach (KeyValuePair<string, IReadOnlyList<PhysicsKeyframe>> entry in animation.Physics)
+            {
+                IReadOnlyList<PhysicsKeyframe> frames = entry.Value;
+                if (frames.Count == 0)
+                {
+                    continue;
+                }
+
+                physicsChannels.Add(new PreparedPhysicsChannel(
+                    LookupOrMinusOne(physicsIndexByName, entry.Key),
+                    Curves.BuildPhysicsTrack(frames, Curves.PhysicsKnob.Mix),
+                    Curves.BuildPhysicsTrack(frames, Curves.PhysicsKnob.Inertia),
+                    Curves.BuildPhysicsTrack(frames, Curves.PhysicsKnob.Strength),
+                    Curves.BuildPhysicsTrack(frames, Curves.PhysicsKnob.Damping),
+                    Curves.BuildPhysicsTrack(frames, Curves.PhysicsKnob.Wind),
+                    Curves.BuildPhysicsTrack(frames, Curves.PhysicsKnob.Gravity)));
+            }
+
             var deformChannels = new List<PreparedDeformChannel>();
             foreach (DeformEntry entry in animation.Deform)
             {
@@ -1031,6 +1191,7 @@ namespace Marionette.Runtime.Core.Skeleton
                 ikChannels,
                 transformChannels,
                 pathChannels,
+                physicsChannels,
                 deformChannels,
                 drawOrder);
         }
@@ -1074,6 +1235,17 @@ namespace Marionette.Runtime.Core.Skeleton
         }
 
         private static Dictionary<string, int> NameIndexOf(IReadOnlyList<ResolvedPathConstraint> items)
+        {
+            var index = new Dictionary<string, int>();
+            for (int i = 0; i < items.Count; i += 1)
+            {
+                index[items[i].Name] = i;
+            }
+
+            return index;
+        }
+
+        private static Dictionary<string, int> NameIndexOf(IReadOnlyList<ResolvedPhysicsConstraint> items)
         {
             var index = new Dictionary<string, int>();
             for (int i = 0; i < items.Count; i += 1)

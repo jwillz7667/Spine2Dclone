@@ -91,7 +91,12 @@ namespace Marionette.Runtime.Core.Tests
                 // each entry a skin name or null. A spec without activeSkins samples with null everywhere, so
                 // pre-scoping rigs are unaffected.
                 string? activeSkin = s < spec.ActiveSkins.Count ? spec.ActiveSkins[s] : null;
-                Sample.SampleSkeleton(document, spec.Animation, sample.Time, pose, activeSkin);
+
+                // The frame delta time (ADR-0014 section 2.2, PP-B7): 0 on the first sample, then the gap to the
+                // previous pose time. Physics carries velocity across frames, so the pose is sampled SEQUENTIALLY
+                // over poseTimes (it already is) and the physics clock advances by this dt. Mirrors build-fixture.ts.
+                double frameDt = s == 0 ? 0 : spec.PoseTimes[s] - spec.PoseTimes[s - 1];
+                Sample.SampleSkeleton(document, spec.Animation, sample.Time, pose, activeSkin, frameDt);
 
                 foreach (KeyValuePair<string, double[]> expectedBone in sample.Bones)
                 {

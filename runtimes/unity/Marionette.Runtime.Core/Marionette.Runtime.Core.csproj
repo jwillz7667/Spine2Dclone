@@ -18,4 +18,14 @@
     <Deterministic>true</Deterministic>
   </PropertyGroup>
 
+  <!--
+    The conformance/vector test assembly asserts the cross-language physics step-clock primitive
+    (PhysicsConstraintSolve.PhysicsStepsFixed) directly against the committed integer vectors. The solve
+    classes stay internal (like every other solver here); this grants the test project access without
+    widening the public API surface.
+  -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="Marionette.Runtime.Core.Tests" />
+  </ItemGroup>
+
 </Project>

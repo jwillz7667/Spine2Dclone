@@ -443,6 +443,70 @@ namespace Marionette.Runtime.Core.Skeleton
             }
         }
 
+        public enum PhysicsKnob
+        {
+            Mix,
+            Inertia,
+            Strength,
+            Damping,
+            Wind,
+            Gravity,
+        }
+
+        // One keyable knob of a physics-constraint timeline (ADR-0014 section 7, PP-B7): Mix/Inertia/Strength/
+        // Damping/Wind/Gravity. Built from ONLY the keyframes that key it (the same absent-channel semantics as
+        // the transform/path channels), each interpolated by its own curve. Returns null when no keyframe keys
+        // the channel, so step 2 holds the constraint's base value for it. Step/Mass/Channels are NOT keyable
+        // and are never passed here. Mirrors buildPhysicsTrack in curve.ts.
+        public static PreparedTrack? BuildPhysicsTrack(IReadOnlyList<PhysicsKeyframe> frames, PhysicsKnob knob)
+        {
+            var present = new List<PhysicsKeyframe>();
+            for (int i = 0; i < frames.Count; i += 1)
+            {
+                if (SelectPhysicsKnob(frames[i], knob) != null)
+                {
+                    present.Add(frames[i]);
+                }
+            }
+
+            if (present.Count == 0)
+            {
+                return null;
+            }
+
+            int keyCount = present.Count;
+            var times = new double[keyCount];
+            var values = new double[keyCount];
+            var curves = new Curve[keyCount];
+            for (int i = 0; i < keyCount; i += 1)
+            {
+                times[i] = present[i].Time;
+                values[i] = SelectPhysicsKnob(present[i], knob) ?? 0;
+                curves[i] = present[i].Curve;
+            }
+
+            return BuildTrack(keyCount, 1, times, curves, values);
+        }
+
+        private static double? SelectPhysicsKnob(PhysicsKeyframe frame, PhysicsKnob knob)
+        {
+            switch (knob)
+            {
+                case PhysicsKnob.Mix:
+                    return frame.Mix;
+                case PhysicsKnob.Inertia:
+                    return frame.Inertia;
+                case PhysicsKnob.Strength:
+                    return frame.Strength;
+                case PhysicsKnob.Damping:
+                    return frame.Damping;
+                case PhysicsKnob.Wind:
+                    return frame.Wind;
+                default:
+                    return frame.Gravity;
+            }
+        }
+
         public static PreparedTrack BuildDeformTrack(IReadOnlyList<DeformKeyframe> frames)
         {
             int componentCount = frames.Count > 0 ? frames[0].Offsets.Length : 0;

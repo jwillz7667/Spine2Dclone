@@ -1,4 +1,4 @@
-import type { RGBA } from '@marionette/format/types';
+import type { PhysicsChannel, RGBA } from '@marionette/format/types';
 
 // Pure naming, parsing, and placement logic for the slot/attachment inspector (WP-1.2, editor half). The
 // panel (inspector-panel.tsx) is thin glue over document-core commands plus the ephemeral slot-selection
@@ -76,6 +76,70 @@ export function parseChannel(raw: string, fallback: number): number {
 // feeds ReorderSlotCommand, whose own clamp matches this range.
 export function reorderTarget(currentIndex: number, direction: -1 | 1, count: number): number {
   return Math.max(0, Math.min(currentIndex + direction, count - 1));
+}
+
+// The physics-constraint numeric parameters the Inspector edits (PP-D12). `step`/`mass` are strictly
+// positive, `inertia`/`damping`/`mix` are bounded to [0, 1], `strength` is non-negative, and `wind`/`gravity`
+// are unbounded finite world-force inputs (ADR-0014 section 1). The skeleton physics settings block reuses
+// the `gravity`/`wind`/`mix` cases (its three fields share the same ranges), so one parser covers both.
+export type PhysicsParamField =
+  | 'step'
+  | 'inertia'
+  | 'strength'
+  | 'damping'
+  | 'mass'
+  | 'wind'
+  | 'gravity'
+  | 'mix';
+
+// Parse a physics-parameter input into a value that satisfies its range, or null when the field is empty,
+// non-numeric, or out of range. The Inspector drops a null (no command) so a mid-edit or invalid entry never
+// reaches SetPhysicsConstraintParams (the ranges here match the format's PHYSICS_*_RANGE guards, so a parsed
+// value is always accepted by the command).
+export function parsePhysicsParam(field: PhysicsParamField, raw: string): number | null {
+  const trimmed = raw.trim();
+  if (trimmed === '') return null;
+  const value = Number(trimmed);
+  if (!Number.isFinite(value)) return null;
+  switch (field) {
+    case 'step':
+    case 'mass':
+      return value > 0 ? value : null;
+    case 'inertia':
+    case 'damping':
+    case 'mix':
+      return value >= 0 && value <= 1 ? value : null;
+    case 'strength':
+      return value >= 0 ? value : null;
+    case 'wind':
+    case 'gravity':
+      return value;
+  }
+}
+
+// The five simulated local channels a physics constraint may drive (ADR-0014), in canonical order so a
+// toggled set stays stable regardless of click sequence.
+export const PHYSICS_CHANNELS: readonly PhysicsChannel[] = [
+  'x',
+  'y',
+  'rotation',
+  'scaleX',
+  'shearX',
+];
+
+// Toggle one channel in a physics constraint's simulated set, returning the new set in canonical order, or
+// null when the toggle would EMPTY the set. The Inspector drops a null (no command) so the last channel can
+// never be turned off, keeping SetPhysicsConstraintChannels' non-empty guard from ever firing on a UI edit
+// (a physics constraint must simulate at least one channel). Pure list logic, trivially testable.
+export function togglePhysicsChannel(
+  current: readonly PhysicsChannel[],
+  channel: PhysicsChannel,
+): PhysicsChannel[] | null {
+  const present = new Set(current);
+  if (present.has(channel)) present.delete(channel);
+  else present.add(channel);
+  if (present.size === 0) return null;
+  return PHYSICS_CHANNELS.filter((c) => present.has(c));
 }
 
 // The minimum trim metadata regionAttachmentDefaults needs from an atlas region. AtlasRegion carries these

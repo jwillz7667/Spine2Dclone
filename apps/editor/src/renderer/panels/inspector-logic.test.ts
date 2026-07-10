@@ -7,8 +7,10 @@ import {
   nextSlotAfterDelete,
   parseChannel,
   parseFinite,
+  parsePhysicsParam,
   regionAttachmentDefaults,
   reorderTarget,
+  togglePhysicsChannel,
   uniqueAttachmentName,
   uniqueSlotName,
   type RegionTrim,
@@ -209,3 +211,52 @@ function worldOfPixel(
   const world: Mat2x3 = placeRegion(identity(), sized);
   return transformPoint(world, lx, ly);
 }
+
+describe('inspector-logic: parsePhysicsParam', () => {
+  it('accepts strictly positive step and mass', () => {
+    expect(parsePhysicsParam('step', '0.016')).toBeCloseTo(0.016);
+    expect(parsePhysicsParam('mass', '2')).toBe(2);
+    expect(parsePhysicsParam('step', '0')).toBeNull();
+    expect(parsePhysicsParam('mass', '-1')).toBeNull();
+    expect(parsePhysicsParam('mass', '0')).toBeNull();
+  });
+
+  it('bounds inertia, damping, and mix to [0, 1]', () => {
+    expect(parsePhysicsParam('inertia', '0')).toBe(0);
+    expect(parsePhysicsParam('damping', '1')).toBe(1);
+    expect(parsePhysicsParam('mix', '0.5')).toBe(0.5);
+    expect(parsePhysicsParam('inertia', '1.1')).toBeNull();
+    expect(parsePhysicsParam('mix', '-0.01')).toBeNull();
+  });
+
+  it('accepts non-negative strength and any finite wind/gravity', () => {
+    expect(parsePhysicsParam('strength', '0')).toBe(0);
+    expect(parsePhysicsParam('strength', '40')).toBe(40);
+    expect(parsePhysicsParam('strength', '-1')).toBeNull();
+    expect(parsePhysicsParam('wind', '-25')).toBe(-25);
+    expect(parsePhysicsParam('gravity', '9.8')).toBeCloseTo(9.8);
+  });
+
+  it('rejects empty and non-numeric input for every field', () => {
+    expect(parsePhysicsParam('mix', '')).toBeNull();
+    expect(parsePhysicsParam('mix', '   ')).toBeNull();
+    expect(parsePhysicsParam('gravity', 'abc')).toBeNull();
+    expect(parsePhysicsParam('wind', 'NaN')).toBeNull();
+    expect(parsePhysicsParam('gravity', 'Infinity')).toBeNull();
+  });
+});
+
+describe('inspector-logic: togglePhysicsChannel', () => {
+  it('adds a channel and keeps canonical order', () => {
+    expect(togglePhysicsChannel(['rotation'], 'x')).toEqual(['x', 'rotation']);
+    expect(togglePhysicsChannel(['shearX', 'x'], 'rotation')).toEqual(['x', 'rotation', 'shearX']);
+  });
+
+  it('removes a present channel', () => {
+    expect(togglePhysicsChannel(['x', 'rotation'], 'x')).toEqual(['rotation']);
+  });
+
+  it('returns null when the toggle would empty the set (keeping at least one channel)', () => {
+    expect(togglePhysicsChannel(['rotation'], 'rotation')).toBeNull();
+  });
+});

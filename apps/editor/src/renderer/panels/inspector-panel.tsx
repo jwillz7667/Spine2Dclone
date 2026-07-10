@@ -1,6 +1,13 @@
 import type { IDockviewPanelProps } from 'dockview';
 import { useEffect, useMemo, useState, type CSSProperties, type ReactElement } from 'react';
-import type { AtlasRegion, BlendMode, RGBA, Sequence } from '@marionette/format/types';
+import type {
+  AtlasRegion,
+  BlendMode,
+  PhysicsChannel,
+  PhysicsSettings,
+  RGBA,
+  Sequence,
+} from '@marionette/format/types';
 import {
   AddRegionAttachmentCommand,
   AutoWeightFromProximityCommand,
@@ -27,6 +34,10 @@ import {
   RemovePathCurveCommand,
   SetPathClosedCommand,
   SetPathConstantSpeedCommand,
+  SetPhysicsConstraintChannelsCommand,
+  SetPhysicsConstraintParamsCommand,
+  SetPhysicsConstraintTargetBoneCommand,
+  SetPhysicsSettingsCommand,
   documentHost,
   type AttachmentEntity,
   type BoneEntity,
@@ -34,12 +45,16 @@ import {
   type LinkedMeshAttachmentEntity,
   type MeshAttachmentEntity,
   type PathAttachmentEntity,
+  type PhysicsConstraintEntity,
+  type PhysicsConstraintId,
+  type PhysicsConstraintParamPatch,
   type RegionAttachmentEntity,
   type RegionTransform,
   type SlotEntity,
   type SlotId,
 } from '../document';
 import { useSelectionStore } from '../editor-state/selection-store';
+import { useConstraintSelectionStore } from '../editor-state/constraint-selection-store';
 import { useSlotSelectionStore } from '../editor-state/slot-selection-store';
 import { usePlaybackStore } from '../editor-state/playback-store';
 import { useDocumentRevision } from '../editor-state/use-document-revision';
@@ -60,10 +75,14 @@ import {
   nextSlotAfterDelete,
   parseChannel,
   parseFinite,
+  parsePhysicsParam,
   regionAttachmentDefaults,
   reorderTarget,
+  togglePhysicsChannel,
   uniqueAttachmentName,
   uniqueSlotName,
+  PHYSICS_CHANNELS,
+  type PhysicsParamField,
 } from './inspector-logic';
 
 const ACCENT = '#5aa0ff';
@@ -93,6 +112,20 @@ export function InspectorPanel(_props: IDockviewPanelProps): ReactElement {
   const model = documentHost.current().model;
   const selectedSlotId = useSlotSelectionStore((state) => state.selectedSlotId);
   const selectedBoneIds = useSelectionStore((state) => state.selectedBoneIds);
+  const constraintSelection = useConstraintSelectionStore((state) => state.selection);
+
+  // The physics constraint selected in the Constraints panel (PP-D12) drives this section. Resolved against
+  // the LIVE model so a delete/undo that removes it collapses the section rather than showing a stale row.
+  // Compared by raw id string (the brand is a string) to avoid an unchecked cast to PhysicsConstraintId.
+  const selectedPhysics = useMemo(
+    () =>
+      constraintSelection?.kind === 'physics'
+        ? model.physicsConstraints().find((c) => c.id === constraintSelection.id)
+        : undefined,
+    [model, revision, constraintSelection],
+  );
+  const physicsBones = useMemo(() => model.bones(), [model, revision]);
+  const physicsSettings = useMemo(() => model.physicsSettings(), [model, revision]);
 
   // The PRIMARY selected bone (the pivot; the gizmo and numeric entry act on it). Resolved against the
   // LIVE model so an undo/redo/delete that removes it collapses the section rather than showing a stale
@@ -136,6 +169,14 @@ export function InspectorPanel(_props: IDockviewPanelProps): ReactElement {
 
   return (
     <div style={rootStyle}>
+      {selectedPhysics !== undefined && (
+        <PhysicsConstraintSection
+          constraint={selectedPhysics}
+          bones={physicsBones}
+          settings={physicsSettings}
+        />
+      )}
+
       {primaryBone !== undefined && (
         <BoneTransformSection bone={primaryBone} selectionCount={selectedBoneIds.length} />
       )}
@@ -1066,6 +1107,42 @@ function removePathCurve(slotId: SlotId, name: string): void {
   documentHost.current().history.execute(new RemovePathCurveCommand(slotId, name));
 }
 
+// Physics-constraint editing (PP-D12), driven by the Constraints-panel selection. The target bone and the
+// simulated channel set are structural single-writer edits (discrete undo steps); the numeric parameters
+// coalesce a slider drag, so each commit opens an interaction session (mirrors commitSlotColor) that folds a
+// continuous nudge to one undo step while a discrete blur is its own step. Every mutation is a document-core
+// command on the live History (LAW 2); this section edits DATA only (no live physics solve).
+
+function setPhysicsTargetBone(id: PhysicsConstraintId, bone: BoneId): void {
+  documentHost.current().history.execute(new SetPhysicsConstraintTargetBoneCommand(id, bone));
+}
+
+function setPhysicsChannels(id: PhysicsConstraintId, channels: readonly PhysicsChannel[]): void {
+  documentHost.current().history.execute(new SetPhysicsConstraintChannelsCommand(id, channels));
+}
+
+function commitPhysicsParams(id: PhysicsConstraintId, patch: PhysicsConstraintParamPatch): void {
+  const history = documentHost.current().history;
+  history.beginInteraction();
+  try {
+    history.execute(new SetPhysicsConstraintParamsCommand(id, patch));
+  } finally {
+    history.endInteraction('Set Physics Params');
+  }
+}
+
+// Set or CLEAR (null) the skeleton physics settings block inside a coalescing session, so a drag on the
+// global gravity/wind/mix faders folds to one undo step.
+function commitPhysicsSettings(settings: PhysicsSettings | null): void {
+  const history = documentHost.current().history;
+  history.beginInteraction();
+  try {
+    history.execute(new SetPhysicsSettingsCommand(settings));
+  } finally {
+    history.endInteraction('Set Physics Settings');
+  }
+}
+
 // Convert a region attachment to a pixel-identical 4-vertex quad mesh (TASK-2.1.1) as one undo step.
 // The entity carries exactly the RegionSource fields regionToMeshInit consumes.
 function convertRegionToMesh(slotId: SlotId, region: RegionAttachmentEntity): void {
@@ -1451,6 +1528,226 @@ function keySlotDarkAtPlayhead(slotId: SlotId): void {
   if (slot === undefined || slot.darkColor === null || state.activeAnimation === null) return;
   doc.history.execute(
     buildSlotDarkKeyCommand(state.activeAnimation, slotId, slot.darkColor, state.playhead),
+  );
+}
+
+// The eight editable physics parameters in display order (Stage F4, ADR-0014 section 1): the sim step, the
+// model knobs, the world forces, then the master mix. `min`/`max` are input hints; parsePhysicsParam is the
+// authority (its ranges match the format's PHYSICS_*_RANGE guards).
+const PHYSICS_PARAM_FIELDS: readonly {
+  readonly field: PhysicsParamField;
+  readonly label: string;
+  readonly step: number;
+  readonly min?: number;
+  readonly max?: number;
+}[] = [
+  { field: 'step', label: 'Step', step: 0.001, min: 0 },
+  { field: 'inertia', label: 'Inertia', step: 0.05, min: 0, max: 1 },
+  { field: 'strength', label: 'Strength', step: 1, min: 0 },
+  { field: 'damping', label: 'Damping', step: 0.05, min: 0, max: 1 },
+  { field: 'mass', label: 'Mass', step: 0.1, min: 0 },
+  { field: 'wind', label: 'Wind', step: 1 },
+  { field: 'gravity', label: 'Gravity', step: 1 },
+  { field: 'mix', label: 'Mix', step: 0.05, min: 0, max: 1 },
+];
+
+type PhysicsSettingsField = 'gravity' | 'wind' | 'mix';
+
+// Build a single-field physics-param patch as an exhaustive switch so the patch stays exactly typed (a
+// computed-key literal would widen the field to a string index signature).
+function physicsParamPatch(field: PhysicsParamField, value: number): PhysicsConstraintParamPatch {
+  switch (field) {
+    case 'step':
+      return { step: value };
+    case 'inertia':
+      return { inertia: value };
+    case 'strength':
+      return { strength: value };
+    case 'damping':
+      return { damping: value };
+    case 'mass':
+      return { mass: value };
+    case 'wind':
+      return { wind: value };
+    case 'gravity':
+      return { gravity: value };
+    case 'mix':
+      return { mix: value };
+  }
+}
+
+// Apply one field to the skeleton physics settings block, exhaustively typed for the same reason.
+function physicsSettingsWith(
+  settings: PhysicsSettings,
+  field: PhysicsSettingsField,
+  value: number,
+): PhysicsSettings {
+  switch (field) {
+    case 'gravity':
+      return { ...settings, gravity: value };
+    case 'wind':
+      return { ...settings, wind: value };
+    case 'mix':
+      return { ...settings, mix: value };
+  }
+}
+
+interface PhysicsConstraintSectionProps {
+  readonly constraint: PhysicsConstraintEntity;
+  readonly bones: readonly BoneEntity[];
+  readonly settings: PhysicsSettings | undefined;
+}
+
+// The physics-constraint inspector section (PP-D12), driven by the Constraints-panel selection. Edits the
+// target bone, the simulated channel set (toggles that never empty the set), and the eight numeric parameters,
+// each through its document-core command on the live History (LAW 2). Also edits the OPTIONAL skeleton physics
+// settings block (global gravity/wind and a master mix), which SetPhysicsSettings(null) clears. DATA ONLY:
+// this section never runs the physics solve (a live preview is a deferred follow-up).
+function PhysicsConstraintSection(props: PhysicsConstraintSectionProps): ReactElement {
+  const { constraint, bones, settings } = props;
+  const c = constraint;
+  const channelSet = new Set(c.channels);
+
+  function commitParam(field: PhysicsParamField, raw: string): boolean {
+    const live = documentHost.current().model.getPhysicsConstraint(c.id);
+    if (live === undefined) return false;
+    const current = live[field];
+    const parsed = parsePhysicsParam(field, raw);
+    if (parsed === null || parsed === current) return false;
+    commitPhysicsParams(c.id, physicsParamPatch(field, parsed));
+    return true;
+  }
+
+  function commitSettingsField(field: PhysicsSettingsField, raw: string): boolean {
+    const live = documentHost.current().model.physicsSettings();
+    if (live === undefined) return false;
+    const current = live[field];
+    const parsed = parsePhysicsParam(field, raw);
+    if (parsed === null || parsed === current) return false;
+    commitPhysicsSettings(physicsSettingsWith(live, field, parsed));
+    return true;
+  }
+
+  return (
+    <div style={boneSectionStyle}>
+      <div style={subHeaderStyle}>
+        <span>Physics: {c.name}</span>
+      </div>
+
+      <div style={detailRowStyle}>
+        <span style={labelStyle}>Bone</span>
+        <select
+          style={selectStyle}
+          value={c.bone}
+          onChange={(event) => {
+            const bone = bones.find((b) => b.id === event.target.value);
+            if (bone !== undefined && bone.id !== c.bone) setPhysicsTargetBone(c.id, bone.id);
+          }}
+        >
+          {bones.map((bone) => (
+            <option key={bone.id} value={bone.id}>
+              {bone.name}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div style={detailRowStyle}>
+        <span style={labelStyle}>Channels</span>
+        {PHYSICS_CHANNELS.map((channel) => (
+          <label key={channel} style={transformCellStyle}>
+            <input
+              type="checkbox"
+              checked={channelSet.has(channel)}
+              title={
+                channelSet.size === 1 && channelSet.has(channel)
+                  ? 'A physics constraint must simulate at least one channel'
+                  : `Simulate the local ${channel} channel`
+              }
+              onChange={() => {
+                const next = togglePhysicsChannel(c.channels, channel);
+                if (next !== null) setPhysicsChannels(c.id, next);
+              }}
+            />
+            <span style={transformLabelStyle}>{channel}</span>
+          </label>
+        ))}
+      </div>
+
+      <div style={transformGridStyle}>
+        {PHYSICS_PARAM_FIELDS.map((spec) => (
+          <label key={spec.field} style={transformCellStyle}>
+            <span style={transformLabelStyle}>{spec.label}</span>
+            <NumberField
+              value={c[spec.field]}
+              step={spec.step}
+              width={72}
+              {...(spec.min !== undefined ? { min: spec.min } : {})}
+              {...(spec.max !== undefined ? { max: spec.max } : {})}
+              title={spec.field}
+              onCommit={(raw) => commitParam(spec.field, raw)}
+            />
+          </label>
+        ))}
+      </div>
+
+      <div style={detailRowStyle}>
+        <span style={labelStyle}>Settings</span>
+        {settings === undefined ? (
+          <button
+            type="button"
+            style={smallButtonStyle}
+            title="Enable the skeleton physics settings block (global gravity/wind and a master mix)"
+            onClick={() => commitPhysicsSettings({ gravity: 0, wind: 0, mix: 1 })}
+          >
+            Enable
+          </button>
+        ) : (
+          <>
+            <label style={transformCellStyle}>
+              <span style={transformLabelStyle}>Grav</span>
+              <NumberField
+                value={settings.gravity}
+                step={1}
+                width={72}
+                title="Global gravity added to each constraint"
+                onCommit={(raw) => commitSettingsField('gravity', raw)}
+              />
+            </label>
+            <label style={transformCellStyle}>
+              <span style={transformLabelStyle}>Wind</span>
+              <NumberField
+                value={settings.wind}
+                step={1}
+                width={72}
+                title="Global wind added to each constraint"
+                onCommit={(raw) => commitSettingsField('wind', raw)}
+              />
+            </label>
+            <label style={transformCellStyle}>
+              <span style={transformLabelStyle}>Mix</span>
+              <NumberField
+                value={settings.mix}
+                step={0.05}
+                width={72}
+                min={0}
+                max={1}
+                title="Master mix multiplied into each constraint mix"
+                onCommit={(raw) => commitSettingsField('mix', raw)}
+              />
+            </label>
+            <button
+              type="button"
+              style={smallButtonStyle}
+              title="Clear the skeleton physics settings block (restore the identity default)"
+              onClick={() => commitPhysicsSettings(null)}
+            >
+              Clear
+            </button>
+          </>
+        )}
+      </div>
+    </div>
   );
 }
 

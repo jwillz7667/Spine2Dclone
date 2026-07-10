@@ -42,6 +42,13 @@ export function encodePng(image: DecodedImage): Uint8Array {
   }
 }
 
+// Raw sha256 (hex) of an arbitrary byte buffer. Used by the compressed-texture manifest to record the
+// source PNG's byte identity (TASK-5.2.6): unlike decodedPagePixelHash this hashes the exact file bytes,
+// which is what a runtime re-checks against a committed page.
+export function bytesSha256(bytes: Uint8Array): string {
+  return createHash('sha256').update(bytes).digest('hex');
+}
+
 // Hashes the DECODED pixels of a PNG (plus its dimensions), NOT the PNG bytes. PNG byte-identity
 // depends on the zlib/encoder version and the OS, so the determinism contract is asserted on decoded
 // pixels (phase-1 TASK-1.3.4). Two PNGs with identical pixels hash equal even if their bytes differ.

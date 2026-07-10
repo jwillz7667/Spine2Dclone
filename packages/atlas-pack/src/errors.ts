@@ -20,6 +20,11 @@ export type AtlasErrorCode =
   | 'ATLAS_DECODE_FAILED'
   // PNG encode failed.
   | 'ATLAS_ENCODE_FAILED'
+  // A requested scale variant is invalid (out of (0, 1], not a reciprocal integer, or 1.0 missing).
+  | 'ATLAS_INVALID_SCALE'
+  // A compressed-texture target was requested but no production encoder is wired (stub slot). Carried as a
+  // typed manifest diagnostic, NOT thrown: the canonical PNG pipeline still succeeds (DECISION-5.2.c).
+  | 'ATLAS_COMPRESSION_UNSUPPORTED'
   // Background removal was requested but MARIONETTE_REMBG_BIN is not set.
   | 'ATLAS_REMBG_NOT_CONFIGURED'
   // MARIONETTE_REMBG_BIN is set but does not point at an accessible file.

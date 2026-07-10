@@ -14,8 +14,50 @@ export type { AtlasFileStore } from './file-store';
 
 export { mapWithConcurrency } from './concurrency';
 
-export { decodePng, encodePng, decodedPagePixelHash } from './png';
+export { decodePng, encodePng, decodedPagePixelHash, bytesSha256 } from './png';
 export type { DecodedImage } from './png';
+
+export { premultiplyRgba } from './pma';
+
+export {
+  resolveScaleVariants,
+  scaleGeometry,
+  scaleAtlasPage,
+  scaleAtlasRef,
+  downsamplePage,
+} from './scale';
+export type { ScaleVariant } from './scale';
+
+export { unsupportedTextureEncoder } from './encoder';
+export type {
+  CompressedTextureTarget,
+  TextureEncoder,
+  TextureEncodeInput,
+  TextureEncodeOk,
+  TextureEncodeDiagnostic,
+  TextureEncodeResult,
+} from './encoder';
+
+export {
+  atlasTargetsManifestSchema,
+  ATLAS_TARGETS_MANIFEST_FILE,
+  ATLAS_TARGETS_MANIFEST_VERSION,
+} from './manifest';
+export type {
+  AtlasTargetsManifest,
+  AtlasTargetsManifestPage,
+  AtlasTargetsManifestVariant,
+  CompressedArtifact,
+  CompressionDiagnostic,
+} from './manifest';
+
+export { runAtlasExport } from './atlas-export';
+export type {
+  RunAtlasExportParams,
+  AtlasExportOptions,
+  AtlasExportResult,
+  TextureTransport,
+} from './atlas-export';
 
 export { trimSprite } from './trim';
 export type { TrimResult } from './trim';

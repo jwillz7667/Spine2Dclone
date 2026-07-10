@@ -21,6 +21,8 @@ const VALID_PROFILE: ExportProfile = {
     blendBinning: true,
     textureTransport: 'uastc-ktx2',
     compressionTargets: ['astc6x6', 'bc7', 'etc2'],
+    premultipliedAlpha: true,
+    scaleVariants: [1, 0.5, 0.25],
   },
   particleProfiles: {
     mobile: { maxLiveParticles: 600, ambientQualityTier: 'medium' },
@@ -163,6 +165,91 @@ describe('saveExportProfile', () => {
     // padding -1 is below the .min(0) bound. The cast is local to this negative test only; the
     // schema is the runtime guard that must reject it.
     expect(() => saveExportProfile(projectRoot, broken as unknown as ExportProfile)).toThrow();
+  });
+});
+
+describe('atlasExport PMA + scale-variant fields (WP-5.2)', () => {
+  it('accepts a profile omitting the optional PMA + scale keys (the consumer applies the fixed default)', () => {
+    const withoutKeys = {
+      ...VALID_PROFILE,
+      atlasExport: {
+        maxPageSize: 2048,
+        padding: 2,
+        allowRotation: true,
+        blendBinning: true,
+        textureTransport: 'uastc-ktx2',
+        compressionTargets: ['astc6x6', 'bc7', 'etc2'],
+      },
+    };
+    writeProfileFile(JSON.stringify(withoutKeys));
+
+    const result = loadExportProfile(projectRoot);
+
+    expect(isExportProfileError(result)).toBe(false);
+    if (isExportProfileError(result)) throw new Error('expected a valid profile');
+    // Optional (not defaulted) so the schema's Zod input/output types match; runAtlasExport reads an
+    // absent premultipliedAlpha as true and an absent scaleVariants as [1].
+    expect(result.atlasExport.premultipliedAlpha).toBeUndefined();
+    expect(result.atlasExport.scaleVariants).toBeUndefined();
+  });
+
+  it('accepts a reciprocal-integer scale-variant list including 1.0', () => {
+    const profile = {
+      ...VALID_PROFILE,
+      atlasExport: { ...VALID_PROFILE.atlasExport, scaleVariants: [1, 0.5, 0.2, 0.1] },
+    };
+
+    expect(exportProfileSchema.safeParse(profile).success).toBe(true);
+  });
+
+  it('rejects a scale-variant list missing the canonical 1.0 with kind invalid', () => {
+    const corrupted = {
+      ...VALID_PROFILE,
+      atlasExport: { ...VALID_PROFILE.atlasExport, scaleVariants: [0.5, 0.25] },
+    };
+    writeProfileFile(JSON.stringify(corrupted));
+
+    const result = loadExportProfile(projectRoot);
+
+    expect(isExportProfileError(result)).toBe(true);
+    if (!isExportProfileError(result)) throw new Error('expected an ExportProfileError');
+    expect(result.kind).toBe('invalid');
+  });
+
+  it('rejects a non-reciprocal-integer scale (0.75)', () => {
+    const corrupted = {
+      ...VALID_PROFILE,
+      atlasExport: { ...VALID_PROFILE.atlasExport, scaleVariants: [1, 0.75] },
+    };
+
+    expect(exportProfileSchema.safeParse(corrupted).success).toBe(false);
+  });
+
+  it('rejects a scale above 1.0', () => {
+    const corrupted = {
+      ...VALID_PROFILE,
+      atlasExport: { ...VALID_PROFILE.atlasExport, scaleVariants: [1, 2] },
+    };
+
+    expect(exportProfileSchema.safeParse(corrupted).success).toBe(false);
+  });
+
+  it('rejects a duplicate scale', () => {
+    const corrupted = {
+      ...VALID_PROFILE,
+      atlasExport: { ...VALID_PROFILE.atlasExport, scaleVariants: [1, 0.5, 0.5] },
+    };
+
+    expect(exportProfileSchema.safeParse(corrupted).success).toBe(false);
+  });
+
+  it('rejects a non-boolean premultipliedAlpha', () => {
+    const corrupted = {
+      ...VALID_PROFILE,
+      atlasExport: { ...VALID_PROFILE.atlasExport, premultipliedAlpha: 'yes' },
+    };
+
+    expect(exportProfileSchema.safeParse(corrupted).success).toBe(false);
   });
 });
 

@@ -206,6 +206,8 @@ export function defaultExportProfile(): ExportProfile {
       blendBinning: true,
       textureTransport: 'uastc-ktx2',
       compressionTargets: ['astc6x6', 'bc7', 'etc2'],
+      premultipliedAlpha: true,
+      scaleVariants: [1, 0.5, 0.25],
     },
     particleProfiles: {
       mobile: { maxLiveParticles: 600, ambientQualityTier: 'medium' },

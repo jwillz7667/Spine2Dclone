@@ -28,6 +28,29 @@ const deviceParticleProfile = z.object({
   ambientQualityTier: z.enum(['low', 'medium', 'high']),
 });
 
+// Reciprocal-integer tolerance: 1/0.1 is 9.999...998 in IEEE-754, so an exact Number.isInteger check would
+// wrongly reject 0.1. A tiny epsilon accepts the reciprocal-integer scales (1, 0.5, 0.25, 0.2, 0.1, ...).
+const SCALE_RECIPROCAL_EPSILON = 1e-9;
+
+// The multi-resolution scale variants the atlas export emits (WP-5.2 TASK-5.2.1). Each scale must be in
+// (0, 1] with an integer reciprocal so a page downsamples by an exact integer box factor (no fractional,
+// rounding-sensitive resampling); the list MUST include the canonical 1.0 (the page AtlasPage.file
+// references) and must be unique. Downscales are box-filtered into '@<scale>x' subfolders. atlas-pack
+// re-validates the same rules at its own boundary (resolveScaleVariants); this is the file boundary.
+const scaleVariantsSchema = z
+  .array(z.number().positive().max(1))
+  .nonempty()
+  .refine(
+    (scales) => scales.every((s) => Math.abs(1 / s - Math.round(1 / s)) < SCALE_RECIPROCAL_EPSILON),
+    { message: 'every scale must have an integer reciprocal (1, 0.5, 0.25, ...)' },
+  )
+  .refine((scales) => scales.includes(1), {
+    message: 'scale variants must include the canonical 1.0',
+  })
+  .refine((scales) => new Set(scales).size === scales.length, {
+    message: 'scale variants must be unique',
+  });
+
 export const exportProfileSchema = z
   .object({
     // Semver of THIS schema, INDEPENDENT of SkeletonDocument.formatVersion.
@@ -43,6 +66,17 @@ export const exportProfileSchema = z
       textureTransport: z.enum(['uastc-ktx2', 'per-target-sidecar']),
       // Transcode/encode targets used by whichever transport is chosen.
       compressionTargets: z.array(z.enum(['astc6x6', 'bc7', 'etc2'])).nonempty(),
+      // The FIXED premultiplied-alpha policy (WP-5.2 TASK-5.2.5): pages are emitted premultiplied so
+      // additive/screen blends match across web/Unity/Godot. Recorded in the atlas-targets manifest so a
+      // runtime picks the matching (premultiplied vs straight) blend equations. OPTIONAL, not defaulted:
+      // older profiles and the frozen ship asset omit it, and the atlas-export consumer treats an absent
+      // value as the fixed default (true). It stays `.optional()` (not `.default(true)`) so the schema's
+      // Zod input and output types match, which the IPC `validateWith` generic requires. Flipping it is an
+      // advanced choice that must stay consistent across every runtime.
+      premultipliedAlpha: z.boolean().optional(),
+      // Multi-resolution scale variants to emit; absent means the canonical page only ([1]). Optional for
+      // the same input/output-type reason as premultipliedAlpha. See scaleVariantsSchema.
+      scaleVariants: scaleVariantsSchema.optional(),
     }),
     // Both keys REQUIRED. Scales AMBIENT effects only.
     particleProfiles: z.object({

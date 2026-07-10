@@ -9,8 +9,9 @@ import {
   type ReactElement,
 } from 'react';
 import { documentHost } from '../document';
-import { runImageImport, runSpriteImport } from '../actions/import-sprites';
+import { runImageImport, runPremadeAtlasImport, runSpriteImport } from '../actions/import-sprites';
 import { atlasTextureStore } from '../editor-state/atlas-texture-store';
+import { useGridSliceStore } from '../editor-state/grid-slice-store';
 import { useDocumentRevision } from '../editor-state/use-document-revision';
 import { buildAtlasView } from './assets-atlas-view';
 import { buildThumbnails } from './asset-thumbnails';
@@ -101,6 +102,19 @@ export function AssetsPanel(_props: IDockviewPanelProps): ReactElement {
     }
   }
 
+  // Import an EXISTING packed atlas the user already has (image + region descriptor) WITHOUT repacking
+  // (PP-D5). Main owns the descriptor dialog and reads the sibling page image(s); the AtlasRef is applied
+  // through the same command + texture path as a sprite import. A user cancel is a silent no-op.
+  async function importPremadeAtlas(): Promise<void> {
+    setIsImporting(true);
+    try {
+      const outcome = await runPremadeAtlasImport();
+      if (outcome.kind === 'error') showNotice(outcome.message);
+    } finally {
+      setIsImporting(false);
+    }
+  }
+
   // Import a set of dropped or picked image Files (PP-D5). The renderer reads each File's bytes with the web
   // File API (no filesystem access) and hands them to main, which stages and packs them exactly like a
   // folder import. Non-image entries are ignored before reading; the packer filters to PNG, so a dropped
@@ -172,6 +186,26 @@ export function AssetsPanel(_props: IDockviewPanelProps): ReactElement {
           onClick={() => fileInputRef.current?.click()}
         >
           Add images
+        </button>
+        <button
+          type="button"
+          style={isImporting ? { ...buttonStyle, ...buttonBusyStyle } : buttonStyle}
+          disabled={isImporting}
+          title="Import an existing packed atlas (image + region descriptor) without repacking"
+          onClick={() => {
+            void importPremadeAtlas();
+          }}
+        >
+          Import atlas
+        </button>
+        <button
+          type="button"
+          style={buttonStyle}
+          disabled={isImporting}
+          title="Slice a plain, evenly tiled sprite sheet into named regions"
+          onClick={() => useGridSliceStore.getState().show()}
+        >
+          Slice sheet
         </button>
         <input
           ref={fileInputRef}

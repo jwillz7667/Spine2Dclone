@@ -13,6 +13,8 @@ const api: MarionetteApi = {
   importAtlas: () => ipcRenderer.invoke(IpcChannel.atlasImport, undefined),
   importAtlasImages: (images) => ipcRenderer.invoke(IpcChannel.atlasImportImages, { images }),
   importSpineProject: () => ipcRenderer.invoke(IpcChannel.spineImport, undefined),
+  importPremadeAtlas: () => ipcRenderer.invoke(IpcChannel.atlasImportPremade, undefined),
+  importGridAtlas: (image, grid) => ipcRenderer.invoke(IpcChannel.atlasImportGrid, { image, grid }),
   onMenuAction: (callback) => {
     // Forward ONLY allowlisted menu actions (defense in depth: an unknown or spoofed payload is dropped).
     const listener = (_event: IpcRendererEvent, action: unknown): void => {

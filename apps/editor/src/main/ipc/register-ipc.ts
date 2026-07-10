@@ -5,7 +5,9 @@
 import { app, ipcMain } from 'electron';
 import {
   IpcChannel,
+  atlasImportGridRequestSchema,
   atlasImportImagesRequestSchema,
+  atlasImportPremadeRequestSchema,
   atlasImportRequestSchema,
   exportCancelRequestSchema,
   exportMediaRequestSchema,
@@ -33,6 +35,8 @@ import {
   type SpineImportResponse,
 } from '../../shared';
 import { importAtlasFromDirectory, importAtlasImages } from '../atlas-import';
+import { importPremadeAtlasFromFile } from '../atlas-premade-import';
+import { importGridAtlasFromImage } from '../atlas-premade-io';
 import {
   cancelMediaExport,
   exportMediaToFile,
@@ -157,6 +161,24 @@ export function registerIpc(): void {
       return saveExportProfileFromDialog(request.data.profile);
     },
   );
+
+  ipcMain.handle(
+    IpcChannel.atlasImportPremade,
+    async (_event, payload: unknown): Promise<IpcResult<AtlasImportResponse>> => {
+      const request = validateWith(atlasImportPremadeRequestSchema, payload, 'IPC_BAD_REQUEST');
+      if (!request.ok) return request;
+      return importPremadeAtlasFromFile();
+    },
+  );
+
+  ipcMain.handle(
+    IpcChannel.atlasImportGrid,
+    async (_event, payload: unknown): Promise<IpcResult<AtlasImportResponse>> => {
+      const request = validateWith(atlasImportGridRequestSchema, payload, 'IPC_BAD_REQUEST');
+      if (!request.ok) return request;
+      return importGridAtlasFromImage(request.data.image, request.data.grid);
+    },
+  );
 }
 
 export function disposeIpc(): void {
@@ -172,4 +194,6 @@ export function disposeIpc(): void {
   ipcMain.removeHandler(IpcChannel.exportWriteVideo);
   ipcMain.removeHandler(IpcChannel.exportProfileLoad);
   ipcMain.removeHandler(IpcChannel.exportProfileSave);
+  ipcMain.removeHandler(IpcChannel.atlasImportPremade);
+  ipcMain.removeHandler(IpcChannel.atlasImportGrid);
 }

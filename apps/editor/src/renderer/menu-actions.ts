@@ -4,9 +4,10 @@ import {
   saveCurrentDocument,
   type FileActionOutcome,
 } from './document';
-import { runSpriteImport } from './actions/import-sprites';
+import { runPremadeAtlasImport, runSpriteImport } from './actions/import-sprites';
 import { importSpineProjectFromDialog } from './actions/import-spine';
 import { openExportDialog } from './actions/export';
+import { useGridSliceStore } from './editor-state/grid-slice-store';
 import { useToolStore } from './editor-state/tool-store';
 import { usePlaybackStore } from './editor-state/playback-store';
 import { bridge } from './ipc-bridge';
@@ -35,6 +36,16 @@ export function attachMenuActions(): () => void {
             console.error(`[marionette] import failed: ${outcome.message}`);
           }
         });
+        return;
+      case 'file:importAtlas':
+        void runPremadeAtlasImport().then((outcome) => {
+          if (outcome.kind === 'error') {
+            console.error(`[marionette] atlas import failed: ${outcome.message}`);
+          }
+        });
+        return;
+      case 'file:importGrid':
+        useGridSliceStore.getState().show();
         return;
       case 'file:importSpine':
         void importSpineProjectFromDialog().then((outcome) => {

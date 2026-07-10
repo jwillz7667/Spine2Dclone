@@ -21,6 +21,17 @@ export const IpcChannel = {
   // picker). Unlike atlas:import (main owns a directory dialog), here the sandboxed renderer reads the
   // dropped/picked File bytes via the web File API and ships them; main stages them and runs the SAME pack.
   atlasImportImages: 'atlas:importImages',
+  // atlas:importPremade. Import an EXISTING packed atlas the user already has WITHOUT repacking (PP-D5). Main
+  // owns the file dialog (no renderer path, the path-injection defense): it reads the region descriptor and
+  // the page image(s) sitting next to it, and returns the AtlasRef built from the descriptor plus those page
+  // bytes, reusing atlasImportResponseSchema. A malformed descriptor is a typed IPC handler error carrying
+  // the stable premade-atlas code in its message (mirroring atlas:import surfacing AtlasError codes).
+  atlasImportPremade: 'atlas:importPremade',
+  // atlas:importGrid. Slice a plain sprite sheet the RENDERER read as bytes into a uniform grid of regions
+  // (no descriptor). The renderer supplies the image bytes (web File API) plus the grid parameters collected
+  // in a small dialog; main decodes the PNG, slices it, and returns the AtlasRef + the source image as the
+  // single page, reusing atlasImportResponseSchema. No repack: the page IS the user's sheet.
+  atlasImportGrid: 'atlas:importGrid',
   // menu:action is the one MAIN -> RENDERER push channel (webContents.send): the native application menu
   // lives in the main process, and a menu click dispatches one of the allowlisted MenuActionId strings to
   // the renderer, which maps it to the same action a keybinding would (undo/redo/save/open/import/tool/mode).
@@ -64,6 +75,8 @@ export const MENU_ACTION_IDS = [
   'file:importSprites',
   'file:importSpine',
   'file:export',
+  'file:importAtlas',
+  'file:importGrid',
   'edit:undo',
   'edit:redo',
   'tool:select',
@@ -211,6 +224,42 @@ export const atlasImportImagesRequestSchema = z
   .strict();
 
 export type AtlasImportImagesRequest = z.infer<typeof atlasImportImagesRequestSchema>;
+
+// atlas:importPremade. No request payload (main owns the descriptor dialog; the path-injection defense).
+// The response reuses atlasImportResponseSchema (imported AtlasRef + page bytes, or canceled).
+export const atlasImportPremadeRequestSchema = z.undefined();
+
+// atlas:importGrid. The grid-slice parameters: either a fixed cell pixel size, or a fixed column/row count.
+// Every field is a positive integer; the main-process slicer floors the image size and drops the remainder.
+export const gridSpecSchema = z.discriminatedUnion('mode', [
+  z
+    .object({
+      mode: z.literal('cell'),
+      cellWidth: z.number().int().positive(),
+      cellHeight: z.number().int().positive(),
+    })
+    .strict(),
+  z
+    .object({
+      mode: z.literal('grid'),
+      columns: z.number().int().positive(),
+      rows: z.number().int().positive(),
+    })
+    .strict(),
+]);
+
+export type GridSpec = z.infer<typeof gridSpecSchema>;
+
+// The renderer reads the sheet's bytes with the web File API and ships them with the grid parameters; main
+// decodes and slices. The response reuses atlasImportResponseSchema.
+export const atlasImportGridRequestSchema = z
+  .object({
+    image: z.object({ name: z.string().min(1), data: z.instanceof(Uint8Array) }).strict(),
+    grid: gridSpecSchema,
+  })
+  .strict();
+
+export type AtlasImportGridRequest = z.infer<typeof atlasImportGridRequestSchema>;
 
 // Typed IPC error model. The main boundary never throws a bare string across the wire; it returns
 // a discriminated result so the renderer can branch on success without try/catch over IPC.
@@ -425,6 +474,15 @@ export interface MarionetteApi {
   // importer off the renderer document path, and returns the converted document plus warnings, a typed
   // failure, or a canceled status.
   importSpineProject(): Promise<IpcResult<SpineImportResponse>>;
+  // Import an existing packed atlas (image + region descriptor) WITHOUT repacking; main owns the descriptor
+  // dialog, reads the sibling page image(s), and returns the AtlasRef + page bytes or a canceled status.
+  importPremadeAtlas(): Promise<IpcResult<AtlasImportResponse>>;
+  // Slice a plain sprite sheet the renderer read as bytes into a uniform grid; main decodes and slices,
+  // returning the AtlasRef + the source image as the single page, or a canceled status.
+  importGridAtlas(
+    image: AtlasImportGridRequest['image'],
+    grid: GridSpec,
+  ): Promise<IpcResult<AtlasImportResponse>>;
   // Subscribe to application-menu clicks pushed from the main process (menu:action). The callback receives
   // one allowlisted MenuActionId per click; returns an unsubscribe function. This is the only MAIN ->
   // RENDERER push in the bridge; everything else is request/response.

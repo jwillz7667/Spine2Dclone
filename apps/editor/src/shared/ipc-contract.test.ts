@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
+  atlasImportGridRequestSchema,
   atlasImportImagesRequestSchema,
+  atlasImportPremadeRequestSchema,
   atlasImportRequestSchema,
   atlasImportResponseSchema,
   exportCancelRequestSchema,
@@ -15,6 +17,7 @@ import {
   fileSaveResponseSchema,
   getVersionRequestSchema,
   getVersionResponseSchema,
+  gridSpecSchema,
   IpcChannel,
   isAllowedChannel,
   isMenuActionId,
@@ -401,6 +404,76 @@ describe('ipc-contract validation', () => {
     // the profile-save request is gated by the full exportProfileSchema (an empty object is malformed).
     expect(
       validateWith(exportProfileSaveRequestSchema, { profile: {} }, 'IPC_BAD_REQUEST').ok,
+    ).toBe(false);
+  });
+
+  it('allowlists the pre-made and grid atlas channels and their menu actions (PP-D5)', () => {
+    expect(isAllowedChannel(IpcChannel.atlasImportPremade)).toBe(true);
+    expect(isAllowedChannel('atlas:importPremade')).toBe(true);
+    expect(isAllowedChannel(IpcChannel.atlasImportGrid)).toBe(true);
+    expect(isAllowedChannel('atlas:importGrid')).toBe(true);
+    expect(isMenuActionId('file:importAtlas')).toBe(true);
+    expect(isMenuActionId('file:importGrid')).toBe(true);
+  });
+
+  it('accepts the empty pre-made atlas request and rejects a payload', () => {
+    expect(validateWith(atlasImportPremadeRequestSchema, undefined, 'IPC_BAD_REQUEST').ok).toBe(
+      true,
+    );
+    expect(validateWith(atlasImportPremadeRequestSchema, {}, 'IPC_BAD_REQUEST').ok).toBe(false);
+  });
+
+  it('validates the grid-slice spec (cell and grid modes), rejecting non-positive or unknown modes', () => {
+    expect(
+      validateWith(
+        gridSpecSchema,
+        { mode: 'cell', cellWidth: 32, cellHeight: 32 },
+        'IPC_BAD_REQUEST',
+      ).ok,
+    ).toBe(true);
+    expect(
+      validateWith(gridSpecSchema, { mode: 'grid', columns: 4, rows: 4 }, 'IPC_BAD_REQUEST').ok,
+    ).toBe(true);
+    expect(
+      validateWith(gridSpecSchema, { mode: 'grid', columns: 0, rows: 4 }, 'IPC_BAD_REQUEST').ok,
+    ).toBe(false);
+    expect(
+      validateWith(
+        gridSpecSchema,
+        { mode: 'cell', cellWidth: 32.5, cellHeight: 32 },
+        'IPC_BAD_REQUEST',
+      ).ok,
+    ).toBe(false);
+    expect(validateWith(gridSpecSchema, { mode: 'diagonal' }, 'IPC_BAD_REQUEST').ok).toBe(false);
+  });
+
+  it('accepts a grid-import request with image bytes and a spec, rejects a malformed one', () => {
+    expect(
+      validateWith(
+        atlasImportGridRequestSchema,
+        {
+          image: { name: 'sheet.png', data: new Uint8Array([1]) },
+          grid: { mode: 'grid', columns: 2, rows: 2 },
+        },
+        'IPC_BAD_REQUEST',
+      ).ok,
+    ).toBe(true);
+    expect(
+      validateWith(
+        atlasImportGridRequestSchema,
+        {
+          image: { name: '', data: new Uint8Array([1]) },
+          grid: { mode: 'grid', columns: 2, rows: 2 },
+        },
+        'IPC_BAD_REQUEST',
+      ).ok,
+    ).toBe(false);
+    expect(
+      validateWith(
+        atlasImportGridRequestSchema,
+        { image: { name: 'sheet.png', data: 'nope' }, grid: { mode: 'grid', columns: 2, rows: 2 } },
+        'IPC_BAD_REQUEST',
+      ).ok,
     ).toBe(false);
   });
 });

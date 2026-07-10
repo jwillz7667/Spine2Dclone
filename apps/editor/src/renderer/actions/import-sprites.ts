@@ -4,7 +4,12 @@ import { SetAtlasRefCommand, documentHost } from '../document';
 import { atlasTextureStore } from '../editor-state/atlas-texture-store';
 import { bridge } from '../ipc-bridge';
 import { loadPageTextures } from '../panels/atlas-textures';
-import type { AtlasImportImagesRequest, AtlasImportResponse } from '../../shared';
+import type {
+  AtlasImportGridRequest,
+  AtlasImportImagesRequest,
+  AtlasImportResponse,
+  GridSpec,
+} from '../../shared';
 
 // The shared sprite-import action (WP-1.3), extracted so BOTH the Assets panel button and the
 // File > Import Sprites menu item run the SAME flow: the main process owns the directory dialog and the
@@ -73,6 +78,36 @@ export async function runImageImport(
   if (images.length === 0) return { kind: 'canceled' };
   try {
     const result = await bridge().importAtlasImages(images);
+    if (!result.ok) return { kind: 'error', message: result.error.message };
+    if (result.data.status === 'canceled') return { kind: 'canceled' };
+    return applyImportedAtlas(result.data);
+  } catch (error) {
+    return { kind: 'error', message: messageOf(error, 'import failed') };
+  }
+}
+
+// Import an EXISTING packed atlas (image + region descriptor) WITHOUT repacking (PP-D5). Main owns the
+// descriptor dialog and reads the sibling page image(s); the resulting AtlasRef is applied through the SAME
+// command + texture-publish path as a folder import (LAW 2). A user cancel is a silent no-op.
+export async function runPremadeAtlasImport(): Promise<SpriteImportOutcome> {
+  try {
+    const result = await bridge().importPremadeAtlas();
+    if (!result.ok) return { kind: 'error', message: result.error.message };
+    if (result.data.status === 'canceled') return { kind: 'canceled' };
+    return applyImportedAtlas(result.data);
+  } catch (error) {
+    return { kind: 'error', message: messageOf(error, 'import failed') };
+  }
+}
+
+// Slice a plain sprite sheet the renderer read as bytes into a uniform grid (PP-D5). The image bytes and the
+// grid parameters go to main, which decodes and slices; the AtlasRef is applied exactly like a folder import.
+export async function runGridAtlasImport(
+  image: AtlasImportGridRequest['image'],
+  grid: GridSpec,
+): Promise<SpriteImportOutcome> {
+  try {
+    const result = await bridge().importGridAtlas(image, grid);
     if (!result.ok) return { kind: 'error', message: result.error.message };
     if (result.data.status === 'canceled') return { kind: 'canceled' };
     return applyImportedAtlas(result.data);

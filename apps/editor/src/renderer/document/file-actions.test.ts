@@ -94,6 +94,17 @@ function installApi(behavior: Behavior): { savedDocument: () => unknown } {
       ok: true,
       data: { status: 'canceled' },
     }),
+    // The MarionetteApi contract gained importPremadeAtlas and importGridAtlas (atlas:importPremade /
+    // atlas:importGrid, PP-D5). These file actions never import a pre-made atlas; canceled defaults keep the
+    // bridge complete.
+    importPremadeAtlas: async (): Promise<IpcResult<AtlasImportResponse>> => ({
+      ok: true,
+      data: { status: 'canceled' },
+    }),
+    importGridAtlas: async (): Promise<IpcResult<AtlasImportResponse>> => ({
+      ok: true,
+      data: { status: 'canceled' },
+    }),
   };
   vi.stubGlobal('window', { marionette: api });
   return { savedDocument: () => saved };

@@ -76,6 +76,10 @@ export type {
   CompressedTextureTarget,
   GpuCapabilities,
 } from './atlas/variant-select';
+// Phase 5 premultiplied-alpha threading (phase-5 WP-5.2, TASK-5.2.5): map atlas-pack's premultipliedAlpha
+// flag to the PixiJS v8 TextureSource.alphaMode so a page emitted premultiplied uploads as-is (and a
+// straight page premultiplies on upload), keeping additive/screen blends aligned with the native runtimes.
+export { pageAlphaMode, applyPageAlphaMode } from './atlas/premultiplied-alpha';
 // Phase 4 slot TimelinePlayer (phase-4 WP-4.11): the pure, allocation-free directive cursor + pinned
 // counter-rollup display value (the non-GL heart of the player). The GL render path that consumes the
 // dispatched directives needs a WebGL context and is the remainder of WP-4.11.

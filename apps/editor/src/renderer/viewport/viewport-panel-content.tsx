@@ -12,6 +12,7 @@ import { useMarqueeStore } from '../editor-state/marquee-store';
 import { useSlotSelectionStore } from '../editor-state/slot-selection-store';
 import { useWeightPaintStore } from '../editor-state/weight-paint-store';
 import { usePlaybackStore } from '../editor-state/playback-store';
+import { useOnionSkinStore } from '../editor-state/onion-skin-store';
 import { DEFAULT_SKIN_NAME, useSkinPreviewStore } from '../editor-state/skin-preview-store';
 import { useToolStore, type ToolId } from '../editor-state/tool-store';
 import { attachCameraController, type CameraControls } from './camera-controller';
@@ -24,6 +25,8 @@ import { PathEditOverlay } from './path-overlay';
 import { resolveWeightPaintTarget } from './weight-paint';
 import { WeightPaintOverlay } from './weight-overlay';
 import { MarqueeOverlay } from './marquee-overlay';
+import { OnionSkinOverlay } from './onion-overlay';
+import { deriveOnionGhosts } from './onion-skin';
 import { solveWorldById } from './scene-solve';
 import { derivePhysicsFrameDt } from './physics-preview';
 import { attachToolInput } from './tool-input';
@@ -74,6 +77,8 @@ export function ViewportPanelContent(): ReactElement {
     let unsubscribeTool: (() => void) | null = null;
     let unsubscribeMarquee: (() => void) | null = null;
     let unsubscribeSkin: (() => void) | null = null;
+    let unsubscribeOnion: (() => void) | null = null;
+    let onionOverlay: OnionSkinOverlay | null = null;
 
     void (async () => {
       const created = new Application();
@@ -94,7 +99,11 @@ export function ViewportPanelContent(): ReactElement {
       const layers = createViewportLayers();
       app.stage.addChild(layers.world);
 
-      // Content: the shared runtime-web scene. Overlay: the gizmo (editor-only chrome).
+      // Content: the shared runtime-web scene. Overlay: the gizmo (editor-only chrome). The onion-skin ghosts
+      // are added FIRST so they render BEHIND the live pose (PP-D3); the overlay pools its own SkeletonViews.
+      const onion = new OnionSkinOverlay();
+      onionOverlay = onion;
+      layers.content.addChild(onion.container);
       const view = new SkeletonView();
       layers.content.addChild(view.root);
       const gizmo = new MoveRotateGizmo();
@@ -207,6 +216,16 @@ export function ViewportPanelContent(): ReactElement {
         skinDirty = true;
       });
 
+      // Onion-skin settings are ephemeral editor state (PP-D3); a change flags the ghosts for a re-derive.
+      // Ghosts are otherwise re-derived only when the playhead, revision, or render target moves (the gate in
+      // the tick), so a paused viewport with onion skinning on does no idle solve work.
+      let onionDirty = true;
+      unsubscribeOnion = useOnionSkinStore.subscribe(() => {
+        onionDirty = true;
+      });
+      let lastOnionPlayhead = Number.NaN;
+      let onionActive = false;
+
       // The last successfully exported document, cached by model.revision. SkeletonView keys its prepared
       // pose on document IDENTITY (a WeakMap), so this reference MUST stay stable while the document is
       // unchanged: re-exporting every frame would defeat that cache and re-pay full validation per frame
@@ -227,9 +246,12 @@ export function ViewportPanelContent(): ReactElement {
         // tick runs at NORMAL priority, ahead of Pixi's render (LOW), so the rebuilt scene is what gets
         // drawn this frame: the old page source the store just destroyed on re-import is never rendered.
         if (resolverDirty) {
-          view.setTextureResolver(atlasTextureStore.getResolver());
+          const resolver = atlasTextureStore.getResolver();
+          view.setTextureResolver(resolver);
+          onion.setTextureResolver(resolver);
           resolverDirty = false;
           lastTarget = null;
+          onionDirty = true; // rebind ghost textures too
         }
 
         const revisionChanged = model.revision !== lastRevision;
@@ -379,6 +401,45 @@ export function ViewportPanelContent(): ReactElement {
           marqueeOverlay.refresh(useMarqueeStore.getState().rect);
           marqueeDirty = false;
         }
+
+        // Onion skinning (PP-D3): ghost the pose at N frames before/after the playhead, faintly, behind the
+        // live pose. Only meaningful in animation mode over an animated target with a real period. Ghosts are
+        // re-derived only when a setting, the revision, the render target, or the playhead changed (the gate),
+        // so a paused viewport does no idle solve work; while playing the moving playhead re-derives each frame,
+        // matching how the live pose already re-syncs. deriveOnionGhosts is pure and capped, and the overlay
+        // pools its display objects (no per-frame allocation beyond the pooled per-view region products).
+        const onionSettings = useOnionSkinStore.getState();
+        const playheadNow = usePlaybackStore.getState().playhead;
+        const showGhosts =
+          onionSettings.enabled &&
+          playback.mode === 'animation' &&
+          target.kind === 'animated' &&
+          cachedDoc !== null &&
+          animationName !== null &&
+          activeAnimation !== null &&
+          activeAnimation.duration > 0;
+        if (
+          onionDirty ||
+          revisionChanged ||
+          showGhosts !== onionActive ||
+          playheadNow !== lastOnionPlayhead
+        ) {
+          if (showGhosts && cachedDoc !== null && activeAnimation !== null) {
+            const ghosts = deriveOnionGhosts(
+              onionSettings,
+              playheadNow,
+              playback.workingFps,
+              activeAnimation.duration,
+              playback.loop,
+            );
+            onion.refresh(cachedDoc, animationName, ghosts);
+          } else {
+            onion.clear();
+          }
+          onionDirty = false;
+          onionActive = showGhosts;
+          lastOnionPlayhead = playheadNow;
+        }
       };
       app.ticker.add(tick);
     })();
@@ -397,6 +458,10 @@ export function ViewportPanelContent(): ReactElement {
       unsubscribeTool?.();
       unsubscribeMarquee?.();
       unsubscribeSkin?.();
+      unsubscribeOnion?.();
+      // Release the pooled ghost views (their mesh geometry buffers) before the app tears down the tree.
+      onionOverlay?.destroy();
+      onionOverlay = null;
       if (app !== null) {
         app.destroy({ removeView: true }, { children: true });
         app = null;
@@ -447,6 +512,7 @@ function ViewportToolbar(): ReactElement {
   const setMode = usePlaybackStore((state) => state.setMode);
   const autoKey = usePlaybackStore((state) => state.autoKey);
   const setAutoKey = usePlaybackStore((state) => state.setAutoKey);
+  const onionEnabled = useOnionSkinStore((state) => state.enabled);
 
   const toolButton = (id: ToolId, label: string): ReactElement => (
     <button
@@ -492,7 +558,69 @@ function ViewportToolbar(): ReactElement {
       >
         Auto-key
       </button>
+      <span style={dividerStyle} />
+      <button
+        type="button"
+        onClick={() => useOnionSkinStore.getState().toggle()}
+        disabled={mode === 'setup'}
+        title="Ghost frames before and after the playhead"
+        style={{
+          ...buttonStyle,
+          ...(mode === 'animation' && onionEnabled ? buttonActiveStyle : null),
+          ...(mode === 'setup' ? buttonDisabledStyle : null),
+        }}
+      >
+        Onion
+      </button>
+      {mode === 'animation' && onionEnabled && <OnionSettings />}
     </div>
+  );
+}
+
+// Compact onion-skin count/opacity steppers, shown only when onion skinning is on. Reads and writes the
+// ephemeral onion store (the document/editor wall); the viewport picks the values up on the next frame.
+function OnionSettings(): ReactElement {
+  const before = useOnionSkinStore((state) => state.before);
+  const after = useOnionSkinStore((state) => state.after);
+  const opacity = useOnionSkinStore((state) => state.opacity);
+  const store = useOnionSkinStore;
+  return (
+    <span style={onionSettingsStyle}>
+      <label style={onionLabelStyle}>
+        before
+        <input
+          type="number"
+          min={0}
+          max={16}
+          value={before}
+          onChange={(event) => store.getState().setBefore(Number(event.target.value))}
+          style={onionInputStyle}
+        />
+      </label>
+      <label style={onionLabelStyle}>
+        after
+        <input
+          type="number"
+          min={0}
+          max={16}
+          value={after}
+          onChange={(event) => store.getState().setAfter(Number(event.target.value))}
+          style={onionInputStyle}
+        />
+      </label>
+      <label style={onionLabelStyle}>
+        opacity
+        <input
+          type="range"
+          min={0.05}
+          max={1}
+          step={0.05}
+          value={opacity}
+          onChange={(event) => store.getState().setOpacity(Number(event.target.value))}
+          style={onionRangeStyle}
+        />
+      </label>
+    </span>
   );
 }
 
@@ -533,6 +661,32 @@ const dividerStyle: CSSProperties = {
   background: '#444444',
   margin: '0 2px',
 };
+
+const onionSettingsStyle: CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 8,
+  padding: '2px 8px',
+  background: 'rgba(30, 30, 30, 0.85)',
+  border: '1px solid #444444',
+  borderRadius: 4,
+  fontSize: 11,
+  color: '#cccccc',
+};
+
+const onionLabelStyle: CSSProperties = { display: 'flex', alignItems: 'center', gap: 4 };
+
+const onionInputStyle: CSSProperties = {
+  width: 42,
+  fontSize: 11,
+  color: '#dddddd',
+  background: '#2d2d2d',
+  border: '1px solid #444444',
+  borderRadius: 3,
+  padding: '1px 4px',
+};
+
+const onionRangeStyle: CSSProperties = { width: 70 };
 
 // Animation-mode chrome: an inset tinted border framing the whole viewport so the mode is unmistakable at
 // a glance, with a small banner top-center. pointerEvents none so it never steals gizmo/camera input.

@@ -1,6 +1,6 @@
 {
   "rigId": "rig-blendmodes",
-  "rigHash": "sha256:116d38b80dac16b88fe7c444812473523f18c68877bd63bb1fe36da4bf314a0e",
+  "rigHash": "sha256:02837599bace2634994f555c6107f3517aff52cd0849ecc734194e0ba774e9b8",
   "specHash": "sha256:952b80b9b34fee86996fe232441a362db27e98978fa72def69ab17c4ed2a8d8b",
   "coreVersion": "runtime-core@0.0.0",
   "toolchain": "node-22.13.1-v8",

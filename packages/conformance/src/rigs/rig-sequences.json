@@ -1,5 +1,5 @@
 {
-  "formatVersion": "0.5.0",
+  "formatVersion": "0.6.0",
   "name": "rig-sequences",
   "hash": "",
   "bones": [
@@ -418,7 +418,8 @@
       "deform": {},
       "drawOrder": [],
       "events": [],
-      "path": {}
+      "path": {},
+      "physics": {}
     }
   },
   "atlas": {
@@ -445,5 +446,6 @@
     ]
   },
   "events": [],
-  "pathConstraints": []
+  "pathConstraints": [],
+  "physicsConstraints": []
 }

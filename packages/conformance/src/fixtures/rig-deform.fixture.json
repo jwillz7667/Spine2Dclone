@@ -1,6 +1,6 @@
 {
   "rigId": "rig-deform",
-  "rigHash": "sha256:19505e22e182fc6349de0ca7d538ef031c831534264ce8c8d5d304b327abdd25",
+  "rigHash": "sha256:be1d56a03d49342612008aae8f645bb3b2bb876601f94b7698d72cf15684b310",
   "specHash": "sha256:a63e902a964ae784f8a2dae3f4f5b99ebcbfdc89c1a2dbbfe2ede2e42c93fefc",
   "coreVersion": "runtime-core@0.0.0",
   "toolchain": "node-22.13.1-v8",

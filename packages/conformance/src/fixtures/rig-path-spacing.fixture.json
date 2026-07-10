@@ -1,6 +1,6 @@
 {
   "rigId": "rig-path-spacing",
-  "rigHash": "sha256:7396bceebbb649a643d73ce3f858c33ad0e74f3236e3c8dfeac7aa42a1e715ed",
+  "rigHash": "sha256:67cf40c45574bc2b85ea84742f8a34e7d7cb19994a0f3ee184928a78fbe9fb1d",
   "specHash": "sha256:f81e983d0f857b6fea63fb8e0be15426f013ddf7f9afa966fd9ffd09d096d261",
   "coreVersion": "runtime-core@0.0.0",
   "toolchain": "node-22.13.1-v8",

@@ -1,6 +1,6 @@
 {
   "rigId": "rig-path-follow",
-  "rigHash": "sha256:af191dddb2ce7143eb6eb806b1cf9ab25af4edb06ae03d4b91b152b0de807055",
+  "rigHash": "sha256:61ce881a65217a48986b848dba83fc69b53f4cb5786b5e6c78c6782f39be5f62",
   "specHash": "sha256:65bbc1b23eb6a8ec926e7477de5feb9568d44882ab3f7d12d50631468ba38fc3",
   "coreVersion": "runtime-core@0.0.0",
   "toolchain": "node-22.13.1-v8",

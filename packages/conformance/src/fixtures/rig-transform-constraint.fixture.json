@@ -1,6 +1,6 @@
 {
   "rigId": "rig-transform-constraint",
-  "rigHash": "sha256:8a7ca08ae4ab294866ed48589aab7e9baef09aa866701c89211343f0915eabe3",
+  "rigHash": "sha256:bc66c2cb4e2b9dffeaaedebe0332cf28da263817fdef7591f8e3395a7e2d2d6c",
   "specHash": "sha256:b542cd8bf177823d9eb0b97a069af289c3701a3d7e2f0c85df8c90d002cd6e73",
   "coreVersion": "runtime-core@0.0.0",
   "toolchain": "node-22.13.1-v8",

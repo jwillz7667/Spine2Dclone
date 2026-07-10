@@ -1,6 +1,6 @@
 {
   "rigId": "rig-clipping",
-  "rigHash": "sha256:f68126eb6daf286ca3f839188759edc9fb73af6b34843cd109d1753d19e5cbf5",
+  "rigHash": "sha256:9223158e9c7712fa70a776abea9f639e1e2e718de8491d40d7413083d5af90a4",
   "specHash": "sha256:e439ab19c8f938313ac6b7e5ea84df379945c4d89cc7e9c95c6829902288355a",
   "coreVersion": "runtime-core@0.0.0",
   "toolchain": "node-22.13.1-v8",

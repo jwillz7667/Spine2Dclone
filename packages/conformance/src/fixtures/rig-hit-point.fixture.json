@@ -1,6 +1,6 @@
 {
   "rigId": "rig-hit-point",
-  "rigHash": "sha256:7d10b9c17a0e6309cf4c8cf61c72b288420808c399f2e04411de122f51ad280f",
+  "rigHash": "sha256:762f50f2c2d8d75f6de8511cde4188db78b27e145f7cf104a5cfd1051f075302",
   "specHash": "sha256:d6a04d648edccc7ec9ec05e1a46356f519c7ddb66f411e045625317e2e596af4",
   "coreVersion": "runtime-core@0.0.0",
   "toolchain": "node-22.13.1-v8",

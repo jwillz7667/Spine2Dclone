@@ -1,5 +1,5 @@
 {
-  "formatVersion": "0.5.0",
+  "formatVersion": "0.6.0",
   "name": "rig-events-draworder",
   "hash": "",
   "bones": [
@@ -62,9 +62,11 @@
         { "time": 0.55, "name": "ping" },
         { "time": 0.85, "name": "coin", "float": 2.5, "string": "silver" }
       ],
-      "path": {}
+      "path": {},
+      "physics": {}
     }
   },
   "atlas": { "pages": [] },
-  "pathConstraints": []
+  "pathConstraints": [],
+  "physicsConstraints": []
 }

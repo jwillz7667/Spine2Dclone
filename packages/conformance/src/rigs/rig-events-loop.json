@@ -1,5 +1,5 @@
 {
-  "formatVersion": "0.5.0",
+  "formatVersion": "0.6.0",
   "name": "rig-events-loop",
   "hash": "",
   "bones": [
@@ -39,9 +39,11 @@
         { "time": 0.7, "name": "beat" },
         { "time": 1, "name": "loop" }
       ],
-      "path": {}
+      "path": {},
+      "physics": {}
     }
   },
   "atlas": { "pages": [] },
-  "pathConstraints": []
+  "pathConstraints": [],
+  "physicsConstraints": []
 }

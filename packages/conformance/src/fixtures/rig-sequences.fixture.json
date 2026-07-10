@@ -1,6 +1,6 @@
 {
   "rigId": "rig-sequences",
-  "rigHash": "sha256:9440a8788a83faf6f990014bb8546cafcd2e06918d4d756acdcf20f4435011d0",
+  "rigHash": "sha256:d0c44006f0ae5167d8ee62a5226e9b395ad78650534aba738c4af3947f373524",
   "specHash": "sha256:3544e47b0e12e95e23dc9156b4f299db4600ba82d2c8080d7b041f54e5d38aa8",
   "coreVersion": "runtime-core@0.0.0",
   "toolchain": "node-22.13.1-v8",

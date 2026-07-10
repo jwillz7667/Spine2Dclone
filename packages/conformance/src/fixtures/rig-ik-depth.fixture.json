@@ -1,6 +1,6 @@
 {
   "rigId": "rig-ik-depth",
-  "rigHash": "sha256:0cee7edc7aa47dd530b400a0e8062516a5157ec420de8d9d5bae953ad20f00b2",
+  "rigHash": "sha256:18416e0f02a57f4892af199f6c26c1d805788a24d6fb0535b311f0797da9ddf9",
   "specHash": "sha256:e4e2a788e1f3db5a8a157f24da077e9201c8ae801d29bedce224c8799fee77c3",
   "coreVersion": "runtime-core@0.0.0",
   "toolchain": "node-22.13.1-v8",

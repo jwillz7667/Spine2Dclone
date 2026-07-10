@@ -1,14 +1,26 @@
 import type { Animation, BoneTimelines, SkeletonDocument } from '@marionette/format/types';
 import { composeInto, MAT2X3_STRIDE } from '../math/affine';
-import { resolveWorld, solveIkOneBone, solveIkTwoBone, solveTransformConstraint } from '../solve';
+import {
+  resolveWorld,
+  solveIkOneBone,
+  solveIkTwoBone,
+  solvePathConstraint,
+  solveTransformConstraint,
+} from '../solve';
 import type { TransformMix } from '../solve/transform-constraint';
 import { SETUP_STRIDE, SLOT_COLOR_STRIDE } from './pose';
-import type { Pose, ResolvedIkConstraint, ResolvedTransformConstraint } from './pose';
+import type {
+  Pose,
+  ResolvedIkConstraint,
+  ResolvedPathConstraint,
+  ResolvedTransformConstraint,
+} from './pose';
 import type {
   PreparedAnimation,
   PreparedBoneChannels,
   PreparedDeformChannel,
   PreparedIkChannel,
+  PreparedPathChannel,
   PreparedSlotChannels,
   PreparedTrack,
   PreparedTransformChannel,
@@ -25,6 +37,7 @@ import {
   buildIkDepthBoolTrack,
   buildIkMixTrack,
   buildIkSoftnessTrack,
+  buildPathTrack,
   buildScalarTrack,
   buildTransformMixTrack,
   buildVec2Track,
@@ -271,14 +284,26 @@ function solveOneTransformConstraint(
   }
 }
 
-// Solve step 3 (ADR-0003 section 3, ordering per ADR-0009 section 1.3 / ADR-0010 section 1). Default
-// (pose.solveOrder null): all IK constraints in document order, then all transform constraints in document
-// order, the exact ADR-0003 two-phase path. When the rig assigns an explicit `order`, `pose.solveOrder`
-// is the precomputed dense schedule and step 3 walks it, dispatching each code to the SAME per-constraint
-// helper the default path uses (so an IK constraint is bit-identical either way; only the schedule moves).
-// Allocation-free: target world goes into the module scratch; the schedule is precomputed at build.
+// Solve one path constraint against the pose (ADR-0013, PP-B6). A skin-scoped constraint whose skin is
+// inactive is skipped; otherwise the constraint distributes and orients its bones along the target path. The
+// per-constraint sampled scratch (position, spacing, mix*) was written by step 2 (else reset to the base).
+function solveOnePathConstraint(
+  pose: Pose,
+  constraint: ResolvedPathConstraint,
+  activeSkin: string | null,
+): void {
+  if (!isConstraintScopeActive(constraint.scopeSkins, activeSkin)) return;
+  solvePathConstraint(pose, constraint);
+}
+
+// Solve step 3 (ADR-0003 section 3, ordering per ADR-0009 section 1.3 / ADR-0010 section 1 / ADR-0011
+// section 2.3). Default (pose.solveOrder null): all IK constraints, then all transform constraints, then all
+// PATH constraints, each in document order. When the rig assigns an explicit `order`, `pose.solveOrder` is
+// the precomputed dense schedule spanning all three arrays and step 3 walks it, dispatching each code to the
+// SAME per-constraint helper the default path uses (so a constraint is bit-identical either way; only the
+// schedule moves). Allocation-free: target world goes into the module scratch; the schedule is precomputed.
 export function solveConstraints(pose: Pose, activeSkin: string | null = null): void {
-  const { ikConstraints, transformConstraints, solveOrder } = pose;
+  const { ikConstraints, transformConstraints, pathConstraints, solveOrder } = pose;
 
   if (solveOrder === null) {
     for (let i = 0; i < ikConstraints.length; i += 1) {
@@ -287,16 +312,23 @@ export function solveConstraints(pose: Pose, activeSkin: string | null = null): 
     for (let i = 0; i < transformConstraints.length; i += 1) {
       solveOneTransformConstraint(pose, transformConstraints[i]!, activeSkin);
     }
+    for (let i = 0; i < pathConstraints.length; i += 1) {
+      solveOnePathConstraint(pose, pathConstraints[i]!, activeSkin);
+    }
     return;
   }
 
   const ikCount = ikConstraints.length;
+  const transformCount = transformConstraints.length;
+  const pathBase = ikCount + transformCount;
   for (let p = 0; p < solveOrder.length; p += 1) {
     const code = solveOrder[p]!;
     if (code < ikCount) {
       solveOneIkConstraint(pose, ikConstraints[code]!, activeSkin);
-    } else {
+    } else if (code < pathBase) {
       solveOneTransformConstraint(pose, transformConstraints[code - ikCount]!, activeSkin);
+    } else {
+      solveOnePathConstraint(pose, pathConstraints[code - pathBase]!, activeSkin);
     }
   }
 }
@@ -318,6 +350,16 @@ export function resetConstraintsToBase(pose: Pose): void {
   for (let i = 0; i < transformConstraints.length; i += 1) {
     const constraint = transformConstraints[i]!;
     copyTransformMix(constraint.baseMix, constraint.sampledMix);
+  }
+  // Path constraints (ADR-0013): reset the sampled position/spacing/mix* to the definition base; step 2's
+  // path timeline then overlays any keyed channel, and an unkeyed channel keeps its base.
+  for (let i = 0; i < pose.pathConstraints.length; i += 1) {
+    const constraint = pose.pathConstraints[i]!;
+    constraint.sampled.position = constraint.basePosition;
+    constraint.sampled.spacing = constraint.baseSpacing;
+    constraint.sampled.mixRotate = constraint.baseMixRotate;
+    constraint.sampled.mixX = constraint.baseMixX;
+    constraint.sampled.mixY = constraint.baseMixY;
   }
 }
 
@@ -615,8 +657,8 @@ function applyConstraintEntry(
   additive: boolean,
   discreteWins: boolean,
 ): void {
-  const { ikChannels, transformChannels } = prepared;
-  const { ikConstraints, transformConstraints, ikBendWinWeight, ikStretchWinWeight, ikCompressWinWeight } =
+  const { ikChannels, transformChannels, pathChannels } = prepared;
+  const { ikConstraints, transformConstraints, pathConstraints, ikBendWinWeight, ikStretchWinWeight, ikCompressWinWeight } =
     pose;
 
   for (let c = 0; c < ikChannels.length; c += 1) {
@@ -670,6 +712,42 @@ function applyConstraintEntry(
     blendTransformMix(mix, base, 'scaleY', channel.mixScaleY, t, alpha, additive);
     blendTransformMix(mix, base, 'shearY', channel.mixShearY, t, alpha, additive);
   }
+
+  // Path constraints (ADR-0011 section 3, ADR-0013): each channel is a continuous interpolated scalar
+  // blended toward its keyed value by alpha (additive adds the delta from the constraint base), exactly
+  // like the transform mix channels. position/spacing are unbounded; the mix channels are [0, 1] by the
+  // format (PATH_MIX_RANGE), so no extra clamp is applied here (the base and keyed values are in range).
+  for (let c = 0; c < pathChannels.length; c += 1) {
+    const channel: PreparedPathChannel = pathChannels[c]!;
+    const index = channel.constraintIndex;
+    if (index < 0) continue;
+    const constraint = pathConstraints[index]!;
+    const sampled = constraint.sampled;
+    blendPathScalar(sampled, 'position', constraint.basePosition, channel.position, t, alpha, additive);
+    blendPathScalar(sampled, 'spacing', constraint.baseSpacing, channel.spacing, t, alpha, additive);
+    blendPathScalar(sampled, 'mixRotate', constraint.baseMixRotate, channel.mixRotate, t, alpha, additive);
+    blendPathScalar(sampled, 'mixX', constraint.baseMixX, channel.mixX, t, alpha, additive);
+    blendPathScalar(sampled, 'mixY', constraint.baseMixY, channel.mixY, t, alpha, additive);
+  }
+}
+
+// Blend one path-constraint sampled scalar channel in place. A null track means the channel is absent from
+// this animation (leave the running value); otherwise blend toward the sampled value by alpha (additive
+// adds the delta from the constraint's base value), the same rule as the transform mix channels.
+function blendPathScalar(
+  sampled: ResolvedPathConstraint['sampled'],
+  key: 'position' | 'spacing' | 'mixRotate' | 'mixX' | 'mixY',
+  base: number,
+  track: PreparedTrack | null,
+  t: number,
+  alpha: number,
+  additive: boolean,
+): void {
+  if (track === null) return;
+  const value = sampleScalarTrack(track, t);
+  sampled[key] = additive
+    ? blendAddLinear(sampled[key], base, value, alpha)
+    : blendReplaceLinear(sampled[key], value, alpha);
 }
 
 // Blend one transform-constraint mix sub-channel in place. A null track means the sub-channel is absent
@@ -791,6 +869,25 @@ function prepareAnimation(pose: Pose, animation: Animation): PreparedAnimation {
     });
   }
 
+  // Path-constraint timelines (ADR-0011 section 3, ADR-0013). Required on a validated Animation but
+  // tolerated as empty on a hand-built draft, exactly like ik/transform above. Each channel is prepared
+  // from only the frames that key it; an all-absent channel is null and holds the constraint base.
+  const pathIndexByName = nameIndexOf(pose.pathConstraints);
+  const pathChannels: PreparedPathChannel[] = [];
+  const path = animation.path ?? {};
+  for (const constraintName of Object.keys(path)) {
+    const frames = path[constraintName]!;
+    if (frames.length === 0) continue;
+    pathChannels.push({
+      constraintIndex: pathIndexByName.get(constraintName) ?? -1,
+      position: buildPathTrack(frames, 'position'),
+      spacing: buildPathTrack(frames, 'spacing'),
+      mixRotate: buildPathTrack(frames, 'mixRotate'),
+      mixX: buildPathTrack(frames, 'mixX'),
+      mixY: buildPathTrack(frames, 'mixY'),
+    });
+  }
+
   const deformChannels: PreparedDeformChannel[] = [];
   const deform = animation.deform ?? {};
   for (const skinName of Object.keys(deform)) {
@@ -821,7 +918,15 @@ function prepareAnimation(pose: Pose, animation: Animation): PreparedAnimation {
       ? buildDrawOrderTimeline(drawOrderKeys, slotIndexByName, pose.slotCount)
       : null;
 
-  return { boneChannels, slotChannels, ikChannels, transformChannels, deformChannels, drawOrder };
+  return {
+    boneChannels,
+    slotChannels,
+    ikChannels,
+    transformChannels,
+    pathChannels,
+    deformChannels,
+    drawOrder,
+  };
 }
 
 function nameIndex(names: readonly string[]): Map<string, number> {

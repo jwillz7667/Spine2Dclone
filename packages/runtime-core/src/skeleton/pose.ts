@@ -1,5 +1,11 @@
-import type { Animation } from '@marionette/format/types';
+import type {
+  Animation,
+  PathPositionMode,
+  PathRotateMode,
+  PathSpacingMode,
+} from '@marionette/format/types';
 import { MAT2X3_STRIDE } from '../math/affine';
+import type { PreparedPathGeometry } from '../solve/path-constraint';
 import type { TransformMix, TransformOffset } from '../solve/transform-constraint';
 import type { PreparedAnimation } from './prepared';
 
@@ -68,6 +74,41 @@ export interface ResolvedTransformConstraint {
   // The names of the skins that SCOPE this constraint (ADR-0009 section 5), or null when unscoped.
   readonly scopeSkins: readonly string[] | null;
   readonly sampledMix: TransformMix;
+}
+
+// A path constraint resolved against the pose (ADR-0013, PP-B6). `boneIndices` are the bones distributed
+// along the path (document/list order == along-path order). `path` is the prepared spline GEOMETRY built
+// once from the target slot's setup default-skin path attachment, or null when no path is resolvable (the
+// constraint is then a no-op). The mode enums, base channel values, and offsetRotation come from the
+// constraint definition; `sampled` is the per-frame scratch step 2 writes (from the path timeline, else the
+// base values) and step 3 reads. The per-bone position/tangent scratch used by the solve lives in solve
+// module scratch (shared across constraints), not here. Built once; the per-frame solve allocates nothing.
+export interface ResolvedPathConstraint {
+  readonly name: string;
+  readonly boneIndices: Int32Array;
+  readonly positionMode: PathPositionMode;
+  readonly spacingMode: PathSpacingMode;
+  readonly rotateMode: PathRotateMode;
+  readonly offsetRotation: number;
+  readonly basePosition: number;
+  readonly baseSpacing: number;
+  readonly baseMixRotate: number;
+  readonly baseMixX: number;
+  readonly baseMixY: number;
+  // The prepared spline geometry (control points, curve count, committed lengths, world scratch), or null
+  // when the target slot has no resolvable setup path attachment (ADR-0013 section 7).
+  readonly path: PreparedPathGeometry | null;
+  // The explicit combined-set solve order (ADR-0011 section 2.3), or -1 when this constraint carries none.
+  readonly order: number;
+  // The skins that SCOPE this constraint (ADR-0011 section 4), or null when unscoped.
+  readonly scopeSkins: readonly string[] | null;
+  readonly sampled: {
+    position: number;
+    spacing: number;
+    mixRotate: number;
+    mixX: number;
+    mixY: number;
+  };
 }
 
 // A growable scratch buffer for sampled deform offsets, owned by the pose so mesh-vertex sampling
@@ -187,12 +228,16 @@ export interface Pose {
   // The document's transform constraints, resolved to bone indices, in document array order. Solved
   // after all IK constraints (the canonical step-3 order). Empty for a rig with none.
   readonly transformConstraints: readonly ResolvedTransformConstraint[];
-  // The explicit combined-set solve schedule (ADR-0009 section 1.3, ADR-0010 section 1) or null when no
-  // constraint carries an `order`. When present it is a dense permutation of `[0, N)` (N = total
-  // constraints): `solveOrder[position]` is a constraint CODE, `code < ikConstraints.length` selecting
-  // `ikConstraints[code]`, else `transformConstraints[code - ikConstraints.length]`. Step 3 walks it in
-  // position order. Null keeps the exact ADR-0003 two-phase (all IK, then all transform) path, so a rig
-  // without order is byte-identical. Precomputed once at build; never touched per frame.
+  // The document's path constraints (ADR-0013, PP-B6), resolved in document array order. Solved AFTER all
+  // IK and all transform constraints by default (ADR-0011 section 2.3). Empty for a rig with none.
+  readonly pathConstraints: readonly ResolvedPathConstraint[];
+  // The explicit combined-set solve schedule (ADR-0009 section 1.3, ADR-0010 section 1, ADR-0011 section
+  // 2.3) or null when no constraint carries an `order`. When present it is a dense permutation of `[0, N)`
+  // (N = total constraints across all THREE arrays): `solveOrder[position]` is a constraint CODE selecting
+  // `ikConstraints[code]` when `code < ikCount`, `transformConstraints[code - ikCount]` when
+  // `ikCount <= code < ikCount + transformCount`, else `pathConstraints[code - ikCount - transformCount]`.
+  // Step 3 walks it in position order. Null keeps the exact default (all IK, then all transform, then all
+  // path) path, so a rig without order is byte-identical. Precomputed once at build; never touched per frame.
   readonly solveOrder: Int32Array | null;
   // Reused scratch for sampled deform offsets (mesh-vertex sampling, sampleMeshVertices). Not touched
   // by the bone/slot/constraint solve; lives on the pose so repeated mesh sampling allocates nothing.
@@ -224,6 +269,7 @@ export function allocatePose(
   slotNames: readonly string[],
   ikConstraints: readonly ResolvedIkConstraint[],
   transformConstraints: readonly ResolvedTransformConstraint[],
+  pathConstraints: readonly ResolvedPathConstraint[],
 ): Pose {
   return {
     boneCount,
@@ -255,7 +301,8 @@ export function allocatePose(
     drawOrderWinWeight: new Float64Array(1),
     ikConstraints,
     transformConstraints,
-    solveOrder: buildSolveOrder(ikConstraints, transformConstraints),
+    pathConstraints,
+    solveOrder: buildSolveOrder(ikConstraints, transformConstraints, pathConstraints),
     deformScratch: { offsets: new Float64Array(0) },
     preparedAnimations: new WeakMap<Animation, PreparedAnimation>(),
   };
@@ -271,16 +318,22 @@ export function allocatePose(
 function buildSolveOrder(
   ikConstraints: readonly ResolvedIkConstraint[],
   transformConstraints: readonly ResolvedTransformConstraint[],
+  pathConstraints: readonly ResolvedPathConstraint[],
 ): Int32Array | null {
-  const total = ikConstraints.length + transformConstraints.length;
+  const ikCount = ikConstraints.length;
+  const transformCount = transformConstraints.length;
+  const total = ikCount + transformCount + pathConstraints.length;
   if (total === 0) return null;
 
   let anyOrder = false;
-  for (let i = 0; i < ikConstraints.length; i += 1) {
+  for (let i = 0; i < ikCount; i += 1) {
     if (ikConstraints[i]!.order >= 0) anyOrder = true;
   }
-  for (let i = 0; i < transformConstraints.length; i += 1) {
+  for (let i = 0; i < transformCount; i += 1) {
     if (transformConstraints[i]!.order >= 0) anyOrder = true;
+  }
+  for (let i = 0; i < pathConstraints.length; i += 1) {
+    if (pathConstraints[i]!.order >= 0) anyOrder = true;
   }
   if (!anyOrder) return null;
 
@@ -290,11 +343,14 @@ function buildSolveOrder(
     codes[order] = code;
     return true;
   };
-  for (let i = 0; i < ikConstraints.length; i += 1) {
+  for (let i = 0; i < ikCount; i += 1) {
     if (!place(ikConstraints[i]!.order, i)) return null;
   }
-  for (let j = 0; j < transformConstraints.length; j += 1) {
-    if (!place(transformConstraints[j]!.order, ikConstraints.length + j)) return null;
+  for (let j = 0; j < transformCount; j += 1) {
+    if (!place(transformConstraints[j]!.order, ikCount + j)) return null;
+  }
+  for (let k = 0; k < pathConstraints.length; k += 1) {
+    if (!place(pathConstraints[k]!.order, ikCount + transformCount + k)) return null;
   }
   return codes;
 }

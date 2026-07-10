@@ -3,6 +3,7 @@ import type {
   DrawOrderKeyframe,
   IkFrame,
   Keyframe,
+  PathFrame,
   RGB,
   RGBA,
   SlotTimelines,
@@ -267,6 +268,21 @@ export function buildIkDepthBoolTrack(
 export function buildTransformMixTrack(
   frames: readonly Keyframe<TransformFrame>[],
   channel: keyof TransformFrame,
+): PreparedTrack | null {
+  const present = frames.filter((frame) => frame.value[channel] !== undefined);
+  if (present.length === 0) return null;
+  return buildTrack(present, 1, (key, out, base) => {
+    out[base] = key.value[channel] ?? 0;
+  });
+}
+
+// One channel of a path-constraint timeline (ADR-0011 section 3, ADR-0013): `position`, `spacing`,
+// `mixRotate`, `mixX`, or `mixY`. Built from ONLY the keyframes that key it (the same absent-channel
+// semantics as the transform mix track), each interpolated by its own curve. Returns null when no keyframe
+// keys the channel, so step 2 holds the constraint's base value for it.
+export function buildPathTrack(
+  frames: readonly Keyframe<PathFrame>[],
+  channel: keyof PathFrame,
 ): PreparedTrack | null {
   const present = frames.filter((frame) => frame.value[channel] !== undefined);
   if (present.length === 0) return null;

@@ -22,6 +22,7 @@ export type {
   Pose,
   ResolvedIkConstraint,
   ResolvedTransformConstraint,
+  ResolvedPathConstraint,
   DeformScratch,
 } from './skeleton/pose';
 export { SETUP_STRIDE, SLOT_COLOR_STRIDE } from './skeleton/pose';
@@ -142,8 +143,10 @@ export {
   solveSkin,
   solveSkinUnweighted,
   applyDeform,
+  solvePathConstraint,
+  PATH_CURVE_SUBDIVISIONS,
 } from './solve';
-export type { TransformMix, TransformOffset } from './solve';
+export type { TransformMix, TransformOffset, PreparedPathGeometry } from './solve';
 
 // Phase-3 effects solve (phase-3-vfx-particles.md section 8, WP-3.1 to 3.4): the normative seeded
 // integer PRNG and per-particle draw order (3.1), the SoA particle pool + over-life curve eval and the

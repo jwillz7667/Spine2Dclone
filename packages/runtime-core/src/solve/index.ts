@@ -16,3 +16,8 @@ export { solveTransformConstraint } from './transform-constraint';
 export { solveSkin, solveSkinUnweighted } from './skin';
 
 export { applyDeform } from './deform';
+
+// Path constraint solve (ADR-0013, PP-B6): distribute and orient bones along a target slot's path
+// attachment. The PreparedPathGeometry is built once at buildPose; solvePathConstraint runs at step 3.
+export type { PreparedPathGeometry } from './path-constraint';
+export { solvePathConstraint, PATH_CURVE_SUBDIVISIONS } from './path-constraint';

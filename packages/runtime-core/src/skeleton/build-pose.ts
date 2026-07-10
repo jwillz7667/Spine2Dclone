@@ -1,7 +1,22 @@
-import type { IkConstraint, SkeletonDocument, TransformConstraint } from '@marionette/format/types';
+import type {
+  IkConstraint,
+  PathAttachment,
+  PathConstraint,
+  SkeletonDocument,
+  Skin,
+  TransformConstraint,
+} from '@marionette/format/types';
+import { PATH_CURVE_SUBDIVISIONS } from '../solve/path-constraint';
+import type { PreparedPathGeometry } from '../solve/path-constraint';
 import type { TransformMix, TransformOffset } from '../solve/transform-constraint';
+import { MAT2X3_STRIDE } from '../math/affine';
 import { allocatePose, SETUP_STRIDE, SLOT_COLOR_STRIDE } from './pose';
-import type { Pose, ResolvedIkConstraint, ResolvedTransformConstraint } from './pose';
+import type {
+  Pose,
+  ResolvedIkConstraint,
+  ResolvedPathConstraint,
+  ResolvedTransformConstraint,
+} from './pose';
 import { transformModeToCode } from './transform-mode';
 
 // Build a Pose from a VALIDATED document (format-contract: validate on import, then the solve trusts
@@ -50,6 +65,27 @@ export function buildPose(document: SkeletonDocument): Pose {
   const transformConstraints = (document.transformConstraints ?? []).map((c) =>
     resolveTransform(c, indexByName, scopeByConstraint.get(c.name) ?? null),
   );
+  // Path constraints (ADR-0013, PP-B6). Their prepared spline geometry comes from the target slot's setup
+  // default-skin path attachment (ADR-0013 section 7); a pre-0.5.0 draft may lack the array (tolerated as
+  // empty, the same lenience as the IK/transform arrays).
+  const slotBoneByName = new Map<string, number>();
+  const slotSetupAttachmentByName = new Map<string, string | null>();
+  for (const slot of slots) {
+    slotBoneByName.set(slot.name, indexByName.get(slot.bone) ?? -1);
+    slotSetupAttachmentByName.set(slot.name, slot.attachment);
+  }
+  const defaultSkin = document.skins.find((skin) => skin.name === 'default');
+  const pathConstraints = (document.pathConstraints ?? []).map((c) =>
+    resolvePath(
+      c,
+      indexByName,
+      slotBoneByName,
+      slotSetupAttachmentByName,
+      defaultSkin,
+      boneCount,
+      scopeByConstraint.get(c.name) ?? null,
+    ),
+  );
 
   const pose = allocatePose(
     boneCount,
@@ -58,6 +94,7 @@ export function buildPose(document: SkeletonDocument): Pose {
     slotNames,
     ikConstraints,
     transformConstraints,
+    pathConstraints,
   );
 
   for (let i = 0; i < boneCount; i += 1) {
@@ -175,5 +212,106 @@ function resolveTransform(
     order: constraint.order ?? -1,
     scopeSkins,
     sampledMix: { ...baseMix },
+  };
+}
+
+// The logical control-point count of a path attachment: unweighted is vertices.length / 2; weighted walks
+// the ADR-0002 self-delimiting stream (each logical vertex starts with its influence count, then that many
+// [boneIndex, vx, vy, weight] quads) counting logical vertices. A validated document's stream is total, so
+// the walk always lands exactly on stream.length.
+function pathVertexCount(attachment: PathAttachment): number {
+  const weighted = attachment.bones !== undefined && attachment.bones.length > 0;
+  if (!weighted) return attachment.vertices.length / 2;
+  const stream = attachment.vertices;
+  let cursor = 0;
+  let count = 0;
+  while (cursor < stream.length) {
+    const influenceCount = stream[cursor]!;
+    cursor += 1 + influenceCount * 4;
+    count += 1;
+  }
+  return count;
+}
+
+// Build the prepared spline geometry (ADR-0013 sections 1 to 3) from a path attachment and its slot bone.
+// All per-frame scratch (world control points, the per-curve arc-length LUT, and, for a weighted path, the
+// packed on-demand world buffer) is allocated ONCE here and reused every frame.
+function preparePathGeometry(
+  attachment: PathAttachment,
+  slotBoneIndex: number,
+  boneCount: number,
+): PreparedPathGeometry {
+  const weighted = attachment.bones !== undefined && attachment.bones.length > 0;
+  const vertexCount = pathVertexCount(attachment);
+  const curveCount = attachment.closed ? vertexCount / 3 : (vertexCount - 1) / 3;
+  return {
+    closed: attachment.closed,
+    constantSpeed: attachment.constantSpeed,
+    curveCount,
+    vertexCount,
+    lengths: Float64Array.from(attachment.lengths),
+    weighted,
+    localVertices: weighted ? [] : attachment.vertices,
+    stream: weighted ? attachment.vertices : [],
+    manifestBones: weighted ? (attachment.bones ?? null) : null,
+    slotBoneIndex,
+    worldPoints: new Float64Array(vertexCount * 2),
+    curveLut: new Float64Array(curveCount * (PATH_CURVE_SUBDIVISIONS + 1)),
+    boneWorldScratch: weighted ? new Float64Array(boneCount * MAT2X3_STRIDE) : null,
+  };
+}
+
+// Resolve a path constraint (ADR-0013). The target names a SLOT; its setup default-skin path attachment
+// supplies the geometry. A target slot that does not exist, has no setup attachment, or whose setup
+// attachment (in the default skin) is not a path resolves `path` to null and the constraint solves nothing
+// (the runtime concern ADR-0011 section 2.2 leaves here). A curve count that does not fit the control-point
+// count (an unvalidated document) also resolves to null rather than producing a corrupt spline.
+function resolvePath(
+  constraint: PathConstraint,
+  indexByName: ReadonlyMap<string, number>,
+  slotBoneByName: ReadonlyMap<string, number>,
+  slotSetupAttachmentByName: ReadonlyMap<string, string | null>,
+  defaultSkin: Skin | undefined,
+  boneCount: number,
+  scopeSkins: readonly string[] | null,
+): ResolvedPathConstraint {
+  const targetSlot = constraint.target;
+  const slotBoneIndex = slotBoneByName.get(targetSlot) ?? -1;
+  const setupName = slotSetupAttachmentByName.get(targetSlot) ?? null;
+  let path: PreparedPathGeometry | null = null;
+  if (setupName !== null && defaultSkin !== undefined) {
+    const attachment = defaultSkin.attachments[targetSlot]?.[setupName];
+    if (attachment !== undefined && attachment.type === 'path') {
+      const vertexCount = pathVertexCount(attachment);
+      const fits = attachment.closed
+        ? vertexCount >= 3 && vertexCount % 3 === 0
+        : vertexCount >= 4 && (vertexCount - 1) % 3 === 0;
+      if (fits && attachment.lengths.length > 0) {
+        path = preparePathGeometry(attachment, slotBoneIndex, boneCount);
+      }
+    }
+  }
+  return {
+    name: constraint.name,
+    boneIndices: resolveBoneIndices(constraint.bones, indexByName),
+    positionMode: constraint.positionMode,
+    spacingMode: constraint.spacingMode,
+    rotateMode: constraint.rotateMode,
+    offsetRotation: constraint.offsetRotation,
+    basePosition: constraint.position,
+    baseSpacing: constraint.spacing,
+    baseMixRotate: constraint.mixRotate,
+    baseMixX: constraint.mixX,
+    baseMixY: constraint.mixY,
+    path,
+    order: constraint.order ?? -1,
+    scopeSkins,
+    sampled: {
+      position: constraint.position,
+      spacing: constraint.spacing,
+      mixRotate: constraint.mixRotate,
+      mixX: constraint.mixX,
+      mixY: constraint.mixY,
+    },
   };
 }

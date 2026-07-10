@@ -105,6 +105,19 @@ export interface PreparedTransformChannel {
   readonly mixShearY: PreparedTrack | null;
 }
 
+// The timelines of one animated path constraint (ADR-0011 section 3, ADR-0013), resolved to the pose's
+// path-constraint index. Each channel is prepared from ONLY the keyframes that key it (chosen absent-channel
+// semantics, mirroring the transform channel): a channel no keyframe keys is null and keeps the constraint
+// base. `position`/`spacing` are unbounded value tracks; the three mix channels are `[0, 1]` value tracks.
+export interface PreparedPathChannel {
+  readonly constraintIndex: number;
+  readonly position: PreparedTrack | null;
+  readonly spacing: PreparedTrack | null;
+  readonly mixRotate: PreparedTrack | null;
+  readonly mixX: PreparedTrack | null;
+  readonly mixY: PreparedTrack | null;
+}
+
 // A prepared per-animation draw-order timeline (ADR-0008 section 3, PP-B4). Each key's compact
 // {slot, offset} list is DERIVED ONCE at build time into a FULL render-order permutation `orders[k]`,
 // where `orders[k][renderPosition] = slotIndex` (renderPosition 0 is furthest back). An empty offsets
@@ -151,6 +164,7 @@ export interface PreparedAnimation {
   readonly slotChannels: readonly PreparedSlotChannels[];
   readonly ikChannels: readonly PreparedIkChannel[];
   readonly transformChannels: readonly PreparedTransformChannel[];
+  readonly pathChannels: readonly PreparedPathChannel[];
   readonly deformChannels: readonly PreparedDeformChannel[];
   // The draw-order reorder timeline (ADR-0008), or null when this animation never reorders. Applied in
   // step 2 as a discrete greater-weight-wins channel; event firing is NOT part of PreparedAnimation

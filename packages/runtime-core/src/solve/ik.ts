@@ -22,7 +22,7 @@ const EPSILON = 1e-12;
 // setting the bone's rotation to atan2(localDir) makes its world X axis point along worldDir exactly,
 // even when the parent carries shear or non-uniform scale (a plain "worldAngle - parentAngle" would
 // only be correct for a similarity parent).
-function worldDirToLocalRotDeg(parentWorld: Mat2x3, worldAngleRad: number): number {
+export function worldDirToLocalRotDeg(parentWorld: Mat2x3, worldAngleRad: number): number {
   const wx = Math.cos(worldAngleRad);
   const wy = Math.sin(worldAngleRad);
   const inv = invert(parentWorld);

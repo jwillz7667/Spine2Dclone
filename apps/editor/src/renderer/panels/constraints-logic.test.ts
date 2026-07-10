@@ -14,35 +14,41 @@ const tcB: OrderedConstraint = { kind: 'transform', id: 'tc_b', name: 'B', order
 describe('constraints-logic: reconcileConstraintSelection', () => {
   const ik: ConstraintSelection = { kind: 'ik', id: 'ik_1' };
   const tc: ConstraintSelection = { kind: 'transform', id: 'tc_1' };
+  const pc: ConstraintSelection = { kind: 'path', id: 'pc_1' };
 
   it('keeps a selection whose constraint still resolves', () => {
-    expect(reconcileConstraintSelection(ik, ['ik_1', 'ik_2'], [])).toEqual(ik);
-    expect(reconcileConstraintSelection(tc, [], ['tc_1'])).toEqual(tc);
+    expect(reconcileConstraintSelection(ik, ['ik_1', 'ik_2'], [], [])).toEqual(ik);
+    expect(reconcileConstraintSelection(tc, [], ['tc_1'], [])).toEqual(tc);
+    expect(reconcileConstraintSelection(pc, [], [], ['pc_1'])).toEqual(pc);
   });
 
   it('clears a selection whose constraint was removed (undo the panel did not drive)', () => {
-    expect(reconcileConstraintSelection(ik, ['ik_2'], [])).toBeNull();
-    expect(reconcileConstraintSelection(tc, [], ['tc_2'])).toBeNull();
+    expect(reconcileConstraintSelection(ik, ['ik_2'], [], [])).toBeNull();
+    expect(reconcileConstraintSelection(tc, [], ['tc_2'], [])).toBeNull();
+    expect(reconcileConstraintSelection(pc, [], [], ['pc_2'])).toBeNull();
   });
 
   it('does not cross id spaces (an ik id present only in the transform list clears)', () => {
-    expect(reconcileConstraintSelection(ik, [], ['ik_1'])).toBeNull();
+    expect(reconcileConstraintSelection(ik, [], ['ik_1'], [])).toBeNull();
   });
 
   it('passes null through', () => {
-    expect(reconcileConstraintSelection(null, ['ik_1'], ['tc_1'])).toBeNull();
+    expect(reconcileConstraintSelection(null, ['ik_1'], ['tc_1'], ['pc_1'])).toBeNull();
   });
 });
 
 describe('constraints-logic: solveOrderView', () => {
-  it('uses the default order (IK then transform) when no explicit order is set', () => {
-    expect(solveOrderView([ikA], [tcB]).map((c) => c.id)).toEqual(['ik_a', 'tc_b']);
+  const pcC = { kind: 'path' as const, id: 'pc_c', name: 'pc_c', order: undefined };
+
+  it('uses the default order (IK, transform, then path) when no explicit order is set', () => {
+    expect(solveOrderView([ikA], [tcB], [pcC]).map((c) => c.id)).toEqual(['ik_a', 'tc_b', 'pc_c']);
   });
 
   it('sorts by explicit order when any constraint carries one', () => {
-    const ik = { ...ikA, order: 1 };
-    const tc = { ...tcB, order: 0 };
-    expect(solveOrderView([ik], [tc]).map((c) => c.id)).toEqual(['tc_b', 'ik_a']);
+    const ik = { ...ikA, order: 2 };
+    const tc = { ...tcB, order: 1 };
+    const pc = { ...pcC, order: 0 };
+    expect(solveOrderView([ik], [tc], [pc]).map((c) => c.id)).toEqual(['pc_c', 'tc_b', 'ik_a']);
   });
 });
 

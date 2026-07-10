@@ -14,30 +14,34 @@ export function reconcileConstraintSelection(
   selection: ConstraintSelection | null,
   ikIds: readonly string[],
   transformIds: readonly string[],
+  pathIds: readonly string[],
 ): ConstraintSelection | null {
   if (selection === null) return null;
-  const ids = selection.kind === 'ik' ? ikIds : transformIds;
+  const ids =
+    selection.kind === 'ik' ? ikIds : selection.kind === 'transform' ? transformIds : pathIds;
   return ids.includes(selection.id) ? selection : null;
 }
 
-// One constraint in the combined solve-order view (PP-D10): its kind, id, display name, and current explicit
-// order (undefined when the document uses the default order).
+// One constraint in the combined solve-order view (PP-D10, extended for path by PP-D11): its kind, id,
+// display name, and current explicit order (undefined when the document uses the default order).
 export interface OrderedConstraint {
-  readonly kind: 'ik' | 'transform';
+  readonly kind: 'ik' | 'transform' | 'path';
   readonly id: string;
   readonly name: string;
   readonly order: number | undefined;
 }
 
-// Compute the combined constraint solve order for display (ADR-0009 section 1.3). When ANY constraint carries
-// an explicit `order`, the whole set is sorted by it (all-or-none dense permutation); otherwise the default
-// order is used: all IK (in array order), then all transform. Pure and total so the panel renders a stable,
-// rename-responsive ordered list. Ties (which a valid document never has) keep input order via a stable sort.
+// Compute the combined constraint solve order for display (ADR-0009 section 1.3, ADR-0011 section 2.3). When
+// ANY constraint carries an explicit `order`, the whole set is sorted by it (all-or-none dense permutation);
+// otherwise the default order is used: all IK, then all transform, then all path (array order within each).
+// Pure and total so the panel renders a stable, rename-responsive ordered list. Ties (which a valid document
+// never has) keep input order via a stable sort.
 export function solveOrderView(
   ik: readonly OrderedConstraint[],
   transform: readonly OrderedConstraint[],
+  path: readonly OrderedConstraint[],
 ): OrderedConstraint[] {
-  const combined = [...ik, ...transform];
+  const combined = [...ik, ...transform, ...path];
   const anyExplicit = combined.some((c) => c.order !== undefined);
   if (!anyExplicit) return combined;
   return combined

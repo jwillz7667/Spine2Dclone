@@ -1,11 +1,13 @@
 import { create } from 'zustand';
 
-// The currently EDITED constraint in the Constraints panel (PP-D10). IK and transform constraints share one
-// name namespace (ADR-0004) but distinct id brands, so the selection is tagged by kind. Stored as the raw id
-// string (both brands are strings) plus the kind, so reconciliation compares against the model's id lists.
+// The currently EDITED constraint in the Constraints panel (PP-D10, extended for path by PP-D11). IK,
+// transform, and path constraints share one name namespace (ADR-0004/ADR-0011) but distinct id brands, so the
+// selection is tagged by kind. Stored as the raw id string (all brands are strings) plus the kind, so
+// reconciliation compares against the model's id lists.
 export type ConstraintSelection =
   | { readonly kind: 'ik'; readonly id: string }
-  | { readonly kind: 'transform'; readonly id: string };
+  | { readonly kind: 'transform'; readonly id: string }
+  | { readonly kind: 'path'; readonly id: string };
 
 // Ephemeral constraint selection: which constraint the Constraints panel is editing. EDITOR state, never
 // document state (the document/editor wall, LAW 1): selecting a constraint is not a mutation, is never

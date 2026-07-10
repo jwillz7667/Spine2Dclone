@@ -5,10 +5,14 @@ import {
   SetIkBendPositiveCommand,
   SetIkDepthParamsCommand,
   SetIkMixCommand,
+  SetPathConstraintParamsCommand,
   SetTransformConstraintVariantsCommand,
   documentHost,
   type IkConstraintEntity,
   type IkConstraintId,
+  type PathConstraintEntity,
+  type PathConstraintId,
+  type PathConstraintParamPatch,
   type TransformConstraintEntity,
   type TransformConstraintId,
 } from '../document';
@@ -41,14 +45,16 @@ export function ConstraintsPanel(_props: IDockviewPanelProps): ReactElement {
 
   const ikConstraints = useMemo(() => model.ikConstraints(), [model, revision]);
   const transformConstraints = useMemo(() => model.transformConstraints(), [model, revision]);
+  const pathConstraints = useMemo(() => model.pathConstraints(), [model, revision]);
   const ikIds = useMemo(() => ikConstraints.map((c) => c.id), [ikConstraints]);
   const transformIds = useMemo(() => transformConstraints.map((c) => c.id), [transformConstraints]);
+  const pathIds = useMemo(() => pathConstraints.map((c) => c.id), [pathConstraints]);
 
   // Clear a dangling selection when its constraint no longer resolves (a delete/undo the panel did not drive).
   useEffect(() => {
-    const next = reconcileConstraintSelection(selection, ikIds, transformIds);
+    const next = reconcileConstraintSelection(selection, ikIds, transformIds, pathIds);
     if (next !== selection) useConstraintSelectionStore.getState().select(next);
-  }, [selection, ikIds, transformIds]);
+  }, [selection, ikIds, transformIds, pathIds]);
 
   const selectedIk = useMemo(
     () => (selection?.kind === 'ik' ? ikConstraints.find((c) => c.id === selection.id) : undefined),
@@ -60,6 +66,13 @@ export function ConstraintsPanel(_props: IDockviewPanelProps): ReactElement {
         ? transformConstraints.find((c) => c.id === selection.id)
         : undefined,
     [selection, transformConstraints],
+  );
+  const selectedPath = useMemo(
+    () =>
+      selection?.kind === 'path'
+        ? pathConstraints.find((c) => c.id === selection.id)
+        : undefined,
+    [selection, pathConstraints],
   );
 
   const solveOrder = useMemo<OrderedConstraint[]>(
@@ -77,15 +90,21 @@ export function ConstraintsPanel(_props: IDockviewPanelProps): ReactElement {
           name: c.name,
           order: c.order,
         })),
+        pathConstraints.map((c) => ({
+          kind: 'path',
+          id: c.id,
+          name: c.name,
+          order: c.order,
+        })),
       ),
-    [ikConstraints, transformConstraints],
+    [ikConstraints, transformConstraints, pathConstraints],
   );
   const hasExplicitOrder = useMemo(
     () => solveOrder.some((c) => c.order !== undefined),
     [solveOrder],
   );
 
-  const total = ikConstraints.length + transformConstraints.length;
+  const total = ikConstraints.length + transformConstraints.length + pathConstraints.length;
 
   return (
     <div style={rootStyle}>
@@ -130,6 +149,20 @@ export function ConstraintsPanel(_props: IDockviewPanelProps): ReactElement {
             <span style={badgeStyle}>TR</span>
           </div>
         ))}
+        {pathConstraints.map((c) => (
+          <div
+            key={c.id}
+            style={
+              selection?.kind === 'path' && selection.id === c.id
+                ? { ...rowStyle, ...rowActiveStyle }
+                : rowStyle
+            }
+            onClick={() => selectConstraint({ kind: 'path', id: c.id })}
+          >
+            <span style={nameStyle}>{c.name}</span>
+            <span style={badgeStyle}>PA</span>
+          </div>
+        ))}
       </div>
 
       <div style={detailStyle}>
@@ -137,6 +170,8 @@ export function ConstraintsPanel(_props: IDockviewPanelProps): ReactElement {
           <IkConstraintDetail constraint={selectedIk} />
         ) : selectedTransform !== undefined ? (
           <TransformConstraintDetail constraint={selectedTransform} />
+        ) : selectedPath !== undefined ? (
+          <PathConstraintDetail constraint={selectedPath} />
         ) : (
           <div style={emptyStyle}>Select a constraint to edit it.</div>
         )}
@@ -149,7 +184,7 @@ export function ConstraintsPanel(_props: IDockviewPanelProps): ReactElement {
                 <button
                   type="button"
                   style={smallButtonStyle}
-                  title="Clear the explicit order and restore the default (all IK, then all transform)"
+                  title="Clear the explicit order and restore the default (all IK, then transform, then path)"
                   onClick={() => clearConstraintOrder()}
                 >
                   Reset
@@ -160,7 +195,9 @@ export function ConstraintsPanel(_props: IDockviewPanelProps): ReactElement {
               <div key={c.id} style={orderRowStyle}>
                 <span style={orderIndexStyle}>{index + 1}</span>
                 <span style={nameStyle}>{c.name}</span>
-                <span style={badgeStyle}>{c.kind === 'ik' ? 'IK' : 'TR'}</span>
+                <span style={badgeStyle}>
+                  {c.kind === 'ik' ? 'IK' : c.kind === 'transform' ? 'TR' : 'PA'}
+                </span>
                 <button
                   type="button"
                   style={arrowButtonStyle}
@@ -241,6 +278,12 @@ function setTransformRelative(id: TransformConstraintId, relative: boolean): voi
   documentHost
     .current()
     .history.execute(new SetTransformConstraintVariantsCommand(id, { relative }));
+}
+
+// Patch one or more path-constraint parameters (PP-D11) through SetPathConstraintParams on the live History
+// (LAW 2). The panel dropdowns and number fields each pass a single-key patch.
+function setPathParams(id: PathConstraintId, patch: PathConstraintParamPatch): void {
+  documentHost.current().history.execute(new SetPathConstraintParamsCommand(id, patch));
 }
 
 function IkConstraintDetail(props: { readonly constraint: IkConstraintEntity }): ReactElement {
@@ -361,6 +404,157 @@ function TransformConstraintDetail(props: {
   );
 }
 
+const POSITION_MODES = ['fixed', 'percent'] as const;
+const SPACING_MODES = ['length', 'fixed', 'percent', 'proportional'] as const;
+const ROTATE_MODES = ['tangent', 'chain', 'chainScale'] as const;
+
+// A number field that commits on blur when the parsed value is finite and changed, else reverts. Shared by
+// the path scalar/mix rows. `clamp01` bounds a mix channel to [0, 1].
+function PathNumberField(props: {
+  readonly label: string;
+  readonly value: number;
+  readonly step: number;
+  readonly clamp01?: boolean;
+  readonly commit: (value: number) => void;
+}): ReactElement {
+  const { label, value, step, clamp01, commit } = props;
+  return (
+    <label style={fieldRowStyle}>
+      <span style={labelStyle}>{label}</span>
+      <input
+        type="number"
+        step={step}
+        {...(clamp01 ? { min: 0, max: 1 } : {})}
+        defaultValue={value}
+        key={`${label}-${value}`}
+        style={numberInputStyle}
+        onBlur={(event) => {
+          const v = Number(event.currentTarget.value);
+          const ok = Number.isFinite(v) && (!clamp01 || (v >= 0 && v <= 1));
+          if (ok && v !== value) commit(v);
+          else event.currentTarget.value = String(value);
+        }}
+      />
+    </label>
+  );
+}
+
+// The path-constraint detail editor (PP-D11): the three mode dropdowns, the position/spacing/offsetRotation
+// scalars, and the three mix channels, each committing a single-field SetPathConstraintParams (LAW 2). The
+// target slot and bones are structural (authored at create); this panel edits the animatable parameters.
+function PathConstraintDetail(props: { readonly constraint: PathConstraintEntity }): ReactElement {
+  const c = props.constraint;
+  return (
+    <div style={detailBodyStyle}>
+      <div style={subHeaderStyle}>{c.name}</div>
+
+      <div style={sectionLabelStyle}>Modes</div>
+
+      <label style={fieldRowStyle}>
+        <span style={labelStyle}>Position</span>
+        <select
+          style={selectStyle}
+          value={c.positionMode}
+          onChange={(event) => setPathParams(c.id, { positionMode: readPositionMode(event.target.value) })}
+        >
+          {POSITION_MODES.map((mode) => (
+            <option key={mode} value={mode}>
+              {mode}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <label style={fieldRowStyle}>
+        <span style={labelStyle}>Spacing</span>
+        <select
+          style={selectStyle}
+          value={c.spacingMode}
+          onChange={(event) => setPathParams(c.id, { spacingMode: readSpacingMode(event.target.value) })}
+        >
+          {SPACING_MODES.map((mode) => (
+            <option key={mode} value={mode}>
+              {mode}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <label style={fieldRowStyle}>
+        <span style={labelStyle}>Rotate</span>
+        <select
+          style={selectStyle}
+          value={c.rotateMode}
+          onChange={(event) => setPathParams(c.id, { rotateMode: readRotateMode(event.target.value) })}
+        >
+          {ROTATE_MODES.map((mode) => (
+            <option key={mode} value={mode}>
+              {mode}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <div style={sectionLabelStyle}>Scalars</div>
+      <PathNumberField
+        label="Position"
+        value={c.position}
+        step={0.05}
+        commit={(v) => setPathParams(c.id, { position: v })}
+      />
+      <PathNumberField
+        label="Spacing"
+        value={c.spacing}
+        step={0.05}
+        commit={(v) => setPathParams(c.id, { spacing: v })}
+      />
+      <PathNumberField
+        label="Offset Rot"
+        value={c.offsetRotation}
+        step={1}
+        commit={(v) => setPathParams(c.id, { offsetRotation: v })}
+      />
+
+      <div style={sectionLabelStyle}>Mix</div>
+      <PathNumberField
+        label="Rotate"
+        value={c.mixRotate}
+        step={0.05}
+        clamp01
+        commit={(v) => setPathParams(c.id, { mixRotate: v })}
+      />
+      <PathNumberField
+        label="X"
+        value={c.mixX}
+        step={0.05}
+        clamp01
+        commit={(v) => setPathParams(c.id, { mixX: v })}
+      />
+      <PathNumberField
+        label="Y"
+        value={c.mixY}
+        step={0.05}
+        clamp01
+        commit={(v) => setPathParams(c.id, { mixY: v })}
+      />
+
+      <div style={noteStyle}>Path timeline keys are authored in the dopesheet and the MCP path.* surface.</div>
+    </div>
+  );
+}
+
+// Narrow a select value back to its mode literal; the options only ever emit valid members, so a mismatch is
+// impossible in practice, but the guard keeps the type sound without an `as` cast.
+function readPositionMode(value: string): PathConstraintEntity['positionMode'] {
+  return value === 'fixed' ? 'fixed' : 'percent';
+}
+function readSpacingMode(value: string): PathConstraintEntity['spacingMode'] {
+  return value === 'fixed' || value === 'percent' || value === 'proportional' ? value : 'length';
+}
+function readRotateMode(value: string): PathConstraintEntity['rotateMode'] {
+  return value === 'chain' || value === 'chainScale' ? value : 'tangent';
+}
+
 const rootStyle: CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
@@ -466,6 +660,15 @@ const checkRowStyle: CSSProperties = {
   gap: 8,
   color: '#cccccc',
   cursor: 'pointer',
+};
+
+const selectStyle: CSSProperties = {
+  flex: '1 1 auto',
+  color: '#dddddd',
+  background: '#222222',
+  border: '1px solid #3a3a3a',
+  borderRadius: 3,
+  padding: '2px 6px',
 };
 
 const noteStyle: CSSProperties = { color: '#777777', fontSize: 11, paddingTop: 6 };

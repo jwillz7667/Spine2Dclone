@@ -11,6 +11,7 @@ import { useToolStore } from '../editor-state/tool-store';
 import { MeshError } from '../modules/mesh/mesh-error';
 import { deleteInteriorVertex } from '../modules/mesh/topology-edit';
 import { resolveMeshEditTarget } from './mesh-edit';
+import { deleteSelectedPathControlPoint } from './tools/path-tool';
 
 // Global editor keybindings (handoff 8.1): undo/redo routed to the CURRENT document's History, save/open
 // to the main-process filesystem (WP-0.8), plus the Phase-0 tool switch. Cross-platform by design: the
@@ -58,7 +59,11 @@ export function attachKeybindings(): () => void {
     else if (key === 'm') useToolStore.getState().setTool('mesh');
     else if (key === 'w') useToolStore.getState().setTool('weights');
     else if (key === 'p') useToolStore.getState().setTool('path');
-    else if (key === 'delete' || key === 'backspace') deleteSelectedMeshVertex();
+    else if (key === 'delete' || key === 'backspace') {
+      // Each handler self-guards on its active tool, so at most one fires for a given tool.
+      deleteSelectedMeshVertex();
+      deleteSelectedPathControlPoint();
+    }
   };
 
   window.addEventListener('keydown', onKeyDown);

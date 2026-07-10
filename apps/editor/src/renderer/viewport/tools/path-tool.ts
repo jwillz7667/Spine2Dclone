@@ -1,12 +1,15 @@
 import { invert, transformPoint, type Mat2x3 } from '@marionette/runtime-core';
 import {
   AddPathCurveCommand,
+  DeletePathControlPointCommand,
   MovePathControlPointCommand,
+  PathError,
   documentHost,
   type SlotId,
 } from '../../document';
 import { usePathEditStore } from '../../editor-state/path-edit-store';
 import { useSlotSelectionStore } from '../../editor-state/slot-selection-store';
+import { useToolStore } from '../../editor-state/tool-store';
 import { hitTestPathControlPoint, resolvePathEditTarget, type PathEditTarget } from '../path-edit';
 import type { ViewportPointer, ViewportTool } from './tool';
 
@@ -20,10 +23,12 @@ import type { ViewportPointer, ViewportTool } from './tool';
 //    point. AddPathCurve extends the spline's tail by a straight step the author then bends; it takes no
 //    location, so the click only signals intent.
 //  - click empty space: clear the control-point selection.
-// Control-point DELETION is intentionally absent: no delete-path-control-point command exists in
-// document-core, so the tool offers no gesture that would have to mutate the document outside a command
-// (Law 2). The tool never mutates the document outside a command and reads the model only at gesture
-// boundaries. Selection/tool state lives in Zustand (the document/editor wall).
+//  - Delete/Backspace on a selected ANCHOR control point: drop that curve (DeletePathControlPoint) as one
+//    undo step. Wired from keybindings.ts (like the mesh vertex delete) and guarded to anchors only, so the
+//    keys stay free otherwise; the reject cases (a handle index, an out-of-range index, or the last curve)
+//    are typed PathErrors surfaced once at this boundary rather than thrown into the UI.
+// The tool never mutates the document outside a command and reads the model only at gesture boundaries.
+// Selection/tool state lives in Zustand (the document/editor wall).
 interface DragSession {
   readonly slotId: SlotId;
   readonly attachmentName: string;
@@ -102,5 +107,44 @@ export class PathTool implements ViewportTool {
     if (updated !== null) {
       usePathEditStore.getState().selectPoint(updated.path.vertices.length / 2 - 1);
     }
+  }
+}
+
+// Pure guard for the delete gesture: a control-point index addresses an ANCHOR (a curve endpoint) only when
+// it is a non-negative multiple of 3; indices 1 and 2 mod 3 are the two Bezier handles flanking an anchor.
+// DeletePathControlPoint deletes an ANCHOR (collapsing its curve) and rejects a handle with
+// PathError('pointRange'), so the gesture fires only on an anchor. Pure and total, unit-tested in isolation.
+export function isPathAnchorIndex(pointIndex: number): boolean {
+  return Number.isInteger(pointIndex) && pointIndex >= 0 && pointIndex % 3 === 0;
+}
+
+// Delete/Backspace with the path tool active drops the curve at the selected ANCHOR control point
+// (DeletePathControlPoint) as one command (PP-D11 Lane D remainder). Inert unless the path tool is active
+// with an anchor selected on a resolvable path attachment, so the keys stay free otherwise (mirrors
+// deleteSelectedMeshVertex). The selection index is guarded against a stale value beyond the current
+// control-point count (an undo can shrink the spline under a stale selection). A rejection the guard cannot
+// pre-decide (the LAST curve, PathError('minCurves')) is surfaced once at this boundary, not swallowed
+// silently or thrown into the UI; on success the now-gone point is cleared from the ephemeral selection.
+export function deleteSelectedPathControlPoint(): void {
+  if (useToolStore.getState().tool !== 'path') return;
+  const selectedPoint = usePathEditStore.getState().selectedPoint;
+  if (selectedPoint === null || !isPathAnchorIndex(selectedPoint)) return;
+
+  const host = documentHost.current();
+  const target = resolvePathEditTarget(host.model, useSlotSelectionStore.getState().selectedSlotId);
+  if (target === null) return;
+  if (selectedPoint >= target.path.vertices.length / 2) return;
+
+  try {
+    host.history.execute(
+      new DeletePathControlPointCommand(target.slotId, target.attachmentName, selectedPoint),
+    );
+    usePathEditStore.getState().clearPoint();
+  } catch (error) {
+    if (error instanceof PathError) {
+      console.error(`[marionette] delete path point rejected: ${error.message}`);
+      return;
+    }
+    throw error;
   }
 }

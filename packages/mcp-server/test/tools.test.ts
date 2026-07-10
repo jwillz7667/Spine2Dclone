@@ -1205,6 +1205,28 @@ describe('MCP path attachment tools (PP-D11)', () => {
     expect((grown['lengths'] as number[]).length).toBe(3);
 
     await call(deps, 'path.removeCurve', { documentId, slotId, name: 'spline' });
+    // Delete an anchor (index 0) from the two-curve spline, collapsing it to one curve.
+    await call(deps, 'path.deleteControlPoint', {
+      documentId,
+      slotId,
+      name: 'spline',
+      pointIndex: 0,
+    });
+    const trimmed = asRecord(
+      asRecord(await call(deps, 'path.get', { documentId, slotId, name: 'spline' }))['path'],
+    );
+    expect((trimmed['lengths'] as number[]).length).toBe(1);
+    // A handle index (not a multiple of 3) is rejected as PATH (reason pointRange).
+    await expectToolError(
+      call(deps, 'path.deleteControlPoint', {
+        documentId,
+        slotId,
+        name: 'spline',
+        pointIndex: 1,
+      }),
+      'PATH',
+    );
+    await call(deps, 'path.addCurve', { documentId, slotId, name: 'spline' });
     await call(deps, 'path.setClosed', { documentId, slotId, name: 'spline', closed: true });
     await call(deps, 'path.setConstantSpeed', {
       documentId,
@@ -2705,6 +2727,7 @@ describe('MCP tool catalog', () => {
   const PP_D11_PATH_TOOLS = [
     'attach.path.add',
     'path.moveControlPoint',
+    'path.deleteControlPoint',
     'path.addCurve',
     'path.removeCurve',
     'path.setClosed',

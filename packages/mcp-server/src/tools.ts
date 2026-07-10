@@ -45,6 +45,7 @@ import {
   CreateLinkedMeshCommand,
   CreatePathAttachmentCommand,
   MovePathControlPointCommand,
+  DeletePathControlPointCommand,
   RemovePathCurveCommand,
   SetPathClosedCommand,
   SetPathConstantSpeedCommand,
@@ -4032,6 +4033,34 @@ export const TOOLS: readonly ToolDefinition[] = [
             input.x,
             input.y,
           ),
+        ),
+      };
+    },
+  ),
+  defineTool(
+    {
+      name: 'path.deleteControlPoint',
+      title: 'Delete path control point',
+      description:
+        'Delete one ANCHOR control point (pointIndex must be a multiple of 3), collapsing the curve it ' +
+        'bounds; the arc-length table is recomputed. A path keeps at least one curve. Rejected as PATH ' +
+        '(reason: notFound, pointRange for a handle/out-of-range index, or minCurves).',
+      input: z
+        .object({
+          documentId,
+          slotId,
+          name: z.string().min(1),
+          pointIndex: z.number().int().nonnegative(),
+        })
+        .strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireSlot(session, input.slotId);
+      return {
+        revision: executePathEdit(
+          session,
+          new DeletePathControlPointCommand(asSlotId(input.slotId), input.name, input.pointIndex),
         ),
       };
     },

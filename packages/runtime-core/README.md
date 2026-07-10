@@ -22,10 +22,14 @@ runtime must match exactly:
    matrices). Event firing is NOT part of this instantaneous pose sample (it is a time-range
    operation, see below).
 3. **Solve constraints**: by default all IK constraints first (`solveIkOneBone` / `solveIkTwoBone`),
-   then all transform constraints (`solveTransformConstraint`), each in document order (ADR-0003); when
-   the rig assigns an explicit `order` the combined set is solved in one interleaved schedule instead
-   (ADR-0010). IK also honours the depth controls (softness easing, stretch, compress, uniform) that
-   write local rotation and, for stretch/compress, local scaleX. Constraints write local transforms only.
+   then all transform constraints (`solveTransformConstraint`), then all path constraints
+   (`solvePathConstraint`), each in document order (ADR-0003, ADR-0011); when the rig assigns an explicit
+   `order` the combined set (now spanning all three constraint arrays) is solved in one interleaved
+   schedule instead (ADR-0010, ADR-0013). IK also honours the depth controls (softness easing, stretch,
+   compress, uniform) that write local rotation and, for stretch/compress, local scaleX. A path constraint
+   distributes and orients its bones along a target slot's path attachment (a piecewise cubic Bezier
+   spline), writing local translation, rotation, and, for `chainScale`, scaleX (ADR-0013). Constraints
+   write local transforms only.
 4. **World transforms**: one forward pass (`computeWorldTransforms`), parents before children,
    dispatching per bone on `transformMode` (`normal` plus four parent-influence-suppressing modes
    in `src/skeleton/transform-mode.ts`).
@@ -44,7 +48,7 @@ runtime must match exactly:
 | Skin state | `skeleton/skin-state.ts` | Runtime skin selection (PP-B3): `buildSkinState`, `setActiveSkin`, `resolveAttachment`, `resolveSlotAttachment`. An allocation-free lookup of the attachment a slot presents under the active skin (default-skin fallback), so a renderer switches skins live without rebuilding the `Pose`. A pure lookup over document skins + `pose.slotAttachment`; changes no solve output |
 | Geometry attachments | `skeleton/attachment-geometry.ts` | Clipping / bounding-box / point solve (PP-B2, ADR-0012): `prepareClipping`, `resolveClipWorldPolygonForSlot`, `computeClippedSlotRange`, `clipTriangleList`, `boundingBoxWorldVerticesForSlot`, `hitTestPolygon` / `hitTestBoundingBox`, `resolvePointWorld`. Post-step-4 accessors over the solved pose (world pass + draw order); read-only, so they change no fixture (Law 1) |
 | AnimationState | `skeleton/animation-state.ts` | Multi-track playback per ADR-0005: `setAnimation`, `crossfadeTo`, `queueAnimation`, additive layering, the per-update event queue drain (PP-B4) |
-| Solve primitives | `solve/` | `resolveWorld`, one/two-bone IK, transform constraint, weighted/unweighted skinning, deform |
+| Solve primitives | `solve/` | `resolveWorld`, one/two-bone IK, transform constraint, path constraint (`solvePathConstraint`, ADR-0013: cubic Bezier eval, the pinned 64-segment world arc-length LUT for constant speed, position/spacing distribution, the three rotate modes, the parent-frame mix write), weighted/unweighted skinning, deform |
 | Effects | `effects/` | Mulberry32 PRNG (`makePrng`, `hash32`, `spinSeed` = FNV-1a-32 over UTF-8), the normative per-particle draw order, SoA particle pools with integer age steps, life curves, the emitter/sprite-animator/ribbon solvers, `EffectSystem` (quality tiers, `DEFAULT_MAX_LIVE_PARTICLES = 2000` budget with eviction) |
 | Slot | `slot/` | `sequence(result, scene)` producing a `PresentationTimeline` (pure function of a `SpinResult`, LAW 1), the integer fixed-point `rollupValueAt`, the column-down cascade `solveCascadeStep` |
 

@@ -12,7 +12,7 @@ All under `src/`:
 
 | Track | Rigs / inputs | Fixtures | Lock |
 |---|---|---|---|
-| **Skeleton** | `rigs/` (20 rigs, each committed as `.json` AND a binary `.bin` twin): rig-2bone, rig-rigid-mesh, rig-weighted-mesh, rig-one-bone-ik, rig-two-bone-ik, rig-transform-constraint, rig-deform, rig-transform-modes, rig-blendmodes, rig-events-draworder, rig-events-loop, rig-ik-depth, rig-constraint-order, rig-transform-variants, rig-linked-mesh, rig-sequences, rig-split-tracks, rig-skin-scoped, rig-clipping, rig-hit-point | `fixtures/` (20, driven by `sample-spec/`) | `.fixtures.lock` |
+| **Skeleton** | `rigs/` (22 rigs, each committed as `.json` AND a binary `.bin` twin): rig-2bone, rig-rigid-mesh, rig-weighted-mesh, rig-one-bone-ik, rig-two-bone-ik, rig-transform-constraint, rig-deform, rig-transform-modes, rig-blendmodes, rig-events-draworder, rig-events-loop, rig-ik-depth, rig-constraint-order, rig-transform-variants, rig-linked-mesh, rig-sequences, rig-split-tracks, rig-skin-scoped, rig-clipping, rig-hit-point, rig-path-follow, rig-path-spacing | `fixtures/` (22, driven by `sample-spec/`) | `.fixtures.lock` |
 | **Effects / particles** | `effects-rigs/` (4): coin-burst, ribbon-trail, circle-spawn, god-rays-sprite | `effects-fixtures/` (4) | `.effects-fixtures.lock` |
 | **AnimationState** (ADR-0005) | `anim-state-rigs/anim-state-rig.json` | `anim-state-fixtures/` (4): discrete-flip, additive-layer, queue-loop-boundary, crossfade-fractions | `.anim-state-fixtures.lock` |
 | **Slot** | `slot/scenes/` (4 scenes) x `slot/spins/` (6 spins) via `slot/sample-spec/` | `slot/expected/` (6 golden `PresentationTimeline`s) | `.slot.fixtures.lock` |
@@ -95,6 +95,17 @@ per-probe even-odd hits EXACT against the spec's `hitProbes`) and a `points` lan
 `{ x, y, rotation }` (position on `VERTEX`, rotation on the new `ANGLE` tolerance). The Sutherland-Hodgman
 triangle clipper itself is locked cross-language by `clip-geometry-vectors.json` (above). All three lanes
 are emitted only when the spec opts in, so every pre-PP-B2 fixture regenerates byte-identically.
+
+The final two skeleton rigs are the PP-B6 pair (Stage F3, ADR-0011 format 0.5.0 + ADR-0013 solve), locking
+the path attachment / path constraint solve. **rig-path-follow** drives bones along an OPEN straight
+diagonal path with all three rotate modes (tangent, chain, chainScale), percent and fixed position, and an
+animated `position` channel; **rig-path-spacing** drives four 3-bone chains along a CLOSED square path, one
+per spacing mode (length, fixed, percent, proportional), constant-speed on, with an animated `spacing`
+channel. A path constraint writes bone transforms, so both observe only the existing bone-world-affine lane
+(no new fixture lane) and every pre-F3 fixture regenerates byte-identically. Because both use straight
+Bezier segments (evenly spaced control points, so each curve's arc length is linear in the parameter), an
+INDEPENDENT analytic oracle (`test/path-oracle.test.ts`) checks the first generation against closed-form
+world transforms, so the fixtures are verified rather than merely frozen.
 
 ## Structure
 

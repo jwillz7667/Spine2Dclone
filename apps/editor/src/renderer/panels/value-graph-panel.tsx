@@ -149,6 +149,21 @@ export function ValueGraphPanel(_props: IDockviewPanelProps): ReactElement {
     padPx: PAD,
   };
 
+  // Auto-frame the VALUE axis once when channels first appear, so opening the panel shows the curves in range
+  // rather than clipped against the default window. Only the local value axis is touched (never the shared
+  // time view), and it fires once per empty-to-populated transition, so a later manual zoom is not overridden.
+  const didAutoFrameRef = useRef(false);
+  useEffect(() => {
+    if (lanes.length === 0) {
+      didAutoFrameRef.current = false;
+      return;
+    }
+    if (didAutoFrameRef.current || size.height === 0) return;
+    const framed = frameValueView(laneValueExtent(lanes), size.height, PAD, FIT_MARGIN);
+    setValueRange({ vMin: framed.vMin, vMax: framed.vMax });
+    didAutoFrameRef.current = true;
+  }, [lanes, size.height]);
+
   // The lane whose selected-key handles are shown. Set when a dot is clicked; reconciled to a visible lane
   // that carries the single selected key when selection changes elsewhere (the dopesheet shares keySelection).
   const [activeLaneKey, setActiveLaneKey] = useState<string | null>(null);

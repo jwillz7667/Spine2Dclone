@@ -1,6 +1,5 @@
 import { CURRENT_FORMAT_VERSION } from '@marionette/format';
 import type {
-  Animation,
   Attachment,
   AtlasRef,
   BlendMode,
@@ -21,12 +20,6 @@ import type {
 // so a 0.4.0 document round-trips. They are non-empty arrays of the exact on-disk shape (a NonNullable of
 // the optional format channel), deep-frozen and shared by reference (never mutated in place).
 type CarriedSequence = NonNullable<RegionAttachment['sequence']>;
-// Stage F3 (ADR-0011, formatVersion 0.5.0) carried path-constraint timelines: the per-animation `path`
-// record (constraintName -> Keyframe<PathFrame>[]), held VERBATIM as the on-disk shape. Document-core
-// authors no path timeline yet (PP-D11); it carries the record losslessly through load and export so a
-// 0.5.0 document round-trips, deep-frozen and shared by reference (never mutated in place), mirroring how
-// drawOrder/events and the Stage F2 tracks above are carried.
-type CarriedPathTimelines = Animation['path'];
 import type {
   AnimationId,
   BoneId,
@@ -436,6 +429,23 @@ export interface TransformKeyframeEntity {
   readonly curve: CurveType;
 }
 
+// A keyed path-constraint frame (Stage F3, ADR-0011 section 3; format PathFrame) promoted to editable
+// (PP-D11): a PARTIAL record of the constraint's animatable channels (`position`/`spacing` along the path,
+// and the three `mix` blend factors). A frame MAY carry a subset; an absent channel keeps its base value
+// (SOLVE semantics, not format), so each channel is a number or `undefined` (not optional) so a caller
+// states intent, exactly like TransformKeyframeEntity. `curve` interpolates the present channels. Immutable
+// and deep-frozen (makePathKeyframe), so it is shared by reference without aliasing.
+export interface PathKeyframeEntity {
+  readonly id: KeyframeId;
+  readonly time: number;
+  readonly position: number | undefined;
+  readonly spacing: number | undefined;
+  readonly mixRotate: number | undefined;
+  readonly mixX: number | undefined;
+  readonly mixY: number | undefined;
+  readonly curve: CurveType;
+}
+
 // A keyed deform frame (WP-2.9, format Keyframe<{ offsets }>): per-LOGICAL-vertex (dx, dy) offsets from
 // the setup mesh, flat as [dx0, dy0, dx1, dy1, ...] (offsets.length === 2 * V), applied AFTER skinning in
 // world space (ADR-0003 section 9). Immutable and deep-frozen; the offsets array is copied at construction
@@ -532,10 +542,10 @@ export interface AnimationEntity {
   // insert/delete never invalidates a captured command, exactly like the value/deform timelines.
   readonly drawOrder: readonly DrawOrderKeyEntity[];
   readonly events: readonly EventKeyEntity[];
-  // Stage F3 (ADR-0011, formatVersion 0.5.0) path-constraint timeline record, carried verbatim (no command
-  // authors it yet, PP-D11). REQUIRED and empty ({}) when an animation keys no path constraint, mirroring
-  // the always-present drawOrder/events collections; a load/export round-trip preserves it exactly.
-  readonly path: CarriedPathTimelines;
+  // Stage F3 (ADR-0011 section 3) path-constraint timelines, promoted to id-keyed editable keyframes (PP-D11),
+  // keyed by the constraint's PathConstraintId (never by name, so a constraint rename never breaks a track),
+  // exactly like the ik/transform timelines above. Empty when an animation keys no path constraint.
+  readonly path: ReadonlyMap<PathConstraintId, readonly PathKeyframeEntity[]>;
 }
 
 // An IK constraint (WP-2.6, format IkConstraint), mirrored BY VALUE except `bones`/`target`, which are
@@ -836,6 +846,32 @@ export function makeTransformKeyframe(
   });
 }
 
+// Construct an immutable, deep-frozen path-constraint keyframe (PP-D11). The five channels are each a number
+// or undefined (an absent channel keeps its base value, ADR-0011 section 3); they are copied as given.
+export function makePathKeyframe(
+  id: KeyframeId,
+  time: number,
+  channels: {
+    readonly position: number | undefined;
+    readonly spacing: number | undefined;
+    readonly mixRotate: number | undefined;
+    readonly mixX: number | undefined;
+    readonly mixY: number | undefined;
+  },
+  curve: CurveType,
+): PathKeyframeEntity {
+  return Object.freeze({
+    id,
+    time,
+    position: channels.position,
+    spacing: channels.spacing,
+    mixRotate: channels.mixRotate,
+    mixX: channels.mixX,
+    mixY: channels.mixY,
+    curve: typeof curve === 'string' ? curve : Object.freeze(cloneCurve(curve)),
+  });
+}
+
 // Construct an immutable, deep-frozen deform keyframe (WP-2.9). The offsets array is sliced and frozen so
 // the model never aliases the caller's array and a handed-out reference cannot mutate it.
 export function makeDeformKeyframe(
@@ -988,5 +1024,5 @@ export function emptyAnimationConstraintTimelines(): Pick<
   AnimationEntity,
   'ik' | 'transform' | 'deform' | 'path'
 > {
-  return { ik: new Map(), transform: new Map(), deform: new Map(), path: {} };
+  return { ik: new Map(), transform: new Map(), deform: new Map(), path: new Map() };
 }

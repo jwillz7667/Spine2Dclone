@@ -110,15 +110,15 @@ describe('DeletePathConstraint', () => {
     const constraint = doc.model.pathConstraints()[0]!;
     const before = doc.model.snapshot();
 
-    // The 'glide' animation keys this constraint's path timeline before the delete.
+    // The 'glide' animation keys this constraint's path timeline (by id) before the delete.
     const glideBefore = doc.model.animations().find((a) => a.name === 'glide')!;
-    expect(Object.keys(glideBefore.path)).toContain(constraint.name);
+    expect(glideBefore.path.has(constraint.id)).toBe(true);
 
     doc.history.execute(new DeletePathConstraintCommand(constraint.id));
 
     expect(doc.model.pathConstraints().find((c) => c.id === constraint.id)).toBeUndefined();
     const glideAfter = doc.model.animations().find((a) => a.name === 'glide')!;
-    expect(Object.keys(glideAfter.path)).not.toContain(constraint.name); // orphan track pruned
+    expect(glideAfter.path.has(constraint.id)).toBe(false); // orphan track pruned
 
     doc.history.undo();
     expect(doc.model.snapshot()).toEqual(before); // constraint and its timeline both restored

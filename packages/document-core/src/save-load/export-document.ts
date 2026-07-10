@@ -14,6 +14,7 @@ import type {
   MeshAttachment,
   PathAttachment,
   PathConstraint,
+  PathFrame,
   RegionAttachment,
   Skin,
   SkeletonDocument,
@@ -33,6 +34,7 @@ import type {
   IkKeyframeEntity,
   KeyframeEntity,
   PathConstraintEntity,
+  PathKeyframeEntity,
   SkinEntity,
   SlotTimelineSet,
   TransformConstraintEntity,
@@ -289,12 +291,28 @@ function deformFramesToFormat(
 // Project one animation entity to the format Animation, resolving id keys to current names and dropping
 // bone/slot entries whose every channel is empty. The ik/transform/deform records are emitted from the
 // model's timelines (ADR-0004 made them required format keys).
+// Project a path timeline (Keyframe<PathFrame>[]) to the format shape, emitting only the present channels of
+// each partial frame (an absent channel is omitted, mirroring transformFramesToFormat).
+function pathFramesToFormat(frames: readonly PathKeyframeEntity[]): Keyframe<PathFrame>[] {
+  return frames.map((kf) => {
+    const value: PathFrame = {
+      ...(kf.position !== undefined ? { position: kf.position } : {}),
+      ...(kf.spacing !== undefined ? { spacing: kf.spacing } : {}),
+      ...(kf.mixRotate !== undefined ? { mixRotate: kf.mixRotate } : {}),
+      ...(kf.mixX !== undefined ? { mixX: kf.mixX } : {}),
+      ...(kf.mixY !== undefined ? { mixY: kf.mixY } : {}),
+    };
+    return { time: kf.time, value, curve: kf.curve };
+  });
+}
+
 function animationToFormat(
   animation: AnimationEntity,
   boneIdToName: ReadonlyMap<string, string>,
   slotIdToName: ReadonlyMap<string, string>,
   ikIdToName: ReadonlyMap<string, string>,
   transformIdToName: ReadonlyMap<string, string>,
+  pathIdToName: ReadonlyMap<string, string>,
   skinIdToName: ReadonlyMap<string, string>,
   eventIdToName: ReadonlyMap<string, string>,
 ): Animation {
@@ -355,8 +373,14 @@ function animationToFormat(
     ...(key.float !== undefined ? { float: key.float } : {}),
     ...(key.string !== undefined ? { string: key.string } : {}),
   }));
-  // Stage F3 (ADR-0011 section 3): the carried path-constraint timeline record is emitted verbatim (it is
-  // already the on-disk shape, keyed by constraint name); REQUIRED, empty ({}) when the animation keys none.
+  // Stage F3 (ADR-0011 section 3): the promoted path-constraint timelines resolve each PathConstraintId back
+  // to its CURRENT name; REQUIRED, empty ({}) when the animation keys none.
+  const path: Record<string, Keyframe<PathFrame>[]> = {};
+  for (const [constraintId, frames] of animation.path) {
+    if (frames.length === 0) continue;
+    path[resolveName(constraintId, pathIdToName, 'animation path constraint')] =
+      pathFramesToFormat(frames);
+  }
   return {
     duration: animation.duration,
     bones,
@@ -366,7 +390,7 @@ function animationToFormat(
     deform,
     drawOrder,
     events,
-    path: animation.path,
+    path,
   };
 }
 
@@ -532,6 +556,8 @@ export function exportDocument(model: DocumentReadModel): SkeletonDocument {
     .map((c) => transformConstraintToFormat(c, boneIdToName));
   // Path constraints (Stage F3, ADR-0011 section 2; PP-D11) emit from the promoted model in stored order,
   // resolving the SLOT target and bone ids back to their current names.
+  const pathIdToName = new Map<string, string>();
+  for (const c of model.pathConstraints()) pathIdToName.set(c.id, c.name);
   const pathConstraints: PathConstraint[] = model
     .pathConstraints()
     .map((c) => pathConstraintToFormat(c, boneIdToName, slotIdToName));
@@ -556,6 +582,7 @@ export function exportDocument(model: DocumentReadModel): SkeletonDocument {
       slotIdToName,
       ikIdToName,
       transformIdToName,
+      pathIdToName,
       skinIdToName,
       eventIdToName,
     );

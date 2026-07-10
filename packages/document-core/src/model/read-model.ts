@@ -31,6 +31,7 @@ import type {
   KeyframeEntity,
   KeyframeValue,
   PathConstraintEntity,
+  PathKeyframeEntity,
   PreservedContent,
   SequenceKeyframeEntity,
   SkinEntity,
@@ -295,6 +296,17 @@ export interface DeformKeyframeSnapshot {
   readonly curve: CurveType;
 }
 
+export interface PathKeyframeSnapshot {
+  readonly id: string;
+  readonly time: number;
+  readonly position: number | undefined;
+  readonly spacing: number | undefined;
+  readonly mixRotate: number | undefined;
+  readonly mixX: number | undefined;
+  readonly mixY: number | undefined;
+  readonly curve: CurveType;
+}
+
 // A per-constraint IK timeline projection, keyed by the internal IkConstraintId string.
 export interface IkTimelineSnapshot {
   readonly constraintId: string;
@@ -305,6 +317,12 @@ export interface IkTimelineSnapshot {
 export interface TransformTimelineSnapshot {
   readonly constraintId: string;
   readonly keyframes: readonly TransformKeyframeSnapshot[];
+}
+
+// A per-constraint path timeline projection, keyed by the internal PathConstraintId string (Stage F3, PP-D11).
+export interface PathTimelineSnapshot {
+  readonly constraintId: string;
+  readonly keyframes: readonly PathKeyframeSnapshot[];
 }
 
 // A per-(skin, slot, attachment) deform timeline projection. `skin` is the DeformSkinKey string ('default'
@@ -355,10 +373,7 @@ export interface AnimationSnapshot {
   readonly deform: readonly DeformTimelineSnapshot[]; // sorted by (skin, slotId, attachment)
   readonly drawOrder: readonly DrawOrderKeySnapshot[]; // in time order (strictly ascending)
   readonly events: readonly EventKeySnapshot[]; // in time order (non-decreasing)
-  // Stage F3 (ADR-0011, PP-D11) carried path-constraint timeline record, keyed by the on-disk constraint
-  // NAME (path is carried verbatim, not id-resolved). Projected into the snapshot so the round-trip harness
-  // compares it, mirroring the Stage F2 skin-scoping name lists; empty ({}) when the animation keys none.
-  readonly path: AnimationEntity['path'];
+  readonly path: readonly PathTimelineSnapshot[]; // sorted by constraintId (Stage F3, PP-D11)
 }
 
 // A plain event-definition projection (Stage F1): the internal EventDefId, the name, the payload defaults,
@@ -647,6 +662,19 @@ function transformKeyframeToSnapshot(kf: TransformKeyframeEntity): TransformKeyf
   };
 }
 
+function pathKeyframeToSnapshot(kf: PathKeyframeEntity): PathKeyframeSnapshot {
+  return {
+    id: kf.id,
+    time: kf.time,
+    position: kf.position,
+    spacing: kf.spacing,
+    mixRotate: kf.mixRotate,
+    mixX: kf.mixX,
+    mixY: kf.mixY,
+    curve: cloneCurve(kf.curve),
+  };
+}
+
 function deformKeyframeToSnapshot(kf: DeformKeyframeEntity): DeformKeyframeSnapshot {
   return { id: kf.id, time: kf.time, offsets: kf.offsets.slice(), curve: cloneCurve(kf.curve) };
 }
@@ -748,16 +776,13 @@ export function animationToSnapshot(animation: AnimationEntity): AnimationSnapsh
       (a.slotId < b.slotId ? -1 : a.slotId > b.slotId ? 1 : 0) ||
       (a.attachment < b.attachment ? -1 : a.attachment > b.attachment ? 1 : 0),
   );
-  // Carried path timelines (PP-D11): deep-copy each named track (value + curve) so the snapshot never
-  // aliases the frozen model, with the constraint names sorted for a deterministic, stable projection.
-  const path: Record<string, AnimationEntity['path'][string][number][]> = {};
-  for (const name of Object.keys(animation.path).sort()) {
-    path[name] = animation.path[name]!.map((frame) => ({
-      time: frame.time,
-      value: { ...frame.value },
-      curve: cloneCurve(frame.curve),
-    }));
+  const path: PathTimelineSnapshot[] = [];
+  for (const [constraintId, frames] of animation.path) {
+    path.push({ constraintId, keyframes: frames.map(pathKeyframeToSnapshot) });
   }
+  path.sort((a, b) =>
+    a.constraintId < b.constraintId ? -1 : a.constraintId > b.constraintId ? 1 : 0,
+  );
   return {
     id: animation.id,
     name: animation.name,

@@ -1,18 +1,14 @@
 import type { Command, CommandContext } from '../command/command';
 import { CommandNotAppliedError, ConstraintError } from '../command/errors';
-import type { AnimationEntity, PathConstraintEntity } from '../model/doc-state';
+import type { PathConstraintEntity, PathKeyframeEntity } from '../model/doc-state';
 import type { AnimationId, PathConstraintId } from '../model/ids';
 import type { CommandSpec } from './spec';
 
-// The carried path timeline track for one constraint in one animation (still keyed by NAME and held as the
-// on-disk keyframe array until the path timeline's own id-keyed promotion, PP-D11 slice 2).
-type PathTrackFrames = AnimationEntity['path'][string];
-
-// One captured path timeline track, so the cascade restores every track the constraint owned across all
-// animations on undo.
+// One captured path timeline track (an animation's keyed frames for the deleted constraint, id-keyed like the
+// ik/transform tracks), so the cascade restores every track the constraint owned across all animations.
 interface RemovedPathTrack {
   readonly animId: AnimationId;
-  readonly frames: PathTrackFrames;
+  readonly frames: readonly PathKeyframeEntity[];
 }
 
 interface RemovedPathConstraint {
@@ -21,11 +17,12 @@ interface RemovedPathConstraint {
   readonly tracks: readonly RemovedPathTrack[];
 }
 
-// Delete a path constraint, cascading every animation's carried path timeline that targets it (command-
-// history catalog DeletePathConstraint, `path.deleteConstraint`; PP-D11). A SINGLE command with a SET memento
-// (the removed constraint with its solve-order index, plus the removed path tracks), NOT a composite, so the
-// whole cascade is ONE undo step. Never coalesces. undo re-inserts the constraint at its original index and
-// restores each path track. Pruning the timeline keeps export valid (an orphan track fails ANIM_PATH_UNKNOWN).
+// Delete a path constraint, cascading every animation's path timeline that targets it (command-history
+// catalog DeletePathConstraint, `path.deleteConstraint`; PP-D11), the exact mirror of ik.delete. A SINGLE
+// command with a SET memento (the removed constraint with its solve-order index, plus the removed path
+// tracks), NOT a composite, so the whole cascade is ONE undo step. Never coalesces. undo re-inserts the
+// constraint at its original index and restores each path track. Pruning keeps export valid (an orphan track
+// fails ANIM_PATH_UNKNOWN).
 export class DeletePathConstraintCommand implements Command {
   readonly kind = 'path.deleteConstraint';
   readonly label = 'Delete Path Constraint';
@@ -41,15 +38,13 @@ export class DeletePathConstraintCommand implements Command {
       const entity = list[index]!;
       const tracks: RemovedPathTrack[] = [];
       for (const anim of ctx.mutate.animations()) {
-        const frames = anim.path[entity.name];
-        if (frames !== undefined && frames.length > 0) tracks.push({ animId: anim.id, frames });
+        const frames = anim.path.get(this.id);
+        if (frames && frames.length > 0) tracks.push({ animId: anim.id, frames });
       }
       this.before = { entity, index, tracks };
     }
-    // Prune the carried path tracks first (by the constraint's name), then remove the constraint.
-    for (const track of this.before.tracks) {
-      ctx.mutate.setCarriedPathTimeline(track.animId, this.before.entity.name, null);
-    }
+    // Prune the path tracks first, then remove the constraint, so each removal is independent.
+    for (const track of this.before.tracks) ctx.mutate.setPathChannel(track.animId, this.id, []);
     ctx.mutate.removePathConstraint(this.id);
   }
 
@@ -57,7 +52,7 @@ export class DeletePathConstraintCommand implements Command {
     if (this.before === undefined) throw new CommandNotAppliedError(this.kind);
     ctx.mutate.insertPathConstraint(this.before.entity, this.before.index);
     for (const track of this.before.tracks) {
-      ctx.mutate.setCarriedPathTimeline(track.animId, this.before.entity.name, track.frames);
+      ctx.mutate.setPathChannel(track.animId, this.id, track.frames);
     }
   }
 }

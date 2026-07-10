@@ -5,6 +5,9 @@ import { createIkConstraintSpec } from './create-ik-constraint.command';
 import { createPathConstraintSpec } from './create-path-constraint.command';
 import { deletePathConstraintSpec } from './delete-path-constraint.command';
 import { setPathConstraintParamsSpec } from './set-path-constraint-params.command';
+import { setPathKeyframeSpec } from './set-path-keyframe.command';
+import { deletePathKeyframeSpec } from './delete-path-keyframe.command';
+import { movePathKeyframeSpec } from './move-path-keyframe.command';
 import { createPathAttachmentSpec } from './create-path-attachment.command';
 import { movePathControlPointSpec } from './move-path-control-point.command';
 import { addPathCurveSpec } from './add-path-curve.command';
@@ -258,4 +261,8 @@ export const commandRegistry: readonly CommandSpec[] = [
   createPathConstraintSpec,
   setPathConstraintParamsSpec,
   deletePathConstraintSpec,
+  // Stage F3 (PP-D11) path constraint timeline authoring
+  setPathKeyframeSpec,
+  movePathKeyframeSpec,
+  deletePathKeyframeSpec,
 ];

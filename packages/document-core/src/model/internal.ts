@@ -29,6 +29,7 @@ import type {
   MeshGeometry,
   PathConstraintEntity,
   PathGeometry,
+  PathKeyframeEntity,
   PreservedContent,
   RegionAttachmentEntity,
   SkinEntity,
@@ -308,9 +309,9 @@ interface MutableAnimation {
   // objects are immutable), never patched in place, so a shared array reference is safe.
   drawOrder: readonly DrawOrderKeyEntity[];
   events: readonly EventKeyEntity[];
-  // Stage F3 (ADR-0011) path-constraint timeline record, carried verbatim (no authoring command yet,
-  // PP-D11). Deep-frozen at load and never mutated in place, so a shared reference is safe like above.
-  path: AnimationEntity['path'];
+  // Stage F3 (ADR-0011 section 3) path-constraint timelines, id-keyed editable keyframes (PP-D11), the same
+  // shape as ik/transform above; replaced per-channel by setPathChannel, never patched in place.
+  path: Map<PathConstraintId, PathKeyframeEntity[]>;
 }
 
 function toMutableBoneSet(set: BoneTimelineSet): MutableBoneTimelineSet {
@@ -413,6 +414,8 @@ function toMutableAnimation(animation: AnimationEntity): MutableAnimation {
   for (const [id, frames] of animation.ik) ik.set(id, frames.slice());
   const transform = new Map<TransformConstraintId, TransformKeyframeEntity[]>();
   for (const [id, frames] of animation.transform) transform.set(id, frames.slice());
+  const path = new Map<PathConstraintId, PathKeyframeEntity[]>();
+  for (const [id, frames] of animation.path) path.set(id, frames.slice());
   return {
     id: animation.id,
     name: animation.name,
@@ -424,7 +427,7 @@ function toMutableAnimation(animation: AnimationEntity): MutableAnimation {
     deform: cloneDeformMap(animation.deform),
     drawOrder: animation.drawOrder,
     events: animation.events,
-    path: animation.path,
+    path,
   };
 }
 
@@ -439,6 +442,8 @@ function cloneMutableAnimation(a: MutableAnimation): MutableAnimation {
   for (const [id, frames] of a.ik) ik.set(id, frames.slice());
   const transform = new Map<TransformConstraintId, TransformKeyframeEntity[]>();
   for (const [id, frames] of a.transform) transform.set(id, frames.slice());
+  const path = new Map<PathConstraintId, PathKeyframeEntity[]>();
+  for (const [id, frames] of a.path) path.set(id, frames.slice());
   return {
     id: a.id,
     name: a.name,
@@ -450,7 +455,7 @@ function cloneMutableAnimation(a: MutableAnimation): MutableAnimation {
     deform: cloneDeformMap(a.deform),
     drawOrder: a.drawOrder,
     events: a.events,
-    path: a.path,
+    path,
   };
 }
 
@@ -493,6 +498,8 @@ function freezeAnimation(a: MutableAnimation): AnimationEntity {
   for (const [id, frames] of a.ik) ik.set(id, Object.freeze(frames.slice()));
   const transform = new Map<TransformConstraintId, readonly TransformKeyframeEntity[]>();
   for (const [id, frames] of a.transform) transform.set(id, Object.freeze(frames.slice()));
+  const path = new Map<PathConstraintId, readonly PathKeyframeEntity[]>();
+  for (const [id, frames] of a.path) path.set(id, Object.freeze(frames.slice()));
   return Object.freeze({
     id: a.id,
     name: a.name,
@@ -504,8 +511,7 @@ function freezeAnimation(a: MutableAnimation): AnimationEntity {
     deform: freezeDeformMap(a.deform),
     drawOrder: Object.freeze(a.drawOrder.slice()),
     events: Object.freeze(a.events.slice()),
-    // Carried verbatim (PP-D11): already deep-frozen at load and never mutated, so share the reference.
-    path: a.path,
+    path,
   });
 }
 
@@ -1825,30 +1831,19 @@ export class DocumentModelInternal implements DocumentReadModel {
     this.revisionValue += 1;
   }
 
-  // Set or DELETE one animation's carried path timeline track, keyed by constraint NAME (the path timeline is
-  // still carried verbatim by name until its own id-keyed promotion, PP-D11 slice 2). `null` removes the key
-  // so a deleted path constraint leaves no orphan timeline (which would fail ANIM_PATH_UNKNOWN on export); a
-  // non-empty array restores it on undo. A missing animation is a no-op (the delete command enumerates live
-  // animations). The record is replaced WHOLESALE (its frames are frozen on-disk shapes, shared by reference).
-  setCarriedPathTimeline(
+  // Replace a path constraint's keyframe array on one animation (PP-D11), the mirror of setIkChannel /
+  // setTransformChannel. An empty array PRUNES the constraint entry (so clearing exactly reverses a set and a
+  // deleted constraint leaves no orphan track, which would fail ANIM_PATH_UNKNOWN on export). The caller
+  // passes an already-time-sorted array.
+  setPathChannel(
     animId: AnimationId,
-    constraintName: string,
-    frames: MutableAnimation['path'][string] | null,
+    constraintId: PathConstraintId,
+    keyframes: readonly PathKeyframeEntity[],
   ): void {
-    const animation = this.animationsMap.get(animId);
-    if (!animation) return;
-    const nextPath: Record<string, MutableAnimation['path'][string]> = { ...animation.path };
-    if (frames === null) delete nextPath[constraintName];
-    else nextPath[constraintName] = frames;
-    const frozen = Object.freeze(nextPath);
-    if (this.batching) {
-      animation.path = frozen;
-    } else {
-      const next = new Map(this.animationsMap);
-      next.set(animId, { ...animation, path: frozen });
-      this.animationsMap = next;
-    }
-    this.revisionValue += 1;
+    this.writeAnimation(animId, (animation) => {
+      if (keyframes.length === 0) animation.path.delete(constraintId);
+      else animation.path.set(constraintId, keyframes.slice());
+    });
   }
 
   // ----- named-skin write surface (WP-2.8, reached only through the Mutator) -----

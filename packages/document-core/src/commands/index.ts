@@ -292,6 +292,11 @@ export {
 } from './set-path-constraint-params.command';
 export type { PathConstraintParamPatch } from './set-path-constraint-params.command';
 export { assertValidPathConstraint } from './constraint-support';
+// Stage F3 (PP-D11) path constraint timeline authoring
+export { SetPathKeyframeCommand, setPathKeyframeSpec } from './set-path-keyframe.command';
+export type { PathKeyframeChannels } from './set-path-keyframe.command';
+export { DeletePathKeyframeCommand, deletePathKeyframeSpec } from './delete-path-keyframe.command';
+export { MovePathKeyframeCommand, movePathKeyframeSpec } from './move-path-keyframe.command';
 export { sortEventKeysByTime } from './event-support';
 export { assertConsistentDrawOrder, sortDrawOrderKeysByTime } from './draw-order-support';
 export {

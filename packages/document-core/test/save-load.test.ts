@@ -825,12 +825,14 @@ describe('Stage F3 (0.5.0) path carry through load and export', () => {
       expect(spline.lengths).toEqual([100]);
       expect(spline.vertices).toEqual([0, 0, 33, 0, 66, 0, 100, 0]);
     }
-    // The path constraint is promoted to an editable entity (PP-D11) and its bones/target resolve to ids;
-    // the per-animation path timeline is still carried by name. Both export deep-equal (below).
+    // The path constraint and its timeline are both promoted to editable id-keyed entities (PP-D11): the
+    // constraint's bones/target resolve to ids, and the per-animation path track keys by PathConstraintId.
+    // Both export deep-equal (below).
     expect(doc.model.pathConstraints().map((c) => c.name)).toEqual(['pc1']);
+    const pc1 = doc.model.pathConstraints().find((c) => c.name === 'pc1')!;
     const glide = doc.model.animations().find((a) => a.name === 'glide')!;
-    expect(Object.keys(glide.path)).toEqual(['pc1']);
-    expect(glide.path['pc1']).toHaveLength(2);
+    expect([...glide.path.keys()]).toEqual([pc1.id]);
+    expect(glide.path.get(pc1.id)).toHaveLength(2);
 
     const exported = exportDocument(doc.model);
     expect(exported).toEqual(original); // lossless, hash included

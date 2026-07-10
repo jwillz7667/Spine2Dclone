@@ -26,6 +26,7 @@ import type {
   MeshGeometry,
   PathConstraintEntity,
   PathGeometry,
+  PathKeyframeEntity,
   RegionAttachmentEntity,
   SkinEntity,
   SequenceKeyframeEntity,
@@ -151,10 +152,10 @@ export interface Mutator extends DocumentReadModel {
   removePathConstraint(id: PathConstraintId): void;
   patchPathConstraint(id: PathConstraintId, patch: Partial<Omit<PathConstraintEntity, 'id'>>): void;
   setPathConstraintOrder(id: PathConstraintId, order: number | undefined): void;
-  setCarriedPathTimeline(
+  setPathChannel(
     animId: AnimationId,
-    constraintName: string,
-    frames: AnimationEntity['path'][string] | null,
+    constraintId: PathConstraintId,
+    keyframes: readonly PathKeyframeEntity[],
   ): void;
   insertSkin(entity: SkinEntity, index: number): void;
   removeSkin(id: SkinId): void;
@@ -278,8 +279,8 @@ export function createMutator(model: DocumentModelInternal): Mutator {
     removePathConstraint: (id) => model.removePathConstraint(id),
     patchPathConstraint: (id, patch) => model.patchPathConstraint(id, patch),
     setPathConstraintOrder: (id, order) => model.setPathConstraintOrder(id, order),
-    setCarriedPathTimeline: (animId, name, frames) =>
-      model.setCarriedPathTimeline(animId, name, frames),
+    setPathChannel: (animId, constraintId, keyframes) =>
+      model.setPathChannel(animId, constraintId, keyframes),
     insertSkin: (entity, index) => model.insertSkin(entity, index),
     removeSkin: (id) => model.removeSkin(id),
     patchSkin: (id, patch) => model.patchSkin(id, patch),

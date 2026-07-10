@@ -30,6 +30,7 @@ import type {
   KeyframeEntity,
   KeyframeValue,
   PathConstraintEntity,
+  PathKeyframeEntity,
   SequenceKeyframeEntity,
   SkinEntity,
   SlotEntity,
@@ -47,6 +48,7 @@ import {
   makeKeyframe,
   makeLinkedMeshAttachment,
   makePathAttachment,
+  makePathKeyframe,
   makeSequenceKeyframe,
   makeTransformKeyframe,
 } from '../model/doc-state';
@@ -390,10 +392,12 @@ function formatToDocState(document: SkeletonDocument, ids: IdFactory): DocState 
   // the target SLOT name and bone NAME references to ids, and keep the stored array order (pathConstraintOrder)
   // within the single combined solve-order space. The per-animation path TIMELINE stays carried by constraint
   // NAME (its own id-keyed promotion is PP-D11 slice 2), so no name->id map is threaded to the timelines here.
+  const pathNameToId = new Map<string, PathConstraintId>();
   const pathConstraintOrder: PathConstraintId[] = [];
   const pathConstraints = new Map<PathConstraintId, PathConstraintEntity>();
   for (const c of document.pathConstraints) {
     const id = ids.mint('pathConstraint');
+    pathNameToId.set(c.name, id);
     pathConstraintOrder.push(id);
     pathConstraints.set(id, pathConstraintToEntity(id, c, boneNameToId, slotNameToId));
   }
@@ -428,6 +432,11 @@ function formatToDocState(document: SkeletonDocument, ids: IdFactory): DocState 
     for (const [constraintName, frames] of Object.entries(animation.transform)) {
       const constraintId = resolveId(constraintName, tcNameToId, 'animation transform constraint');
       transformTracks.set(constraintId, loadTransformFrames(frames, ids));
+    }
+    const pathTracks = new Map<PathConstraintId, readonly PathKeyframeEntity[]>();
+    for (const [constraintName, frames] of Object.entries(animation.path)) {
+      const constraintId = resolveId(constraintName, pathNameToId, 'animation path constraint');
+      pathTracks.set(constraintId, loadPathFrames(frames, ids));
     }
     const deformTracks = new Map<
       DeformSkinKey,
@@ -481,10 +490,9 @@ function formatToDocState(document: SkeletonDocument, ids: IdFactory): DocState 
       deform: deformTracks,
       drawOrder: drawOrderKeys,
       events: eventKeys,
-      // Stage F3 (ADR-0011 section 3) path-constraint timelines, carried verbatim as the on-disk record
-      // (constraintName -> frames) until an authoring command lands (PP-D11); deep-frozen so the model
-      // never aliases the parsed document.
-      path: carry(animation.path),
+      // Stage F3 (ADR-0011 section 3) path-constraint timelines, promoted to id-keyed editable keyframes
+      // (PP-D11): each on-disk constraint NAME resolves to its PathConstraintId.
+      path: pathTracks,
     });
   }
 
@@ -618,6 +626,29 @@ function loadIkFrames(
         stretch: frame.value.stretch,
         compress: frame.value.compress,
       },
+    ),
+  );
+}
+
+// Promote a format path timeline (Stage F3, ADR-0011 section 3) to editable id-keyed keyframes: each partial
+// PathFrame's present channels are carried as given (an absent channel is undefined, keeping its base value,
+// SOLVE semantics), minting a fresh KeyframeId per frame.
+function loadPathFrames(
+  frames: SkeletonDocument['animations'][string]['path'][string],
+  ids: IdFactory,
+): PathKeyframeEntity[] {
+  return frames.map((frame) =>
+    makePathKeyframe(
+      ids.mint('keyframe'),
+      frame.time,
+      {
+        position: frame.value.position,
+        spacing: frame.value.spacing,
+        mixRotate: frame.value.mixRotate,
+        mixX: frame.value.mixX,
+        mixY: frame.value.mixY,
+      },
+      frame.curve,
     ),
   );
 }

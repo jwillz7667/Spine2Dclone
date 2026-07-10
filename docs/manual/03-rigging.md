@@ -151,11 +151,11 @@ This is the rig-mechanics workhorse:
 - **Offset copies**: a cape bone that tracks the shoulder with a lag offset.
 
 Constraints solve in a fixed order after timelines: all IK constraints first, then all
-transform constraints, then all path constraints, each in creation order. Order within a list
-matters when constraints chain off each other's results; create them in dependency order. When
-you need a different order (for example a path constraint that must run before a transform
-constraint that reads its result), set an explicit cross-array solve order in the Constraints
-panel (the Up/Down controls) or over the MCP `constraints.reorder` surface.
+transform constraints, then all path constraints, then all physics constraints, each in creation
+order. Order within a list matters when constraints chain off each other's results; create them in
+dependency order. When you need a different order (for example a path constraint that must run
+before a transform constraint that reads its result), set an explicit cross-array solve order in
+the Constraints panel (the Up/Down controls) or over the MCP `constraints.reorder` surface.
 
 ## 3.8 Path constraints
 
@@ -191,7 +191,49 @@ Author it in two parts:
 Path constraints are the tool for anything that follows a curve: a line of ducks gliding down a
 stream, a train on a track, letters riding a banner, a chain of segments whipping along a spline.
 
-## 3.9 Skins
+## 3.9 Physics constraints
+
+A physics constraint adds SECONDARY MOTION to a bone: it lets a channel lag, overshoot, and settle
+like a spring instead of snapping to the pose you keyed. It is how you get a tail that jiggles, a
+ponytail that swings a beat behind the head, a dangling earring, an antenna that wobbles, or
+cloth-like sway, without hand-animating every follow-through frame. The constraint binds to exactly
+ONE bone (the driven bone is also its own setpoint, so it always chases its OWN animated pose and
+can never form a solver cycle) and simulates a chosen subset of that bone's local channels as a
+damped-driven spring.
+
+Author it in the Constraints panel (or the `physics.*` MCP surface):
+
+- **The bone and channels.** Pick the bone and the **channels** to simulate: any non-empty,
+  duplicate-free subset of `x`, `y`, `rotation`, `scaleX`, `shearX`. Rotation is the usual jiggle
+  channel; add `x`/`y` for a bone that should also drift and settle. `scaleY`/`shearY` are
+  deliberately out of the v1 set.
+- **The spring.** Tune the response:
+  - **`strength`** (>= 0) is the spring stiffness pulling the channel back toward the animated pose;
+    0 is a free channel with no restoring force, higher snaps back faster.
+  - **`damping`** (0..1) is how much velocity survives each step; 1 is undamped (rings forever), low
+    values settle quickly.
+  - **`inertia`** (0..1) is the follow-through: 0 tracks the pose rigidly, 1 lags fully then springs
+    to catch up.
+  - **`mass`** (> 0) is the inertial mass (a heavier bone accelerates less under the same force).
+  - **`wind`** and **`gravity`** are constant world forces added to the simulation (a breeze, a
+    downward pull on a hanging chain).
+  - **`mix`** (0..1) blends the simulated result against the plain animated pose.
+- **The clock.** **`step`** (> 0) is the fixed simulation timestep in seconds (default 1/60); it is
+  the determinism anchor and is NOT keyable, along with `mass` and the `channels` set. Everything
+  else (`mix`/`inertia`/`strength`/`damping`/`wind`/`gravity`) IS keyframable in the dopesheet, so
+  you can stiffen a tail during an impact and loosen it as the character relaxes.
+- **Global weather.** The skeleton's optional physics **settings** block adds a global `gravity` and
+  `wind` to every constraint and a master `mix` multiplied into each constraint's mix, so one fader
+  can calm or exaggerate all the secondary motion at once. Leave it unset for the identity default
+  (no global weather, unit master mix).
+
+Physics constraints solve LAST (after IK, transform, and path), so they react to the fully posed
+skeleton. Note the presentation-only boundary: physics is a deterministic function of the animated
+pose and the fixed step, so the same input always produces the same wobble; it never influences a
+game outcome. (The live in-editor physics preview lands with the solve; until then the Constraints
+panel and inspector author the data and a runtime plays it back.)
+
+## 3.10 Skins
 
 A skin is a named set of attachments overlaying the default one, resolved per (slot,
 attachment-name) address: at runtime the active skin is checked first, then the default skin.
@@ -227,7 +269,7 @@ boundary; clearing the last entry in a dimension leaves the skin unscoped there.
 activation semantics (which scoped bones and constraints participate under a given active skin) are
 the player's to honor; the editor authors and validates the lists.
 
-## 3.10 A rigging order that works
+## 3.11 A rigging order that works
 
 For a typical character:
 

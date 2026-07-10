@@ -5,7 +5,7 @@ The GUI panels and the MCP tools drive the exact same command layer (`@marionett
 so everything in this reference is also a precise description of what the editor itself can do.
 Anything you can click, you can script; anything you can script, you can undo.
 
-This chapter is the complete reference: 187 tools across 24 namespaces. For a guided walkthrough
+This chapter is the complete reference: 201 tools across 25 namespaces. For a guided walkthrough
 that uses a small subset of these, read Chapter 1 (Getting Started) first.
 
 ## Conventions used by every tool
@@ -122,6 +122,7 @@ control point. Edits are rejected as `PATH` with a `reason` (`notFound`, `pointR
 |---|---|---|
 | `path.get` | Read a path's openness, parametrization flag, control points, and arc-length table | `slotId`, `name` |
 | `path.moveControlPoint` | Move one control point (anchor or handle); recomputes lengths | `slotId`, `name`, `pointIndex`, `x`, `y` |
+| `path.deleteControlPoint` | Delete an anchor (pointIndex a multiple of 3), collapsing its curve | `slotId`, `name`, `pointIndex` |
 | `path.addCurve` | Append one cubic curve (three control points) to the end | `slotId`, `name` |
 | `path.removeCurve` | Drop the last curve (a path keeps at least one) | `slotId`, `name` |
 | `path.setClosed` | Toggle openness; adjusts the control-point stream to stay valid | `slotId`, `name`, `closed` |
@@ -212,11 +213,41 @@ five channels (an omitted channel keeps its base value at solve time).
 | `path.moveKeyframe` | Retime a keyframe (`KEYFRAME_COLLISION` if occupied) | `animationId`, `pathConstraintId`, `keyframeId`, `time` |
 | `path.deleteKeyframe` | Delete a keyframe by id | `animationId`, `pathConstraintId`, `keyframeId` |
 
+## Physics constraints and timelines: `physics.*`
+
+A physics constraint (Stage F4, ADR-0014) simulates a non-empty, duplicate-free subset of ONE bone's local
+channels (`x`/`y`/`rotation`/`scaleX`/`shearX`) as a damped-driven spring toward the animated pose: it is how
+you author secondary motion (a tail jiggle, a dangling chain, cloth-like sway) without keyframing every beat.
+The bound bone is both the driven bone and its own setpoint, so a physics constraint never forms a solver
+cycle. `step`/`mass` are structural (a strictly positive fixed timestep and inertial mass); `inertia`/`damping`/
+`mix` are in `[0, 1]`, `strength` is `>= 0`, and `wind`/`gravity` are finite world forces. `step`/`mass`/
+`channels` are NOT keyable; a keyframe carries only the dynamic knobs (`mix`/`inertia`/`strength`/`damping`/
+`wind`/`gravity`). The OPTIONAL skeleton settings block adds global `gravity`/`wind` and a master `mix`.
+Physics shares the single combined solve-order namespace with IK, transform, and path. Constraint edits are
+rejected as `CONSTRAINT` with a `reason` (`boneMissing`, `channelsEmpty`, `channelDuplicate`, `duplicateName`,
+`notFound`); a keyframe collision is `KEYFRAME_COLLISION`.
+
+| Tool | Purpose | Key input |
+|---|---|---|
+| `physics.createConstraint` | Create a constraint over one bone and a channel set | `name`, `boneId`, `channels`, `params` (step/knobs/forces) |
+| `physics.setParams` | Patch the scalar params (only the named fields) | `physicsConstraintId`, any of `step`/`inertia`/`strength`/`damping`/`mass`/`wind`/`gravity`/`mix` |
+| `physics.setChannels` | Replace the simulated channel set (non-empty, unique) | `physicsConstraintId`, `channels` |
+| `physics.setTargetBone` | Retarget to a different bone | `physicsConstraintId`, `boneId` |
+| `physics.renameConstraint` | Rename (id-stable, timelines unaffected) | `physicsConstraintId`, `name` |
+| `physics.deleteConstraint` | Delete a constraint, cascading its physics timelines | `physicsConstraintId` |
+| `physics.listConstraints` | List physics constraints in solve order | `documentId` |
+| `physics.getConstraint` | Get one physics constraint by id | `physicsConstraintId` |
+| `physics.getSettings` | Read the global settings block (or null) | `documentId` |
+| `physics.setSettings` | Set or clear the global gravity/wind/mix block | `settings` (`{ gravity, wind, mix }` or null) |
+| `physics.setKeyframe` | Insert or update a physics keyframe | `animationId`, `physicsConstraintId`, `time`, optional `mix`/`inertia`/`strength`/`damping`/`wind`/`gravity`, `curve?` |
+| `physics.moveKeyframe` | Retime a keyframe (`KEYFRAME_COLLISION` if occupied) | `animationId`, `physicsConstraintId`, `keyframeId`, `time` |
+| `physics.deleteKeyframe` | Delete a keyframe by id | `animationId`, `physicsConstraintId`, `keyframeId` |
+
 ## Constraint order: `constraints.*`
 
 | Tool | Purpose | Key input |
 |---|---|---|
-| `constraints.reorder` | Set the explicit cross-array solve order, or clear it | `order` (combined IK-then-transform-then-path ids), or `order: null` to restore the default |
+| `constraints.reorder` | Set the explicit cross-array solve order, or clear it | `order` (combined IK-then-transform-then-path-then-physics ids), or `order: null` to restore the default |
 
 ## Skins: `skin.*`
 

@@ -1,6 +1,12 @@
 import type { IDockviewPanelProps } from 'dockview';
-import { useEffect, useMemo, useState, type CSSProperties, type ReactElement } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactElement } from 'react';
 import type { BlendMode } from '@marionette/format/types';
+import {
+  mountEffectPreview,
+  type EffectPreviewHandle,
+  type EffectPreviewStats,
+} from './effect-preview/effect-preview-view';
+import { makePreviewTransport, type PreviewTransport } from './preview/preview-transport';
 import {
   AddLayerCommand,
   CreateEffectCommand,
@@ -112,6 +118,90 @@ export function EffectsPanel(_props: IDockviewPanelProps): ReactElement {
         ) : (
           <EffectDetail effect={selectedEffect} onDeleted={() => setSelectedEffectId(null)} />
         )}
+      </div>
+
+      <EffectPreviewPane effectName={selectedEffect?.name ?? null} revision={revision} />
+    </div>
+  );
+}
+
+interface EffectPreviewPaneProps {
+  readonly effectName: string | null;
+  readonly revision: number;
+}
+
+// The live GL preview region (PP-D8): mounts a PixiJS preview of the SELECTED effect, playing its emitter
+// config through the shared runtime-web ParticleLayerView, and re-syncing from the document on every
+// revision (edits flow through the effects commands elsewhere; this pane only reads). The preview lives
+// INSIDE the effects panel rather than a separate dockview panel so the edited effect and its playback sit
+// together with no extra layout/menu wiring; the panel already stacks list + detail, and the GL host owns
+// its own Application lifecycle exactly like the viewport panel does.
+function EffectPreviewPane(props: EffectPreviewPaneProps): ReactElement {
+  const { effectName, revision } = props;
+  const hostRef = useRef<HTMLDivElement | null>(null);
+  const handleRef = useRef<EffectPreviewHandle | null>(null);
+  const [transport, setTransport] = useState<PreviewTransport>(() => makePreviewTransport());
+  const [notice, setNotice] = useState<string | null>(null);
+  const [stats, setStats] = useState<EffectPreviewStats>({ liveInstances: 0, liveParticles: 0 });
+
+  useEffect(() => {
+    const host = hostRef.current;
+    if (host === null) return;
+    const handle = mountEffectPreview(host, {
+      onTransport: setTransport,
+      onNotice: setNotice,
+      onStats: setStats,
+    });
+    handleRef.current = handle;
+    return () => {
+      handle.destroy();
+      handleRef.current = null;
+    };
+  }, []);
+
+  // Push the selected effect name and re-sync on document revision. Both are no-ops before the async GL init
+  // completes (the handle queues them); after init the view rebuilds against the live library.
+  useEffect(() => {
+    handleRef.current?.setEffectName(effectName);
+  }, [effectName]);
+  useEffect(() => {
+    handleRef.current?.resyncFromDocument();
+  }, [revision]);
+
+  return (
+    <div style={previewSectionStyle}>
+      <div style={previewToolbarStyle}>
+        <button
+          type="button"
+          style={smallButtonStyle}
+          title={transport.isPlaying ? 'Pause' : 'Play'}
+          onClick={() => handleRef.current?.togglePlay()}
+        >
+          {transport.isPlaying ? 'Pause' : 'Play'}
+        </button>
+        <button
+          type="button"
+          style={smallButtonStyle}
+          title="Restart the effect"
+          onClick={() => handleRef.current?.restart()}
+        >
+          Restart
+        </button>
+        <button
+          type="button"
+          style={smallButtonStyle}
+          title="Cycle the preview background (dark / light / checker)"
+          onClick={() => handleRef.current?.cycleBackground()}
+        >
+          BG: {transport.background}
+        </button>
+        <span style={previewStatsStyle} title="Live particle instances / particles">
+          {stats.liveParticles} particles
+        </span>
+      </div>
+      <div style={previewHostWrapStyle}>
+        <div ref={hostRef} style={previewHostStyle} />
+        {notice !== null && <div style={previewNoticeStyle}>{notice}</div>}
       </div>
     </div>
   );
@@ -508,15 +598,59 @@ const rootStyle: CSSProperties = {
 const sectionStyle: CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
-  flex: '1 1 40%',
+  flex: '1 1 26%',
   minHeight: 0,
   borderBottom: '1px solid #333333',
 };
 
 const detailSectionStyle: CSSProperties = {
-  flex: '1 1 60%',
+  flex: '1 1 34%',
   minHeight: 0,
   overflowY: 'auto',
+  borderBottom: '1px solid #333333',
+};
+
+const previewSectionStyle: CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  flex: '1 1 40%',
+  minHeight: 180,
+};
+
+const previewToolbarStyle: CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 6,
+  padding: '6px 8px',
+  borderBottom: '1px solid #333333',
+  flex: '0 0 auto',
+};
+
+const previewStatsStyle: CSSProperties = {
+  marginLeft: 'auto',
+  color: '#888888',
+  fontVariantNumeric: 'tabular-nums',
+};
+
+const previewHostWrapStyle: CSSProperties = {
+  position: 'relative',
+  flex: '1 1 auto',
+  minHeight: 0,
+};
+
+const previewHostStyle: CSSProperties = { width: '100%', height: '100%' };
+
+const previewNoticeStyle: CSSProperties = {
+  position: 'absolute',
+  top: 8,
+  left: 8,
+  right: 8,
+  padding: '4px 8px',
+  borderRadius: 4,
+  background: 'rgba(40, 30, 18, 0.9)',
+  border: '1px solid #6a5a2a',
+  color: '#e0c98a',
+  pointerEvents: 'none',
 };
 
 const toolbarStyle: CSSProperties = {

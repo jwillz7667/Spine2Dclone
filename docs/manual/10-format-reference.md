@@ -10,7 +10,7 @@ independent document formats plus project manifests, each with its own version l
 
 | Format | Version constant | Current |
 |---|---|---|
-| Skeletal (`SkeletonDocument`) | `CURRENT_FORMAT_VERSION` | `0.4.0` |
+| Skeletal (`SkeletonDocument`) | `CURRENT_FORMAT_VERSION` | `0.5.0` |
 | Effects (`EffectsDocument`) | `EFFECTS_FORMAT_VERSION` | `1.0.0` |
 | Slot scene (`SlotSceneDocument`) | `SLOT_SCENE_FORMAT_VERSION` | `0.1.0` |
 | Shared primitives (blend modes, atlas, curves) | `FORMAT_COMMON_VERSION` | `1.0.0` |
@@ -26,7 +26,7 @@ error, not a warning.
 
 ```jsonc
 {
-  "formatVersion": "0.4.0",
+  "formatVersion": "0.5.0",
   "name": "my-character",
   "hash": "…64 lowercase hex, or empty for an unhashed draft…",
   "bones": [ … ],                 // at least one bone
@@ -34,6 +34,7 @@ error, not a warning.
   "skins": [ … ],                 // must include a skin named "default"
   "ikConstraints": [ … ],         // required, may be empty
   "transformConstraints": [ … ],  // required, may be empty
+  "pathConstraints": [ … ],       // required, may be empty (stage F3, 0.5.0)
   "events": [ … ],                // required, may be empty (event definitions)
   "animations": { "walk": { … } },
   "atlas": { "pages": [ … ] },
@@ -105,6 +106,10 @@ Mesh vertex encoding is the presence-of-`bones` switch:
 **clipping**: `end` (slot name where clipping stops), `vertices` polygon, `color`.
 **point**: `x`, `y`, `rotation`.
 **boundingbox**: `vertices` polygon.
+**path** (stage F3, 0.5.0): a piecewise cubic Bezier spline through the slot, pure geometry (no
+atlas region, no color). `closed`, `constantSpeed` (booleans), `lengths` (cumulative per-curve
+arc-length table), `vertices` (control points in the same weighted/unweighted codec as `mesh`),
+optional `bones` (weighted case).
 
 ### Skin
 
@@ -127,10 +132,16 @@ Transform constraint: `name`, `bones` (1 or more), `target`, six mix factors (`m
 (`offsetRotation`, `offsetX`, `offsetY`, `offsetScaleX`, `offsetScaleY`, `offsetShearY`), the
 `local` and `relative` variant flags (booleans), and an optional `order`.
 
-Constraint names must be unique across BOTH arrays. The default solve order is fixed: all IK
-constraints first, then all transform constraints, each in array order. When any constraint carries
-`order`, all must, and the values form a dense unique permutation of `[0, N)` over the combined set
-(`CONSTRAINT_ORDER_INVALID`).
+Path constraint (stage F3, 0.5.0): `name`, `target` (a SLOT name whose active attachment is a
+`path`, not a bone), `bones` (1 or more, distributed along the path), `positionMode`
+(`fixed`|`percent`), `spacingMode` (`length`|`fixed`|`percent`|`proportional`), `rotateMode`
+(`tangent`|`chain`|`chainScale`), `position`, `spacing`, `offsetRotation` (unbounded finite),
+`mixRotate`/`mixX`/`mixY` (each `[0, 1]`), and an optional `order`.
+
+Constraint names must be unique across ALL THREE arrays (one namespace). The default solve order is
+fixed: all IK constraints, then all transform constraints, then all path constraints, each in array
+order. When any constraint carries `order`, all must, and the values form a dense unique permutation
+of `[0, N)` over the combined set (`CONSTRAINT_ORDER_INVALID`).
 
 ### Animation
 
@@ -153,6 +164,7 @@ constraints first, then all transform constraints, each in array order. When any
   },
   "ik":        { "leg-ik": [ { "time": 0, "value": { "mix": 1, "bend": 1 }, "curve": "linear" } ] },
   "transform": { "follow": [ { "time": 0, "value": { "mixRotate": 0.5 }, "curve": "linear" } ] },
+  "path":      { "rail": [ { "time": 0, "value": { "position": 0, "mixRotate": 1 }, "curve": "linear" } ] },   // required, may be empty (0.5.0)
   "deform":    { "default": { "front-leg": { "leg-mesh": [ { "time": 0, "value": { "offsets": [dx0, dy0, …] }, "curve": "linear" } ] } } },
   "drawOrder": [ { "time": 0.5, "offsets": [ { "slot": "front-leg", "offset": 1 } ] } ],   // required, may be empty
   "events":    [ { "time": 0.5, "name": "footstep", "int": 3 } ]                            // required, may be empty
@@ -244,8 +256,9 @@ the `0.2.x` to `0.3.0` migration (ADR-0008) injects the empty document `events` 
 the empty per-animation `drawOrder`/`events` timelines; the `0.3.x` to `0.4.0` migration (ADR-0009)
 maps each IK constraint's and IK frame's `bendPositive` boolean to the signed `bend` losslessly
 (`true` to `+1`, `false` to `-1`) and injects the IK depth (`softness`/`stretch`/`compress`/`uniform`)
-and transform variant (`local`/`relative`) no-op defaults. Each recomputes the hash if one was
-present (an unhashed draft stays a draft).
+and transform variant (`local`/`relative`) no-op defaults; the `0.4.x` to `0.5.0` migration (ADR-0011)
+injects the empty root `pathConstraints` array and the empty per-animation `path` timeline. Each
+recomputes the hash if one was present (an unhashed draft stays a draft).
 
 Policy (see `docs/plan/cross-cutting/format-contract.md` section 10): a schema or semantic
 change bumps `formatVersion` with a tested migration; a validator refactor or error-message

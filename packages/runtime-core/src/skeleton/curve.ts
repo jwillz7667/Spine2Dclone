@@ -4,6 +4,7 @@ import type {
   IkFrame,
   Keyframe,
   PathFrame,
+  PhysicsFrame,
   RGB,
   RGBA,
   SlotTimelines,
@@ -283,6 +284,22 @@ export function buildTransformMixTrack(
 export function buildPathTrack(
   frames: readonly Keyframe<PathFrame>[],
   channel: keyof PathFrame,
+): PreparedTrack | null {
+  const present = frames.filter((frame) => frame.value[channel] !== undefined);
+  if (present.length === 0) return null;
+  return buildTrack(present, 1, (key, out, base) => {
+    out[base] = key.value[channel] ?? 0;
+  });
+}
+
+// One keyable knob of a physics-constraint timeline (ADR-0014 section 7): `mix`, `inertia`, `strength`,
+// `damping`, `wind`, or `gravity`. Built from ONLY the keyframes that key it (the same absent-channel
+// semantics as the transform/path channels), each interpolated by its own curve. Returns null when no
+// keyframe keys the channel, so step 2 holds the constraint's base value for it. `step`/`mass`/`channels`
+// are NOT keyable and are never passed here.
+export function buildPhysicsTrack(
+  frames: readonly Keyframe<PhysicsFrame>[],
+  channel: keyof PhysicsFrame,
 ): PreparedTrack | null {
   const present = frames.filter((frame) => frame.value[channel] !== undefined);
   if (present.length === 0) return null;

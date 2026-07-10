@@ -111,6 +111,69 @@ export interface ResolvedPathConstraint {
   };
 }
 
+// A physics constraint resolved against the pose (ADR-0014, PP-B7). Physics binds to ONE `boneIndex`
+// (both the driven bone and its own setpoint reference) and simulates a subset of that bone's LOCAL
+// channels as independent damped-driven springs. `channelCodes` holds one code per simulated channel
+// (PHYSICS_CHANNEL_X/Y/ROTATION/SCALEX/SHEARX), document order; `channelX`/`channelY` are the array
+// positions of the x/y channels (or -1) so the force projection and teleport measure read them without a
+// scan. `base*` are the constraint definition's values; `sampled` is the per-frame scratch step 2 writes
+// (from the physics timeline, else reset to base) and step 3 reads (step/mass are static, not keyable).
+// The (`p`, `v`, `targetPrev`) simulation state and `accFixed`/`initialized` are pre-allocated ONCE here
+// and MUTATE ACROSS FRAMES (physics carries velocity), so the per-frame solve allocates nothing; they are
+// the one piece of solve state that persists between sampleSkeleton calls, reset by resetPhysics.
+export interface ResolvedPhysicsConstraint {
+  readonly name: string;
+  readonly boneIndex: number;
+  // One channel code per simulated channel, document order (PHYSICS_CHANNEL_* in solve/physics-constraint).
+  readonly channelCodes: Int8Array;
+  readonly simulatesX: boolean;
+  readonly simulatesY: boolean;
+  // The array position of the x / y channel within channelCodes (or -1 when not simulated), so the force
+  // projection and the teleport translation-jump measure index the state arrays directly.
+  readonly channelX: number;
+  readonly channelY: number;
+  // Static (non-keyable) model parameters (ADR-0014 section 7): the fixed timestep and the inertial mass.
+  readonly baseStep: number;
+  readonly baseMass: number;
+  // The definition base values for the keyable knobs, the reset target for resetConstraintsToBase.
+  readonly baseInertia: number;
+  readonly baseStrength: number;
+  readonly baseDamping: number;
+  readonly baseWind: number;
+  readonly baseGravity: number;
+  readonly baseMix: number;
+  // The explicit combined-set solve order (ADR-0014 section 4), or -1 when this constraint carries none.
+  readonly order: number;
+  // The skins that SCOPE this constraint (ADR-0009 section 5), or null when unscoped.
+  readonly scopeSkins: readonly string[] | null;
+  // Per-frame sampled scratch (the keyable knobs), reset to base each frame and overlaid by the timeline.
+  readonly sampled: {
+    inertia: number;
+    strength: number;
+    damping: number;
+    wind: number;
+    gravity: number;
+    mix: number;
+  };
+  // Simulation state, one lane per simulated channel, persisting across frames (mutated in place).
+  readonly p: Float64Array;
+  readonly v: Float64Array;
+  readonly targetPrev: Float64Array;
+  // The integer fixed-point step accumulator (ADR-0014 section 2.2) and the first-evaluation flag (false
+  // means "initialize to rest on the pose on the next active solve", which is also the skin-change /
+  // activation reset edge). Mutable scalars, not readonly: the solve advances them every frame.
+  accFixed: number;
+  initialized: boolean;
+}
+
+// The skeleton-level physics settings (ADR-0014 section 5): global gravity/wind ADDED to each constraint
+// and a master mix MULTIPLIED into each constraint's mix. Absent block => the identity defaults (0, 0, 1).
+export interface PhysicsSettings {
+  readonly gravity: number;
+  readonly wind: number;
+  readonly mix: number;
+}
+
 // A growable scratch buffer for sampled deform offsets, owned by the pose so mesh-vertex sampling
 // reuses it across calls. `offsets` is reallocated only when a larger mesh is sampled than any seen
 // before (a one-time, size-keyed allocation); steady-state sampling of same-or-smaller meshes reuses
@@ -231,13 +294,21 @@ export interface Pose {
   // The document's path constraints (ADR-0013, PP-B6), resolved in document array order. Solved AFTER all
   // IK and all transform constraints by default (ADR-0011 section 2.3). Empty for a rig with none.
   readonly pathConstraints: readonly ResolvedPathConstraint[];
+  // The document's physics constraints (ADR-0014, PP-B7), resolved in document array order. Solved AFTER
+  // all IK, transform, and path constraints by default (ADR-0014 section 4): physics is secondary motion
+  // layered on the final posed skeleton. Empty for a rig with none; carries the persistent (p, v) state.
+  readonly physicsConstraints: readonly ResolvedPhysicsConstraint[];
+  // The skeleton-level physics globals (ADR-0014 section 5), captured at build (defaults 0, 0, 1 when the
+  // document omits the block). Read by every physics constraint's per-frame combine; never mutated.
+  readonly physicsSettings: PhysicsSettings;
   // The explicit combined-set solve schedule (ADR-0009 section 1.3, ADR-0010 section 1, ADR-0011 section
-  // 2.3) or null when no constraint carries an `order`. When present it is a dense permutation of `[0, N)`
-  // (N = total constraints across all THREE arrays): `solveOrder[position]` is a constraint CODE selecting
-  // `ikConstraints[code]` when `code < ikCount`, `transformConstraints[code - ikCount]` when
-  // `ikCount <= code < ikCount + transformCount`, else `pathConstraints[code - ikCount - transformCount]`.
-  // Step 3 walks it in position order. Null keeps the exact default (all IK, then all transform, then all
-  // path) path, so a rig without order is byte-identical. Precomputed once at build; never touched per frame.
+  // 2.3, ADR-0014 section 4) or null when no constraint carries an `order`. When present it is a dense
+  // permutation of `[0, N)` (N = total constraints across all FOUR arrays): `solveOrder[position]` is a
+  // constraint CODE selecting `ikConstraints[code]` when `code < ikCount`, `transformConstraints[code -
+  // ikCount]` when `ikCount <= code < ikCount + transformCount`, `pathConstraints[code - ikCount -
+  // transformCount]` when below the physics base, else `physicsConstraints[code - physicsBase]`. Step 3
+  // walks it in position order. Null keeps the exact default (all IK, then transform, then path, then
+  // physics) path, so a rig without order is byte-identical. Precomputed once at build; never per frame.
   readonly solveOrder: Int32Array | null;
   // Reused scratch for sampled deform offsets (mesh-vertex sampling, sampleMeshVertices). Not touched
   // by the bone/slot/constraint solve; lives on the pose so repeated mesh sampling allocates nothing.
@@ -270,6 +341,8 @@ export function allocatePose(
   ikConstraints: readonly ResolvedIkConstraint[],
   transformConstraints: readonly ResolvedTransformConstraint[],
   pathConstraints: readonly ResolvedPathConstraint[],
+  physicsConstraints: readonly ResolvedPhysicsConstraint[],
+  physicsSettings: PhysicsSettings,
 ): Pose {
   return {
     boneCount,
@@ -302,7 +375,14 @@ export function allocatePose(
     ikConstraints,
     transformConstraints,
     pathConstraints,
-    solveOrder: buildSolveOrder(ikConstraints, transformConstraints, pathConstraints),
+    physicsConstraints,
+    physicsSettings,
+    solveOrder: buildSolveOrder(
+      ikConstraints,
+      transformConstraints,
+      pathConstraints,
+      physicsConstraints,
+    ),
     deformScratch: { offsets: new Float64Array(0) },
     preparedAnimations: new WeakMap<Animation, PreparedAnimation>(),
   };
@@ -319,10 +399,12 @@ function buildSolveOrder(
   ikConstraints: readonly ResolvedIkConstraint[],
   transformConstraints: readonly ResolvedTransformConstraint[],
   pathConstraints: readonly ResolvedPathConstraint[],
+  physicsConstraints: readonly ResolvedPhysicsConstraint[],
 ): Int32Array | null {
   const ikCount = ikConstraints.length;
   const transformCount = transformConstraints.length;
-  const total = ikCount + transformCount + pathConstraints.length;
+  const pathCount = pathConstraints.length;
+  const total = ikCount + transformCount + pathCount + physicsConstraints.length;
   if (total === 0) return null;
 
   let anyOrder = false;
@@ -332,8 +414,11 @@ function buildSolveOrder(
   for (let i = 0; i < transformCount; i += 1) {
     if (transformConstraints[i]!.order >= 0) anyOrder = true;
   }
-  for (let i = 0; i < pathConstraints.length; i += 1) {
+  for (let i = 0; i < pathCount; i += 1) {
     if (pathConstraints[i]!.order >= 0) anyOrder = true;
+  }
+  for (let i = 0; i < physicsConstraints.length; i += 1) {
+    if (physicsConstraints[i]!.order >= 0) anyOrder = true;
   }
   if (!anyOrder) return null;
 
@@ -350,8 +435,11 @@ function buildSolveOrder(
   for (let j = 0; j < transformCount; j += 1) {
     if (!place(transformConstraints[j]!.order, ikCount + j)) return null;
   }
-  for (let k = 0; k < pathConstraints.length; k += 1) {
+  for (let k = 0; k < pathCount; k += 1) {
     if (!place(pathConstraints[k]!.order, ikCount + transformCount + k)) return null;
+  }
+  for (let m = 0; m < physicsConstraints.length; m += 1) {
+    if (!place(physicsConstraints[m]!.order, ikCount + transformCount + pathCount + m)) return null;
   }
   return codes;
 }

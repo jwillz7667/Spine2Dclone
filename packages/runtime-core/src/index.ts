@@ -23,6 +23,8 @@ export type {
   ResolvedIkConstraint,
   ResolvedTransformConstraint,
   ResolvedPathConstraint,
+  ResolvedPhysicsConstraint,
+  PhysicsSettings,
   DeformScratch,
 } from './skeleton/pose';
 export { SETUP_STRIDE, SLOT_COLOR_STRIDE } from './skeleton/pose';
@@ -42,7 +44,7 @@ export {
   TRANSFORM_MODE_NO_SCALE,
   TRANSFORM_MODE_NO_SCALE_OR_REFLECTION,
 } from './skeleton/transform-mode';
-export { sampleSkeleton, AnimationNotFoundError } from './skeleton/sample';
+export { sampleSkeleton, resetPhysics, AnimationNotFoundError } from './skeleton/sample';
 // AnimationState (ADR-0005): the game-facing multi-animation layer (tracks, crossfade, additive layering,
 // queueing) built on the single-animation sampler. makeAnimationState/setAnimation/crossfadeTo/
 // queueAnimation/clearTrack/getTrackEntry mutate the tracks; updateAnimationState advances them by an
@@ -145,6 +147,15 @@ export {
   applyDeform,
   solvePathConstraint,
   PATH_CURVE_SUBDIVISIONS,
+  solvePhysicsConstraint,
+  physicsStepsFixed,
+  PHYSICS_STEP_FIXED_ONE,
+  PHYSICS_RESET_DISTANCE,
+  PHYSICS_CHANNEL_X,
+  PHYSICS_CHANNEL_Y,
+  PHYSICS_CHANNEL_ROTATION,
+  PHYSICS_CHANNEL_SCALEX,
+  PHYSICS_CHANNEL_SHEARX,
 } from './solve';
 export type { TransformMix, TransformOffset, PreparedPathGeometry } from './solve';
 

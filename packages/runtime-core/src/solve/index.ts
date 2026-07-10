@@ -21,3 +21,19 @@ export { applyDeform } from './deform';
 // attachment. The PreparedPathGeometry is built once at buildPose; solvePathConstraint runs at step 3.
 export type { PreparedPathGeometry } from './path-constraint';
 export { solvePathConstraint, PATH_CURVE_SUBDIVISIONS } from './path-constraint';
+
+// Physics constraint solve (ADR-0014, PP-B7): per-bone damped-driven spring over selected local channels,
+// fixed-timestep semi-implicit Euler on an integer step clock. solvePhysicsConstraint runs at step 3, LAST
+// by default. physicsStepsFixed is the cross-language integer step-clock primitive; the channel codes and
+// the pinned model constants (STEP_FIXED_ONE, RESET_DISTANCE) are shared verbatim by the native runtimes.
+export {
+  solvePhysicsConstraint,
+  physicsStepsFixed,
+  PHYSICS_STEP_FIXED_ONE,
+  PHYSICS_RESET_DISTANCE,
+  PHYSICS_CHANNEL_X,
+  PHYSICS_CHANNEL_Y,
+  PHYSICS_CHANNEL_ROTATION,
+  PHYSICS_CHANNEL_SCALEX,
+  PHYSICS_CHANNEL_SHEARX,
+} from './physics-constraint';

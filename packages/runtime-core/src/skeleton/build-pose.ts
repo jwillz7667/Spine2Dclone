@@ -2,6 +2,8 @@ import type {
   IkConstraint,
   PathAttachment,
   PathConstraint,
+  PhysicsChannel,
+  PhysicsConstraint,
   SkeletonDocument,
   Skin,
   TransformConstraint,
@@ -9,12 +11,21 @@ import type {
 import { PATH_CURVE_SUBDIVISIONS } from '../solve/path-constraint';
 import type { PreparedPathGeometry } from '../solve/path-constraint';
 import type { TransformMix, TransformOffset } from '../solve/transform-constraint';
+import {
+  PHYSICS_CHANNEL_ROTATION,
+  PHYSICS_CHANNEL_SCALEX,
+  PHYSICS_CHANNEL_SHEARX,
+  PHYSICS_CHANNEL_X,
+  PHYSICS_CHANNEL_Y,
+} from '../solve/physics-constraint';
 import { MAT2X3_STRIDE } from '../math/affine';
 import { allocatePose, SETUP_STRIDE, SLOT_COLOR_STRIDE } from './pose';
 import type {
+  PhysicsSettings,
   Pose,
   ResolvedIkConstraint,
   ResolvedPathConstraint,
+  ResolvedPhysicsConstraint,
   ResolvedTransformConstraint,
 } from './pose';
 import { transformModeToCode } from './transform-mode';
@@ -87,6 +98,22 @@ export function buildPose(document: SkeletonDocument): Pose {
     ),
   );
 
+  // Physics constraints (ADR-0014, PP-B7): resolve the bound bone to its index, translate the channel
+  // strings to codes, and pre-allocate the per-channel simulation state. A pre-0.6.0 draft may lack the
+  // array (tolerated as empty, the same lenience as the IK/transform/path arrays).
+  const physicsConstraints = (document.physicsConstraints ?? []).map((c) =>
+    resolvePhysics(c, indexByName, scopeByConstraint.get(c.name) ?? null),
+  );
+  // The skeleton-level physics settings (ADR-0014 section 5), or the identity defaults when absent.
+  const physicsSettings: PhysicsSettings =
+    document.physics === undefined
+      ? { gravity: 0, wind: 0, mix: 1 }
+      : {
+          gravity: document.physics.gravity,
+          wind: document.physics.wind,
+          mix: document.physics.mix,
+        };
+
   const pose = allocatePose(
     boneCount,
     boneNames,
@@ -95,6 +122,8 @@ export function buildPose(document: SkeletonDocument): Pose {
     ikConstraints,
     transformConstraints,
     pathConstraints,
+    physicsConstraints,
+    physicsSettings,
   );
 
   for (let i = 0; i < boneCount; i += 1) {
@@ -313,5 +342,76 @@ function resolvePath(
       mixX: constraint.mixX,
       mixY: constraint.mixY,
     },
+  };
+}
+
+// Translate a physics channel string to its integer code (solve/physics-constraint.ts). The five channels
+// are the bone's local pose properties the constraint simulates (ADR-0014 section 1).
+function physicsChannelCode(channel: PhysicsChannel): number {
+  switch (channel) {
+    case 'x':
+      return PHYSICS_CHANNEL_X;
+    case 'y':
+      return PHYSICS_CHANNEL_Y;
+    case 'rotation':
+      return PHYSICS_CHANNEL_ROTATION;
+    case 'scaleX':
+      return PHYSICS_CHANNEL_SCALEX;
+    case 'shearX':
+      return PHYSICS_CHANNEL_SHEARX;
+  }
+}
+
+// Resolve a physics constraint (ADR-0014, PP-B7). The bound bone resolves to its index (-1 if unknown, then
+// the solve is a no-op, the same lenience as the other constraints). The channel set becomes integer codes,
+// and the per-channel simulation state (p, v, targetPrev), sized to the channel count, is pre-allocated here
+// so the per-frame solve never allocates. `initialized` starts false so the first active solve initializes
+// the bone to rest on its pose (ADR section 6). An unresolvable bone still gets a well-formed, inert record.
+function resolvePhysics(
+  constraint: PhysicsConstraint,
+  indexByName: ReadonlyMap<string, number>,
+  scopeSkins: readonly string[] | null,
+): ResolvedPhysicsConstraint {
+  const channelCount = constraint.channels.length;
+  const channelCodes = new Int8Array(channelCount);
+  let channelX = -1;
+  let channelY = -1;
+  for (let i = 0; i < channelCount; i += 1) {
+    const code = physicsChannelCode(constraint.channels[i]!);
+    channelCodes[i] = code;
+    if (code === PHYSICS_CHANNEL_X) channelX = i;
+    else if (code === PHYSICS_CHANNEL_Y) channelY = i;
+  }
+  return {
+    name: constraint.name,
+    boneIndex: indexByName.get(constraint.bone) ?? -1,
+    channelCodes,
+    simulatesX: channelX >= 0,
+    simulatesY: channelY >= 0,
+    channelX,
+    channelY,
+    baseStep: constraint.step,
+    baseMass: constraint.mass,
+    baseInertia: constraint.inertia,
+    baseStrength: constraint.strength,
+    baseDamping: constraint.damping,
+    baseWind: constraint.wind,
+    baseGravity: constraint.gravity,
+    baseMix: constraint.mix,
+    order: constraint.order ?? -1,
+    scopeSkins,
+    sampled: {
+      inertia: constraint.inertia,
+      strength: constraint.strength,
+      damping: constraint.damping,
+      wind: constraint.wind,
+      gravity: constraint.gravity,
+      mix: constraint.mix,
+    },
+    p: new Float64Array(channelCount),
+    v: new Float64Array(channelCount),
+    targetPrev: new Float64Array(channelCount),
+    accFixed: 0,
+    initialized: false,
   };
 }

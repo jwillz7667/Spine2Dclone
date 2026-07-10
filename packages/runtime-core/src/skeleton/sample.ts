@@ -5,6 +5,7 @@ import {
   solveIkOneBone,
   solveIkTwoBone,
   solvePathConstraint,
+  solvePhysicsConstraint,
   solveTransformConstraint,
 } from '../solve';
 import type { TransformMix } from '../solve/transform-constraint';
@@ -13,6 +14,7 @@ import type {
   Pose,
   ResolvedIkConstraint,
   ResolvedPathConstraint,
+  ResolvedPhysicsConstraint,
   ResolvedTransformConstraint,
 } from './pose';
 import type {
@@ -21,6 +23,7 @@ import type {
   PreparedDeformChannel,
   PreparedIkChannel,
   PreparedPathChannel,
+  PreparedPhysicsChannel,
   PreparedSlotChannels,
   PreparedTrack,
   PreparedTransformChannel,
@@ -38,6 +41,7 @@ import {
   buildIkMixTrack,
   buildIkSoftnessTrack,
   buildPathTrack,
+  buildPhysicsTrack,
   buildScalarTrack,
   buildTransformMixTrack,
   buildVec2Track,
@@ -87,6 +91,12 @@ export function sampleSkeleton(
   // default) leaves only the always-active 'default' skin active, so a scoped constraint stays inactive
   // and every non-scoped rig is unaffected. A constraint no skin scopes is always solved.
   activeSkin: string | null = null,
+  // The frame delta time in seconds (ADR-0014 section 2.2), advancing the PHYSICS simulation clock ONLY.
+  // Physics carries velocity across frames, so a physics rig must be sampled SEQUENTIALLY with the real
+  // per-frame dt between consecutive calls (frameDt 0 on the first frame, then poseTimes[i]-poseTimes[i-1]).
+  // Default 0: a rig with no physics constraints ignores it entirely (byte-identical to the pre-physics
+  // path), and a frameDt-0 call runs zero physics steps (initializing physics to rest on its pose).
+  frameDt = 0,
 ): void {
   const animation = document.animations[animationId];
   if (animation === undefined) throw new AnimationNotFoundError(animationId);
@@ -108,10 +118,11 @@ export function sampleSkeleton(
   applyAnimationAt(outPose, prepared, t, 1, false, true);
   composeTouchedBones(outPose);
 
-  // Step 3: solve constraints: ALL IK constraints first, then ALL transform constraints, each in
-  // document array order (ADR-0003 section 3). Constraints write LOCAL only. A skin-scoped constraint is
-  // skipped unless its skin is active.
-  solveConstraints(outPose, activeSkin);
+  // Step 3: solve constraints: ALL IK constraints first, then ALL transform constraints, then all path,
+  // then all physics, each in document array order (ADR-0003 section 3, ADR-0014 section 4). Constraints
+  // write LOCAL only. A skin-scoped constraint is skipped unless its skin is active. Physics steps its
+  // simulation clock by frameDt.
+  solveConstraints(outPose, activeSkin, frameDt);
 
   // Step 4: world transforms (single forward pass, parents before children). Because step 3 wrote only
   // local transforms, this pass is unconditional and reproduces every constraint's intended world.
@@ -304,14 +315,33 @@ function solveOnePathConstraint(
   solvePathConstraint(pose, constraint);
 }
 
+// Solve one physics constraint against the pose (ADR-0014, PP-B7), stepping its simulation by frameDt. A
+// skin-scoped constraint whose skin is inactive is skipped AND its state is invalidated (initialized set
+// false), so a re-activation (skin change) re-initializes the bone to rest on its pose rather than carrying
+// stale velocity across the gap (ADR-0014 section 6). An active constraint solves; the per-frame sampled
+// scratch (mix/inertia/strength/damping/wind/gravity) was written by step 2 (else reset to the base).
+function solveOnePhysicsConstraint(
+  pose: Pose,
+  constraint: ResolvedPhysicsConstraint,
+  activeSkin: string | null,
+  frameDt: number,
+): void {
+  if (!isConstraintScopeActive(constraint.scopeSkins, activeSkin)) {
+    constraint.initialized = false;
+    return;
+  }
+  solvePhysicsConstraint(pose, constraint, frameDt);
+}
+
 // Solve step 3 (ADR-0003 section 3, ordering per ADR-0009 section 1.3 / ADR-0010 section 1 / ADR-0011
 // section 2.3). Default (pose.solveOrder null): all IK constraints, then all transform constraints, then all
 // PATH constraints, each in document order. When the rig assigns an explicit `order`, `pose.solveOrder` is
 // the precomputed dense schedule spanning all three arrays and step 3 walks it, dispatching each code to the
 // SAME per-constraint helper the default path uses (so a constraint is bit-identical either way; only the
 // schedule moves). Allocation-free: target world goes into the module scratch; the schedule is precomputed.
-export function solveConstraints(pose: Pose, activeSkin: string | null = null): void {
-  const { ikConstraints, transformConstraints, pathConstraints, solveOrder } = pose;
+export function solveConstraints(pose: Pose, activeSkin: string | null = null, frameDt = 0): void {
+  const { ikConstraints, transformConstraints, pathConstraints, physicsConstraints, solveOrder } =
+    pose;
 
   if (solveOrder === null) {
     for (let i = 0; i < ikConstraints.length; i += 1) {
@@ -323,21 +353,38 @@ export function solveConstraints(pose: Pose, activeSkin: string | null = null): 
     for (let i = 0; i < pathConstraints.length; i += 1) {
       solveOnePathConstraint(pose, pathConstraints[i]!, activeSkin);
     }
+    for (let i = 0; i < physicsConstraints.length; i += 1) {
+      solveOnePhysicsConstraint(pose, physicsConstraints[i]!, activeSkin, frameDt);
+    }
     return;
   }
 
   const ikCount = ikConstraints.length;
   const transformCount = transformConstraints.length;
   const pathBase = ikCount + transformCount;
+  const physicsBase = pathBase + pathConstraints.length;
   for (let p = 0; p < solveOrder.length; p += 1) {
     const code = solveOrder[p]!;
     if (code < ikCount) {
       solveOneIkConstraint(pose, ikConstraints[code]!, activeSkin);
     } else if (code < pathBase) {
       solveOneTransformConstraint(pose, transformConstraints[code - ikCount]!, activeSkin);
-    } else {
+    } else if (code < physicsBase) {
       solveOnePathConstraint(pose, pathConstraints[code - pathBase]!, activeSkin);
+    } else {
+      solveOnePhysicsConstraint(pose, physicsConstraints[code - physicsBase]!, activeSkin, frameDt);
     }
+  }
+}
+
+// Reset every physics constraint's simulation state so the NEXT active solve re-initializes the bone to
+// rest on its pose (ADR-0014 section 6 activation / restart). Physics carries velocity across frames, so a
+// caller that restarts a sampling sequence (rewinds to the first frame, or re-uses a pose for an unrelated
+// run) MUST call this first; otherwise stale velocity leaks into the new sequence. Allocation-free: it flips
+// the per-constraint `initialized` flag (the state arrays are re-seeded from the pose on the next solve).
+export function resetPhysics(pose: Pose): void {
+  for (let i = 0; i < pose.physicsConstraints.length; i += 1) {
+    pose.physicsConstraints[i]!.initialized = false;
   }
 }
 
@@ -368,6 +415,18 @@ export function resetConstraintsToBase(pose: Pose): void {
     constraint.sampled.mixRotate = constraint.baseMixRotate;
     constraint.sampled.mixX = constraint.baseMixX;
     constraint.sampled.mixY = constraint.baseMixY;
+  }
+  // Physics constraints (ADR-0014 section 7): reset the sampled KEYABLE knobs to the definition base; step
+  // 2's physics timeline then overlays any keyed channel, and an unkeyed channel keeps its base. step/mass
+  // are static (not keyable) and the persistent (p, v) simulation state is untouched here.
+  for (let i = 0; i < pose.physicsConstraints.length; i += 1) {
+    const constraint = pose.physicsConstraints[i]!;
+    constraint.sampled.inertia = constraint.baseInertia;
+    constraint.sampled.strength = constraint.baseStrength;
+    constraint.sampled.damping = constraint.baseDamping;
+    constraint.sampled.wind = constraint.baseWind;
+    constraint.sampled.gravity = constraint.baseGravity;
+    constraint.sampled.mix = constraint.baseMix;
   }
 }
 
@@ -677,11 +736,12 @@ function applyConstraintEntry(
   additive: boolean,
   discreteWins: boolean,
 ): void {
-  const { ikChannels, transformChannels, pathChannels } = prepared;
+  const { ikChannels, transformChannels, pathChannels, physicsChannels } = prepared;
   const {
     ikConstraints,
     transformConstraints,
     pathConstraints,
+    physicsConstraints,
     ikBendWinWeight,
     ikStretchWinWeight,
     ikCompressWinWeight,
@@ -779,6 +839,75 @@ function applyConstraintEntry(
     blendPathScalar(sampled, 'mixX', constraint.baseMixX, channel.mixX, t, alpha, additive);
     blendPathScalar(sampled, 'mixY', constraint.baseMixY, channel.mixY, t, alpha, additive);
   }
+
+  // Physics constraints (ADR-0014 section 7): each keyable knob is a continuous interpolated scalar blended
+  // toward its keyed value by alpha (additive adds the delta from the constraint base), exactly like the
+  // transform/path channels. mix/inertia/damping are `[0, 1]` and strength `>= 0` by the format, so no extra
+  // clamp is applied here (the base and keyed values are in range; the solve clamps the mix PRODUCT anyway).
+  for (let c = 0; c < physicsChannels.length; c += 1) {
+    const channel: PreparedPhysicsChannel = physicsChannels[c]!;
+    const index = channel.constraintIndex;
+    if (index < 0) continue;
+    const constraint = physicsConstraints[index]!;
+    const sampled = constraint.sampled;
+    blendPhysicsScalar(sampled, 'mix', constraint.baseMix, channel.mix, t, alpha, additive);
+    blendPhysicsScalar(
+      sampled,
+      'inertia',
+      constraint.baseInertia,
+      channel.inertia,
+      t,
+      alpha,
+      additive,
+    );
+    blendPhysicsScalar(
+      sampled,
+      'strength',
+      constraint.baseStrength,
+      channel.strength,
+      t,
+      alpha,
+      additive,
+    );
+    blendPhysicsScalar(
+      sampled,
+      'damping',
+      constraint.baseDamping,
+      channel.damping,
+      t,
+      alpha,
+      additive,
+    );
+    blendPhysicsScalar(sampled, 'wind', constraint.baseWind, channel.wind, t, alpha, additive);
+    blendPhysicsScalar(
+      sampled,
+      'gravity',
+      constraint.baseGravity,
+      channel.gravity,
+      t,
+      alpha,
+      additive,
+    );
+  }
+}
+
+// Blend one physics-constraint sampled knob in place (ADR-0014 section 7). A null track means the knob is
+// absent from this animation (leave the running value); otherwise blend toward the sampled value by alpha
+// (additive adds the delta from the constraint's base value), the same rule as the path/transform channels.
+function blendPhysicsScalar(
+  sampled: ResolvedPhysicsConstraint['sampled'],
+  key: 'mix' | 'inertia' | 'strength' | 'damping' | 'wind' | 'gravity',
+  base: number,
+  track: PreparedTrack | null,
+  t: number,
+  alpha: number,
+  additive: boolean,
+): void {
+  if (track === null) return;
+  const value = sampleScalarTrack(track, t);
+  sampled[key] = additive
+    ? blendAddLinear(sampled[key], base, value, alpha)
+    : blendReplaceLinear(sampled[key], value, alpha);
 }
 
 // Blend one path-constraint sampled scalar channel in place. A null track means the channel is absent from
@@ -939,6 +1068,27 @@ function prepareAnimation(pose: Pose, animation: Animation): PreparedAnimation {
     });
   }
 
+  // Physics-constraint timelines (ADR-0014 section 7). Required on a validated Animation but tolerated as
+  // empty on a hand-built draft, exactly like ik/transform/path above. Each keyable knob is prepared from
+  // only the frames that key it; an all-absent knob is null and holds the constraint base. step/mass/channels
+  // are NOT keyable and never appear here.
+  const physicsIndexByName = nameIndexOf(pose.physicsConstraints);
+  const physicsChannels: PreparedPhysicsChannel[] = [];
+  const physics = animation.physics ?? {};
+  for (const constraintName of Object.keys(physics)) {
+    const frames = physics[constraintName]!;
+    if (frames.length === 0) continue;
+    physicsChannels.push({
+      constraintIndex: physicsIndexByName.get(constraintName) ?? -1,
+      mix: buildPhysicsTrack(frames, 'mix'),
+      inertia: buildPhysicsTrack(frames, 'inertia'),
+      strength: buildPhysicsTrack(frames, 'strength'),
+      damping: buildPhysicsTrack(frames, 'damping'),
+      wind: buildPhysicsTrack(frames, 'wind'),
+      gravity: buildPhysicsTrack(frames, 'gravity'),
+    });
+  }
+
   const deformChannels: PreparedDeformChannel[] = [];
   const deform = animation.deform ?? {};
   for (const skinName of Object.keys(deform)) {
@@ -975,6 +1125,7 @@ function prepareAnimation(pose: Pose, animation: Animation): PreparedAnimation {
     ikChannels,
     transformChannels,
     pathChannels,
+    physicsChannels,
     deformChannels,
     drawOrder,
   };

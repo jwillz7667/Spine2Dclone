@@ -342,6 +342,10 @@ export function applyAnimationState(
   state: AnimationState,
   pose: Pose,
   activeSkin: string | null = null,
+  // The frame delta time in seconds (ADR-0014 section 2.2), advancing the PHYSICS clock ONLY. Pass the
+  // same dt the tracks were advanced by in updateAnimationState so physics steps in lockstep with the
+  // animation. Default 0: a rig with no physics constraints is byte-identical to the pre-physics path.
+  frameDt = 0,
 ): void {
   resetToSetupPose(pose);
   resetSlotsToSetup(pose);
@@ -356,7 +360,7 @@ export function applyAnimationState(
   }
 
   composeTouchedBones(pose);
-  solveConstraints(pose, activeSkin);
+  solveConstraints(pose, activeSkin, frameDt);
   computeWorldTransforms(pose);
 }
 

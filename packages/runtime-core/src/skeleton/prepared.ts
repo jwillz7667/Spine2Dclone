@@ -118,6 +118,22 @@ export interface PreparedPathChannel {
   readonly mixY: PreparedTrack | null;
 }
 
+// The timelines of one animated physics constraint (ADR-0014 section 7), resolved to the pose's physics-
+// constraint index. Each of the six KEYABLE knobs is prepared from ONLY the keyframes that key it (the same
+// absent-channel semantics as the transform/path channels): a channel no keyframe keys is null and holds the
+// constraint base. `step`/`mass`/`channels` are NOT keyable (the determinism anchor, a static inertial
+// property, and a structural set), so they never appear here. mix/inertia/damping are `[0, 1]` value tracks
+// and strength is `>= 0`; wind/gravity are unbounded finite value tracks.
+export interface PreparedPhysicsChannel {
+  readonly constraintIndex: number;
+  readonly mix: PreparedTrack | null;
+  readonly inertia: PreparedTrack | null;
+  readonly strength: PreparedTrack | null;
+  readonly damping: PreparedTrack | null;
+  readonly wind: PreparedTrack | null;
+  readonly gravity: PreparedTrack | null;
+}
+
 // A prepared per-animation draw-order timeline (ADR-0008 section 3, PP-B4). Each key's compact
 // {slot, offset} list is DERIVED ONCE at build time into a FULL render-order permutation `orders[k]`,
 // where `orders[k][renderPosition] = slotIndex` (renderPosition 0 is furthest back). An empty offsets
@@ -165,6 +181,7 @@ export interface PreparedAnimation {
   readonly ikChannels: readonly PreparedIkChannel[];
   readonly transformChannels: readonly PreparedTransformChannel[];
   readonly pathChannels: readonly PreparedPathChannel[];
+  readonly physicsChannels: readonly PreparedPhysicsChannel[];
   readonly deformChannels: readonly PreparedDeformChannel[];
   // The draw-order reorder timeline (ADR-0008), or null when this animation never reorders. Applied in
   // step 2 as a discrete greater-weight-wins channel; event firing is NOT part of PreparedAnimation

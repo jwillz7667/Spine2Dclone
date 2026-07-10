@@ -408,6 +408,19 @@ export {
 } from './weights';
 export type { BoneInfluence } from './weights';
 
+// Pure path-geometry helpers (PP-D11): cubic Bezier arc length and the cumulative lengths table the path
+// commands recompute on every control-point edit. Exposed so the editor path tool and tests share the
+// exact math the commands use.
+export {
+  cubicBezierLength,
+  pathCurveCount,
+  computePathLengths,
+  computePathLengthsFromFlat,
+  pointsFromFlat,
+  flatFromPoints,
+} from './paths';
+export type { Vec2 } from './paths';
+
 // Save / load seam
 export type { DocumentEnvironment, Document } from './save-load';
 export {

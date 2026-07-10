@@ -1,11 +1,32 @@
-# runtimes/unity: Marionette.Runtime.Core (shared C# solve)
+# runtimes/unity: Marionette C# runtime (shared solve + view layer)
 
-The engine-agnostic C# port of `packages/runtime-core`, per ADR-0001. The Marionette solve and (later)
-the slot sequencer are implemented ONCE as a pure C# library with no `UnityEngine` and no third party
-packages, so Unity and Godot are thin rendering adapters over one shared core rather than two
-independent reimplementations. This directory is the first slice of PP-E1: the fixture-driven solve core
-and its conformance harness. The Unity view-layer MonoBehaviours and the GameCI batchmode job land in
-later PP-E1 slices.
+The engine-agnostic C# port of `packages/runtime-core`, per ADR-0001, plus the Unity view layer that
+drops into a scene. The Marionette solve is implemented ONCE as a pure C# library with no `UnityEngine`
+and no third party packages, so Unity and Godot are thin rendering adapters over one shared core rather
+than two independent reimplementations. The view build (draw-item gather, batching, vertex assembly) is a
+SECOND engine-agnostic library so it too is headless-testable; only a thin MonoBehaviour references
+`UnityEngine`. This directory is PP-E1: the fixture-driven solve core, the view layer, and the
+conformance harness. The GameCI batchmode job lands in a later PP-E1 slice.
+
+## Three assemblies (two headless, one Unity)
+
+- `Marionette.Runtime.Core` (netstandard2.1): the solve. Zero `UnityEngine`, compiles standalone.
+- `Marionette.Runtime.View` (netstandard2.1): the ENGINE-AGNOSTIC view build. It turns a solved `Pose`
+  plus the render-only document (region/mesh geometry, atlas) into ordered, batched draw buffers. Zero
+  `UnityEngine`; references only the solve core. This is where the buffer building, draw-order batching,
+  blend-mode grouping, and vertex assembly live, so all of it is covered by the xUnit conformance suite.
+- `Marionette.Runtime.Unity.View` (Unity asmdef, NOT in the dotnet solution): the thin drop-in
+  MonoBehaviour (`SkeletonRenderer`), the pooled Unity mesh uploader (`SkeletonMeshBuilder`), the slot
+  shader (`MarionetteSlot.shader`), and a code-only example (`ExampleBootstrap`). This is the ONLY code
+  that references `UnityEngine`. Unity compiles it; the headless dotnet build never touches it.
+
+### The UnityEngine-free guard
+
+`Marionette.Runtime.Core` and `Marionette.Runtime.View` must never reference `UnityEngine`. The guard is
+mechanical: both build under `dotnet build` with no Unity present (CI runs `dotnet test`, which builds the
+whole solution), so a stray `using UnityEngine;` in either fails the headless build immediately. The Unity
+MonoBehaviour lives in a separate folder outside the solution and is wrapped in
+`#if UNITY_2021_3_OR_NEWER`, so it cannot leak an engine type back into the shared assemblies.
 
 ## Layout
 
@@ -30,9 +51,47 @@ Marionette.Runtime.Core.Tests/           xUnit harness, net8.0
 The module boundaries mirror `runtime-core` one for one; only the names follow C# conventions
 (`PascalCase`, `Curves`/`SkinSolve` where a plain transliteration would collide with a document type).
 
+## Drop-in usage (Unity)
+
+The view layer is a UPM-style source package. To use it in a Unity 2021.3 LTS (or newer) project:
+
+1. Build the two engine-agnostic assemblies as DLLs and copy them into your Unity project's
+   `Assets/Plugins/Marionette/` (turn OFF "Auto Reference" on both, which the asmdef expects):
+
+   ```sh
+   cd runtimes/unity
+   dotnet build Marionette.Runtime.View/Marionette.Runtime.View.csproj -c Release
+   # copy Marionette.Runtime.Core.dll and Marionette.Runtime.View.dll from the bin/Release/netstandard2.1
+   # output into Assets/Plugins/Marionette/
+   ```
+
+2. Copy the `Marionette.Runtime.Unity.View/` folder (the asmdef, the two scripts, the shader, the example)
+   into your project's `Assets/`. Its asmdef references the two DLLs by name.
+
+3. Create four materials from `Marionette/Slot` and set their `_SrcBlend` / `_DstBlend` per the table in
+   `MarionetteSlot.shader` (normal, additive, multiply, screen).
+
+4. Add a `SkeletonRenderer` component to a GameObject and assign, in the inspector: the document JSON (a
+   `.mrnt` export saved as a `.json` `TextAsset`), the atlas page `Texture2D`(s) named to match the page
+   file names in the document atlas, the animation name, and the four materials. Press Play.
+
+### Example scene
+
+There is no committed `.unity` asset (a hand-authored scene YAML is fragile and cannot be verified in CI).
+Instead, `ExampleBootstrap` wires an equivalent scene in code: attach it to an empty GameObject, assign the
+same inputs, and press Play. It frames an orthographic camera on the rig and starts the animation. The
+hand-built equivalent is: one orthographic `Camera` at `(0, 0, -10)` looking down `-Z`, and one GameObject
+with `SkeletonRenderer`; the component creates one child `MeshRenderer` per draw batch under itself.
+
+The `apps/editor` save flow (or the MCP `document.save` tool) produces the document JSON; the atlas page
+PNGs come from the same export. Region attachment `path` values and the document atlas `page.file` names
+are the keys the renderer resolves against.
+
 ## Running the tests
 
-Requires the .NET SDK 8 or newer.
+Requires the .NET SDK 8 or newer. `dotnet test` builds all three solution projects (the two engine-agnostic
+assemblies and the test assembly) and runs the solve AND view conformance suites; the Unity MonoBehaviour is
+verified in-editor (it is outside the solution).
 
 ```sh
 cd runtimes/unity

@@ -1,0 +1,17 @@
+{
+  "name": "Marionette.Runtime.Unity.View",
+  "rootNamespace": "Marionette.Runtime.Unity.View",
+  "references": [],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": true,
+  "precompiledReferences": [
+    "Marionette.Runtime.Core.dll",
+    "Marionette.Runtime.View.dll"
+  ],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

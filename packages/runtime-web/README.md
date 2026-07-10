@@ -90,10 +90,15 @@ the position buffer rewritten in place each frame from the skinned world space v
 - **Sequence attachments** (PP-C8): a region / mesh attachment with a `sequence` block swaps its texture to
   the resolved frame's region per sample (named by `sequenceRegionName`), through the pooled texture
   resolver. `describe()` reports the presented region name.
-- **Skin-scoped constraints** (PP-C8): `syncAnimated` forwards the active skin to the solve, so a constraint
-  a skin scopes toggles with that skin. The multi-track `syncState` path cannot forward the skin yet
-  (runtime-core's `applyAnimationState` takes no skin argument), documented in place as a runtime-core
-  follow-up.
+- **Skin-scoped constraints** (PP-C8): both `syncAnimated` and the multi-track `syncState` forward the active
+  skin to the solve (`applyAnimationState` takes an active-skin argument), so a constraint a skin scopes
+  toggles with that skin under single-animation AND multi-track playback identically.
+- **Clipping** (PP-C8 part 2): a `clipping` attachment masks the display objects of the slots in its
+  draw-order range to its world polygon. The pure decision (which slots, and the world polygon) is
+  `clip-plan.ts` over the runtime-core clip primitives; the thin GL adapter feeds the polygon to a pooled
+  PixiJS `Graphics` mask assigned as each clipped display's `.mask` (chosen over per-mesh geometry clipping
+  because a mask applies uniformly to Sprites and Meshes, composes with the two-color filter, and lets Pixi
+  triangulate a concave polygon). `describe()` reports the active clips (clip slot, masked slots, polygon).
 - `setTextureResolver(resolver)` binds decoded atlas page textures; without one, attachments render as
   tintable 1x1 white placeholders. Atlas trim offsets are applied to placement (`sizeForTexture`, PP-C1)
   and rotated regions slice with a swapped frame + PixiJS `rotate=2` (`sliceRegion`, PP-C2), both mirroring
@@ -144,10 +149,12 @@ logic / structural tests above plus the committed fixtures, not by pixel capture
 - **Two-color filter pixel output** (PP-C8): the GPU light+dark tint. The pure formula (`two-color.ts`) is
   parity-tested against render-preview, and `describe()` proves the dark lane is read; only the filter's
   actual pixels need a GL context. Web-worker rendering without a `document` takes the single-color fallback.
+- **Clip mask pixel output** (PP-C8 part 2): the GPU stencil mask itself. The pure clip plan (`clip-plan.ts`,
+  which slots are masked and the world polygon) is tested here and surfaced via `describe()`; only the
+  `Graphics` mask's actual stenciled pixels need a GL context.
 
 ## Still pending
 
-- **Clipping mask render** (PP-C8 part 2): stencil / geometry clipping, gated on the PP-B2 clip evaluation.
 - **Compressed texture GPU work** (WP-5.2, above): transcode, mips, and scale variants at the GL edge.
 
 ## Run

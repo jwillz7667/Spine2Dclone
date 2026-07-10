@@ -9,6 +9,7 @@ export type {
   BoneRender,
   AttachmentRender,
   MeshRender,
+  ClipRender,
   SceneDescription,
 } from './scene/skeleton-view';
 export { mapWorldToDisplay, applyWorldToTarget } from './scene/map-transform';

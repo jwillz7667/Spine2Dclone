@@ -212,7 +212,7 @@ describe('SkeletonView mesh rendering (WP-2.11 renderer slice)', () => {
 
     view.clear();
     expect(attachmentsLayerOf(view).children).toHaveLength(0);
-    expect(view.describe()).toEqual({ bones: [], attachments: [], meshes: [] });
+    expect(view.describe()).toEqual({ bones: [], attachments: [], meshes: [], clips: [] });
 
     view.sync(meshDocument());
     expect(meshChildrenOf(view)).toHaveLength(1);

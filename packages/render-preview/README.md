@@ -49,8 +49,13 @@ mirror runtime-web exactly (`regionWorldCorners` + the trim/rotation samplers), 
 byte-golden and a math parity test against runtime-web), linked meshes (rendered as their resolved parent
 geometry via `resolveRenderMesh`, with the linked mesh's own texture and color), and sequence attachments
 (the resolved frame's atlas region is named by `sequenceRegionName` and sampled per frame).
-**Out of scope (documented):** clipping masks (their evaluation is PP-B2; the clip render is PP-C8 part 2),
-point/bounding-box attachments, slot-scene composition.
+**PP-C8 part 2 (clipping):** a `clipping` attachment clips the geometry of the slots in its draw-order range
+to its world polygon, in both `renderFrame` and `renderSequence`. The clip STATE (world polygon + clipped
+slot set) comes from runtime-core (`clipping.ts`); the clip GEOMETRY op is runtime-core's pooled
+`clipTriangleList` (Sutherland-Hodgman with barycentrics), fan-triangulated and UV-re-interpolated in
+`raster-clip.ts` through the same scanline fill, so tint/alpha/blend/dark compose with clipping unchanged.
+**Out of scope (documented):** point/bounding-box attachments (non-drawing hit/anchor geometry), slot-scene
+composition.
 
 ## Run
 

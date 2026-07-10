@@ -39,6 +39,7 @@ import {
   type RegionTrim,
 } from './attachment-sprites';
 import { createMeshDisplay, markMeshPositionsDirty, type MeshDisplay } from './mesh-display';
+import { makeClipPlanState, planClips, type ClipPlanState } from './clip-plan';
 import { sequenceRegionName } from './sequence-region';
 import { TwoColorFilter, updateTwoColorFilter } from './two-color-filter';
 import { computeRegionSized, placeRegion } from './region-placement';
@@ -93,10 +94,21 @@ export interface MeshRender {
   readonly vertices: readonly number[];
 }
 
+// The headless snapshot of one active CLIP this frame (ADR-0012, PP-C8 part 2): the clip slot, the slots it
+// masks, and its world-space polygon ([x0, y0, ...]). Reported so a test verifies which slots a clip affects
+// and the polygon it clips to WITHOUT a WebGL context (the mask itself is a GPU stencil; describe() reads the
+// pure plan, exactly as it reports the two-color dark tint without touching the filter).
+export interface ClipRender {
+  readonly clipSlot: string;
+  readonly clippedSlots: readonly string[];
+  readonly polygon: readonly number[];
+}
+
 export interface SceneDescription {
   readonly bones: readonly BoneRender[];
   readonly attachments: readonly AttachmentRender[];
   readonly meshes: readonly MeshRender[];
+  readonly clips: readonly ClipRender[];
 }
 
 // One bone's render binding: its pooled graphic plus its index into the pose's world buffer. Geometry
@@ -182,6 +194,9 @@ interface CachedScene {
   // (identity) order the children are built in, so a setup frame reorders nothing; a frame whose solved
   // pose.drawOrder differs re-appends the attachment displays in the new order (PP-C6). Mutated in place.
   readonly lastDrawOrder: Int32Array;
+  // The reusable clip plan (ADR-0012, PP-C8 part 2): per-frame which slots a clipping attachment masks and
+  // the world polygon to mask them to. Recomputed into this pooled state each render; drives the GPU masks.
+  readonly clipPlanState: ClipPlanState;
 }
 
 // PixiJS view of a skeleton, at its setup pose (WP-0.5) or sampled at an animation time (WP-1.10). It
@@ -195,10 +210,20 @@ export class SkeletonView {
   readonly root: Container;
   private readonly attachmentsLayer: Container;
   private readonly bonesLayer: Container;
+  // The layer holding the clip mask Graphics (ADR-0012, PP-C8 part 2). At identity under root, the same world
+  // space the attachments layer draws in, so a mask polygon feeds in world coordinates verbatim. Masks render
+  // into the stencil, not the color buffer, so this layer's z-position is irrelevant.
+  private readonly masksLayer: Container;
 
   // Display objects reused across syncs, index-aligned with the current bone and attachment records.
   private readonly boneGraphics: Graphics[] = [];
   private readonly attachmentSprites: Sprite[] = [];
+  // Pooled clip mask Graphics (one per masked display object per frame; a mask instance is not shared across
+  // display objects). Grown to the max masked-display count; unused ones are hidden each frame.
+  private readonly clipMasks: Graphics[] = [];
+  // Reused scratch for a mask polygon's flat point list (Graphics.poly copies it, so one buffer serves every
+  // mask in a frame). Avoids a per-mask allocation on the render path.
+  private readonly clipMaskPoints: number[] = [];
 
   // The current scene's mesh displays (flat, for teardown). Unlike the sprite pool these are built per
   // scene, because a mesh's geometry (uvs, triangles, vertex count) is document-specific; the per-frame
@@ -228,7 +253,8 @@ export class SkeletonView {
     this.root = new Container();
     this.attachmentsLayer = new Container();
     this.bonesLayer = new Container();
-    this.root.addChild(this.attachmentsLayer, this.bonesLayer);
+    this.masksLayer = new Container();
+    this.root.addChild(this.attachmentsLayer, this.bonesLayer, this.masksLayer);
   }
 
   // Inject (or clear) the host's region -> Texture resolver. Region textures are resolved once when the
@@ -350,7 +376,7 @@ export class SkeletonView {
   // (animated color/attachment included), not the document's setup values.
   describe(): SceneDescription {
     const scene = this.cached;
-    if (scene === null) return { bones: [], attachments: [], meshes: [] };
+    if (scene === null) return { bones: [], attachments: [], meshes: [], clips: [] };
 
     const world = scene.pose.world;
     const bones: BoneRender[] = [];
@@ -403,7 +429,23 @@ export class SkeletonView {
         worldPosition: [transform.x, transform.y],
       });
     }
-    return { bones, attachments, meshes };
+
+    // The active clips from the last render's plan (empty when the document has no clip attachment): the clip
+    // slot, the slots it masks, and its world polygon, so a headless test asserts clipping without GL.
+    const clips: ClipRender[] = [];
+    const clipState = scene.clipPlanState;
+    const slotNames = scene.pose.slotNames;
+    for (let c = 0; c < clipState.activeCount; c += 1) {
+      const entry = clipState.entries[c]!;
+      const polygon: number[] = [];
+      for (let i = 0; i < entry.vertexCount * 2; i += 1) polygon.push(entry.polygon[i]!);
+      const clippedSlots: string[] = [];
+      for (let k = 0; k < entry.clippedCount; k += 1) {
+        clippedSlots.push(slotNames[entry.clippedSlots[k]!] ?? '');
+      }
+      clips.push({ clipSlot: slotNames[entry.clipSlotIndex] ?? '', clippedSlots, polygon });
+    }
+    return { bones, attachments, meshes, clips };
   }
 
   // Clear the scene to empty: release every bone graphic and attachment sprite (resize the pools to
@@ -414,6 +456,7 @@ export class SkeletonView {
     this.resizeBones(0);
     this.resizeAttachments(0);
     this.releaseMeshDisplays();
+    this.releaseClipMasks();
     this.cached = null;
   }
 
@@ -424,7 +467,19 @@ export class SkeletonView {
     this.root.destroy({ children: true });
     this.boneGraphics.length = 0;
     this.attachmentSprites.length = 0;
+    this.clipMasks.length = 0;
     this.cached = null;
+  }
+
+  // Remove and destroy the pooled clip mask Graphics (scene teardown / rebuild). Detaching a mask from its
+  // masked display is unnecessary here: the masked displays are released alongside (clear/rebuild), and a
+  // rebuilt scene re-plans from an empty pool.
+  private releaseClipMasks(): void {
+    for (const mask of this.clipMasks) {
+      this.masksLayer.removeChild(mask);
+      mask.destroy();
+    }
+    this.clipMasks.length = 0;
   }
 
   // Return the cached scene for this document, or build (and cache) it. Building allocates the pose and
@@ -459,6 +514,7 @@ export class SkeletonView {
       skinState,
       recordsBySlot,
       lastDrawOrder,
+      clipPlanState: makeClipPlanState(pose.slotCount),
     };
     this.cached = scene;
     return scene;
@@ -734,6 +790,78 @@ export class SkeletonView {
 
     // Reorder the attachment layer's children to the solved render order (PP-C6), if it changed this frame.
     this.applyDrawOrder(scene);
+
+    // Apply clipping (ADR-0012, PP-C8 part 2): mask the display objects of each clip's slot range to its
+    // world polygon. Runs after draw order because the clipped-slot set is computed over the current order.
+    this.applyClips(scene);
+  }
+
+  // Compute the clip plan for the current pose and apply the GPU masks (ADR-0012, PP-C8 part 2). The DECISION
+  // (which slots each clip masks, and the world polygon) is the pure clip-plan module; only the mask build
+  // and the `.mask` assignment (the GL-touching lines) live here. One pooled mask Graphics is assigned per
+  // masked, currently-visible display object (a mask instance is not shared across display objects); a slot
+  // that left a clip range this frame has its stale mask cleared. Allocation-free in steady state: the plan
+  // and the point scratch are reused, and mask Graphics are pooled. A scene with no clip attachment plans zero
+  // clips and clears every mask, so the common (no-clip) path only nulls already-null masks.
+  private applyClips(scene: CachedScene): void {
+    const state = scene.clipPlanState;
+    planClips(scene.document, scene.pose, state, (slotIndex) => {
+      const resolved = resolveActive(scene, slotIndex);
+      return resolved !== null && resolved.attachment.type === 'clipping'
+        ? resolved.attachment
+        : null;
+    });
+
+    // Clear any mask an attachment display carried last frame (a slot may have left a clip range).
+    for (const record of scene.attachmentRecords) {
+      if (record.sprite.mask !== null) record.sprite.mask = null;
+      for (const entry of record.meshList) {
+        if (entry.display.mask !== null) entry.display.mask = null;
+      }
+    }
+
+    let maskCount = 0;
+    for (let c = 0; c < state.activeCount; c += 1) {
+      const clip = state.entries[c]!;
+      for (let k = 0; k < clip.clippedCount; k += 1) {
+        const record = scene.recordsBySlot[clip.clippedSlots[k]!];
+        if (record === undefined || record === null || !record.visible) continue;
+        const display = record.kind === 'mesh' ? (record.activeMesh?.display ?? null) : record.sprite;
+        if (display === null) continue;
+        const mask = this.acquireClipMask(maskCount);
+        maskCount += 1;
+        this.drawClipMask(mask, clip.polygon, clip.vertexCount);
+        display.mask = mask;
+      }
+    }
+    // Hide pooled masks not used this frame so they never render as a visible fill.
+    for (let i = maskCount; i < this.clipMasks.length; i += 1) {
+      this.clipMasks[i]!.clear();
+      this.clipMasks[i]!.visible = false;
+    }
+  }
+
+  // Return a pooled mask Graphics for slot `index` this frame, creating and mounting it on the masks layer on
+  // first need. Made visible (a prior frame may have hidden it).
+  private acquireClipMask(index: number): Graphics {
+    let mask = this.clipMasks[index];
+    if (mask === undefined) {
+      mask = new Graphics();
+      this.clipMasks.push(mask);
+      this.masksLayer.addChild(mask);
+    }
+    mask.visible = true;
+    return mask;
+  }
+
+  // Redraw a mask Graphics as the filled clip polygon in WORLD coordinates (the masks layer is world space).
+  // Pixi fills a concave polygon via its own triangulation, so a concave clip needs no decomposition here.
+  private drawClipMask(mask: Graphics, polygon: Float64Array, vertexCount: number): void {
+    const points = this.clipMaskPoints;
+    points.length = vertexCount * 2;
+    for (let i = 0; i < vertexCount * 2; i += 1) points[i] = polygon[i]!;
+    mask.clear();
+    mask.poly(points).fill(0xffffff);
   }
 
   // Re-append the attachment displays to match the solved render order (ADR-0008 draw order, PP-C6):

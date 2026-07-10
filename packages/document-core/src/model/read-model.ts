@@ -374,6 +374,10 @@ export interface AnimationSnapshot {
   readonly drawOrder: readonly DrawOrderKeySnapshot[]; // in time order (strictly ascending)
   readonly events: readonly EventKeySnapshot[]; // in time order (non-decreasing)
   readonly path: readonly PathTimelineSnapshot[]; // sorted by constraintId (Stage F3, PP-D11)
+  // Stage F4 (ADR-0014 section 7) carried physics-constraint timeline record, keyed by the on-disk constraint
+  // NAME (physics is carried verbatim, not id-resolved, until PP-D12). Projected into the snapshot so the
+  // round-trip harness compares it; a deep copy with sorted names for a deterministic projection.
+  readonly physics: AnimationEntity['physics'];
 }
 
 // A plain event-definition projection (Stage F1): the internal EventDefId, the name, the payload defaults,
@@ -783,6 +787,16 @@ export function animationToSnapshot(animation: AnimationEntity): AnimationSnapsh
   path.sort((a, b) =>
     a.constraintId < b.constraintId ? -1 : a.constraintId > b.constraintId ? 1 : 0,
   );
+  // Carried physics timelines (PP-D12): deep-copy each name-keyed track (partial value + curve) so the
+  // snapshot never aliases the frozen model, with the constraint names sorted for a stable projection.
+  const physics: AnimationEntity['physics'] = {};
+  for (const name of Object.keys(animation.physics).sort()) {
+    physics[name] = animation.physics[name]!.map((frame) => ({
+      time: frame.time,
+      value: { ...frame.value },
+      curve: cloneCurve(frame.curve),
+    }));
+  }
   return {
     id: animation.id,
     name: animation.name,
@@ -795,6 +809,7 @@ export function animationToSnapshot(animation: AnimationEntity): AnimationSnapsh
     drawOrder: animation.drawOrder.map(drawOrderKeyToSnapshot),
     events: animation.events.map(eventKeyToSnapshot),
     path,
+    physics,
   };
 }
 

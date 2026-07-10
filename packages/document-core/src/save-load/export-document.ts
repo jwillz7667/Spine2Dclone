@@ -391,6 +391,9 @@ function animationToFormat(
     drawOrder,
     events,
     path,
+    // Stage F4 (ADR-0014 section 7): the carried physics-constraint timeline record is emitted verbatim (it is
+    // already the on-disk shape, keyed by constraint name); REQUIRED, empty ({}) when the animation keys none.
+    physics: animation.physics,
   };
 }
 
@@ -590,8 +593,10 @@ export function exportDocument(model: DocumentReadModel): SkeletonDocument {
 
   // Document-level events emit from the first-class event definitions (Stage F1, PP-D9), in eventOrder;
   // `events` is REQUIRED (empty when the rig defines none). The optional metadata block is emitted only when
-  // present, per exactOptionalPropertyTypes. The atlas is still carried from preserved content.
+  // present, per exactOptionalPropertyTypes. The atlas is still carried from preserved content. Stage F4
+  // (ADR-0014) carries the physics constraints and the optional global physics settings from preserved.
   const metadata = model.metadata();
+  const physics = model.preserved().physics;
   const draft: SkeletonDocument = {
     formatVersion: CURRENT_FORMAT_VERSION,
     name: model.name,
@@ -604,6 +609,9 @@ export function exportDocument(model: DocumentReadModel): SkeletonDocument {
     // Stage F3 (ADR-0011 section 2): the promoted path constraints emit in stored solve order (PP-D11);
     // REQUIRED, empty ([]) when the rig has none.
     pathConstraints,
+    // Stage F4 (ADR-0014 section 1): the carried root physics constraints emit verbatim as on-disk names
+    // (PP-D12); REQUIRED, empty ([]) when the rig has none.
+    physicsConstraints: [...model.preserved().physicsConstraints],
     events: orderedEventDefs.map((event) => ({
       name: event.name,
       ...(event.int !== undefined ? { int: event.int } : {}),
@@ -622,6 +630,9 @@ export function exportDocument(model: DocumentReadModel): SkeletonDocument {
     animations,
     atlas: model.preserved().atlas,
     ...(metadata !== undefined ? { metadata } : {}),
+    // Stage F4 (ADR-0014 section 5): the OPTIONAL skeleton physics settings block emits only when present,
+    // per exactOptionalPropertyTypes (absent means the identity defaults: no global weather, unit master mix).
+    ...(physics !== undefined ? { physics } : {}),
   };
   const withHash: SkeletonDocument = { ...draft, hash: computeContentHash(draft) };
 

@@ -264,6 +264,7 @@ function threeConstraintDoc(): SkeletonDocument {
         mixY: 1,
       },
     ],
+    physicsConstraints: [],
     events: [],
     animations: {},
     atlas: { pages: [] },

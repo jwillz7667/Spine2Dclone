@@ -1,5 +1,6 @@
 import { CURRENT_FORMAT_VERSION } from '@marionette/format';
 import type {
+  Animation,
   Attachment,
   AtlasRef,
   BlendMode,
@@ -7,6 +8,8 @@ import type {
   PathPositionMode,
   PathRotateMode,
   PathSpacingMode,
+  PhysicsConstraint,
+  PhysicsSettings,
   RegionAttachment,
   RGB,
   RGBA,
@@ -20,6 +23,13 @@ import type {
 // so a 0.4.0 document round-trips. They are non-empty arrays of the exact on-disk shape (a NonNullable of
 // the optional format channel), deep-frozen and shared by reference (never mutated in place).
 type CarriedSequence = NonNullable<RegionAttachment['sequence']>;
+// Stage F4 (ADR-0014, formatVersion 0.6.0) carried physics-constraint timelines: the per-animation `physics`
+// record (constraintName -> Keyframe<PhysicsFrame>[]), held VERBATIM as the on-disk shape. Document-core
+// authors no physics yet (that is PP-D12); it carries the record losslessly through load and export so a
+// 0.6.0 document round-trips, deep-frozen and shared by reference (never mutated in place). This mirrors how
+// the Stage F3 path timeline was carried verbatim BEFORE its PP-D11 promotion; the physics promotion (a
+// PhysicsConstraintId-keyed Map, like `path` is today) is deferred to PP-D12.
+type CarriedPhysicsTimelines = Animation['physics'];
 import type {
   AnimationId,
   BoneId,
@@ -546,6 +556,10 @@ export interface AnimationEntity {
   // keyed by the constraint's PathConstraintId (never by name, so a constraint rename never breaks a track),
   // exactly like the ik/transform timelines above. Empty when an animation keys no path constraint.
   readonly path: ReadonlyMap<PathConstraintId, readonly PathKeyframeEntity[]>;
+  // Stage F4 (ADR-0014 section 7) physics-constraint timeline record, carried verbatim (no command authors it
+  // yet, PP-D12). REQUIRED and empty ({}) when an animation keys no physics constraint, mirroring how the path
+  // timeline was carried BEFORE its PP-D11 promotion; a load/export round-trip preserves it exactly.
+  readonly physics: CarriedPhysicsTimelines;
 }
 
 // An IK constraint (WP-2.6, format IkConstraint), mirrored BY VALUE except `bones`/`target`, which are
@@ -638,12 +652,23 @@ export interface SkinEntity {
   readonly constraints?: readonly string[];
 }
 
-// Preserved content: the document body not yet promoted to editable id-keyed entities. The only remaining
-// member is the `atlas` (it stays preserved until its own editing lands beyond WP-1.3's SetAtlasRef).
-// Document-level events and the skeleton metadata block were promoted to first-class DocState.events /
-// DocState.metadata by PP-D9 (Stage F1); non-default skins were promoted to DocState.skins by WP-2.8.
+// Preserved content: the document body not yet promoted to editable id-keyed entities. The `atlas` stays
+// preserved until its own editing lands beyond WP-1.3's SetAtlasRef. Document-level events and the skeleton
+// metadata block were promoted to first-class DocState.events / DocState.metadata by PP-D9 (Stage F1);
+// non-default skins were promoted to DocState.skins by WP-2.8; path constraints were promoted to
+// DocState.pathConstraints by PP-D11. Stage F4 (ADR-0014) re-introduces a preserved physics carriage: the
+// root physics-constraint array and the OPTIONAL skeleton physics settings block are carried VERBATIM here
+// (no command authors physics yet, PP-D12), following the same pre-promotion pattern path constraints used.
 export interface PreservedContent {
   readonly atlas: AtlasRef;
+  // Stage F4 (ADR-0014 section 1) root physics-constraint array, carried verbatim as on-disk names (no
+  // command authors physics constraints yet, PP-D12), mirroring how the Stage F3 path constraints were
+  // carried before promotion. REQUIRED and empty ([]) when the rig has none; a round-trip preserves it.
+  readonly physicsConstraints: readonly PhysicsConstraint[];
+  // Stage F4 (ADR-0014 section 5) OPTIONAL skeleton physics settings block (global gravity/wind/master mix),
+  // carried verbatim. Undefined when the document defines none (a meaningful default: no global weather, unit
+  // master mix), exactly like DocState.metadata; the migration injects nothing for it.
+  readonly physics?: PhysicsSettings;
 }
 
 // The full internal document state. Bones, slots, animations, constraints, and named skins are the
@@ -694,6 +719,9 @@ export interface DocState {
 export function emptyPreservedContent(): PreservedContent {
   return {
     atlas: { pages: [] },
+    // Stage F4 (ADR-0014): a fresh document has no physics constraints and no global physics settings block
+    // (the optional `physics` member is left absent, its meaningful default).
+    physicsConstraints: [],
   };
 }
 
@@ -1016,13 +1044,14 @@ export function isSlotTimelineSetEmpty(set: SlotTimelineSet): boolean {
   );
 }
 
-// The empty ik/transform/deform/path constraint timelines a fresh animation starts with (Phase 2, extended
-// with the Stage F3 path record). They stay empty until an IK/transform/deform keyframe command writes one
-// (path has no authoring command yet, PP-D11), so a fresh animation projects to empty
-// `{ ik, transform, deform }` records and an empty `path` on export (the format requires all four keys).
+// The empty ik/transform/deform/path/physics constraint timelines a fresh animation starts with (Phase 2,
+// extended with the Stage F3 path map and the Stage F4 physics record). They stay empty until a keyframe
+// command writes one (path is authored by PP-D11 commands; physics has no authoring command yet, PP-D12), so
+// a fresh animation projects empty `{ ik, transform, deform }` maps, an empty `path` map, and an empty
+// `physics` record on export (the format requires all five keys).
 export function emptyAnimationConstraintTimelines(): Pick<
   AnimationEntity,
-  'ik' | 'transform' | 'deform' | 'path'
+  'ik' | 'transform' | 'deform' | 'path' | 'physics'
 > {
-  return { ik: new Map(), transform: new Map(), deform: new Map(), path: new Map() };
+  return { ik: new Map(), transform: new Map(), deform: new Map(), path: new Map(), physics: {} };
 }

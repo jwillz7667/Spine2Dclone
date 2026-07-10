@@ -57,6 +57,7 @@ function projectForSolve(model: DocumentReadModel, bones: readonly BoneEntity[])
     ikConstraints: [],
     transformConstraints: [],
     pathConstraints: [],
+    physicsConstraints: [],
     events: [],
     animations: {},
     atlas: { pages: [] },

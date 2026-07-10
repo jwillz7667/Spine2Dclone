@@ -1,7 +1,7 @@
 {
-  "formatVersion": "0.5.0",
+  "formatVersion": "0.6.0",
   "name": "mesh-limb-rig",
-  "hash": "b45a30601a7a7285684d7668f0183df7bf753e06ecf90e5c79ccf6e68b00c46a",
+  "hash": "d5008ea3ed6192d7696c74f2836e056bbe6003a136418f35f484a64b32561b07",
   "bones": [
     {
       "name": "root",
@@ -129,6 +129,7 @@
   ],
   "transformConstraints": [],
   "pathConstraints": [],
+  "physicsConstraints": [],
   "events": [],
   "animations": {
     "wave": {
@@ -216,6 +217,7 @@
       },
       "transform": {},
       "path": {},
+      "physics": {},
       "deform": {
         "default": {
           "limb": {

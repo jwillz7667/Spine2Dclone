@@ -493,6 +493,10 @@ function formatToDocState(document: SkeletonDocument, ids: IdFactory): DocState 
       // Stage F3 (ADR-0011 section 3) path-constraint timelines, promoted to id-keyed editable keyframes
       // (PP-D11): each on-disk constraint NAME resolves to its PathConstraintId.
       path: pathTracks,
+      // Stage F4 (ADR-0014 section 7) physics-constraint timelines, carried verbatim as the on-disk record
+      // (constraintName -> frames) until an authoring command lands (PP-D12); deep-frozen so the model never
+      // aliases the parsed document.
+      physics: carry(animation.physics),
     });
   }
 
@@ -536,6 +540,12 @@ function formatToDocState(document: SkeletonDocument, ids: IdFactory): DocState 
     slotScene: defaultSlotSceneState(),
     preserved: {
       atlas: document.atlas,
+      // Stage F4 (ADR-0014 section 1) root physics constraints, carried verbatim as on-disk names until an
+      // authoring command lands (PP-D12); deep-frozen so the model never aliases the parsed document.
+      physicsConstraints: carry(document.physicsConstraints),
+      // Stage F4 (ADR-0014 section 5) OPTIONAL global physics settings block, carried verbatim when present
+      // (absent means the identity defaults, so nothing is stored), mirroring the optional metadata block.
+      ...(document.physics !== undefined ? { physics: carry(document.physics) } : {}),
     },
   };
 }

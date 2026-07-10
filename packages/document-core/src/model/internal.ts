@@ -312,6 +312,9 @@ interface MutableAnimation {
   // Stage F3 (ADR-0011 section 3) path-constraint timelines, id-keyed editable keyframes (PP-D11), the same
   // shape as ik/transform above; replaced per-channel by setPathChannel, never patched in place.
   path: Map<PathConstraintId, PathKeyframeEntity[]>;
+  // Stage F4 (ADR-0014 section 7) physics-constraint timeline record, carried verbatim (no authoring command
+  // yet, PP-D12). Deep-frozen at load and never mutated in place, so a shared reference is safe like above.
+  physics: AnimationEntity['physics'];
 }
 
 function toMutableBoneSet(set: BoneTimelineSet): MutableBoneTimelineSet {
@@ -428,6 +431,8 @@ function toMutableAnimation(animation: AnimationEntity): MutableAnimation {
     drawOrder: animation.drawOrder,
     events: animation.events,
     path,
+    // Carried verbatim (PP-D12): deep-frozen at load and never mutated in place, so share the reference.
+    physics: animation.physics,
   };
 }
 
@@ -456,6 +461,8 @@ function cloneMutableAnimation(a: MutableAnimation): MutableAnimation {
     drawOrder: a.drawOrder,
     events: a.events,
     path,
+    // Carried verbatim (PP-D12): deep-frozen at load and never mutated in place, so share the reference.
+    physics: a.physics,
   };
 }
 
@@ -512,6 +519,8 @@ function freezeAnimation(a: MutableAnimation): AnimationEntity {
     drawOrder: Object.freeze(a.drawOrder.slice()),
     events: Object.freeze(a.events.slice()),
     path,
+    // Carried verbatim (PP-D12): already deep-frozen at load and never mutated, so share the reference.
+    physics: a.physics,
   });
 }
 
@@ -739,6 +748,10 @@ export class DocumentModelInternal implements DocumentReadModel {
     this.slotSceneValue = cloneSlotSceneState(state.slotScene);
     this.preservedContent = deepFreeze({
       atlas: state.preserved.atlas,
+      // Stage F4 (ADR-0014): carry the physics constraints and the optional global physics settings verbatim
+      // (PP-D12). The settings block is emitted only when present, matching the optional-metadata isolation.
+      physicsConstraints: state.preserved.physicsConstraints,
+      ...(state.preserved.physics !== undefined ? { physics: state.preserved.physics } : {}),
     });
   }
 
@@ -2041,7 +2054,14 @@ export class DocumentModelInternal implements DocumentReadModel {
   // a discrete edit, never part of a drag. NO content hash is computed here (the exporter is the sole hash
   // owner, LAW 3).
   setAtlas(atlas: AtlasRef): void {
-    this.preservedContent = deepFreeze({ atlas });
+    // Replace only the atlas; the carried Stage F4 physics constraints and optional settings (PP-D12) ride
+    // through unchanged, exactly as the Stage F3 path carriage did before its promotion.
+    const previous = this.preservedContent;
+    this.preservedContent = deepFreeze({
+      atlas,
+      physicsConstraints: previous.physicsConstraints,
+      ...(previous.physics !== undefined ? { physics: previous.physics } : {}),
+    });
     this.revisionValue += 1;
   }
 

@@ -243,6 +243,8 @@ function riggedDoc(): SkeletonDocument {
     events: [],
     // Stage F3 (ADR-0011, formatVersion 0.5.0) required path timeline: keys no path constraint, so empty.
     path: {},
+    // Stage F4 (ADR-0014, formatVersion 0.6.0) required physics timeline: keys no physics constraint, empty.
+    physics: {},
   };
   return {
     formatVersion: CURRENT_FORMAT_VERSION,
@@ -265,6 +267,7 @@ function riggedDoc(): SkeletonDocument {
     ikConstraints,
     transformConstraints,
     pathConstraints: [],
+    physicsConstraints: [],
     events: [],
     animations: { move: moveAnimation },
     atlas: {
@@ -303,6 +306,8 @@ function eventedDoc(): SkeletonDocument {
     ],
     // Stage F3 (ADR-0011, formatVersion 0.5.0) required path timeline: keys no path constraint, so empty.
     path: {},
+    // Stage F4 (ADR-0014, formatVersion 0.6.0) required physics timeline: keys no physics constraint, empty.
+    physics: {},
   };
   return {
     formatVersion: CURRENT_FORMAT_VERSION,
@@ -314,6 +319,7 @@ function eventedDoc(): SkeletonDocument {
     ikConstraints: [],
     transformConstraints: [],
     pathConstraints: [],
+    physicsConstraints: [],
     events: [
       {
         name: 'footstep',
@@ -549,6 +555,8 @@ function pathedDoc(): SkeletonDocument {
     deform: {},
     drawOrder: [],
     events: [],
+    // Stage F4 (ADR-0014, formatVersion 0.6.0) required physics timeline: keys no physics constraint, empty.
+    physics: {},
   };
   return {
     formatVersion: CURRENT_FORMAT_VERSION,
@@ -590,6 +598,7 @@ function pathedDoc(): SkeletonDocument {
         mixY: 1,
       },
     ],
+    physicsConstraints: [],
     events: [],
     animations: { glide },
     atlas: { pages: [] },

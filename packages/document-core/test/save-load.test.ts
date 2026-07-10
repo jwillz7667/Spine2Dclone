@@ -86,6 +86,7 @@ function richDocument(): SkeletonDocument {
     ikConstraints: [],
     transformConstraints: [],
     pathConstraints: [],
+    physicsConstraints: [],
     events: [],
     animations: {},
     atlas: {
@@ -194,6 +195,7 @@ function meshDocument(): SkeletonDocument {
     ikConstraints: [],
     transformConstraints: [],
     pathConstraints: [],
+    physicsConstraints: [],
     events: [],
     animations: {},
     atlas: {
@@ -260,6 +262,7 @@ describe('save / load seam', () => {
         'slots',
         'transformConstraints',
         'pathConstraints',
+        'physicsConstraints',
         'events',
         'animations',
       ].sort(),
@@ -344,9 +347,10 @@ describe('save / load seam', () => {
     const doc = loadDocument(seeds.animated, makeTestEnv().env);
     const json1 = exportDocument(doc.model);
 
-    // Phase 2 (ADR-0004) plus Stage F1 (ADR-0008) plus Stage F3 (ADR-0011): the format Animation is now
-    // { duration, bones, slots, ik, transform, deform, drawOrder, events, path }. The model authors only
-    // bone/slot timelines today, so ik/transform/deform/path export empty and drawOrder/events as empty arrays.
+    // Phase 2 (ADR-0004) plus Stage F1 (ADR-0008) plus Stage F3 (ADR-0011) plus Stage F4 (ADR-0014): the
+    // format Animation is now { duration, bones, slots, ik, transform, deform, drawOrder, events, path,
+    // physics }. The model authors only bone/slot timelines today, so ik/transform/deform/path/physics export
+    // empty and drawOrder/events as empty arrays.
     expect(Object.keys(json1.animations)).toEqual(['idle']);
     expect(Object.keys(json1.animations.idle!).sort()).toEqual([
       'bones',
@@ -356,6 +360,7 @@ describe('save / load seam', () => {
       'events',
       'ik',
       'path',
+      'physics',
       'slots',
       'transform',
     ]);
@@ -401,6 +406,7 @@ describe('save / load seam', () => {
       ikConstraints: [],
       transformConstraints: [],
       pathConstraints: [],
+      physicsConstraints: [],
       // A named event with an int payload and an audio hint, referenced by the animation's event timeline.
       events: [
         {
@@ -426,6 +432,7 @@ describe('save / load seam', () => {
             { time: 0.75, name: 'footstep', int: 7 },
           ],
           path: {},
+          physics: {},
         },
       },
       atlas: { pages: [] },
@@ -614,6 +621,7 @@ function f2Document(): SkeletonDocument {
       },
     ],
     pathConstraints: [],
+    physicsConstraints: [],
     events: [],
     animations: {
       a1: {
@@ -669,6 +677,7 @@ function f2Document(): SkeletonDocument {
         drawOrder: [],
         events: [],
         path: {},
+        physics: {},
       },
     },
     atlas: {
@@ -783,6 +792,7 @@ function f3Document(): SkeletonDocument {
         mixY: 1,
       },
     ],
+    physicsConstraints: [],
     events: [],
     animations: {
       glide: {
@@ -801,6 +811,7 @@ function f3Document(): SkeletonDocument {
             { time: 1, value: { position: 1, mixRotate: 0 }, curve: 'stepped' },
           ],
         },
+        physics: {},
       },
     },
     atlas: { pages: [] },
@@ -853,5 +864,121 @@ describe('Stage F3 (0.5.0) path carry through load and export', () => {
 
     expect(doc.model.snapshot()).toEqual(before);
     expect(exportDocument(doc.model)).toEqual(original);
+  });
+});
+
+// A document that exercises EVERY Stage F4 (ADR-0014, formatVersion 0.6.0) physics shape at once: a root
+// physics CONSTRAINT (a per-bone damped spring over the rotation channel), the OPTIONAL skeleton `physics`
+// SETTINGS block (global gravity/wind/master mix), and a per-animation `physics` TIMELINE that keys the
+// constraint's dynamic knobs. document-core carries all three VERBATIM (no authoring command yet, PP-D12):
+// the constraint rides preserved.physicsConstraints, the settings block rides preserved.physics, and the
+// timeline rides the AnimationEntity.physics record, so exportDocument(loadDocument(R)) === R. The physics
+// SOLVE is Lane B (PP-B7); this stage carries the data at no-op defaults only.
+function f4Document(): SkeletonDocument {
+  const draft: SkeletonDocument = {
+    formatVersion: CURRENT_FORMAT_VERSION,
+    name: 'f4',
+    hash: '',
+    bones: [
+      { name: 'root', parent: null, ...GEOM, rotation: 0 },
+      { name: 'tail', parent: 'root', ...GEOM, rotation: 0 },
+    ],
+    slots: [],
+    skins: [{ name: 'default', attachments: {} }],
+    ikConstraints: [],
+    transformConstraints: [],
+    pathConstraints: [],
+    // A physics constraint driving `tail` rotation as a damped spring (the jiggle secondary-motion case).
+    physicsConstraints: [
+      {
+        name: 'tail-jiggle',
+        bone: 'tail',
+        channels: ['rotation'],
+        step: 1 / 60,
+        inertia: 0.5,
+        strength: 40,
+        damping: 0.9,
+        mass: 1,
+        wind: 0,
+        gravity: 0,
+        mix: 1,
+      },
+    ],
+    events: [],
+    animations: {
+      idle: {
+        duration: 1,
+        bones: {},
+        slots: {},
+        ik: {},
+        transform: {},
+        deform: {},
+        drawOrder: [],
+        events: [],
+        path: {},
+        // A physics timeline keying the dynamic knobs (a wind gust and a mix fade over the beat).
+        physics: {
+          'tail-jiggle': [
+            { time: 0, value: { mix: 1, wind: 0 }, curve: 'linear' },
+            { time: 1, value: { mix: 0, wind: 5 }, curve: 'stepped' },
+          ],
+        },
+      },
+    },
+    atlas: { pages: [] },
+    // The OPTIONAL skeleton physics settings block: global weather plus a master mix fader.
+    physics: { gravity: 9.8, wind: 2, mix: 0.75 },
+  };
+  return { ...draft, hash: computeContentHash(draft) };
+}
+
+describe('Stage F4 (0.6.0) physics carry through load and export', () => {
+  it('round-trips a physics constraint, settings block, and physics timeline deep-equal (hash included)', () => {
+    const original = f4Document();
+
+    const doc = loadDocument(original, makeTestEnv().env);
+
+    // The root physics constraints, the global settings block, and the per-animation physics timeline are
+    // carried verbatim (PP-D12), not dropped: physics is data at no-op defaults, its solve is Lane B (PP-B7).
+    expect(doc.model.preserved().physicsConstraints.map((c) => c.name)).toEqual(['tail-jiggle']);
+    expect(doc.model.preserved().physics).toEqual({ gravity: 9.8, wind: 2, mix: 0.75 });
+    const idle = doc.model.animations().find((a) => a.name === 'idle')!;
+    expect(Object.keys(idle.physics)).toEqual(['tail-jiggle']);
+    expect(idle.physics['tail-jiggle']).toHaveLength(2);
+
+    const exported = exportDocument(doc.model);
+    expect(exported).toEqual(original); // lossless, hash included
+    expect(exported.formatVersion).toBe(CURRENT_FORMAT_VERSION);
+    expect(verifyContentHash(exported)).toBe(true);
+  });
+
+  it('survives a History snapshot round-trip without dropping carried physics data', () => {
+    const original = f4Document();
+    const doc = loadDocument(original, makeTestEnv().env);
+
+    // A non-physics edit forces a full-state snapshot/restore; undo must return the carried physics intact.
+    const before = doc.model.snapshot();
+    doc.history.execute(
+      new CreateBoneCommand(doc.ids.mint('bone'), null, { name: 'tmp', ...GEOM }),
+    );
+    doc.history.undo();
+
+    expect(doc.model.snapshot()).toEqual(before);
+    expect(exportDocument(doc.model)).toEqual(original);
+  });
+
+  it('carries a document with NO global physics settings block (the optional block stays absent)', () => {
+    const withBlock = f4Document();
+    // Drop the optional settings block; the required physics constraints/timeline remain.
+    const { physics: _physics, ...rest } = withBlock;
+    const draft: SkeletonDocument = { ...rest, hash: '' };
+    const original: SkeletonDocument = { ...draft, hash: computeContentHash(draft) };
+
+    const doc = loadDocument(original, makeTestEnv().env);
+    expect(doc.model.preserved().physics).toBeUndefined();
+
+    const exported = exportDocument(doc.model);
+    expect('physics' in exported).toBe(false);
+    expect(exported).toEqual(original); // lossless, hash included
   });
 });

@@ -13,6 +13,7 @@ const WorldTransform = preload("res://core/world_transform.gd")
 const ResolveWorld = preload("res://core/resolve_world.gd")
 const Ik = preload("res://core/ik.gd")
 const TransformConstraint = preload("res://core/transform_constraint.gd")
+const PathConstraintSolve = preload("res://core/path_constraint.gd")
 
 # Solver owned scratch for an on demand target world matrix (step 3 reads the target's world origin).
 static var _target_world_scratch: PackedFloat64Array = PackedFloat64Array()
@@ -115,17 +116,19 @@ static func _blend_add_rotation(current: float, setup_value: float, sampled: flo
 	return current + (_normalize_delta_deg(sampled - setup_value) * w)
 
 
-# Solve step 3 (ADR-0003 section 3, ordering per ADR-0009 section 1.3 / ADR-0010 section 1). Default
-# (pose.solve_order null): all IK constraints in document order, then all transform constraints in document
-# order, the exact ADR-0003 two-phase path. When the rig assigns an explicit order, pose.solve_order is the
-# precomputed dense schedule and step 3 walks it, dispatching each code to the SAME per-constraint helper
-# the default path uses (so an IK constraint is bit-identical either way; only the schedule moves).
+# Solve step 3 (ADR-0003 section 3, ordering per ADR-0009 section 1.3 / ADR-0010 section 1 / ADR-0011
+# section 2.3). Default (pose.solve_order null): all IK constraints, then all transform constraints, then all
+# PATH constraints, each in document order. When the rig assigns an explicit order, pose.solve_order is the
+# precomputed dense schedule spanning all THREE arrays and step 3 walks it, dispatching each code to the SAME
+# per-constraint helper the default path uses (so a constraint is bit-identical either way; only the schedule
+# moves).
 static func solve_constraints(pose: Pose, active_skin = null) -> void:
 	if _target_world_scratch.size() != Affine.MAT2X3_STRIDE:
 		_target_world_scratch.resize(Affine.MAT2X3_STRIDE)
 
 	var ik_constraints := pose.ik_constraints
 	var transform_constraints := pose.transform_constraints
+	var path_constraints := pose.path_constraints
 	var solve_order = pose.solve_order
 
 	if solve_order == null:
@@ -133,15 +136,20 @@ static func solve_constraints(pose: Pose, active_skin = null) -> void:
 			_solve_one_ik_constraint(pose, ik_constraints[i], active_skin)
 		for i in range(transform_constraints.size()):
 			_solve_one_transform_constraint(pose, transform_constraints[i], active_skin)
+		for i in range(path_constraints.size()):
+			_solve_one_path_constraint(pose, path_constraints[i], active_skin)
 		return
 
 	var ik_count := ik_constraints.size()
+	var path_base := ik_count + transform_constraints.size()
 	for p in range(solve_order.size()):
 		var code: int = solve_order[p]
 		if code < ik_count:
 			_solve_one_ik_constraint(pose, ik_constraints[code], active_skin)
-		else:
+		elif code < path_base:
 			_solve_one_transform_constraint(pose, transform_constraints[code - ik_count], active_skin)
+		else:
+			_solve_one_path_constraint(pose, path_constraints[code - path_base], active_skin)
 
 
 # Whether a constraint participates in the solve under the active skin (ADR-0009 section 5, ADR-0011
@@ -219,6 +227,15 @@ static func _solve_one_transform_constraint(pose: Pose, constraint, active_skin 
 		TransformConstraint.solve(pose, bone_index, target_index, constraint.sampled_mix, constraint.offset, constraint.local, constraint.relative)
 
 
+# Solve one path constraint against the pose (ADR-0013, PP-B6). A skin-scoped constraint whose skin is
+# inactive is skipped; otherwise the constraint distributes and orients its bones along the target path. The
+# per-constraint sampled scratch (position, spacing, mix*) was written by step 2 (else reset to the base).
+static func _solve_one_path_constraint(pose: Pose, constraint, active_skin = null) -> void:
+	if not _is_constraint_scope_active(constraint.scope_skins, active_skin):
+		return
+	PathConstraintSolve.solve(pose, constraint)
+
+
 static func reset_constraints_to_base(pose: Pose) -> void:
 	for i in range(pose.ik_constraints.size()):
 		var constraint = pose.ik_constraints[i]
@@ -230,6 +247,15 @@ static func reset_constraints_to_base(pose: Pose) -> void:
 	for i in range(pose.transform_constraints.size()):
 		var constraint = pose.transform_constraints[i]
 		constraint.sampled_mix.copy_from(constraint.base_mix)
+	# Path constraints (ADR-0013): reset the sampled position/spacing/mix* to the definition base; step 2's
+	# path timeline then overlays any keyed channel, and an unkeyed channel keeps its base.
+	for i in range(pose.path_constraints.size()):
+		var constraint = pose.path_constraints[i]
+		constraint.sampled_position = constraint.base_position
+		constraint.sampled_spacing = constraint.base_spacing
+		constraint.sampled_mix_rotate = constraint.base_mix_rotate
+		constraint.sampled_mix_x = constraint.base_mix_x
+		constraint.sampled_mix_y = constraint.base_mix_y
 
 
 static func _sample_scalar_track(track: Prepared.PreparedTrack, t: float) -> float:
@@ -474,8 +500,10 @@ static func _apply_slot_entry(pose: Pose, prepared: Prepared.PreparedAnimation, 
 static func _apply_constraint_entry(pose: Pose, prepared: Prepared.PreparedAnimation, t: float, alpha: float, additive: bool, discrete_wins: bool) -> void:
 	var ik_channels := prepared.ik_channels
 	var transform_channels := prepared.transform_channels
+	var path_channels := prepared.path_channels
 	var ik_constraints := pose.ik_constraints
 	var transform_constraints := pose.transform_constraints
+	var path_constraints := pose.path_constraints
 	var ik_bend_win_weight := pose.ik_bend_win_weight
 	var ik_stretch_win_weight := pose.ik_stretch_win_weight
 	var ik_compress_win_weight := pose.ik_compress_win_weight
@@ -535,6 +563,27 @@ static func _apply_constraint_entry(pose: Pose, prepared: Prepared.PreparedAnima
 			mix.scale_y = _blend_mix(mix.scale_y, base_mix.scale_y, channel.mix_scale_y, t, alpha, additive)
 		if channel.mix_shear_y != null:
 			mix.shear_y = _blend_mix(mix.shear_y, base_mix.shear_y, channel.mix_shear_y, t, alpha, additive)
+
+	# Path constraints (ADR-0011 section 3, ADR-0013): each channel is a continuous interpolated scalar
+	# blended toward its keyed value by alpha (additive adds the delta from the constraint base), exactly like
+	# the transform mix channels. position/spacing are unbounded; the mix channels are [0, 1] by the format,
+	# so no extra clamp is applied here (the base and keyed values are in range).
+	for c in range(path_channels.size()):
+		var channel = path_channels[c]
+		var index: int = channel.constraint_index
+		if index < 0:
+			continue
+		var constraint = path_constraints[index]
+		if channel.position != null:
+			constraint.sampled_position = _blend_mix(constraint.sampled_position, constraint.base_position, channel.position, t, alpha, additive)
+		if channel.spacing != null:
+			constraint.sampled_spacing = _blend_mix(constraint.sampled_spacing, constraint.base_spacing, channel.spacing, t, alpha, additive)
+		if channel.mix_rotate != null:
+			constraint.sampled_mix_rotate = _blend_mix(constraint.sampled_mix_rotate, constraint.base_mix_rotate, channel.mix_rotate, t, alpha, additive)
+		if channel.mix_x != null:
+			constraint.sampled_mix_x = _blend_mix(constraint.sampled_mix_x, constraint.base_mix_x, channel.mix_x, t, alpha, additive)
+		if channel.mix_y != null:
+			constraint.sampled_mix_y = _blend_mix(constraint.sampled_mix_y, constraint.base_mix_y, channel.mix_y, t, alpha, additive)
 
 
 static func _blend_mix(current: float, base_value: float, track: Prepared.PreparedTrack, t: float, alpha: float, additive: bool) -> float:
@@ -616,6 +665,22 @@ static func _prepare_animation(pose: Pose, animation) -> Prepared.PreparedAnimat
 		channel.mix_scale_y = Curves.build_transform_mix_track(frames, Curves.TransformMixChannel.MIX_SCALE_Y)
 		channel.mix_shear_y = Curves.build_transform_mix_track(frames, Curves.TransformMixChannel.MIX_SHEAR_Y)
 		result.transform_channels.append(channel)
+
+	# Path-constraint timelines (ADR-0011 section 3, ADR-0013). Each channel is prepared from only the frames
+	# that key it; an all-absent channel is null and holds the constraint base.
+	var path_index_by_name := _name_index_of(pose.path_constraints)
+	for pc_name in animation.path:
+		var frames = animation.path[pc_name]
+		if frames.size() == 0:
+			continue
+		var channel := Prepared.PreparedPathChannel.new()
+		channel.constraint_index = _lookup(path_index_by_name, pc_name)
+		channel.position = Curves.build_path_track(frames, Curves.PathChannel.POSITION)
+		channel.spacing = Curves.build_path_track(frames, Curves.PathChannel.SPACING)
+		channel.mix_rotate = Curves.build_path_track(frames, Curves.PathChannel.MIX_ROTATE)
+		channel.mix_x = Curves.build_path_track(frames, Curves.PathChannel.MIX_X)
+		channel.mix_y = Curves.build_path_track(frames, Curves.PathChannel.MIX_Y)
+		result.path_channels.append(channel)
 
 	for entry in animation.deform:
 		if entry.frames.size() == 0:

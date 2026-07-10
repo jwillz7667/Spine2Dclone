@@ -157,6 +157,75 @@ class ResolvedTransformConstraint:
 		sampled_mix = TransformMix.new(mix.rotate, mix.x, mix.y, mix.scale_x, mix.scale_y, mix.shear_y)
 
 
+# A path constraint resolved against the pose (ADR-0013, PP-B6). bone_indices are the bones distributed
+# along the path (document/list order == along-path order). `path` is the prepared spline GEOMETRY (a
+# PreparedPathGeometry from path_constraint.gd) built once from the target slot's setup default-skin path
+# attachment, or null when no path is resolvable (the constraint is then a no-op). The mode strings, base
+# channel values, and offset_rotation come from the constraint definition; the sampled_* scratch is the per-
+# frame values step 2 writes (from the path timeline, else the base) and step 3 reads. Built once; the per-
+# frame solve allocates nothing. `path` is left untyped so pose.gd does not preload path_constraint.gd (which
+# preloads pose.gd), keeping the dependency direction acyclic.
+class ResolvedPathConstraint:
+	var name: String
+	var bone_indices: PackedInt32Array
+	var position_mode: String
+	var spacing_mode: String
+	var rotate_mode: String
+	var offset_rotation: float
+	var base_position: float
+	var base_spacing: float
+	var base_mix_rotate: float
+	var base_mix_x: float
+	var base_mix_y: float
+	var path = null  # PreparedPathGeometry or null
+	# The explicit combined-set solve order (ADR-0011 section 2.3), or -1 when this constraint carries none.
+	var order: int
+	# The names of the skins that SCOPE this constraint (ADR-0011 section 4), or null when unscoped (always
+	# active). Captured once at build. PackedStringArray/Array or null.
+	var scope_skins = null
+	var sampled_position: float
+	var sampled_spacing: float
+	var sampled_mix_rotate: float
+	var sampled_mix_x: float
+	var sampled_mix_y: float
+
+	func _init(
+		n: String,
+		indices: PackedInt32Array,
+		pos_mode: String,
+		sp_mode: String,
+		rot_mode: String,
+		off_rotation: float,
+		base_pos: float,
+		base_sp: float,
+		base_mr: float,
+		base_mx: float,
+		base_my: float,
+		the_path,
+		the_order: int,
+		the_scope_skins = null
+	) -> void:
+		name = n
+		bone_indices = indices
+		position_mode = pos_mode
+		spacing_mode = sp_mode
+		rotate_mode = rot_mode
+		offset_rotation = off_rotation
+		base_position = base_pos
+		base_spacing = base_sp
+		base_mix_rotate = base_mr
+		base_mix_x = base_mx
+		base_mix_y = base_my
+		path = the_path
+		order = the_order
+		scope_skins = the_scope_skins
+		sampled_position = base_pos
+		sampled_spacing = base_sp
+		sampled_mix_rotate = base_mr
+		sampled_mix_x = base_mx
+		sampled_mix_y = base_my
+
+
 var bone_count: int
 var bone_names: Array
 var parent_indices: PackedInt32Array
@@ -199,11 +268,16 @@ var draw_order_win_weight: PackedFloat64Array
 
 var ik_constraints: Array
 var transform_constraints: Array
-# The explicit combined-set solve schedule (ADR-0009 section 1.3, ADR-0010 section 1) or null when no
-# constraint carries an order. When present it is a dense permutation of [0, N) (N = total constraints):
-# solve_order[position] is a constraint CODE, code < ik_constraints.size() selecting ik_constraints[code],
-# else transform_constraints[code - ik_constraints.size()]. Step 3 walks it in position order. Null keeps
-# the exact ADR-0003 two-phase (all IK, then all transform) path. Precomputed once at build.
+# The document's path constraints (ADR-0013, PP-B6), resolved in document array order. Solved AFTER all IK
+# and all transform constraints by default (ADR-0011 section 2.3). Empty for a rig with none.
+var path_constraints: Array
+# The explicit combined-set solve schedule (ADR-0009 section 1.3, ADR-0010 section 1, ADR-0011 section 2.3)
+# or null when no constraint carries an order. When present it is a dense permutation of [0, N) (N = total
+# constraints across all THREE arrays): solve_order[position] is a constraint CODE selecting
+# ik_constraints[code] when code < ik_count, transform_constraints[code - ik_count] when ik_count <= code <
+# ik_count + transform_count, else path_constraints[code - ik_count - transform_count]. Step 3 walks it in
+# position order. Null keeps the exact default (all IK, then all transform, then all path) path. Precomputed
+# once at build.
 var solve_order = null  # PackedInt32Array or null
 
 # Reused scratch for sampled deform offsets (grows only when a larger mesh is sampled).
@@ -220,7 +294,8 @@ func _init(
 	the_slot_count: int,
 	the_slot_names: Array,
 	the_ik_constraints: Array,
-	the_transform_constraints: Array
+	the_transform_constraints: Array,
+	the_path_constraints: Array
 ) -> void:
 	bone_count = the_bone_count
 	bone_names = the_bone_names
@@ -255,16 +330,18 @@ func _init(
 
 	ik_constraints = the_ik_constraints
 	transform_constraints = the_transform_constraints
-	solve_order = _build_solve_order(the_ik_constraints, the_transform_constraints)
+	path_constraints = the_path_constraints
+	solve_order = _build_solve_order(the_ik_constraints, the_transform_constraints, the_path_constraints)
 
 
-# Precompute the explicit combined-set solve schedule (ADR-0010 section 1). Returns null when no constraint
-# carries an order (the ADR-0003 two-phase default). When ANY carries one, the format guarantees a dense
-# unique permutation of [0, N); this builds the position->code map from that. It is defensive against an
-# unvalidated document: a partial, duplicated, gapped, or out-of-range assignment falls back to null (the
-# safe document-order default) rather than producing a corrupt schedule.
-static func _build_solve_order(ik: Array, transform: Array):
-	var total := ik.size() + transform.size()
+# Precompute the explicit combined-set solve schedule (ADR-0010 section 1, ADR-0011 section 2.3, extended to
+# a THIRD range for path constraints). Returns null when no constraint carries an order (the default all-IK,
+# then all-transform, then all-path path). When ANY carries one, the format guarantees a dense unique
+# permutation of [0, N); this builds the position->code map from that. It is defensive against an unvalidated
+# document: a partial, duplicated, gapped, or out-of-range assignment falls back to null (the safe document-
+# order default) rather than producing a corrupt schedule.
+static func _build_solve_order(ik: Array, transform: Array, path: Array):
+	var total := ik.size() + transform.size() + path.size()
 	if total == 0:
 		return null
 
@@ -274,6 +351,9 @@ static func _build_solve_order(ik: Array, transform: Array):
 			any_order = true
 	for i in range(transform.size()):
 		if transform[i].order >= 0:
+			any_order = true
+	for i in range(path.size()):
+		if path[i].order >= 0:
 			any_order = true
 	if not any_order:
 		return null
@@ -287,6 +367,9 @@ static func _build_solve_order(ik: Array, transform: Array):
 			return null
 	for j in range(transform.size()):
 		if not _place_order(codes, total, transform[j].order, ik.size() + j):
+			return null
+	for k in range(path.size()):
+		if not _place_order(codes, total, path[k].order, ik.size() + transform.size() + k):
 			return null
 	return codes
 

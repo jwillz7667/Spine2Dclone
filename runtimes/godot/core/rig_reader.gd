@@ -10,7 +10,7 @@ extends RefCounted
 # 0.4.0 (ADR-0009: IK constraints carry a signed `bend` in place of the bendPositive boolean plus additive
 # depth fields, transform constraints gain local/relative, and linked meshes / sequences / split timelines /
 # skin scoping are additive), and 0.5.0 (ADR-0011: an additive root `pathConstraints` array, a per-animation
-# `path` timeline, and a seventh `path` attachment kind, none of which the solve consumes yet, Lane B PP-B6).
+# `path` timeline, and a seventh `path` attachment kind, ALL now consumed by the PP-B6 path solve, ADR-0013).
 # It REQUIRES every field the solve consumes, reads the signed bend (mapping it to the same sign the solve
 # keys on), and PERMITS unknown/additive members, so a 0.5.0 rig (empty pathConstraints and per-animation
 # path plus the version bump) reads unchanged. It FAILS LOUDLY on a missing required field, a wrong type for
@@ -90,6 +90,13 @@ static func _read_document(root: Dictionary) -> Document.SkeletonDocument:
 	if tc_value != null and typeof(tc_value) == TYPE_ARRAY:
 		for tc in tc_value:
 			document.transform_constraints.append(_read_transform_constraint(tc))
+
+	# The additive root pathConstraints array (ADR-0011 section 2.3, ADR-0013 PP-B6); absent on a pre-0.5.0
+	# rig, so it leaves the empty default (the same lenience as the IK/transform arrays).
+	var pc_value = root.get("pathConstraints")
+	if pc_value != null and typeof(pc_value) == TYPE_ARRAY:
+		for pc in pc_value:
+			document.path_constraints.append(_read_path_constraint(pc))
 
 	var events_value = root.get("events")
 	if events_value != null and typeof(events_value) == TYPE_ARRAY:
@@ -189,6 +196,23 @@ static func _read_attachment(attachment: Dictionary) -> Document.Attachment:
 		a.point_y = _req_number(attachment, "y")
 		a.point_rotation = _req_number(attachment, "rotation")
 		return a
+	if a.type == "path":
+		# A path attachment (ADR-0011 section 1, ADR-0013 PP-B6): a piecewise cubic Bezier spline rail a path
+		# constraint distributes bones along. `closed`/`constantSpeed` are flags; `lengths` is the committed
+		# cumulative per-curve arc-length table; `vertices` is the SAME weighted/unweighted control-point stream
+		# a mesh uses (ADR-0002 codec); an optional non-empty `bones` array (the ascending referenced-bone
+		# manifest) marks the path weighted. The solve consumes all of these (path_constraint.gd).
+		a.mesh = null
+		a.path_closed = _req_bool(attachment, "closed")
+		a.path_constant_speed = _req_bool(attachment, "constantSpeed")
+		a.path_lengths = _read_number_array(_req_array(attachment, "lengths"))
+		a.path_vertices = _read_number_array(_req_array(attachment, "vertices"))
+		var path_bones_value = attachment.get("bones")
+		if path_bones_value != null and typeof(path_bones_value) == TYPE_ARRAY and path_bones_value.size() > 0:
+			a.path_bones = _read_int_array(path_bones_value)
+		else:
+			a.path_bones = null
+		return a
 	if a.type != "mesh":
 		# A region attachment may carry an optional sequence block (ADR-0009 section 3, ADR-0011 section 2).
 		a.mesh = null
@@ -270,6 +294,30 @@ static func _read_transform_constraint(tc: Dictionary) -> Document.TransformCons
 	return c
 
 
+# A path constraint (ADR-0011 section 2, ADR-0013 PP-B6): the mode strings, the position/spacing/offset, and
+# the three mix channels. `target` names the SLOT carrying the path attachment. The mode strings pass through
+# verbatim (the solve keys on them); the referential checks are the TS validator's job (already run before a
+# rig is committed), so the reader only requires the consumed fields.
+static func _read_path_constraint(pc: Dictionary) -> Document.PathConstraint:
+	var c := Document.PathConstraint.new()
+	c.name = _req_string(pc, "name")
+	c.target = _req_string(pc, "target")
+	c.bones = _read_string_array(_req_array(pc, "bones"))
+	c.position_mode = _req_string(pc, "positionMode")
+	c.spacing_mode = _req_string(pc, "spacingMode")
+	c.rotate_mode = _req_string(pc, "rotateMode")
+	c.position = _req_number(pc, "position")
+	c.spacing = _req_number(pc, "spacing")
+	c.offset_rotation = _req_number(pc, "offsetRotation")
+	c.mix_rotate = _req_number(pc, "mixRotate")
+	c.mix_x = _req_number(pc, "mixX")
+	c.mix_y = _req_number(pc, "mixY")
+	# The explicit combined-set solve order (ADR-0011 section 2.3), or -1 when this constraint carries none.
+	var order_value = pc.get("order")
+	c.order = int(order_value) if _is_number(order_value) else -1
+	return c
+
+
 static func _read_animation(animation: Dictionary) -> Document.AnimationDef:
 	var a := Document.AnimationDef.new()
 	a.duration = _req_number(animation, "duration")
@@ -321,6 +369,26 @@ static func _read_animation(animation: Dictionary) -> Document.AnimationDef:
 				kf.mix_shear_y = _opt_number(value, "mixShearY")
 				frames.append(kf)
 			a.transform[tc_name] = frames
+
+	# The per-animation path timeline (ADR-0011 section 3, ADR-0013): keyframes { time, value, curve } where
+	# value is a PARTIAL record of position/spacing/mixRotate/mixX/mixY (any subset; absent == not keyed by
+	# this frame). Absent on a pre-0.5.0 rig, so it leaves the empty default.
+	var path_value = animation.get("path")
+	if path_value != null and typeof(path_value) == TYPE_DICTIONARY:
+		for pc_name in path_value:
+			var frames := []
+			for frame in path_value[pc_name]:
+				var value := _req_object(frame, "value")
+				var kf := Document.PathKeyframe.new()
+				kf.time = _req_number(frame, "time")
+				kf.curve = _read_curve(frame)
+				kf.position = _opt_number(value, "position")
+				kf.spacing = _opt_number(value, "spacing")
+				kf.mix_rotate = _opt_number(value, "mixRotate")
+				kf.mix_x = _opt_number(value, "mixX")
+				kf.mix_y = _opt_number(value, "mixY")
+				frames.append(kf)
+			a.path[pc_name] = frames
 
 	var deform_value = animation.get("deform")
 	if deform_value != null and typeof(deform_value) == TYPE_DICTIONARY:

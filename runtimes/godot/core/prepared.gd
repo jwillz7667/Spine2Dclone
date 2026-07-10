@@ -83,6 +83,19 @@ class PreparedTransformChannel:
 	var mix_shear_y = null
 
 
+# The timelines of one animated path constraint (ADR-0011 section 3, ADR-0013), resolved to the pose's
+# path-constraint index. Each channel is prepared from ONLY the keyframes that key it (the same absent-
+# channel semantics as the transform channel): a channel no keyframe keys is null and keeps the constraint
+# base. position/spacing are unbounded value tracks; the three mix channels are [0, 1] value tracks.
+class PreparedPathChannel:
+	var constraint_index: int
+	var position = null  # PreparedTrack or null
+	var spacing = null
+	var mix_rotate = null
+	var mix_x = null
+	var mix_y = null
+
+
 class PreparedDeformChannel:
 	var skin: String
 	var slot: String
@@ -123,6 +136,8 @@ class PreparedAnimation:
 	var slot_channels: Array = []  # Array[PreparedSlotChannels]
 	var ik_channels: Array = []  # Array[PreparedIkChannel]
 	var transform_channels: Array = []  # Array[PreparedTransformChannel]
+	# Array[PreparedPathChannel] (ADR-0011 section 3, ADR-0013), or empty when the animation keys no path.
+	var path_channels: Array = []
 	var deform_channels: Array = []  # Array[PreparedDeformChannel]
 	# The draw-order reorder timeline (ADR-0008), or null when this animation never reorders. Applied in
 	# step 2 as a discrete greater-weight-wins channel. Event firing is NOT part of PreparedAnimation (it

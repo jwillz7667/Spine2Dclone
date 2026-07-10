@@ -19,6 +19,8 @@ enum TransformMixChannel { MIX_ROTATE, MIX_X, MIX_Y, MIX_SCALE_X, MIX_SCALE_Y, M
 
 enum IkDepthChannel { STRETCH, COMPRESS }
 
+enum PathChannel { POSITION, SPACING, MIX_ROTATE, MIX_X, MIX_Y }
+
 
 # A cubic bezier coordinate at parameter s, expanded form (no fused multiply add reassociation, so other
 # runtimes match the operation order). P0 and P3 are the implicit easing endpoints (0 and 1).
@@ -337,6 +339,46 @@ static func _select_channel(frame, channel: int):
 			return frame.mix_scale_y
 		_:
 			return frame.mix_shear_y
+
+
+# One channel of a path-constraint timeline (ADR-0011 section 3, ADR-0013): position, spacing, mixRotate,
+# mixX, or mixY. Built from ONLY the keyframes that key it (the same absent-channel semantics as the
+# transform mix track), each interpolated by its own curve. Returns null when no keyframe keys the channel,
+# so step 2 holds the constraint's base value for it. Mirrors buildPathTrack in curve.ts.
+static func build_path_track(frames: Array, channel: int):
+	var present := []
+	for i in range(frames.size()):
+		if _select_path_channel(frames[i], channel) != null:
+			present.append(frames[i])
+	if present.size() == 0:
+		return null
+
+	var key_count := present.size()
+	var times := PackedFloat64Array()
+	times.resize(key_count)
+	var values := PackedFloat64Array()
+	values.resize(key_count)
+	var curves := []
+	for i in range(key_count):
+		times[i] = present[i].time
+		var v = _select_path_channel(present[i], channel)
+		values[i] = 0.0 if v == null else float(v)
+		curves.append(present[i].curve)
+	return _build_track(key_count, 1, times, curves, values)
+
+
+static func _select_path_channel(frame, channel: int):
+	match channel:
+		PathChannel.POSITION:
+			return frame.position
+		PathChannel.SPACING:
+			return frame.spacing
+		PathChannel.MIX_ROTATE:
+			return frame.mix_rotate
+		PathChannel.MIX_X:
+			return frame.mix_x
+		_:
+			return frame.mix_y
 
 
 static func build_deform_track(frames: Array) -> Prepared.PreparedTrack:

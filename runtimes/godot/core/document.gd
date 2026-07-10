@@ -109,6 +109,17 @@ class Attachment:
 	var point_x: float = 0.0
 	var point_y: float = 0.0
 	var point_rotation: float = 0.0
+	# Path attachment fields (ADR-0011 section 1, ADR-0013 PP-B6), present only when type == "path". A path
+	# is a piecewise cubic Bezier spline rail. `path_closed` selects a looped vs open spline; `path_constant_
+	# speed` selects arc-length reparametrization; `path_lengths` is the committed cumulative per-curve
+	# arc-length table; `path_vertices` is the SAME weighted/unweighted control-point stream a mesh uses
+	# (ADR-0002 codec, unweighted flat [x0, y0, ...] or the self-delimiting weighted stream); `path_bones`
+	# (present and non-empty means weighted) is the ascending referenced-bone manifest.
+	var path_closed: bool = false
+	var path_constant_speed: bool = false
+	var path_lengths = null  # PackedFloat64Array or null (type == "path")
+	var path_vertices = null  # PackedFloat64Array or null (type == "path")
+	var path_bones = null  # PackedInt32Array or null (weighted manifest; null/empty == unweighted)
 
 
 # Named SkinDef (not Skin) because Skin is a native Godot class.
@@ -162,6 +173,42 @@ class TransformConstraint:
 	var relative: bool = false
 	# The explicit combined-set solve order (ADR-0009 section 1.3), or -1 when this constraint carries none.
 	var order: int = -1
+
+
+# A path constraint (ADR-0011 section 2, ADR-0013 PP-B6): distributes and orients a non-empty list of
+# `bones` along the path attachment carried by the target SLOT (not a bone; a path lives on a slot). The
+# mode strings are closed enums (positionMode fixed/percent, spacingMode length/fixed/percent/proportional,
+# rotateMode tangent/chain/chainScale). position/spacing/offsetRotation are unbounded; mixRotate/mixX/mixY
+# are the three [0, 1] blend channels (a path constraint writes rotation and x/y translation only).
+class PathConstraint:
+	var name: String
+	var target: String  # the target SLOT name (the path lives on a slot)
+	var bones: PackedStringArray
+	var position_mode: String
+	var spacing_mode: String
+	var rotate_mode: String
+	var position: float
+	var spacing: float
+	var offset_rotation: float
+	var mix_rotate: float
+	var mix_x: float
+	var mix_y: float
+	# The explicit combined-set solve order (ADR-0011 section 2.3), or -1 when this constraint carries none.
+	var order: int = -1
+
+
+# A keyed path-constraint frame (ADR-0011 section 3, ADR-0013): a PARTIAL record of the path constraint's
+# animatable channels (position/spacing along the path, and the three mix blend factors). A frame MAY key
+# any subset; null == not keyed by this frame, so only the frames that key a channel drive its prepared
+# track (the constraint base holds otherwise), exactly like the transform keyframe channels.
+class PathKeyframe:
+	var time: float
+	var curve: TimelineCurve
+	var position = null
+	var spacing = null
+	var mix_rotate = null
+	var mix_x = null
+	var mix_y = null
 
 
 class ScalarKeyframe:
@@ -314,6 +361,9 @@ class AnimationDef:
 	var slots: Dictionary = {}  # slot name -> SlotTimelines
 	var ik: Dictionary = {}  # ik constraint name -> Array[IkKeyframe]
 	var transform: Dictionary = {}  # transform constraint name -> Array[TransformKeyframe]
+	# path constraint name -> Array[PathKeyframe] (ADR-0011 section 3, ADR-0013). Empty when the animation
+	# keys no path constraint; insertion order preserved (Dictionary), matching the TS Object.keys() walk.
+	var path: Dictionary = {}
 	var deform: Array = []  # Array[DeformEntry], nested skin/slot/attachment order preserved
 	var draw_order: Array = []  # Array[DrawOrderKeyframe], ascending time
 	var events: Array = []  # Array[EventKeyframe], non-decreasing time
@@ -325,6 +375,8 @@ class SkeletonDocument:
 	var skins: Array = []  # Array[Skin]
 	var ik_constraints: Array = []  # Array[IkConstraint]
 	var transform_constraints: Array = []  # Array[TransformConstraint]
+	# Array[PathConstraint] (ADR-0011 section 2.3, ADR-0013). Empty for a rig with no path constraints.
+	var path_constraints: Array = []
 	var events: Array = []  # Array[EventDef], the document-level event payload defaults
 	var animations: Dictionary = {}  # animation id -> Animation
 

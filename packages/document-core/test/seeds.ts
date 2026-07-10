@@ -509,6 +509,32 @@ export const seeds = {
   }),
 } as const;
 
+// A Stage F3 (0.5.0) seed carrying an UNWEIGHTED PATH attachment ('rail' on 'path_slot'), a straight
+// two-curve open spline along the x axis with hand-computed cumulative arc lengths [90, 180] (each straight,
+// evenly-spaced curve is 90 long). Target of the PP-D11 path attachment commands: MovePathControlPoint has
+// control points to drag, AddPathCurve/RemovePathCurve grow and shrink the spline (two curves so a remove
+// leaves a valid single curve), and SetPathClosed/SetPathConstantSpeed flip the flags. A path renders no
+// pixels, so it references no atlas region.
+export const pathedSeed = doc('pathed', [bone('root', null), bone('arm', 'root', { x: 50 })], {
+  slots: [slot('body', 'root'), slot('path_slot', 'arm', { attachment: 'rail' })],
+  skins: [
+    {
+      name: 'default',
+      attachments: {
+        path_slot: {
+          rail: {
+            type: 'path',
+            closed: false,
+            constantSpeed: true,
+            lengths: [90, 180],
+            vertices: [0, 0, 30, 0, 60, 0, 90, 0, 120, 0, 150, 0, 180, 0],
+          },
+        },
+      },
+    },
+  ],
+});
+
 export interface Seed {
   readonly id: string;
   readonly json: SkeletonDocument;
@@ -525,6 +551,7 @@ export const seedList: readonly Seed[] = [
   { id: 'rigged', json: seeds.rigged },
   { id: 'evented', json: seeds.evented },
   { id: 'linked', json: seeds.linked },
+  { id: 'pathed', json: pathedSeed },
 ];
 
 // A deterministic test environment: a controllable fake clock (so coalescing-window tests are

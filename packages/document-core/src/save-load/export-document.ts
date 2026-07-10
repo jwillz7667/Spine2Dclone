@@ -12,6 +12,7 @@ import type {
   Keyframe,
   LinkedMeshAttachment,
   MeshAttachment,
+  PathAttachment,
   RegionAttachment,
   Skin,
   SkeletonDocument,
@@ -103,6 +104,20 @@ function attachmentToFormat(att: AttachmentEntity): Attachment {
       color: att.color,
     };
     return linked;
+  }
+  if (att.kind === 'path') {
+    // Project the editable UNWEIGHTED path BACK to the format PathAttachment (ADR-0011 section 1), copying
+    // the control-point and arc-length arrays to fresh mutable arrays. The editable entity is unweighted,
+    // so no `bones` manifest is emitted; a weighted path never becomes an editable entity (it stays
+    // preserved and exports through the `att.value` fallthrough), so a loaded path exports deep-equal.
+    const path: PathAttachment = {
+      type: 'path',
+      closed: att.closed,
+      constantSpeed: att.constantSpeed,
+      lengths: [...att.lengths],
+      vertices: [...att.vertices],
+    };
+    return path;
   }
   return att.value;
 }

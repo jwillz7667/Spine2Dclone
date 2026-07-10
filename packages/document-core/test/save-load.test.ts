@@ -778,10 +778,17 @@ describe('Stage F3 (0.5.0) path carry through load and export', () => {
 
     const doc = loadDocument(original, makeTestEnv().env);
 
-    // The path attachment loads as a preserved attachment (document-core promotes only region/mesh/linked).
+    // The UNWEIGHTED path attachment is promoted to an editable path entity (PP-D11); its control points
+    // and recomputed-on-edit arc-length table are first-class, and it exports back deep-equal (below).
     const rail = doc.model.slots().find((s) => s.name === 'rail')!;
     const spline = doc.model.getAttachment(rail.id, 'spline');
-    expect(spline?.kind).toBe('preserved');
+    expect(spline?.kind).toBe('path');
+    if (spline?.kind === 'path') {
+      expect(spline.closed).toBe(false);
+      expect(spline.constantSpeed).toBe(true);
+      expect(spline.lengths).toEqual([100]);
+      expect(spline.vertices).toEqual([0, 0, 33, 0, 66, 0, 100, 0]);
+    }
     // The root path constraints and the per-animation path timeline are carried, not dropped.
     expect(doc.model.preserved().pathConstraints.map((c) => c.name)).toEqual(['pc1']);
     const glide = doc.model.animations().find((a) => a.name === 'glide')!;

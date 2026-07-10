@@ -176,15 +176,78 @@ export interface PreservedAttachmentEntity {
   readonly value: Attachment;
 }
 
+// A path attachment (Stage F3, ADR-0011 section 1) promoted to editable (PP-D11): a piecewise cubic Bezier
+// spline through the slot, used as a rail a path constraint distributes bones along. The EDITABLE entity
+// models the UNWEIGHTED control-point case (a flat [x0, y0, x1, y1, ...] stream, laid out anchor, handle,
+// handle, anchor, ... with consecutive curves sharing their touching anchor); a WEIGHTED path (a `bones`
+// manifest present) is carried verbatim as a PreservedAttachmentEntity until a weighted-path authoring
+// surface lands, exactly as an unweighted-only mesh promotion would. `lengths` is the cumulative arc-length
+// table (one entry per curve, non-decreasing) the command layer RECOMPUTES from the control points on every
+// edit (the format requires it and ADR-0011 assigns its computation to authoring; see paths/path-geometry).
+// A path renders no pixels, so it carries no atlas region, size, or color (like boundingbox).
+export interface PathAttachmentEntity {
+  readonly kind: 'path';
+  readonly name: string;
+  readonly closed: boolean;
+  readonly constantSpeed: boolean;
+  readonly lengths: readonly number[];
+  readonly vertices: readonly number[];
+}
+
+// The four fields a path control-point edit overwrites WHOLESALE (mirroring MeshGeometry): the geometry
+// (`vertices`), the derived arc-length table (`lengths`, recomputed on every edit), and the two flags
+// (`closed`/`constantSpeed`, which a flag command flips and a close/open edit changes alongside the vertex
+// stream). `name` is the stable identity and is preserved across an edit. Because the overwrite set is
+// exactly these four, a path-edit command's before memento is the full prior PathGeometry, which keeps the
+// do/undo round-trip bit-exact (command-history D3: capture exactly what you overwrite).
+export interface PathGeometry {
+  readonly closed: boolean;
+  readonly constantSpeed: boolean;
+  readonly lengths: readonly number[];
+  readonly vertices: readonly number[];
+}
+
+// Project a path attachment's current geometry into a PathGeometry value copy (the before memento source
+// and the base every path-edit command modifies). Arrays are sliced so the memento never aliases the live
+// entity.
+export function pathGeometryOf(path: PathAttachmentEntity): PathGeometry {
+  return {
+    closed: path.closed,
+    constantSpeed: path.constantSpeed,
+    lengths: path.lengths.slice(),
+    vertices: path.vertices.slice(),
+  };
+}
+
+// Construct an immutable, deep-frozen path attachment (PP-D11). Centralized so load, the command, and the
+// internal freeze build it the same way; the arrays are copied so the entity never aliases a caller's value.
+export function makePathAttachment(init: {
+  readonly name: string;
+  readonly closed: boolean;
+  readonly constantSpeed: boolean;
+  readonly lengths: readonly number[];
+  readonly vertices: readonly number[];
+}): PathAttachmentEntity {
+  return Object.freeze({
+    kind: 'path',
+    name: init.name,
+    closed: init.closed,
+    constantSpeed: init.constantSpeed,
+    lengths: Object.freeze(init.lengths.slice()),
+    vertices: Object.freeze(init.vertices.slice()),
+  });
+}
+
 // The default skin's attachments are the only ones promoted to editable. The discriminated union keeps
-// the editable region (RegionAttachmentEntity), mesh (MeshAttachmentEntity), and linked-mesh
-// (LinkedMeshAttachmentEntity) paths clean while still carrying the remaining attachment kinds losslessly
-// (PreservedAttachmentEntity). RemoveAttachment and the delete cascade operate on every kind uniformly; only
-// the authoring commands construct or edit the region, mesh, and linked-mesh variants.
+// the editable region (RegionAttachmentEntity), mesh (MeshAttachmentEntity), linked-mesh
+// (LinkedMeshAttachmentEntity), and path (PathAttachmentEntity) paths clean while still carrying the
+// remaining attachment kinds losslessly (PreservedAttachmentEntity). RemoveAttachment and the delete cascade
+// operate on every kind uniformly; only the authoring commands construct or edit the promoted variants.
 export type AttachmentEntity =
   | RegionAttachmentEntity
   | MeshAttachmentEntity
   | LinkedMeshAttachmentEntity
+  | PathAttachmentEntity
   | PreservedAttachmentEntity;
 
 // Construct an immutable, deep-frozen linked-mesh attachment (PP-D10). Centralized so load, the command, and

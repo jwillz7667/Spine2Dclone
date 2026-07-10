@@ -481,6 +481,23 @@ export class DrawOrderError extends Error {
   }
 }
 
+// A path attachment control-point edit (PP-D11) rejected BEFORE any mutation. The `reason` discriminant:
+//   - notFound: the target attachment is absent or is not an editable (unweighted) path attachment.
+//   - pointRange: a move targeted a control-point index outside the spline's control points.
+//   - minCurves: RemovePathCurve would leave fewer than one curve (a path needs at least one).
+export type PathErrorReason = 'notFound' | 'pointRange' | 'minCurves';
+
+export class PathError extends Error {
+  override readonly name = 'PathError';
+  readonly code = 'PATH' as const;
+  constructor(
+    readonly reason: PathErrorReason,
+    readonly detail?: string,
+  ) {
+    super(`path edit error (${reason})` + (detail === undefined ? '' : `: ${detail}`));
+  }
+}
+
 export type DocumentError =
   | CommandTargetMissingError
   | CommandNotAppliedError
@@ -499,4 +516,5 @@ export type DocumentError =
   | EffectsAtlasDanglingRegionError
   | SlotEditError
   | EventEditError
-  | DrawOrderError;
+  | DrawOrderError
+  | PathError;

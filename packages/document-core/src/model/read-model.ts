@@ -188,6 +188,15 @@ export type AttachmentSnapshot =
     }
   | {
       readonly slotId: string;
+      readonly kind: 'path';
+      readonly name: string;
+      readonly closed: boolean;
+      readonly constantSpeed: boolean;
+      readonly lengths: readonly number[];
+      readonly vertices: readonly number[];
+    }
+  | {
+      readonly slotId: string;
       readonly kind: 'preserved';
       readonly name: string;
       readonly value: Attachment;
@@ -548,6 +557,17 @@ export function attachmentToSnapshot(slotId: SlotId, att: AttachmentEntity): Att
       width: att.width,
       height: att.height,
       color: { ...att.color },
+    };
+  }
+  if (att.kind === 'path') {
+    return {
+      slotId,
+      kind: 'path',
+      name: att.name,
+      closed: att.closed,
+      constantSpeed: att.constantSpeed,
+      lengths: att.lengths.slice(),
+      vertices: att.vertices.slice(),
     };
   }
   return { slotId, kind: 'preserved', name: att.name, value: att.value };

@@ -27,6 +27,7 @@ import type {
   KeyframeEntity,
   MeshAttachmentEntity,
   MeshGeometry,
+  PathGeometry,
   PreservedContent,
   RegionAttachmentEntity,
   SkinEntity,
@@ -36,7 +37,12 @@ import type {
   TransformConstraintEntity,
   TransformKeyframeEntity,
 } from './doc-state';
-import { cloneMetadata, isBoneTimelineSetEmpty, isSlotTimelineSetEmpty } from './doc-state';
+import {
+  cloneMetadata,
+  isBoneTimelineSetEmpty,
+  isSlotTimelineSetEmpty,
+  makePathAttachment,
+} from './doc-state';
 import type { SlotSceneState } from './slot-scene';
 import {
   cloneFeatureFlowGraph,
@@ -167,6 +173,9 @@ function freezeAttachment(att: AttachmentEntity): AttachmentEntity {
       height: att.height,
       color: Object.freeze({ ...att.color }),
     });
+  }
+  if (att.kind === 'path') {
+    return makePathAttachment(att);
   }
   return Object.freeze({ ...att });
 }
@@ -1202,6 +1211,35 @@ export class DocumentModelInternal implements DocumentReadModel {
       // stable non-geometry field and survives, like path/width/height/color.
       ...(current.sequence !== undefined ? { sequence: current.sequence } : {}),
     };
+    if (this.batching) {
+      inner0.set(name, updated);
+    } else {
+      const next = new Map(this.attachmentsMap);
+      const inner = new Map(inner0);
+      inner.set(name, updated);
+      next.set(slotId, inner);
+      this.attachmentsMap = next;
+    }
+    this.revisionValue += 1;
+  }
+
+  // setPathGeometry replaces a PATH attachment's four editable fields (closed/constantSpeed/lengths/
+  // vertices) WHOLESALE, preserving its `name` identity (PP-D11). It is the one write path for every
+  // path control-point / flag command; the arc-length `lengths` table is recomputed by the command layer
+  // before the call (authoring owns it, ADR-0011). A wrong or missing target is a no-op (commands assert
+  // kind 'path' before writing). Arrays are sliced so the stored entity never aliases the command memento.
+  setPathGeometry(slotId: SlotId, name: string, geometry: PathGeometry): void {
+    const inner0 = this.attachmentsMap.get(slotId);
+    if (!inner0) return;
+    const current = inner0.get(name);
+    if (!current || current.kind !== 'path') return;
+    const updated = makePathAttachment({
+      name: current.name,
+      closed: geometry.closed,
+      constantSpeed: geometry.constantSpeed,
+      lengths: geometry.lengths,
+      vertices: geometry.vertices,
+    });
     if (this.batching) {
       inner0.set(name, updated);
     } else {

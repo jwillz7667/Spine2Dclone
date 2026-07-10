@@ -44,6 +44,7 @@ import {
   makeIkKeyframe,
   makeKeyframe,
   makeLinkedMeshAttachment,
+  makePathAttachment,
   makeSequenceKeyframe,
   makeTransformKeyframe,
 } from '../model/doc-state';
@@ -145,6 +146,20 @@ function attachmentToEntity(attachmentName: string, attachment: Attachment): Att
       width: attachment.width,
       height: attachment.height,
       color: attachment.color,
+    });
+  }
+  if (attachment.type === 'path' && attachment.bones === undefined) {
+    // Stage F3 (ADR-0011 section 1) UNWEIGHTED path attachments are promoted to editable (PP-D11). The
+    // control points ride as a flat [x, y, ...] stream and the arc-length `lengths` table is carried as
+    // authored (the command layer recomputes it on every edit). A WEIGHTED path (a `bones` manifest
+    // present) has no editing surface yet, so it falls through to the preserved carrier below and
+    // round-trips verbatim, exactly like the unweighted-only mesh-promotion convention.
+    return makePathAttachment({
+      name: attachmentName,
+      closed: attachment.closed,
+      constantSpeed: attachment.constantSpeed,
+      lengths: attachment.lengths.slice(),
+      vertices: attachment.vertices.slice(),
     });
   }
   return { kind: 'preserved', name: attachmentName, value: attachment };

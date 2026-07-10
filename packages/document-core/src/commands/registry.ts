@@ -2,6 +2,12 @@ import { addBoneToMeshBindingSpec } from './add-bone-to-mesh-binding.command';
 import { addMeshVertexSpec } from './add-mesh-vertex.command';
 import { clearAttachmentDeformSpec } from './clear-attachment-deform.command';
 import { createIkConstraintSpec } from './create-ik-constraint.command';
+import { createPathAttachmentSpec } from './create-path-attachment.command';
+import { movePathControlPointSpec } from './move-path-control-point.command';
+import { addPathCurveSpec } from './add-path-curve.command';
+import { removePathCurveSpec } from './remove-path-curve.command';
+import { setPathClosedSpec } from './set-path-closed.command';
+import { setPathConstantSpeedSpec } from './set-path-constant-speed.command';
 import { createSkinSpec } from './create-skin.command';
 import { createTransformConstraintSpec } from './create-transform-constraint.command';
 import { deleteDeformKeyframeSpec } from './delete-deform-keyframe.command';
@@ -238,4 +244,11 @@ export const commandRegistry: readonly CommandSpec[] = [
   deleteDrawOrderKeySpec,
   // Stage F1 (PP-D9) document metadata authoring
   setDocumentMetadataSpec,
+  // Stage F3 (PP-D11) path attachment authoring
+  createPathAttachmentSpec,
+  movePathControlPointSpec,
+  addPathCurveSpec,
+  removePathCurveSpec,
+  setPathClosedSpec,
+  setPathConstantSpeedSpec,
 ];

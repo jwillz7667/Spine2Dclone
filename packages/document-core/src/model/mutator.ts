@@ -24,6 +24,7 @@ import type {
   IkKeyframeEntity,
   KeyframeEntity,
   MeshGeometry,
+  PathGeometry,
   RegionAttachmentEntity,
   SkinEntity,
   SequenceKeyframeEntity,
@@ -70,6 +71,7 @@ export interface Mutator extends DocumentReadModel {
     patch: Partial<Omit<RegionAttachmentEntity, 'kind' | 'name'>>,
   ): void;
   setMeshGeometry(slotId: SlotId, name: string, geometry: MeshGeometry): void;
+  setPathGeometry(slotId: SlotId, name: string, geometry: PathGeometry): void;
   setAttachmentSequence(slotId: SlotId, name: string, sequence: Sequence | undefined): void;
   insertAnimation(entity: AnimationEntity): void;
   removeAnimation(id: AnimationId): void;
@@ -211,6 +213,7 @@ export function createMutator(model: DocumentModelInternal): Mutator {
     removeAttachment: (slotId, name) => model.removeAttachment(slotId, name),
     patchAttachment: (slotId, name, patch) => model.patchAttachment(slotId, name, patch),
     setMeshGeometry: (slotId, name, geometry) => model.setMeshGeometry(slotId, name, geometry),
+    setPathGeometry: (slotId, name, geometry) => model.setPathGeometry(slotId, name, geometry),
     setAttachmentSequence: (slotId, name, sequence) =>
       model.setAttachmentSequence(slotId, name, sequence),
     insertAnimation: (entity) => model.insertAnimation(entity),

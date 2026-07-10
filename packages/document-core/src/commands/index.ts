@@ -259,6 +259,29 @@ export {
   SetDocumentMetadataCommand,
   setDocumentMetadataSpec,
 } from './set-document-metadata.command';
+// Stage F3 (PP-D11) path attachment authoring
+export {
+  CreatePathAttachmentCommand,
+  createPathAttachmentSpec,
+} from './create-path-attachment.command';
+export type { PathAttachmentInit } from './create-path-attachment.command';
+export {
+  MovePathControlPointCommand,
+  movePathControlPointSpec,
+} from './move-path-control-point.command';
+export { AddPathCurveCommand, addPathCurveSpec } from './add-path-curve.command';
+export { RemovePathCurveCommand, removePathCurveSpec } from './remove-path-curve.command';
+export { SetPathClosedCommand, setPathClosedSpec } from './set-path-closed.command';
+export {
+  SetPathConstantSpeedCommand,
+  setPathConstantSpeedSpec,
+} from './set-path-constant-speed.command';
+export {
+  requirePath,
+  defaultOpenPathVertices,
+  curveCountOf,
+  controlPointCount,
+} from './path-support';
 export { sortEventKeysByTime } from './event-support';
 export { assertConsistentDrawOrder, sortDrawOrderKeysByTime } from './draw-order-support';
 export {

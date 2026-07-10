@@ -39,6 +39,7 @@ export {
   SlotEditError,
   EventEditError,
   DrawOrderError,
+  PathError,
 } from './command/errors';
 export type {
   DocumentError,
@@ -54,6 +55,7 @@ export type {
   SlotEditErrorReason,
   EventEditErrorReason,
   DrawOrderErrorReason,
+  PathErrorReason,
 } from './command/errors';
 
 // Model (read surface + value types; the write surface stays private)
@@ -63,9 +65,11 @@ export type {
   RegionAttachmentEntity,
   MeshAttachmentEntity,
   LinkedMeshAttachmentEntity,
+  PathAttachmentEntity,
   PreservedAttachmentEntity,
   AttachmentEntity,
   MeshGeometry,
+  PathGeometry,
   AnimationEntity,
   BoneChannel,
   BoneJointChannel,
@@ -100,6 +104,8 @@ export type {
 export {
   emptyPreservedContent,
   meshGeometryOf,
+  pathGeometryOf,
+  makePathAttachment,
   newDocState,
   makeKeyframe,
   makeIkKeyframe,
@@ -358,6 +364,16 @@ export {
   MoveDrawOrderKeyCommand,
   DeleteDrawOrderKeyCommand,
   SetDocumentMetadataCommand,
+  CreatePathAttachmentCommand,
+  MovePathControlPointCommand,
+  AddPathCurveCommand,
+  RemovePathCurveCommand,
+  SetPathClosedCommand,
+  SetPathConstantSpeedCommand,
+  requirePath,
+  defaultOpenPathVertices,
+  curveCountOf,
+  controlPointCount,
   sortEventKeysByTime,
   sortDrawOrderKeysByTime,
   assertConsistentDrawOrder,
@@ -376,6 +392,7 @@ export type {
   BoneGeometry,
   SlotInit,
   RegionAttachmentInit,
+  PathAttachmentInit,
   LinkedMeshInit,
   RegionTransform,
   KeyframeTarget,

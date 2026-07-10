@@ -224,6 +224,37 @@ namespace Marionette.Runtime.Core.Document
         }
     }
 
+    // A path attachment (ADR-0011 section 1, ADR-0013, PP-B6): a piecewise cubic Bezier spline through the
+    // slot, used as a rail a path constraint distributes bones along. Its control points use the SAME
+    // weighted/unweighted vertex encoding as a mesh (ADR-0002; Bones present and non-empty means weighted).
+    // Lengths is the committed CUMULATIVE arc length to the END of each curve; Closed selects a looped vs open
+    // spline; ConstantSpeed selects arc-length reparametrization. A path renders no pixels; the solve reads
+    // only the geometry. Mirrors PathAttachment in @marionette/format.
+    public sealed class PathAttachment
+    {
+        public bool Closed { get; }
+        public bool ConstantSpeed { get; }
+        public double[] Lengths { get; }
+
+        // The self-delimiting control-point stream (ADR-0002). Unweighted: a flat [x0, y0, ...] setup stream.
+        // Weighted: each logical control point starts with its influence count, then [globalBoneIndex, vx, vy,
+        // weight] per influence.
+        public double[] Vertices { get; }
+
+        // Present (and non-empty) marks the path weighted; the values are unused by the solve (the vertex
+        // stream carries global bone indices directly), so this is only the weighted flag.
+        public int[]? Bones { get; }
+
+        public PathAttachment(bool closed, bool constantSpeed, double[] lengths, double[] vertices, int[]? bones)
+        {
+            Closed = closed;
+            ConstantSpeed = constantSpeed;
+            Lengths = lengths;
+            Vertices = vertices;
+            Bones = bones;
+        }
+    }
+
     public sealed class Attachment
     {
         public string Type { get; }
@@ -241,6 +272,9 @@ namespace Marionette.Runtime.Core.Document
         public BoundingBoxAttachment? BoundingBox { get; }
         public PointAttachment? Point { get; }
 
+        // The path spline payload (ADR-0011 section 1, ADR-0013), present only for Type "path", null otherwise.
+        public PathAttachment? Path { get; }
+
         public Attachment(
             string type,
             MeshAttachment? mesh,
@@ -248,7 +282,8 @@ namespace Marionette.Runtime.Core.Document
             SequenceBlock? sequence,
             ClippingAttachment? clipping,
             BoundingBoxAttachment? boundingBox,
-            PointAttachment? point)
+            PointAttachment? point,
+            PathAttachment? path)
         {
             Type = type;
             Mesh = mesh;
@@ -257,6 +292,7 @@ namespace Marionette.Runtime.Core.Document
             Clipping = clipping;
             BoundingBox = boundingBox;
             Point = point;
+            Path = path;
         }
     }
 
@@ -393,6 +429,87 @@ namespace Marionette.Runtime.Core.Document
             OffsetShearY = offsetShearY;
             Local = local;
             Relative = relative;
+            Order = order;
+        }
+    }
+
+    // The path-constraint mode enums (ADR-0011 section 2, ADR-0013, PP-B6). Closed enums, so an unknown mode
+    // string is a rig-read error (RigReader.ParsePath*Mode), never a silent default. PositionMode reads
+    // `position` as an absolute arc length (Fixed) or a [0, 1] fraction of total length (Percent). SpacingMode
+    // distributes bones by their setup Length, a Fixed arc gap, a Percent fraction of total length, or a
+    // Proportional stretch-to-fit. RotateMode orients each bone along the path Tangent, toward the next bone
+    // (Chain), or Chain plus a length-preserving scaleX (ChainScale). Mirrors the pathPositionMode /
+    // pathSpacingMode / pathRotateMode enums in @marionette/format.
+    public enum PathPositionMode
+    {
+        Fixed,
+        Percent,
+    }
+
+    public enum PathSpacingMode
+    {
+        Length,
+        Fixed,
+        Percent,
+        Proportional,
+    }
+
+    public enum PathRotateMode
+    {
+        Tangent,
+        Chain,
+        ChainScale,
+    }
+
+    // A path constraint (ADR-0011 section 2, ADR-0013, PP-B6): distributes and orients a non-empty list of
+    // Bones along the path attachment carried by the Target SLOT (not a bone; a path lives on a slot).
+    // Position/Spacing/OffsetRotation are unbounded finite values whose meaning depends on the modes;
+    // MixRotate/MixX/MixY are the three blend channels (a path constraint writes rotation and x/y translation
+    // only). Order is the explicit combined-set solve order (ADR-0011 section 2.3), or -1 when none is carried.
+    // Mirrors PathConstraint in @marionette/format.
+    public sealed class PathConstraint
+    {
+        public string Name { get; }
+        public string Target { get; }
+        public IReadOnlyList<string> Bones { get; }
+        public PathPositionMode PositionMode { get; }
+        public PathSpacingMode SpacingMode { get; }
+        public PathRotateMode RotateMode { get; }
+        public double Position { get; }
+        public double Spacing { get; }
+        public double OffsetRotation { get; }
+        public double MixRotate { get; }
+        public double MixX { get; }
+        public double MixY { get; }
+        public int Order { get; }
+
+        public PathConstraint(
+            string name,
+            string target,
+            IReadOnlyList<string> bones,
+            PathPositionMode positionMode,
+            PathSpacingMode spacingMode,
+            PathRotateMode rotateMode,
+            double position,
+            double spacing,
+            double offsetRotation,
+            double mixRotate,
+            double mixX,
+            double mixY,
+            int order)
+        {
+            Name = name;
+            Target = target;
+            Bones = bones;
+            PositionMode = positionMode;
+            SpacingMode = spacingMode;
+            RotateMode = rotateMode;
+            Position = position;
+            Spacing = spacing;
+            OffsetRotation = offsetRotation;
+            MixRotate = mixRotate;
+            MixX = mixX;
+            MixY = mixY;
             Order = order;
         }
     }
@@ -572,6 +689,39 @@ namespace Marionette.Runtime.Core.Document
             MixScaleX = mixScaleX;
             MixScaleY = mixScaleY;
             MixShearY = mixShearY;
+        }
+    }
+
+    // A keyed path-constraint frame (ADR-0011 section 3, ADR-0013): a PARTIAL record of the path constraint's
+    // animatable channels (base Position and Spacing along the path, and the three mix blend factors). A frame
+    // MAY key any subset; a null channel is absent from that keyframe (the track build drops it so the
+    // constraint base holds). Mirrors PathFrame in @marionette/format.
+    public sealed class PathKeyframe
+    {
+        public double Time { get; }
+        public Curve Curve { get; }
+        public double? Position { get; }
+        public double? Spacing { get; }
+        public double? MixRotate { get; }
+        public double? MixX { get; }
+        public double? MixY { get; }
+
+        public PathKeyframe(
+            double time,
+            Curve curve,
+            double? position,
+            double? spacing,
+            double? mixRotate,
+            double? mixX,
+            double? mixY)
+        {
+            Time = time;
+            Curve = curve;
+            Position = position;
+            Spacing = spacing;
+            MixRotate = mixRotate;
+            MixX = mixX;
+            MixY = mixY;
         }
     }
 
@@ -757,6 +907,10 @@ namespace Marionette.Runtime.Core.Document
         public IReadOnlyList<KeyValuePair<string, SlotTimelines>> Slots { get; }
         public IReadOnlyList<KeyValuePair<string, IReadOnlyList<IkKeyframe>>> Ik { get; }
         public IReadOnlyList<KeyValuePair<string, IReadOnlyList<TransformKeyframe>>> Transform { get; }
+
+        // Path-constraint timelines (ADR-0011 section 3, ADR-0013), keyed by constraint name in insertion
+        // order. Empty when the animation keys no path constraint. Mirrors Animation.path in @marionette/format.
+        public IReadOnlyList<KeyValuePair<string, IReadOnlyList<PathKeyframe>>> Path { get; }
         public IReadOnlyList<DeformEntry> Deform { get; }
         public IReadOnlyList<DrawOrderKeyframe> DrawOrder { get; }
         public IReadOnlyList<EventKeyframe> Events { get; }
@@ -767,6 +921,7 @@ namespace Marionette.Runtime.Core.Document
             IReadOnlyList<KeyValuePair<string, SlotTimelines>> slots,
             IReadOnlyList<KeyValuePair<string, IReadOnlyList<IkKeyframe>>> ik,
             IReadOnlyList<KeyValuePair<string, IReadOnlyList<TransformKeyframe>>> transform,
+            IReadOnlyList<KeyValuePair<string, IReadOnlyList<PathKeyframe>>> path,
             IReadOnlyList<DeformEntry> deform,
             IReadOnlyList<DrawOrderKeyframe> drawOrder,
             IReadOnlyList<EventKeyframe> events)
@@ -776,6 +931,7 @@ namespace Marionette.Runtime.Core.Document
             Slots = slots;
             Ik = ik;
             Transform = transform;
+            Path = path;
             Deform = deform;
             DrawOrder = drawOrder;
             Events = events;
@@ -789,6 +945,10 @@ namespace Marionette.Runtime.Core.Document
         public IReadOnlyList<Skin> Skins { get; }
         public IReadOnlyList<IkConstraint> IkConstraints { get; }
         public IReadOnlyList<TransformConstraint> TransformConstraints { get; }
+
+        // The document's path constraints (ADR-0011 section 2, ADR-0013), in document array order. Empty for a
+        // rig with none. Mirrors SkeletonDocument.pathConstraints in @marionette/format.
+        public IReadOnlyList<PathConstraint> PathConstraints { get; }
         public IReadOnlyList<EventDef> Events { get; }
         public IReadOnlyList<KeyValuePair<string, Animation>> Animations { get; }
 
@@ -798,6 +958,7 @@ namespace Marionette.Runtime.Core.Document
             IReadOnlyList<Skin> skins,
             IReadOnlyList<IkConstraint> ikConstraints,
             IReadOnlyList<TransformConstraint> transformConstraints,
+            IReadOnlyList<PathConstraint> pathConstraints,
             IReadOnlyList<EventDef> events,
             IReadOnlyList<KeyValuePair<string, Animation>> animations)
         {
@@ -806,6 +967,7 @@ namespace Marionette.Runtime.Core.Document
             Skins = skins;
             IkConstraints = ikConstraints;
             TransformConstraints = transformConstraints;
+            PathConstraints = pathConstraints;
             Events = events;
             Animations = animations;
         }

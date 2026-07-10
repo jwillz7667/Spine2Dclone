@@ -199,6 +199,36 @@ namespace Marionette.Runtime.Core.Skeleton
         }
     }
 
+    // The timelines of one animated path constraint (ADR-0011 section 3, ADR-0013), resolved to the pose's
+    // path-constraint index (mirrors PreparedPathChannel in prepared.ts). Each channel is prepared from ONLY
+    // the keyframes that key it: a channel no keyframe keys is null and keeps the constraint base. Position and
+    // Spacing are unbounded value tracks; the three mix channels are [0, 1] value tracks.
+    public sealed class PreparedPathChannel
+    {
+        public int ConstraintIndex { get; }
+        public PreparedTrack? Position { get; }
+        public PreparedTrack? Spacing { get; }
+        public PreparedTrack? MixRotate { get; }
+        public PreparedTrack? MixX { get; }
+        public PreparedTrack? MixY { get; }
+
+        public PreparedPathChannel(
+            int constraintIndex,
+            PreparedTrack? position,
+            PreparedTrack? spacing,
+            PreparedTrack? mixRotate,
+            PreparedTrack? mixX,
+            PreparedTrack? mixY)
+        {
+            ConstraintIndex = constraintIndex;
+            Position = position;
+            Spacing = spacing;
+            MixRotate = mixRotate;
+            MixX = mixX;
+            MixY = mixY;
+        }
+    }
+
     public sealed class PreparedDeformChannel
     {
         public string Skin { get; }
@@ -276,6 +306,9 @@ namespace Marionette.Runtime.Core.Skeleton
         public IReadOnlyList<PreparedSlotChannels> SlotChannels { get; }
         public IReadOnlyList<PreparedIkChannel> IkChannels { get; }
         public IReadOnlyList<PreparedTransformChannel> TransformChannels { get; }
+
+        // The path-constraint timelines (ADR-0011 section 3, ADR-0013), empty when the animation keys none.
+        public IReadOnlyList<PreparedPathChannel> PathChannels { get; }
         public IReadOnlyList<PreparedDeformChannel> DeformChannels { get; }
 
         // The draw-order reorder timeline, or null when this animation never reorders (PP-B4).
@@ -286,6 +319,7 @@ namespace Marionette.Runtime.Core.Skeleton
             IReadOnlyList<PreparedSlotChannels> slotChannels,
             IReadOnlyList<PreparedIkChannel> ikChannels,
             IReadOnlyList<PreparedTransformChannel> transformChannels,
+            IReadOnlyList<PreparedPathChannel> pathChannels,
             IReadOnlyList<PreparedDeformChannel> deformChannels,
             PreparedDrawOrderTimeline? drawOrder)
         {
@@ -293,6 +327,7 @@ namespace Marionette.Runtime.Core.Skeleton
             SlotChannels = slotChannels;
             IkChannels = ikChannels;
             TransformChannels = transformChannels;
+            PathChannels = pathChannels;
             DeformChannels = deformChannels;
             DrawOrder = drawOrder;
         }

@@ -384,6 +384,65 @@ namespace Marionette.Runtime.Core.Skeleton
             }
         }
 
+        public enum PathChannel
+        {
+            Position,
+            Spacing,
+            MixRotate,
+            MixX,
+            MixY,
+        }
+
+        // One channel of a path-constraint timeline, built from ONLY the keyframes that key it (ADR-0011 section
+        // 3, ADR-0013). A channel no keyframe keys yields null, and step 2 then holds the constraint's base
+        // value for it. Mirrors buildPathTrack in curve.ts.
+        public static PreparedTrack? BuildPathTrack(IReadOnlyList<PathKeyframe> frames, PathChannel channel)
+        {
+            var present = new List<PathKeyframe>();
+            for (int i = 0; i < frames.Count; i += 1)
+            {
+                if (SelectPathChannel(frames[i], channel) != null)
+                {
+                    present.Add(frames[i]);
+                }
+            }
+
+            if (present.Count == 0)
+            {
+                return null;
+            }
+
+            int keyCount = present.Count;
+            var times = new double[keyCount];
+            var values = new double[keyCount];
+            var curves = new Curve[keyCount];
+            for (int i = 0; i < keyCount; i += 1)
+            {
+                times[i] = present[i].Time;
+                values[i] = SelectPathChannel(present[i], channel) ?? 0;
+                curves[i] = present[i].Curve;
+            }
+
+            return BuildTrack(keyCount, 1, times, curves, values);
+        }
+
+        private static double? SelectPathChannel(PathKeyframe frame, PathChannel channel)
+        {
+            switch (channel)
+            {
+                case PathChannel.Position:
+                    return frame.Position;
+                case PathChannel.Spacing:
+                    return frame.Spacing;
+                case PathChannel.MixRotate:
+                    return frame.MixRotate;
+                case PathChannel.MixX:
+                    return frame.MixX;
+                default:
+                    return frame.MixY;
+            }
+        }
+
         public static PreparedTrack BuildDeformTrack(IReadOnlyList<DeformKeyframe> frames)
         {
             int componentCount = frames.Count > 0 ? frames[0].Offsets.Length : 0;

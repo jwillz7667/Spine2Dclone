@@ -160,15 +160,17 @@ namespace Marionette.Runtime.Core.Skeleton
         private static double BlendAddRotation(double current, double setupValue, double sampled, double w) =>
             current + (NormalizeDeltaDeg(sampled - setupValue) * w);
 
-        // Solve step 3 (ADR-0003 section 3, ordering per ADR-0009 section 1.3 / ADR-0010 section 1). Default
-        // (pose.SolveOrder null): all IK constraints in document order, then all transform constraints in
-        // document order, the exact ADR-0003 two-phase path. When the rig assigns an explicit order,
-        // pose.SolveOrder is the precomputed dense schedule and step 3 walks it, dispatching each code to the
-        // SAME per-constraint helper the default path uses (so an IK constraint is bit-identical either way).
+        // Solve step 3 (ADR-0003 section 3, ordering per ADR-0009 section 1.3 / ADR-0010 section 1 / ADR-0011
+        // section 2.3). Default (pose.SolveOrder null): all IK constraints, then all transform constraints, then
+        // all PATH constraints, each in document order. When the rig assigns an explicit order, pose.SolveOrder
+        // is the precomputed dense schedule spanning all three arrays and step 3 walks it, dispatching each code
+        // to the SAME per-constraint helper the default path uses (so a constraint is bit-identical either way;
+        // only the schedule moves).
         public static void SolveConstraints(Pose pose, string? activeSkin = null)
         {
             IReadOnlyList<ResolvedIkConstraint> ikConstraints = pose.IkConstraints;
             IReadOnlyList<ResolvedTransformConstraint> transformConstraints = pose.TransformConstraints;
+            IReadOnlyList<ResolvedPathConstraint> pathConstraints = pose.PathConstraints;
             int[]? solveOrder = pose.SolveOrder;
 
             if (solveOrder == null)
@@ -183,10 +185,17 @@ namespace Marionette.Runtime.Core.Skeleton
                     SolveOneTransformConstraint(pose, transformConstraints[i], activeSkin);
                 }
 
+                for (int i = 0; i < pathConstraints.Count; i += 1)
+                {
+                    SolveOnePathConstraint(pose, pathConstraints[i], activeSkin);
+                }
+
                 return;
             }
 
             int ikCount = ikConstraints.Count;
+            int transformCount = transformConstraints.Count;
+            int pathBase = ikCount + transformCount;
             for (int p = 0; p < solveOrder.Length; p += 1)
             {
                 int code = solveOrder[p];
@@ -194,9 +203,13 @@ namespace Marionette.Runtime.Core.Skeleton
                 {
                     SolveOneIkConstraint(pose, ikConstraints[code], activeSkin);
                 }
-                else
+                else if (code < pathBase)
                 {
                     SolveOneTransformConstraint(pose, transformConstraints[code - ikCount], activeSkin);
+                }
+                else
+                {
+                    SolveOnePathConstraint(pose, pathConstraints[code - pathBase], activeSkin);
                 }
             }
         }
@@ -333,6 +346,20 @@ namespace Marionette.Runtime.Core.Skeleton
             }
         }
 
+        // Solve one path constraint against the pose (ADR-0013, PP-B6). A skin-scoped constraint whose skin is
+        // inactive is skipped; otherwise the constraint distributes and orients its bones along the target path.
+        // The per-constraint sampled scratch (position, spacing, mix*) was written by step 2 (else reset to
+        // base). Mirrors solveOnePathConstraint in sample.ts.
+        private static void SolveOnePathConstraint(Pose pose, ResolvedPathConstraint constraint, string? activeSkin)
+        {
+            if (!IsConstraintScopeActive(constraint.ScopeSkins, activeSkin))
+            {
+                return;
+            }
+
+            PathConstraintSolve.Solve(pose, constraint);
+        }
+
         public static void ResetConstraintsToBase(Pose pose)
         {
             IReadOnlyList<ResolvedIkConstraint> ikConstraints = pose.IkConstraints;
@@ -351,6 +378,19 @@ namespace Marionette.Runtime.Core.Skeleton
             {
                 ResolvedTransformConstraint constraint = transformConstraints[i];
                 constraint.SampledMix.CopyFrom(constraint.BaseMix);
+            }
+
+            // Path constraints (ADR-0013): reset the sampled position/spacing/mix* to the definition base; step
+            // 2's path timeline then overlays any keyed channel, and an unkeyed channel keeps its base.
+            IReadOnlyList<ResolvedPathConstraint> pathConstraints = pose.PathConstraints;
+            for (int i = 0; i < pathConstraints.Count; i += 1)
+            {
+                ResolvedPathConstraint constraint = pathConstraints[i];
+                constraint.SampledPosition = constraint.BasePosition;
+                constraint.SampledSpacing = constraint.BaseSpacing;
+                constraint.SampledMixRotate = constraint.BaseMixRotate;
+                constraint.SampledMixX = constraint.BaseMixX;
+                constraint.SampledMixY = constraint.BaseMixY;
             }
         }
 
@@ -675,8 +715,10 @@ namespace Marionette.Runtime.Core.Skeleton
         {
             IReadOnlyList<PreparedIkChannel> ikChannels = prepared.IkChannels;
             IReadOnlyList<PreparedTransformChannel> transformChannels = prepared.TransformChannels;
+            IReadOnlyList<PreparedPathChannel> pathChannels = prepared.PathChannels;
             IReadOnlyList<ResolvedIkConstraint> ikConstraints = pose.IkConstraints;
             IReadOnlyList<ResolvedTransformConstraint> transformConstraints = pose.TransformConstraints;
+            IReadOnlyList<ResolvedPathConstraint> pathConstraints = pose.PathConstraints;
             double[] ikBendWinWeight = pose.IkBendWinWeight;
             double[] ikStretchWinWeight = pose.IkStretchWinWeight;
             double[] ikCompressWinWeight = pose.IkCompressWinWeight;
@@ -773,6 +815,68 @@ namespace Marionette.Runtime.Core.Skeleton
                     mix.ShearY = BlendMix(mix.ShearY, baseMix.ShearY, channel.MixShearY, t, alpha, additive);
                 }
             }
+
+            // Path constraints (ADR-0011 section 3, ADR-0013): each channel is a continuous interpolated scalar
+            // blended toward its keyed value by alpha (additive adds the delta from the constraint base), exactly
+            // like the transform mix channels. position/spacing are unbounded; the mix channels are [0, 1] by the
+            // format, so no extra clamp is applied here.
+            for (int c = 0; c < pathChannels.Count; c += 1)
+            {
+                PreparedPathChannel channel = pathChannels[c];
+                int index = channel.ConstraintIndex;
+                if (index < 0)
+                {
+                    continue;
+                }
+
+                ResolvedPathConstraint constraint = pathConstraints[index];
+                if (channel.Position != null)
+                {
+                    constraint.SampledPosition = BlendPathScalar(
+                        constraint.SampledPosition, constraint.BasePosition, channel.Position, t, alpha, additive);
+                }
+
+                if (channel.Spacing != null)
+                {
+                    constraint.SampledSpacing = BlendPathScalar(
+                        constraint.SampledSpacing, constraint.BaseSpacing, channel.Spacing, t, alpha, additive);
+                }
+
+                if (channel.MixRotate != null)
+                {
+                    constraint.SampledMixRotate = BlendPathScalar(
+                        constraint.SampledMixRotate, constraint.BaseMixRotate, channel.MixRotate, t, alpha, additive);
+                }
+
+                if (channel.MixX != null)
+                {
+                    constraint.SampledMixX = BlendPathScalar(
+                        constraint.SampledMixX, constraint.BaseMixX, channel.MixX, t, alpha, additive);
+                }
+
+                if (channel.MixY != null)
+                {
+                    constraint.SampledMixY = BlendPathScalar(
+                        constraint.SampledMixY, constraint.BaseMixY, channel.MixY, t, alpha, additive);
+                }
+            }
+        }
+
+        // Blend one path-constraint sampled scalar toward its keyed value by alpha (additive adds the delta from
+        // the constraint's base value), the same rule as the transform mix channels. Mirrors blendPathScalar in
+        // sample.ts. The caller guards on a non-null track (a null channel leaves the running value).
+        private static double BlendPathScalar(
+            double current,
+            double baseValue,
+            PreparedTrack track,
+            double t,
+            double alpha,
+            bool additive)
+        {
+            double value = SampleScalarTrack(track, t);
+            return additive
+                ? BlendAddLinear(current, baseValue, value, alpha)
+                : BlendReplaceLinear(current, value, alpha);
         }
 
         private static double BlendMix(
@@ -880,6 +984,28 @@ namespace Marionette.Runtime.Core.Skeleton
                     Curves.BuildTransformMixTrack(frames, Curves.TransformMixChannel.MixShearY)));
             }
 
+            // Path-constraint timelines (ADR-0011 section 3, ADR-0013): each channel is prepared from only the
+            // frames that key it (an all-absent channel is null and holds the constraint base). Mirrors the
+            // pathChannels build in prepareAnimation (sample.ts).
+            Dictionary<string, int> pathIndexByName = NameIndexOf(pose.PathConstraints);
+            var pathChannels = new List<PreparedPathChannel>();
+            foreach (KeyValuePair<string, IReadOnlyList<PathKeyframe>> entry in animation.Path)
+            {
+                IReadOnlyList<PathKeyframe> frames = entry.Value;
+                if (frames.Count == 0)
+                {
+                    continue;
+                }
+
+                pathChannels.Add(new PreparedPathChannel(
+                    LookupOrMinusOne(pathIndexByName, entry.Key),
+                    Curves.BuildPathTrack(frames, Curves.PathChannel.Position),
+                    Curves.BuildPathTrack(frames, Curves.PathChannel.Spacing),
+                    Curves.BuildPathTrack(frames, Curves.PathChannel.MixRotate),
+                    Curves.BuildPathTrack(frames, Curves.PathChannel.MixX),
+                    Curves.BuildPathTrack(frames, Curves.PathChannel.MixY)));
+            }
+
             var deformChannels = new List<PreparedDeformChannel>();
             foreach (DeformEntry entry in animation.Deform)
             {
@@ -904,6 +1030,7 @@ namespace Marionette.Runtime.Core.Skeleton
                 slotChannels,
                 ikChannels,
                 transformChannels,
+                pathChannels,
                 deformChannels,
                 drawOrder);
         }
@@ -936,6 +1063,17 @@ namespace Marionette.Runtime.Core.Skeleton
         }
 
         private static Dictionary<string, int> NameIndexOf(IReadOnlyList<ResolvedTransformConstraint> items)
+        {
+            var index = new Dictionary<string, int>();
+            for (int i = 0; i < items.Count; i += 1)
+            {
+                index[items[i].Name] = i;
+            }
+
+            return index;
+        }
+
+        private static Dictionary<string, int> NameIndexOf(IReadOnlyList<ResolvedPathConstraint> items)
         {
             var index = new Dictionary<string, int>();
             for (int i = 0; i < items.Count; i += 1)

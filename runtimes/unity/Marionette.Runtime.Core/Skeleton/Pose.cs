@@ -121,6 +121,81 @@ namespace Marionette.Runtime.Core.Skeleton
         }
     }
 
+    // A path constraint resolved against the pose (mirrors ResolvedPathConstraint in pose.ts, ADR-0013,
+    // PP-B6). BoneIndices are the bones distributed along the path (document/list order == along-path order).
+    // Path is the prepared spline GEOMETRY built once from the target slot's setup default-skin path
+    // attachment, or null when no path is resolvable (the constraint is then a no-op). The mode enums, base
+    // channel values, and OffsetRotation come from the constraint definition; the Sampled* scratch is the per
+    // frame values step 2 writes (from the path timeline, else reset to base) and step 3 reads. Built once and
+    // mutated in place, so the per frame solve allocates nothing.
+    public sealed class ResolvedPathConstraint
+    {
+        public string Name { get; }
+        public int[] BoneIndices { get; }
+        public PathPositionMode PositionMode { get; }
+        public PathSpacingMode SpacingMode { get; }
+        public PathRotateMode RotateMode { get; }
+        public double OffsetRotation { get; }
+        public double BasePosition { get; }
+        public double BaseSpacing { get; }
+        public double BaseMixRotate { get; }
+        public double BaseMixX { get; }
+        public double BaseMixY { get; }
+
+        // The prepared spline geometry (control points, curve count, committed lengths, world scratch), or null
+        // when the target slot has no resolvable setup path attachment (ADR-0013 section 7).
+        public PreparedPathGeometry? Path { get; }
+
+        // The explicit combined-set solve order (ADR-0011 section 2.3), or -1 when this constraint carries none.
+        public int Order { get; }
+
+        // The skins that SCOPE this constraint (ADR-0011 section 4), or null when unscoped.
+        public IReadOnlyList<string>? ScopeSkins { get; }
+
+        public double SampledPosition;
+        public double SampledSpacing;
+        public double SampledMixRotate;
+        public double SampledMixX;
+        public double SampledMixY;
+
+        public ResolvedPathConstraint(
+            string name,
+            int[] boneIndices,
+            PathPositionMode positionMode,
+            PathSpacingMode spacingMode,
+            PathRotateMode rotateMode,
+            double offsetRotation,
+            double basePosition,
+            double baseSpacing,
+            double baseMixRotate,
+            double baseMixX,
+            double baseMixY,
+            PreparedPathGeometry? path,
+            int order,
+            IReadOnlyList<string>? scopeSkins)
+        {
+            Name = name;
+            BoneIndices = boneIndices;
+            PositionMode = positionMode;
+            SpacingMode = spacingMode;
+            RotateMode = rotateMode;
+            OffsetRotation = offsetRotation;
+            BasePosition = basePosition;
+            BaseSpacing = baseSpacing;
+            BaseMixRotate = baseMixRotate;
+            BaseMixX = baseMixX;
+            BaseMixY = baseMixY;
+            Path = path;
+            Order = order;
+            ScopeSkins = scopeSkins;
+            SampledPosition = basePosition;
+            SampledSpacing = baseSpacing;
+            SampledMixRotate = baseMixRotate;
+            SampledMixX = baseMixX;
+            SampledMixY = baseMixY;
+        }
+    }
+
     // Pre allocated, index addressed storage for a skeleton solve (mirrors pose.ts). Every buffer is
     // sized once and reused across solves, so the per frame solve allocates nothing. Bones are stored in
     // document order, which the format validator guarantees is parent before child.
@@ -185,11 +260,17 @@ namespace Marionette.Runtime.Core.Skeleton
         public IReadOnlyList<ResolvedIkConstraint> IkConstraints { get; }
         public IReadOnlyList<ResolvedTransformConstraint> TransformConstraints { get; }
 
-        // The explicit combined-set solve schedule (ADR-0009 section 1.3, ADR-0010 section 1) or null when
-        // no constraint carries an order. When present it is a dense permutation of [0, N): SolveOrder[pos]
-        // is a constraint CODE, code < IkConstraints.Count selecting IkConstraints[code], else
-        // TransformConstraints[code - IkConstraints.Count]. Null keeps the exact ADR-0003 two-phase path, so
-        // a rig without order is byte-identical. Precomputed once at build; never touched per frame.
+        // The document's path constraints (ADR-0013, PP-B6), resolved in document array order. Solved AFTER all
+        // IK and all transform constraints by default (ADR-0011 section 2.3). Empty for a rig with none.
+        public IReadOnlyList<ResolvedPathConstraint> PathConstraints { get; }
+
+        // The explicit combined-set solve schedule (ADR-0009 section 1.3, ADR-0010 section 1, ADR-0011 section
+        // 2.3) or null when no constraint carries an order. When present it is a dense permutation of [0, N)
+        // (N = total constraints across all THREE arrays): SolveOrder[pos] is a constraint CODE selecting
+        // IkConstraints[code] when code < ikCount, TransformConstraints[code - ikCount] when
+        // ikCount <= code < ikCount + transformCount, else PathConstraints[code - ikCount - transformCount].
+        // Null keeps the exact default (all IK, then all transform, then all path) path, so a rig without order
+        // is byte-identical. Precomputed once at build; never touched per frame.
         public int[]? SolveOrder { get; }
 
         // Reused scratch for sampled deform offsets (grows only when a larger mesh is sampled).
@@ -205,7 +286,8 @@ namespace Marionette.Runtime.Core.Skeleton
             int slotCount,
             IReadOnlyList<string> slotNames,
             IReadOnlyList<ResolvedIkConstraint> ikConstraints,
-            IReadOnlyList<ResolvedTransformConstraint> transformConstraints)
+            IReadOnlyList<ResolvedTransformConstraint> transformConstraints,
+            IReadOnlyList<ResolvedPathConstraint> pathConstraints)
         {
             BoneCount = boneCount;
             BoneNames = boneNames;
@@ -238,7 +320,8 @@ namespace Marionette.Runtime.Core.Skeleton
 
             IkConstraints = ikConstraints;
             TransformConstraints = transformConstraints;
-            SolveOrder = BuildSolveOrder(ikConstraints, transformConstraints);
+            PathConstraints = pathConstraints;
+            SolveOrder = BuildSolveOrder(ikConstraints, transformConstraints, pathConstraints);
             DeformScratch = new double[0];
             PreparedAnimations = new Dictionary<Animation, PreparedAnimation>();
         }
@@ -261,16 +344,19 @@ namespace Marionette.Runtime.Core.Skeleton
         // assignment falls back to null, the safe document-order default) rather than a corrupt schedule.
         private static int[]? BuildSolveOrder(
             IReadOnlyList<ResolvedIkConstraint> ikConstraints,
-            IReadOnlyList<ResolvedTransformConstraint> transformConstraints)
+            IReadOnlyList<ResolvedTransformConstraint> transformConstraints,
+            IReadOnlyList<ResolvedPathConstraint> pathConstraints)
         {
-            int total = ikConstraints.Count + transformConstraints.Count;
+            int ikCount = ikConstraints.Count;
+            int transformCount = transformConstraints.Count;
+            int total = ikCount + transformCount + pathConstraints.Count;
             if (total == 0)
             {
                 return null;
             }
 
             bool anyOrder = false;
-            for (int i = 0; i < ikConstraints.Count; i += 1)
+            for (int i = 0; i < ikCount; i += 1)
             {
                 if (ikConstraints[i].Order >= 0)
                 {
@@ -278,9 +364,17 @@ namespace Marionette.Runtime.Core.Skeleton
                 }
             }
 
-            for (int i = 0; i < transformConstraints.Count; i += 1)
+            for (int i = 0; i < transformCount; i += 1)
             {
                 if (transformConstraints[i].Order >= 0)
+                {
+                    anyOrder = true;
+                }
+            }
+
+            for (int i = 0; i < pathConstraints.Count; i += 1)
+            {
+                if (pathConstraints[i].Order >= 0)
                 {
                     anyOrder = true;
                 }
@@ -297,7 +391,7 @@ namespace Marionette.Runtime.Core.Skeleton
                 codes[i] = -1;
             }
 
-            for (int i = 0; i < ikConstraints.Count; i += 1)
+            for (int i = 0; i < ikCount; i += 1)
             {
                 if (!Place(codes, total, ikConstraints[i].Order, i))
                 {
@@ -305,9 +399,17 @@ namespace Marionette.Runtime.Core.Skeleton
                 }
             }
 
-            for (int j = 0; j < transformConstraints.Count; j += 1)
+            for (int j = 0; j < transformCount; j += 1)
             {
-                if (!Place(codes, total, transformConstraints[j].Order, ikConstraints.Count + j))
+                if (!Place(codes, total, transformConstraints[j].Order, ikCount + j))
+                {
+                    return null;
+                }
+            }
+
+            for (int k = 0; k < pathConstraints.Count; k += 1)
+            {
+                if (!Place(codes, total, pathConstraints[k].Order, ikCount + transformCount + k))
                 {
                     return null;
                 }

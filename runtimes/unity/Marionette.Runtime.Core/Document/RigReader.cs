@@ -72,6 +72,18 @@ namespace Marionette.Runtime.Core.Document
                 }
             }
 
+            // Path constraints (ADR-0011 section 2, ADR-0013), tolerated as absent for a pre-0.5.0 draft, the
+            // same lenience the ik/transform arrays get.
+            var pathConstraints = new List<PathConstraint>();
+            JsonValue? pcValue = root.Member("pathConstraints");
+            if (pcValue != null && pcValue.Kind == JsonKind.Array)
+            {
+                foreach (JsonValue pc in pcValue.AsArray())
+                {
+                    pathConstraints.Add(ReadPathConstraint(pc));
+                }
+            }
+
             var events = new List<EventDef>();
             JsonValue? eventsValue = root.Member("events");
             if (eventsValue != null && eventsValue.Kind == JsonKind.Array)
@@ -101,6 +113,7 @@ namespace Marionette.Runtime.Core.Document
                 skins,
                 ikConstraints,
                 transformConstraints,
+                pathConstraints,
                 events,
                 animations);
         }
@@ -196,6 +209,7 @@ namespace Marionette.Runtime.Core.Document
                     null,
                     null,
                     null,
+                    null,
                     null);
             }
 
@@ -213,6 +227,7 @@ namespace Marionette.Runtime.Core.Document
                         ReqString(attachment, "end"),
                         ReadNumberArray(ReqMember(attachment, "vertices", JsonKind.Array))),
                     null,
+                    null,
                     null);
             }
 
@@ -225,6 +240,7 @@ namespace Marionette.Runtime.Core.Document
                     null,
                     null,
                     new BoundingBoxAttachment(ReadNumberArray(ReqMember(attachment, "vertices", JsonKind.Array))),
+                    null,
                     null);
             }
 
@@ -240,7 +256,37 @@ namespace Marionette.Runtime.Core.Document
                     new PointAttachment(
                         ReqNumber(attachment, "x"),
                         ReqNumber(attachment, "y"),
-                        ReqNumber(attachment, "rotation")));
+                        ReqNumber(attachment, "rotation")),
+                    null);
+            }
+
+            // A path attachment (ADR-0011 section 1, ADR-0013): a piecewise cubic Bezier spline whose control
+            // points use the shared weighted/unweighted vertex encoding (ADR-0002; `bones` present marks it
+            // weighted). Its `lengths` is the committed cumulative per-curve arc-length table. Its color / render
+            // inputs are ignored by the solve, so only the geometry-bearing fields are read.
+            if (type == "path")
+            {
+                int[]? pathBones = null;
+                JsonValue? pathBonesValue = attachment.Member("bones");
+                if (pathBonesValue != null && pathBonesValue.Kind == JsonKind.Array)
+                {
+                    pathBones = ReadIntArray(pathBonesValue);
+                }
+
+                return new Attachment(
+                    type,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    new PathAttachment(
+                        ReqBool(attachment, "closed"),
+                        ReqBool(attachment, "constantSpeed"),
+                        ReadNumberArray(ReqMember(attachment, "lengths", JsonKind.Array)),
+                        ReadNumberArray(ReqMember(attachment, "vertices", JsonKind.Array)),
+                        pathBones));
             }
 
             // A region or mesh attachment may carry an optional sequence block (ADR-0011 section 2); read it
@@ -249,7 +295,7 @@ namespace Marionette.Runtime.Core.Document
 
             if (type != "mesh")
             {
-                return new Attachment(type, null, null, sequence, null, null, null);
+                return new Attachment(type, null, null, sequence, null, null, null, null);
             }
 
             double[] uvs = ReadNumberArray(ReqMember(attachment, "uvs", JsonKind.Array));
@@ -261,7 +307,7 @@ namespace Marionette.Runtime.Core.Document
                 bones = ReadIntArray(bonesValue);
             }
 
-            return new Attachment(type, new MeshAttachment(uvs, vertices, bones), null, sequence, null, null, null);
+            return new Attachment(type, new MeshAttachment(uvs, vertices, bones), null, sequence, null, null, null, null);
         }
 
         private static SequenceBlock? ReadSequenceBlock(JsonValue attachment)
@@ -320,6 +366,73 @@ namespace Marionette.Runtime.Core.Document
                 OptBool(tc, "local") ?? false,
                 OptBool(tc, "relative") ?? false,
                 OptInt(tc, "order") ?? -1);
+        }
+
+        private static PathConstraint ReadPathConstraint(JsonValue pc)
+        {
+            // The three mode fields are required closed enums (ADR-0011 section 2); an unknown member fails
+            // loudly. position/spacing/offsetRotation are unbounded finite values; the three mix channels are
+            // [0, 1] by the format. The optional explicit solve order (section 2.3) feeds the interleaved
+            // schedule; absent order is -1.
+            return new PathConstraint(
+                ReqString(pc, "name"),
+                ReqString(pc, "target"),
+                ReadStringArray(ReqMember(pc, "bones", JsonKind.Array)),
+                ParsePathPositionMode(ReqString(pc, "positionMode")),
+                ParsePathSpacingMode(ReqString(pc, "spacingMode")),
+                ParsePathRotateMode(ReqString(pc, "rotateMode")),
+                ReqNumber(pc, "position"),
+                ReqNumber(pc, "spacing"),
+                ReqNumber(pc, "offsetRotation"),
+                ReqNumber(pc, "mixRotate"),
+                ReqNumber(pc, "mixX"),
+                ReqNumber(pc, "mixY"),
+                OptInt(pc, "order") ?? -1);
+        }
+
+        private static PathPositionMode ParsePathPositionMode(string mode)
+        {
+            switch (mode)
+            {
+                case "fixed":
+                    return PathPositionMode.Fixed;
+                case "percent":
+                    return PathPositionMode.Percent;
+                default:
+                    throw new RigReadException($"unknown path positionMode '{mode}'");
+            }
+        }
+
+        private static PathSpacingMode ParsePathSpacingMode(string mode)
+        {
+            switch (mode)
+            {
+                case "length":
+                    return PathSpacingMode.Length;
+                case "fixed":
+                    return PathSpacingMode.Fixed;
+                case "percent":
+                    return PathSpacingMode.Percent;
+                case "proportional":
+                    return PathSpacingMode.Proportional;
+                default:
+                    throw new RigReadException($"unknown path spacingMode '{mode}'");
+            }
+        }
+
+        private static PathRotateMode ParsePathRotateMode(string mode)
+        {
+            switch (mode)
+            {
+                case "tangent":
+                    return PathRotateMode.Tangent;
+                case "chain":
+                    return PathRotateMode.Chain;
+                case "chainScale":
+                    return PathRotateMode.ChainScale;
+                default:
+                    throw new RigReadException($"unknown path rotateMode '{mode}'");
+            }
         }
 
         private static Animation ReadAnimation(JsonValue animation)
@@ -403,6 +516,34 @@ namespace Marionette.Runtime.Core.Document
                 }
             }
 
+            // Path-constraint timelines (ADR-0011 section 3, ADR-0013): each frame is a PARTIAL record of the
+            // animatable channels (position/spacing/mixRotate/mixX/mixY); absent == null so the track build
+            // drops the channel and the constraint base holds. Member order is preserved (Object.keys order).
+            var path = new List<KeyValuePair<string, IReadOnlyList<PathKeyframe>>>();
+            JsonValue? pathValue = animation.Member("path");
+            if (pathValue != null && pathValue.Kind == JsonKind.Object)
+            {
+                foreach (KeyValuePair<string, JsonValue> entry in pathValue.Members())
+                {
+                    var frames = new List<PathKeyframe>();
+                    foreach (JsonValue frame in entry.Value.AsArray())
+                    {
+                        JsonValue value = ReqMember(frame, "value", JsonKind.Object);
+                        frames.Add(
+                            new PathKeyframe(
+                                ReqNumber(frame, "time"),
+                                ReadCurve(frame),
+                                OptNumber(value, "position"),
+                                OptNumber(value, "spacing"),
+                                OptNumber(value, "mixRotate"),
+                                OptNumber(value, "mixX"),
+                                OptNumber(value, "mixY")));
+                    }
+
+                    path.Add(new KeyValuePair<string, IReadOnlyList<PathKeyframe>>(entry.Key, frames));
+                }
+            }
+
             var deform = new List<DeformEntry>();
             JsonValue? deformValue = animation.Member("deform");
             if (deformValue != null && deformValue.Kind == JsonKind.Object)
@@ -474,7 +615,7 @@ namespace Marionette.Runtime.Core.Document
                 }
             }
 
-            return new Animation(duration, bones, slots, ik, transform, deform, drawOrder, events);
+            return new Animation(duration, bones, slots, ik, transform, path, deform, drawOrder, events);
         }
 
         private static BoneTimelines ReadBoneTimelines(JsonValue timelines)

@@ -15,8 +15,9 @@ namespace Marionette.Runtime.Core.Solve
         private const double Epsilon = 1e-12;
 
         // Convert a desired WORLD direction angle (radians) into the LOCAL rotation (degrees) that makes
-        // the bone's local X axis point that way under the given parent world frame.
-        private static double WorldDirToLocalRotDeg(in Mat2x3 parentWorld, double worldAngleRad)
+        // the bone's local X axis point that way under the given parent world frame. Public (mirrors the TS
+        // `export`) so the path constraint solve reuses the identical helper (ADR-0013 section 5).
+        public static double WorldDirToLocalRotDeg(in Mat2x3 parentWorld, double worldAngleRad)
         {
             double wx = Math.Cos(worldAngleRad);
             double wy = Math.Sin(worldAngleRad);

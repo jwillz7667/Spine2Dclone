@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Marionette.Runtime.Core.Document;
+using Marionette.Runtime.Core.MathCore;
 using Marionette.Runtime.Core.Solve;
 
 namespace Marionette.Runtime.Core.Skeleton
@@ -68,13 +69,50 @@ namespace Marionette.Runtime.Core.Skeleton
                     ResolveTransform(constraint, indexByName, ScopeFor(scopeByConstraint, constraint.Name)));
             }
 
+            // Path constraints (ADR-0013, PP-B6). Their prepared spline geometry comes from the target slot's
+            // setup default-skin path attachment (ADR-0013 section 7); a target slot that carries no resolvable
+            // setup path attachment resolves to a no-op. Mirrors buildPose's slotBoneByName / setup-attachment
+            // maps and defaultSkin lookup in build-pose.ts.
+            var slotBoneByName = new Dictionary<string, int>();
+            var slotSetupAttachmentByName = new Dictionary<string, string?>();
+            for (int i = 0; i < slotCount; i += 1)
+            {
+                Slot slot = slots[i];
+                slotBoneByName[slot.Name] = LookupOrMinusOne(indexByName, slot.SlotBone);
+                slotSetupAttachmentByName[slot.Name] = slot.Attachment;
+            }
+
+            Skin? defaultSkin = null;
+            foreach (Skin skin in document.Skins)
+            {
+                if (skin.Name == "default")
+                {
+                    defaultSkin = skin;
+                    break;
+                }
+            }
+
+            var pathConstraints = new List<ResolvedPathConstraint>();
+            foreach (PathConstraint constraint in document.PathConstraints)
+            {
+                pathConstraints.Add(ResolvePath(
+                    constraint,
+                    indexByName,
+                    slotBoneByName,
+                    slotSetupAttachmentByName,
+                    defaultSkin,
+                    boneCount,
+                    ScopeFor(scopeByConstraint, constraint.Name)));
+            }
+
             var pose = new Pose(
                 boneCount,
                 boneNames,
                 slotCount,
                 slotNames,
                 ikConstraints,
-                transformConstraints);
+                transformConstraints,
+                pathConstraints);
 
             for (int i = 0; i < boneCount; i += 1)
             {
@@ -184,6 +222,135 @@ namespace Marionette.Runtime.Core.Skeleton
                 constraint.Relative,
                 constraint.Order,
                 scopeSkins);
+        }
+
+        // The logical control-point count of a path attachment (mirrors pathVertexCount in build-pose.ts):
+        // unweighted is Vertices.Length / 2; weighted walks the ADR-0002 self-delimiting stream (each logical
+        // vertex starts with its influence count, then that many [boneIndex, vx, vy, weight] quads), counting
+        // logical vertices. A validated document's stream is total, so the walk lands exactly on Length.
+        private static int PathVertexCount(PathAttachment attachment)
+        {
+            bool weighted = attachment.Bones != null && attachment.Bones.Length > 0;
+            if (!weighted)
+            {
+                return attachment.Vertices.Length / 2;
+            }
+
+            double[] stream = attachment.Vertices;
+            int cursor = 0;
+            int count = 0;
+            while (cursor < stream.Length)
+            {
+                int influenceCount = (int)stream[cursor];
+                cursor += 1 + (influenceCount * 4);
+                count += 1;
+            }
+
+            return count;
+        }
+
+        // Build the prepared spline geometry (ADR-0013 sections 1 to 3) from a path attachment and its slot
+        // bone (mirrors preparePathGeometry in build-pose.ts). All per-frame scratch (world control points, the
+        // per-curve arc-length LUT, and, for a weighted path, the packed on-demand world buffer) is allocated
+        // ONCE here and reused every frame.
+        private static PreparedPathGeometry PreparePathGeometry(
+            PathAttachment attachment,
+            int slotBoneIndex,
+            int boneCount)
+        {
+            bool weighted = attachment.Bones != null && attachment.Bones.Length > 0;
+            int vertexCount = PathVertexCount(attachment);
+            int curveCount = attachment.Closed ? vertexCount / 3 : (vertexCount - 1) / 3;
+            int stride = PathConstraintSolve.PathCurveSubdivisions + 1;
+            return new PreparedPathGeometry(
+                attachment.Closed,
+                attachment.ConstantSpeed,
+                curveCount,
+                vertexCount,
+                (double[])attachment.Lengths.Clone(),
+                weighted,
+                weighted ? System.Array.Empty<double>() : attachment.Vertices,
+                weighted ? attachment.Vertices : System.Array.Empty<double>(),
+                weighted ? attachment.Bones : null,
+                slotBoneIndex,
+                new double[vertexCount * 2],
+                new double[curveCount * stride],
+                weighted ? new double[boneCount * Affine.Mat2x3Stride] : null);
+        }
+
+        // Resolve a path constraint (ADR-0013). The target names a SLOT; its setup default-skin path attachment
+        // supplies the geometry. A target slot that does not exist, has no setup attachment, or whose setup
+        // attachment (in the default skin) is not a path resolves Path to null and the constraint solves
+        // nothing. A curve count that does not fit the control-point count (an unvalidated document) also
+        // resolves to null rather than producing a corrupt spline. Mirrors resolvePath in build-pose.ts.
+        private static ResolvedPathConstraint ResolvePath(
+            PathConstraint constraint,
+            Dictionary<string, int> indexByName,
+            Dictionary<string, int> slotBoneByName,
+            Dictionary<string, string?> slotSetupAttachmentByName,
+            Skin? defaultSkin,
+            int boneCount,
+            IReadOnlyList<string>? scopeSkins)
+        {
+            string targetSlot = constraint.Target;
+            int slotBoneIndex = slotBoneByName.TryGetValue(targetSlot, out int boneIndex) ? boneIndex : -1;
+            string? setupName = slotSetupAttachmentByName.TryGetValue(targetSlot, out string? name) ? name : null;
+            PreparedPathGeometry? path = null;
+            if (setupName != null && defaultSkin != null)
+            {
+                Attachment? attachment = LookupAttachment(defaultSkin, targetSlot, setupName);
+                if (attachment != null && attachment.Type == "path" && attachment.Path != null)
+                {
+                    PathAttachment pathAttachment = attachment.Path;
+                    int vertexCount = PathVertexCount(pathAttachment);
+                    bool fits = pathAttachment.Closed
+                        ? vertexCount >= 3 && vertexCount % 3 == 0
+                        : vertexCount >= 4 && (vertexCount - 1) % 3 == 0;
+                    if (fits && pathAttachment.Lengths.Length > 0)
+                    {
+                        path = PreparePathGeometry(pathAttachment, slotBoneIndex, boneCount);
+                    }
+                }
+            }
+
+            return new ResolvedPathConstraint(
+                constraint.Name,
+                ResolveBoneIndices(constraint.Bones, indexByName),
+                constraint.PositionMode,
+                constraint.SpacingMode,
+                constraint.RotateMode,
+                constraint.OffsetRotation,
+                constraint.Position,
+                constraint.Spacing,
+                constraint.MixRotate,
+                constraint.MixX,
+                constraint.MixY,
+                path,
+                constraint.Order,
+                scopeSkins);
+        }
+
+        // Look up an attachment by (slot, attachment) name in a skin's ordered members, or null when absent.
+        // Mirrors the defaultSkin.attachments[targetSlot]?.[setupName] access in build-pose.ts.
+        private static Attachment? LookupAttachment(Skin skin, string slotName, string attachmentName)
+        {
+            foreach (KeyValuePair<string, IReadOnlyList<KeyValuePair<string, Attachment>>> slotEntry in skin.Attachments)
+            {
+                if (slotEntry.Key != slotName)
+                {
+                    continue;
+                }
+
+                foreach (KeyValuePair<string, Attachment> attachmentEntry in slotEntry.Value)
+                {
+                    if (attachmentEntry.Key == attachmentName)
+                    {
+                        return attachmentEntry.Value;
+                    }
+                }
+            }
+
+            return null;
         }
     }
 }

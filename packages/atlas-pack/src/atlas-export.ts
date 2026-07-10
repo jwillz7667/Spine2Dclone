@@ -28,9 +28,11 @@ import type { AtlasRef } from '@marionette/format/types';
 // The mobile-shipping atlas export (phase-5 WP-5.2 GPU remainder): the deterministic pack pipeline, plus
 // the FIXED premultiplied-alpha policy, export-profile-driven scale variants, and the compressed-texture
 // manifest with its (currently stubbed) encoder slot. It composes the same pure pieces the Phase 1
-// `runAtlasPipeline` uses, so the canonical 1.0 PNG pages stay byte-identical to that path; the variants
-// and manifest are strictly additive. The canonical AtlasRef (1.0 geometry, AtlasPage.file at the root)
-// remains the format contract reference (Law 3); everything compression/scale is sidecar.
+// `runAtlasPipeline` uses and reproduces its 1.0 geometry EXACTLY (the canonical AtlasRef is deep-equal);
+// the root PNG PIXELS also match runAtlasPipeline when `premultipliedAlpha` is false, and are premultiplied
+// (still fully deterministic, byte-identical across runs) when it is true. The variants and manifest are
+// strictly additive. The canonical AtlasRef (1.0 geometry, AtlasPage.file at the root) remains the format
+// contract reference (Law 3); everything compression/scale is sidecar.
 
 export type TextureTransport = 'uastc-ktx2' | 'per-target-sidecar';
 

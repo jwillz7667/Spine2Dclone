@@ -1,6 +1,4 @@
-import { validateDocument } from '@marionette/format';
-import { convertDocument } from './convert/document';
-import { Diagnostics } from './diagnostics';
+import { finalizeSpineImport } from './pipeline';
 import type { SpineImportOptions, SpineImportResult } from './types';
 
 // Import a user-owned exported Spine JSON project and convert it to a VALIDATED @marionette/format 0.6.0
@@ -10,27 +8,9 @@ import type { SpineImportOptions, SpineImportResult } from './types';
 // solely from Esoteric's PUBLISHED format documentation and inspection of user-owned files, never from
 // Spine runtime or editor source. See the package README.
 //
-// Pipeline: convert (best-effort, collecting typed errors and lossy-conversion warnings) then validate.
-// The document is emitted ONLY when validateDocument passes (never a malformed document, Law 3); an
-// unsupported version or a non-object root is a hard stop, and a converted-but-invalid document surfaces
-// each underlying format error as a SPINE_DOCUMENT_INVALID with the format code in `detail.formatCode`.
+// `input` is the already-parsed JSON value (the caller reads the file). It is fed to the SAME conversion
+// and validation pipeline the .skel binary path uses, so equivalent JSON and binary content converge to
+// identical documents.
 export function importSpineJson(input: unknown, options?: SpineImportOptions): SpineImportResult {
-  const diag = new Diagnostics();
-  const converted = convertDocument(input, options, diag);
-
-  if (converted === undefined || diag.hasErrors) {
-    return { ok: false, errors: [...diag.errors], warnings: [...diag.warnings] };
-  }
-
-  // The converted document already carries the correct content hash (convertDocument stamps it), so the
-  // default hash verification passes; validateDocument is the loud structural + semantic gate.
-  const report = validateDocument(converted);
-  if (!report.ok || report.document === null) {
-    for (const error of report.errors) {
-      diag.error('SPINE_DOCUMENT_INVALID', error.path, error.message, { formatCode: error.code });
-    }
-    return { ok: false, errors: [...diag.errors], warnings: [...diag.warnings] };
-  }
-
-  return { ok: true, document: report.document, warnings: [...diag.warnings] };
+  return finalizeSpineImport(input, options);
 }

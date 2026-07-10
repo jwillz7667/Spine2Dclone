@@ -22,6 +22,12 @@ export const SPINE_IMPORT_ERROR_CODES = [
   // `detail.formatCode` carries the underlying FormatErrorCode so a caller can react precisely; one
   // SPINE_DOCUMENT_INVALID is emitted per underlying format error (fail loudly, never emit a bad doc).
   'SPINE_DOCUMENT_INVALID',
+  // A .skel binary input ended before a field could be fully read (truncated or corrupt buffer).
+  'SPINE_BINARY_TRUNCATED',
+  // A .skel binary input is structurally invalid in a non-truncation way: an out-of-range string-table
+  // or bone/slot/constraint reference, an unknown enum constant, an absurd (negative or huge) count, a
+  // malformed varint, or a non-binary input value. Distinct from SPINE_SCHEMA (which is JSON-shaped).
+  'SPINE_BINARY_INVALID',
 ] as const;
 
 export type SpineImportErrorCode = (typeof SPINE_IMPORT_ERROR_CODES)[number];

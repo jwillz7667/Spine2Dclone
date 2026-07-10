@@ -3,6 +3,7 @@
 // PRODUCES a validated @marionette/format document and never writes or exports any Spine format.
 
 export { importSpineJson } from './import-json';
+export { importSpineSkel } from './import-skel';
 
 export type {
   SpineImportResult,

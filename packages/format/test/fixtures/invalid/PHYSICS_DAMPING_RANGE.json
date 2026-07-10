@@ -64,9 +64,7 @@
     {
       "name": "phys",
       "bone": "root",
-      "channels": [
-        "rotation"
-      ],
+      "channels": ["rotation"],
       "step": 0.016666666666666666,
       "inertia": 0.5,
       "strength": 100,

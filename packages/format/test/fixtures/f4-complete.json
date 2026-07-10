@@ -68,18 +68,13 @@
           }
         }
       },
-      "constraints": [
-        "sway",
-        "wobble"
-      ]
+      "constraints": ["sway", "wobble"]
     }
   ],
   "ikConstraints": [
     {
       "name": "reach",
-      "bones": [
-        "tail"
-      ],
+      "bones": ["tail"],
       "target": "root",
       "mix": 1,
       "bend": 1,
@@ -96,11 +91,7 @@
     {
       "name": "sway",
       "bone": "tail",
-      "channels": [
-        "x",
-        "y",
-        "rotation"
-      ],
+      "channels": ["x", "y", "rotation"],
       "step": 0.016666666666666666,
       "inertia": 0.6,
       "strength": 120,
@@ -114,9 +105,7 @@
     {
       "name": "wobble",
       "bone": "tail",
-      "channels": [
-        "scaleX"
-      ],
+      "channels": ["scaleX"],
       "step": 0.016666666666666666,
       "inertia": 0.3,
       "strength": 60,

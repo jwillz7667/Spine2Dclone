@@ -38,6 +38,10 @@ const DEFAULT_SKIN_NAME = 'default';
 // list, the resolved tint/alpha, the slot blend mode, and the texture sampler. Region and mesh
 // attachments both reduce to this shape, so the raster pass is uniform.
 export interface DrawItem {
+  // The slot this item was gathered from (document slot index). Used to match the item against the active
+  // clip regions (clipping.ts): a clip attachment names, in draw order, the range of slots whose geometry it
+  // clips (ADR-0012 section 3.1). Not part of the drawn geometry; a positional key only.
+  readonly slotIndex: number;
   readonly worldPositions: readonly number[];
   readonly uvs: readonly number[];
   readonly triangles: readonly number[];
@@ -206,7 +210,18 @@ export function gatherDrawItemsFromPose(
     if (attachment.type === 'region') {
       const trim = atlas.regionTrim(regionPath) ?? undefined;
       items.push(
-        regionItem(pose, boneIndex, attachment, tint, alpha, slot.blendMode, sampler, trim, dark),
+        regionItem(
+          pose,
+          slotIndex,
+          boneIndex,
+          attachment,
+          tint,
+          alpha,
+          slot.blendMode,
+          sampler,
+          trim,
+          dark,
+        ),
       );
     } else {
       // mesh or linkedmesh: resolve the SOURCE geometry (a linked mesh reuses a parent mesh's uvs/triangles
@@ -218,6 +233,7 @@ export function gatherDrawItemsFromPose(
         meshItem(
           document,
           pose,
+          slotIndex,
           boneIndex,
           slot.name,
           activeName,
@@ -238,6 +254,7 @@ export function gatherDrawItemsFromPose(
 
 function regionItem(
   pose: Pose,
+  slotIndex: number,
   boneIndex: number,
   region: RegionAttachment,
   tint: Color,
@@ -253,6 +270,7 @@ function regionItem(
     worldPositions.push(corner.x, corner.y);
   }
   return {
+    slotIndex,
     worldPositions,
     uvs: REGION_QUAD_UVS,
     triangles: REGION_QUAD_TRIANGLES,
@@ -267,6 +285,7 @@ function regionItem(
 function meshItem(
   document: SkeletonDocument,
   pose: Pose,
+  slotIndex: number,
   boneIndex: number,
   slotName: string,
   attachmentName: string,
@@ -298,6 +317,7 @@ function meshItem(
     );
   }
   return {
+    slotIndex,
     worldPositions: Array.from(out),
     uvs: mesh.uvs,
     triangles: mesh.triangles,

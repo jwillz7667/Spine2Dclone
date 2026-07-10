@@ -219,6 +219,136 @@ export function twoColorRegionScenario(): RenderFrameOptions {
   };
 }
 
+// A CLIPPING document (ADR-0012, PP-C8 part 2): slot 's_img' carries a `regionWidth` x `regionHeight` region
+// centered on the origin bone; slot 's_clip' (drawn BEFORE it) carries a `clipping` attachment whose `end` is
+// 's_img', so it clips 's_img'. The clip polygon is authored in the clip bone's LOCAL space; both slots ride
+// the same origin bone with no rotation, so the local polygon equals the world polygon. `clipVertices` is a
+// flat [x0, y0, ...] polygon. Framed by the caller (an explicit world rect gives predictable clipped pixels).
+export function clipDocument(params: {
+  readonly regionWidth: number;
+  readonly regionHeight: number;
+  readonly regionColor: Color;
+  readonly slotColor: Color;
+  readonly blendMode: BlendMode;
+  readonly clipVertices: readonly number[];
+  readonly slotDarkColor?: Color;
+}): unknown {
+  const imgSlot: Record<string, unknown> = {
+    name: 's_img',
+    bone: 'root',
+    color: params.slotColor,
+    attachment: 'img',
+    blendMode: params.blendMode,
+  };
+  if (params.slotDarkColor !== undefined) imgSlot.darkColor = params.slotDarkColor;
+  return {
+    formatVersion: '0.4.0',
+    name: 'preview-clip',
+    hash: '',
+    bones: [
+      {
+        name: 'root',
+        parent: null,
+        length: 50,
+        x: 0,
+        y: 0,
+        rotation: 0,
+        scaleX: 1,
+        scaleY: 1,
+        shearX: 0,
+        shearY: 0,
+        transformMode: 'normal',
+      },
+    ],
+    // s_clip is FIRST in draw order so its range (s_clip+1 .. s_img) clips s_img (ADR-0012 section 3.1).
+    slots: [
+      { name: 's_clip', bone: 'root', color: WHITE, attachment: 'clip', blendMode: 'normal' },
+      imgSlot,
+    ],
+    skins: [
+      {
+        name: 'default',
+        attachments: {
+          s_clip: {
+            clip: {
+              type: 'clipping',
+              end: 's_img',
+              vertices: [...params.clipVertices],
+              color: WHITE,
+            },
+          },
+          s_img: {
+            img: {
+              type: 'region',
+              path: 'img',
+              x: 0,
+              y: 0,
+              rotation: 0,
+              scaleX: 1,
+              scaleY: 1,
+              width: params.regionWidth,
+              height: params.regionHeight,
+              color: params.regionColor,
+            },
+          },
+        },
+      },
+    ],
+    ikConstraints: [],
+    transformConstraints: [],
+    animations: {},
+    events: [],
+    atlas: {
+      pages: [
+        {
+          file: 'page.png',
+          width: 8,
+          height: 8,
+          regions: [
+            {
+              name: 'img',
+              x: 0,
+              y: 0,
+              w: 8,
+              h: 8,
+              rotated: false,
+              offsetX: 0,
+              offsetY: 0,
+              originalW: 8,
+              originalH: 8,
+            },
+          ],
+        },
+      ],
+    },
+  };
+}
+
+// The clip polygon for the goldens/tests: the LEFT HALF of the 40x40 region (world x in [-20, 0], full
+// height). So the region's left half survives and its right half is clipped to the transparent background.
+export const CLIP_LEFT_HALF: readonly number[] = [-20, -20, 0, -20, 0, 20, -20, 20];
+
+// An explicit world rect (scale 1, world origin at image center), so clipped pixels are exactly predictable:
+// world x < 0 (the surviving left half) maps to image x < 32, world x > 0 (clipped) to image x > 32.
+export const CLIP_FIT = { x: -32, y: -32, w: 64, h: 64 } as const;
+
+// A red region clipped to its left half. The golden byte-locks the visibly-cut result.
+export function clippedRegionScenario(): RenderFrameOptions {
+  return {
+    document: clipDocument({
+      regionWidth: 40,
+      regionHeight: 40,
+      regionColor: { r: 1, g: 0, b: 0, a: 1 },
+      slotColor: WHITE,
+      blendMode: 'normal',
+      clipVertices: CLIP_LEFT_HALF,
+    }),
+    atlas: WHITE_ATLAS,
+    viewport: { width: 64, height: 64, fit: CLIP_FIT },
+    background: { r: 0, g: 0, b: 0, a: 0 },
+  };
+}
+
 // The committed conformance rig (read-only): a weighted mesh limb with an ik chain and a deform timeline.
 export function meshLimbDocument(): unknown {
   const path = fileURLToPath(
@@ -257,6 +387,7 @@ export function goldenScenarios(): readonly {
     { name: 'rotated-region', options: rotatedRegionScenario() },
     { name: 'mesh-limb-deformed', options: meshScenario() },
     { name: 'two-color-region', options: twoColorRegionScenario() },
+    { name: 'clipped-region', options: clippedRegionScenario() },
     ...BLEND_MODES.map((mode) => ({ name: `blend-${mode}`, options: blendScenario(mode) })),
   ];
 }

@@ -14,8 +14,11 @@
 // (renderEffectFrame / renderComposedFrame) adds particle/bundle frames and composed skeleton+effect
 // frames through the SAME rasterizer. Stage-F2 (PP-C8) adds the two-color dark tint (two-color.ts), linked
 // meshes (rendered as their resolved parent geometry), and sequence attachments (per-sample atlas frame
-// selection). OUT OF SCOPE and documented (not silently missing): clipping masks (pending PP-B2),
-// point/boundingbox attachments, and the slot-scene composition. Each lands as a follow-up extension.
+// selection). PP-C8 part 2 adds CLIPPING (ADR-0012): a clipping attachment clips the geometry of the slots
+// in its draw-order range to its world polygon, via runtime-core's clipTriangleList with barycentric UV
+// re-interpolation (clipping.ts + raster-clip.ts), in renderFrame and the sequence pipeline. OUT OF SCOPE
+// and documented (not silently missing): point/boundingbox attachments (non-drawing hit/anchor geometry) and
+// the slot-scene composition. Each lands as a follow-up extension.
 //
 // DETERMINISM CONTRACT: same document + same inputs => byte-identical PNG on a given platform/Node
 // version. No wall clock, no randomness, no platform text rendering. Every loop (draw order, scanlines,
@@ -86,6 +89,12 @@ export type { ResolvedRenderMesh } from '@marionette/runtime-core';
 // Sequence-attachment region naming (PP-C8): turns a resolved frame index into its atlas region name
 // (ADR-0009 section 3). The twin of runtime-web's; exported so tests and tooling name frames identically.
 export { sequenceRegionName } from './sequence-region';
+
+// Clipping evaluation for the preview (PP-C8 part 2, ADR-0012): resolve the active clip regions of a solved
+// pose (world polygon + clipped slot set). Exported so tests and tooling can assert which slots a clip
+// affects and the polygon it clips to, independent of the raster output.
+export { gatherClipRegionsFromPose } from './clipping';
+export type { ClipPlan, ClipRegion } from './clipping';
 
 // Placement parity primitives: the world-space region quad geometry, reproducing the runtime-web
 // region-placement math against runtime-core only (see geometry.ts). Exported so tooling and parity tests

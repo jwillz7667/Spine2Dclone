@@ -1,9 +1,12 @@
 import { parseDocument, type ValidateOptions } from '@marionette/format';
+import { buildPose } from '@marionette/runtime-core';
 import { AtlasIndex, type AtlasPixelSource } from './atlas';
+import { gatherClipRegionsFromPose } from './clipping';
 import { TRANSPARENT, type Color } from './color';
-import { gatherDrawItems } from './draw-items';
+import { gatherDrawItemsFromPose, solvePoseForFrame } from './draw-items';
 import { encodePng } from './png';
 import { Framebuffer } from './raster';
+import { makeClipScratch, rasterizeClippedWorldItem } from './raster-clip';
 import { rasterizeWorldItem } from './raster-items';
 import { resolveWorldToImage, WorldBounds, type Viewport } from './viewport';
 
@@ -41,7 +44,12 @@ export function renderFrame(options: RenderFrameOptions): RenderFrameResult {
   });
 
   const atlas = new AtlasIndex(document.atlas, options.atlas);
-  const items = gatherDrawItems(document, atlas, options.animation, options.time);
+  // Solve the pose ONCE, then gather both the draw items and the active clip regions against it (ADR-0012):
+  // clipping reads the same solved world pass and draw order the items were gathered from, so the two agree.
+  const pose = buildPose(document);
+  const deform = solvePoseForFrame(document, pose, options.animation, options.time);
+  const items = gatherDrawItemsFromPose(document, atlas, pose, deform);
+  const clipPlan = gatherClipRegionsFromPose(document, pose);
 
   const bounds = new WorldBounds();
   for (const item of items) {
@@ -58,8 +66,16 @@ export function renderFrame(options: RenderFrameOptions): RenderFrameResult {
     options.background ?? TRANSPARENT,
   );
 
+  // One clip scratch reused across every clipped item (the per-triangle clip runs into PP-B2's pooled
+  // buffers). A slot that a clip region covers rasterizes clipped; every other slot draws whole, unchanged.
+  const clipScratch = clipPlan.regions.length > 0 ? makeClipScratch() : null;
   for (const item of items) {
-    rasterizeWorldItem(fb, item, transform);
+    const clip = clipPlan.bySlot[item.slotIndex];
+    if (clip !== undefined && clipScratch !== null) {
+      rasterizeClippedWorldItem(fb, item, clip, transform, clipScratch);
+    } else {
+      rasterizeWorldItem(fb, item, transform);
+    }
   }
 
   const rgba = fb.toStraightRgba8();

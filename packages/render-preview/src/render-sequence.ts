@@ -10,6 +10,7 @@ import {
   type BoneAnchorResolver,
 } from '@marionette/runtime-core';
 import { AtlasIndex, type AtlasPixelSource } from './atlas';
+import { gatherClipRegionsFromPose, type ClipPlan } from './clipping';
 import { TRANSPARENT, type Color } from './color';
 import { gatherDrawItemsFromPose, solvePoseForFrame, type MeshDeformSource } from './draw-items';
 import { buildLayerOrder, gatherEffectDrawItems, type EffectDrawItem } from './effect-draw-items';
@@ -21,6 +22,7 @@ import {
 } from './errors';
 import { encodePng } from './png';
 import { Framebuffer } from './raster';
+import { makeClipScratch, rasterizeClippedWorldItem } from './raster-clip';
 import { rasterizeWorldItem } from './raster-items';
 import { addWorldItemBounds, rasterizeEffectItem, solveEffectFrame } from './render-effect-frame';
 import type { EffectFrameTrigger } from './render-effect-frame';
@@ -130,6 +132,8 @@ interface WalkFrame {
   readonly index: number;
   readonly timeSeconds: number;
   readonly skeletonItems: ReturnType<typeof gatherDrawItemsFromPose>;
+  // The active clip regions for this frame's solved pose (ADR-0012), so a clip animates across the clip.
+  readonly clipPlan: ClipPlan;
   readonly effectItems: readonly EffectDrawItem[];
 }
 
@@ -168,10 +172,21 @@ class RenderedSequenceImpl implements RenderedSequence {
     const fb = new Framebuffer(width, height, this.background);
     const rgba = new Uint8Array(width * height * 4);
     const png = (): Uint8Array => encodePng(rgba, width, height);
+    // One clip scratch reused across every frame and clipped item (the per-triangle clip runs into PP-B2's
+    // pooled buffers), so a long clip with an animated clip region allocates nothing extra in the hot op.
+    const clipScratch = makeClipScratch();
 
     for (const walkFrame of this.walk()) {
       fb.clear(this.background);
-      for (const item of walkFrame.skeletonItems) rasterizeWorldItem(fb, item, transform);
+      const bySlot = walkFrame.clipPlan.bySlot;
+      for (const item of walkFrame.skeletonItems) {
+        const clip = bySlot[item.slotIndex];
+        if (clip !== undefined) {
+          rasterizeClippedWorldItem(fb, item, clip, transform, clipScratch);
+        } else {
+          rasterizeWorldItem(fb, item, transform);
+        }
+      }
       for (const item of walkFrame.effectItems) rasterizeEffectItem(fb, item, transform);
       fb.toStraightRgba8Into(rgba);
       yield {
@@ -241,8 +256,9 @@ class RenderedSequenceImpl implements RenderedSequence {
       }
 
       const skeletonItems = gatherDrawItemsFromPose(this.document, this.atlasIndex, pose, deform);
+      const clipPlan = gatherClipRegionsFromPose(this.document, pose);
       const effectItems = this.effect === null ? [] : this.solveEffectItems(timeSeconds);
-      yield { index: i, timeSeconds, skeletonItems, effectItems };
+      yield { index: i, timeSeconds, skeletonItems, clipPlan, effectItems };
     }
   }
 

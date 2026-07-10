@@ -5,7 +5,7 @@ The GUI panels and the MCP tools drive the exact same command layer (`@marionett
 so everything in this reference is also a precise description of what the editor itself can do.
 Anything you can click, you can script; anything you can script, you can undo.
 
-This chapter is the complete reference: 201 tools across 25 namespaces. For a guided walkthrough
+This chapter is the complete reference: 202 tools across 26 namespaces. For a guided walkthrough
 that uses a small subset of these, read Chapter 1 (Getting Started) first.
 
 ## Conventions used by every tool
@@ -46,6 +46,23 @@ create or open, edit through commands, validate, save, close.
 
 Always check `document.validate` returns `{ ok: true }` before treating a document as done; the
 `errors` array carries the typed `FormatError` list when it is not.
+
+## Import a Spine project: `import.*`
+
+Armature 2D can import a user-owned project exported from Spine and convert it to a validated
+Armature document on import (PP-A5). The importer is strictly clean-room (built only from Esoteric's
+published format documentation) and import only: it never writes or exports any Spine format.
+
+| Tool | Purpose | Input | Returns |
+|---|---|---|---|
+| `import.spineProject` | Import a Spine `.json` or `.skel` binary project, open it as an editable session | `path`, optional `name` | `{ documentId, name, format, summary, warnings }` |
+
+The path extension selects the reader: `.skel` is decoded as the binary format, anything else is
+parsed as JSON. `summary` reports the converted counts (bones, slots, skins, animations,
+constraints, events). `warnings` lists every lossy conversion (each with a `feature`, a `path`, and
+a `why`), for example a synthesized placeholder atlas or an unsupported physics constraint, so
+nothing is dropped silently. A malformed input fails loudly: `FILE_READ_ERROR`, `INVALID_JSON`, or
+`SPINE_IMPORT_FAILED` (whose `detail.errors` carries the importer's typed error list).
 
 ## Undo and redo: `history.*`
 

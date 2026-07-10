@@ -29,6 +29,9 @@ import { createSkinSpec } from './create-skin.command';
 import { createTransformConstraintSpec } from './create-transform-constraint.command';
 import { deleteDeformKeyframeSpec } from './delete-deform-keyframe.command';
 import { deleteIkConstraintSpec } from './delete-ik-constraint.command';
+import { renameIkConstraintSpec } from './rename-ik-constraint.command';
+import { renameTransformConstraintSpec } from './rename-transform-constraint.command';
+import { renamePathConstraintSpec } from './rename-path-constraint.command';
 import { deleteIkKeyframeSpec } from './delete-ik-keyframe.command';
 import { deleteSkinSpec } from './delete-skin.command';
 import { deleteTransformConstraintSpec } from './delete-transform-constraint.command';
@@ -204,6 +207,8 @@ export const commandRegistry: readonly CommandSpec[] = [
   setIkMixSpec,
   setIkBendPositiveSpec,
   deleteIkConstraintSpec,
+  // PP-D7 constraint rename (hierarchy tree rename affordance)
+  renameIkConstraintSpec,
   setIkKeyframeSpec,
   deleteIkKeyframeSpec,
   moveIkKeyframeSpec,
@@ -214,6 +219,7 @@ export const commandRegistry: readonly CommandSpec[] = [
   setTransformConstraintParamsSpec,
   setTransformConstraintVariantsSpec,
   deleteTransformConstraintSpec,
+  renameTransformConstraintSpec,
   setTransformKeyframeSpec,
   deleteTransformKeyframeSpec,
   moveTransformKeyframeSpec,
@@ -276,6 +282,7 @@ export const commandRegistry: readonly CommandSpec[] = [
   createPathConstraintSpec,
   setPathConstraintParamsSpec,
   deletePathConstraintSpec,
+  renamePathConstraintSpec,
   // Stage F3 (PP-D11) path constraint timeline authoring
   setPathKeyframeSpec,
   movePathKeyframeSpec,

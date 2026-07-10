@@ -140,6 +140,15 @@ export { CreateIkConstraintCommand, createIkConstraintSpec } from './create-ik-c
 export { SetIkMixCommand, setIkMixSpec } from './set-ik-mix.command';
 export { SetIkBendPositiveCommand, setIkBendPositiveSpec } from './set-ik-bend-positive.command';
 export { DeleteIkConstraintCommand, deleteIkConstraintSpec } from './delete-ik-constraint.command';
+export { RenameIkConstraintCommand, renameIkConstraintSpec } from './rename-ik-constraint.command';
+export {
+  RenameTransformConstraintCommand,
+  renameTransformConstraintSpec,
+} from './rename-transform-constraint.command';
+export {
+  RenamePathConstraintCommand,
+  renamePathConstraintSpec,
+} from './rename-path-constraint.command';
 export { SetIkKeyframeCommand, setIkKeyframeSpec } from './set-ik-keyframe.command';
 export { DeleteIkKeyframeCommand, deleteIkKeyframeSpec } from './delete-ik-keyframe.command';
 export { MoveIkKeyframeCommand, moveIkKeyframeSpec } from './move-ik-keyframe.command';

@@ -1,7 +1,4 @@
-import {
-  ATLAS_TARGETS_MANIFEST_FILE,
-  atlasTargetsManifestSchema,
-} from '@marionette/atlas-pack';
+import { ATLAS_TARGETS_MANIFEST_FILE, atlasTargetsManifestSchema } from '@marionette/atlas-pack';
 import { createMemoryFileStore, makeSpritePng } from '@marionette/atlas-pack/testing';
 import { describe, expect, it } from 'vitest';
 import type { ExportProfile } from '../../shared';
@@ -39,8 +36,29 @@ function profile(overrides: Partial<ExportProfile['atlasExport']> = {}): ExportP
 
 function seedStore(): ReturnType<typeof createMemoryFileStore> {
   return createMemoryFileStore([
-    ['src/torso.png', makeSpritePng({ width: 16, height: 16, contentX: 2, contentY: 2, contentW: 10, contentH: 10 })],
-    ['src/arm.png', makeSpritePng({ width: 12, height: 12, contentX: 1, contentY: 1, contentW: 8, contentH: 8, seed: 5 })],
+    [
+      'src/torso.png',
+      makeSpritePng({
+        width: 16,
+        height: 16,
+        contentX: 2,
+        contentY: 2,
+        contentW: 10,
+        contentH: 10,
+      }),
+    ],
+    [
+      'src/arm.png',
+      makeSpritePng({
+        width: 12,
+        height: 12,
+        contentX: 1,
+        contentY: 1,
+        contentW: 8,
+        contentH: 8,
+        seed: 5,
+      }),
+    ],
   ]);
 }
 

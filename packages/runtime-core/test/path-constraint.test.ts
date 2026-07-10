@@ -135,4 +135,28 @@ describe('path constraint solve (ADR-0013)', () => {
     expect(world[4]).toBeCloseTo(300, 6);
     expect(world[5]).toBeCloseTo(0, 9);
   });
+
+  it('an animated mixX channel blends the follower x from the path point toward its setup', () => {
+    // position percent 0.5 => path point (150, 0). mixX is keyed 1 -> 0 over [0, 1], so the follower x is
+    // setup.x + mixX * (150 - setup.x) = 150 * mixX (mixY/mixRotate stay 1, so y = 0 and rotation = 0).
+    const document = doc(pathAttachment(), pathConstraint());
+    document.animations.idle!.path = {
+      pc: [
+        { time: 0, value: { mixX: 1 }, curve: 'linear' },
+        { time: 1, value: { mixX: 0 }, curve: 'linear' },
+      ],
+    };
+    const pose = buildPose(document);
+    const followerIndex = pose.boneNames.indexOf('follower');
+    const base = followerIndex * MAT2X3_STRIDE;
+    for (const [time, expectedX] of [
+      [0, 150],
+      [0.5, 75],
+      [1, 0],
+    ] as const) {
+      sampleSkeleton(document, 'idle', time, pose);
+      expect(pose.world[base + 4]).toBeCloseTo(expectedX, 6);
+      expect(pose.world[base + 5]).toBeCloseTo(0, 9);
+    }
+  });
 });

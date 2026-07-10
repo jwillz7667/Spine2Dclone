@@ -161,13 +161,7 @@ jobs:
   conformance-native-pass:
     runs-on: ubuntu-latest
     if: always()
-    needs:
-      [
-        detect-runtimes,
-        cross-language-equivalence,
-        conformance-unity,
-        conformance-godot,
-      ]
+    needs: [detect-runtimes, cross-language-equivalence, conformance-unity, conformance-godot]
     steps:
       - name: Verify no native conformance job failed (skipped counts as success)
         run: |

@@ -189,7 +189,11 @@ function buildCurveLut(geom: PreparedPathGeometry): void {
 // Map an already-normalized arc-length position `s` in [0, L] to a curve index and Bezier parameter t
 // (ADR-0013 section 3). Cross-curve selection reads the committed cumulative `lengths`; the within-curve
 // fraction becomes t directly (naive per-curve t) or, for constant speed, inverts the world LUT.
-function mapPosition(geom: PreparedPathGeometry, s: number, out: { curve: number; t: number }): void {
+function mapPosition(
+  geom: PreparedPathGeometry,
+  s: number,
+  out: { curve: number; t: number },
+): void {
   const lengths = geom.lengths;
   const curveCount = geom.curveCount;
   // Smallest curve whose cumulative end length reaches s (linear scan; curve counts are small and this

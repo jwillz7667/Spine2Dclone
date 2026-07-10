@@ -897,7 +897,9 @@ export function makeDrawOrderKey(
   return Object.freeze({
     id,
     time,
-    offsets: Object.freeze(offsets.map((entry) => Object.freeze({ slot: entry.slot, offset: entry.offset }))),
+    offsets: Object.freeze(
+      offsets.map((entry) => Object.freeze({ slot: entry.slot, offset: entry.offset })),
+    ),
   });
 }
 

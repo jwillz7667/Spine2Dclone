@@ -21,7 +21,9 @@ const board = z.array(z.array(nativeSymbol));
 
 const nativeCascadeSchema = z.object({
   removedCells: z.array(cell),
-  fill: z.array(z.object({ column: z.number().int().nonnegative(), pieces: z.array(nativeSymbol) })),
+  fill: z.array(
+    z.object({ column: z.number().int().nonnegative(), pieces: z.array(nativeSymbol) }),
+  ),
   winThisStep: finite,
   runningTotal: finite.optional(),
 });
@@ -42,10 +44,7 @@ export const nativeResolveOutputSchema = z.object({
   bonuses: z.array(
     z.object({
       kind: z.string(),
-      payload: z.record(
-        z.string(),
-        z.union([finite, z.string(), z.boolean(), z.array(finite)]),
-      ),
+      payload: z.record(z.string(), z.union([finite, z.string(), z.boolean(), z.array(finite)])),
     }),
   ),
   tumbles: z.array(nativeCascadeSchema).optional(),

@@ -360,7 +360,9 @@ export interface EventDefSnapshot {
   readonly int: number | undefined;
   readonly float: number | undefined;
   readonly string: string | undefined;
-  readonly audio: { readonly path: string; readonly volume: number; readonly balance: number } | undefined;
+  readonly audio:
+    | { readonly path: string; readonly volume: number; readonly balance: number }
+    | undefined;
 }
 
 // A plain IK-constraint projection. `bones`/`target` are internal BoneId strings (references), stable

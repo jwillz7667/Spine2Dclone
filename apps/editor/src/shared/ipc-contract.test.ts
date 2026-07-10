@@ -114,9 +114,9 @@ describe('ipc-contract validation', () => {
       ).ok,
     ).toBe(true);
     // An empty set is valid (nothing to pack); the renderer guards against sending it.
-    expect(
-      validateWith(atlasImportImagesRequestSchema, { images: [] }, 'IPC_BAD_REQUEST').ok,
-    ).toBe(true);
+    expect(validateWith(atlasImportImagesRequestSchema, { images: [] }, 'IPC_BAD_REQUEST').ok).toBe(
+      true,
+    );
     // Non-byte data and a missing name are rejected at the boundary.
     expect(
       validateWith(

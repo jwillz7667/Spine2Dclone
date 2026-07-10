@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { parseDocument } from '@marionette/format';
-import type { LinkedMeshAttachment, MeshAttachment, SkeletonDocument } from '@marionette/format/types';
+import type {
+  LinkedMeshAttachment,
+  MeshAttachment,
+  SkeletonDocument,
+} from '@marionette/format/types';
 import { renderFrame, resolveRenderMesh, type AtlasPixelSource } from '@marionette/render-preview';
 import { decode, pixelAt } from './helpers';
 
@@ -42,7 +46,15 @@ function linkedMeshDoc(): unknown {
         transformMode: 'normal',
       },
     ],
-    slots: [{ name: 'limb', bone: 'root', color: { r: 1, g: 1, b: 1, a: 1 }, attachment: 'skinB', blendMode: 'normal' }],
+    slots: [
+      {
+        name: 'limb',
+        bone: 'root',
+        color: { r: 1, g: 1, b: 1, a: 1 },
+        attachment: 'skinB',
+        blendMode: 'normal',
+      },
+    ],
     skins: [
       {
         name: 'default',
@@ -73,8 +85,30 @@ function linkedMeshDoc(): unknown {
           width: 16,
           height: 8,
           regions: [
-            { name: 'baseTex', x: 0, y: 0, w: 8, h: 8, rotated: false, offsetX: 0, offsetY: 0, originalW: 8, originalH: 8 },
-            { name: 'skinBTex', x: 8, y: 0, w: 8, h: 8, rotated: false, offsetX: 0, offsetY: 0, originalW: 8, originalH: 8 },
+            {
+              name: 'baseTex',
+              x: 0,
+              y: 0,
+              w: 8,
+              h: 8,
+              rotated: false,
+              offsetX: 0,
+              offsetY: 0,
+              originalW: 8,
+              originalH: 8,
+            },
+            {
+              name: 'skinBTex',
+              x: 8,
+              y: 0,
+              w: 8,
+              h: 8,
+              rotated: false,
+              offsetX: 0,
+              offsetY: 0,
+              originalW: 8,
+              originalH: 8,
+            },
           ],
         },
       ],

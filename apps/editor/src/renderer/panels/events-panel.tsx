@@ -94,7 +94,12 @@ export function EventsPanel(_props: IDockviewPanelProps): ReactElement {
   function fireAtPlayhead(): void {
     if (selected === null || activeAnimation === null) return;
     const store = usePlaybackStore.getState();
-    addEventKeyAtPlayhead(documentHost.current().history, activeAnimation, selected.id, store.playhead);
+    addEventKeyAtPlayhead(
+      documentHost.current().history,
+      activeAnimation,
+      selected.id,
+      store.playhead,
+    );
   }
 
   const canFire = selected !== null && activeAnimation !== null;
@@ -156,7 +161,13 @@ interface EventRowProps {
   readonly onDelete: (id: EventDefId) => void;
 }
 
-function EventRow({ event, isSelected, onSelect, onRename, onDelete }: EventRowProps): ReactElement {
+function EventRow({
+  event,
+  isSelected,
+  onSelect,
+  onRename,
+  onDelete,
+}: EventRowProps): ReactElement {
   const [resetNonce, setResetNonce] = useState(0);
   const revert = (): void => setResetNonce((nonce) => nonce + 1);
 

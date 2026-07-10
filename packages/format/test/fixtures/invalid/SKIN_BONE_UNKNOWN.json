@@ -55,9 +55,7 @@
           }
         }
       },
-      "bones": [
-        "ghost"
-      ]
+      "bones": ["ghost"]
     }
   ],
   "ikConstraints": [],

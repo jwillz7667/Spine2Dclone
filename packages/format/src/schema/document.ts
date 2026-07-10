@@ -2,11 +2,7 @@ import { z } from 'zod';
 import { animationSchema } from './animation';
 import { atlasRefSchema } from './atlas';
 import { boneSchema } from './bone';
-import {
-  ikConstraintSchema,
-  pathConstraintSchema,
-  transformConstraintSchema,
-} from './constraint';
+import { ikConstraintSchema, pathConstraintSchema, transformConstraintSchema } from './constraint';
 import { eventDefSchema } from './event';
 import { skeletonMetaSchema } from './metadata';
 import { skinSchema } from './skin';

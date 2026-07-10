@@ -9,8 +9,17 @@ import type {
 } from '@marionette/runtime-core';
 import type { EmitterLayer, ParticleTexture } from '@marionette/format/types';
 import { blendModeToPixi } from './blend-mode';
-import { fillEmitterBatch, makeParticleRenderBatch, type ParticleRenderBatch } from './particle-render-batch';
-import { buildStripIndices, buildStripUVs, fillStripPositions, stripBufferLength } from './ribbon-strip';
+import {
+  fillEmitterBatch,
+  makeParticleRenderBatch,
+  type ParticleRenderBatch,
+} from './particle-render-batch';
+import {
+  buildStripIndices,
+  buildStripUVs,
+  fillStripPositions,
+  stripBufferLength,
+} from './ribbon-strip';
 import type { RegionTextureResolver } from './region-textures';
 
 // The PixiJS particle renderer (phase-3-vfx-particles.md section 7, WP-3.5 / PP-C3). It consumes the
@@ -156,7 +165,12 @@ export class ParticleLayerView {
     for (const binding of this.instances.values()) binding.seen = false;
 
     for (const instance of frame.instances) {
-      const binding = this.ensureInstance(instance.id, instance.emitters, instance.ribbons, instance.sprites);
+      const binding = this.ensureInstance(
+        instance.id,
+        instance.emitters,
+        instance.ribbons,
+        instance.sprites,
+      );
       binding.seen = true;
       this.updateEmitters(binding, instance.emitters);
       this.updateRibbons(binding, instance.ribbons);

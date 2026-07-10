@@ -5,6 +5,11 @@
   "loop": false,
   "poseTimes": [0.0, 0.25, 0.5, 0.75, 1.0],
   "boxes": [{ "skin": "default", "slot": "boxslot", "attachment": "hitbox" }],
-  "hitProbes": [[0.0, 0.0], [50.0, 0.0], [50.0, 50.0], [100.0, 0.0]],
+  "hitProbes": [
+    [0.0, 0.0],
+    [50.0, 0.0],
+    [50.0, 50.0],
+    [100.0, 0.0]
+  ],
   "points": [{ "skin": "default", "slot": "pointslot", "attachment": "muzzle" }]
 }

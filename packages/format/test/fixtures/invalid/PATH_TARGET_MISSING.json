@@ -63,9 +63,7 @@
     {
       "name": "pc",
       "target": "ghostSlot",
-      "bones": [
-        "root"
-      ],
+      "bones": ["root"],
       "positionMode": "percent",
       "spacingMode": "length",
       "rotateMode": "tangent",

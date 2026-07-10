@@ -184,7 +184,10 @@ export interface MarionetteApi {
   // Save an exported format document plus its atlas page bytes; main shows the dialog, writes the JSON,
   // and persists the pages next to it for later texture restore. Returns the written path or a canceled
   // status.
-  saveDocument(document: unknown, pages: readonly AtlasImportPage[]): Promise<IpcResult<FileSaveResponse>>;
+  saveDocument(
+    document: unknown,
+    pages: readonly AtlasImportPage[],
+  ): Promise<IpcResult<FileSaveResponse>>;
   // Open a document; main shows the dialog, reads and validates the file. Returns the parsed document
   // or a canceled status.
   openDocument(): Promise<IpcResult<FileOpenResponse>>;
@@ -193,7 +196,9 @@ export interface MarionetteApi {
   importAtlas(): Promise<IpcResult<AtlasImportResponse>>;
   // Import images the renderer read as bytes (drag-drop or a file-input picker); main stages and packs
   // them, returning the packed AtlasRef and page bytes.
-  importAtlasImages(images: AtlasImportImagesRequest['images']): Promise<IpcResult<AtlasImportResponse>>;
+  importAtlasImages(
+    images: AtlasImportImagesRequest['images'],
+  ): Promise<IpcResult<AtlasImportResponse>>;
   // Subscribe to application-menu clicks pushed from the main process (menu:action). The callback receives
   // one allowlisted MenuActionId per click; returns an unsubscribe function. This is the only MAIN ->
   // RENDERER push in the bridge; everything else is request/response.

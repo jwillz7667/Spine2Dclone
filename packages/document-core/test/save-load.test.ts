@@ -382,8 +382,20 @@ describe('save / load seam', () => {
       hash: '',
       bones: [{ name: 'root', parent: null, ...GEOM, rotation: 0 }],
       slots: [
-        { name: 'back', bone: 'root', color: { r: 1, g: 1, b: 1, a: 1 }, attachment: null, blendMode: 'normal' },
-        { name: 'front', bone: 'root', color: { r: 1, g: 1, b: 1, a: 1 }, attachment: null, blendMode: 'normal' },
+        {
+          name: 'back',
+          bone: 'root',
+          color: { r: 1, g: 1, b: 1, a: 1 },
+          attachment: null,
+          blendMode: 'normal',
+        },
+        {
+          name: 'front',
+          bone: 'root',
+          color: { r: 1, g: 1, b: 1, a: 1 },
+          attachment: null,
+          blendMode: 'normal',
+        },
       ],
       skins: [{ name: 'default', attachments: {} }],
       ikConstraints: [],
@@ -391,7 +403,11 @@ describe('save / load seam', () => {
       pathConstraints: [],
       // A named event with an int payload and an audio hint, referenced by the animation's event timeline.
       events: [
-        { name: 'footstep', int: 3, audio: { path: 'sfx/footstep.wav', volume: 0.8, balance: -0.25 } },
+        {
+          name: 'footstep',
+          int: 3,
+          audio: { path: 'sfx/footstep.wav', volume: 0.8, balance: -0.25 },
+        },
       ],
       animations: {
         walk: {
@@ -422,7 +438,11 @@ describe('save / load seam', () => {
     // Promoted to first-class model state (no longer preserved verbatim): the event definition, the
     // per-animation timelines, and the metadata are all reachable through the read model.
     expect(doc.model.eventDefs().map((d) => d.name)).toEqual(['footstep']);
-    expect(doc.model.metadata()).toEqual({ fps: 30, imagesPath: 'art/images', audioPath: 'art/audio' });
+    expect(doc.model.metadata()).toEqual({
+      fps: 30,
+      imagesPath: 'art/images',
+      audioPath: 'art/audio',
+    });
     const walk = doc.model.animations().find((a) => a.name === 'walk')!;
     expect(walk.events).toHaveLength(2);
     expect(walk.drawOrder).toHaveLength(1);
@@ -609,7 +629,11 @@ function f2Document(): SkeletonDocument {
           lower: {
             translateX: [
               { time: 0, value: { value: 0 }, curve: 'linear' },
-              { time: 0.5, value: { value: 4 }, curve: { type: 'bezier', cx1: 0.25, cy1: 0, cx2: 0.75, cy2: 1 } },
+              {
+                time: 0.5,
+                value: { value: 4 },
+                curve: { type: 'bezier', cx1: 0.25, cy1: 0, cx2: 0.75, cy2: 1 },
+              },
             ],
             scaleY: [{ time: 0, value: { value: 1 }, curve: 'stepped' }],
             shearX: [{ time: 0, value: { value: 2 }, curve: 'linear' }],
@@ -622,13 +646,21 @@ function f2Document(): SkeletonDocument {
             alpha: [{ time: 0, value: { alpha: 0.5 }, curve: 'linear' }],
           },
           slot_body: {
-            dark: [{ time: 0, value: { color: { r: 0.1, g: 0.2, b: 0.3, a: 1 } }, curve: 'linear' }],
+            dark: [
+              { time: 0, value: { color: { r: 0.1, g: 0.2, b: 0.3, a: 1 } }, curve: 'linear' },
+            ],
             sequence: [{ time: 0, mode: 'loop', index: 0, delay: 0.1 }],
           },
         },
         ik: {
           // A keyed IK frame carries the signed bend plus optional depth channels (ADR-0009 section 1).
-          ik1: [{ time: 0, value: { mix: 1, bend: -1, softness: 5, stretch: true, compress: false }, curve: 'stepped' }],
+          ik1: [
+            {
+              time: 0,
+              value: { mix: 1, bend: -1, softness: 5, stretch: true, compress: false },
+              curve: 'stepped',
+            },
+          ],
         },
         transform: {
           tc1: [{ time: 0, value: { mixRotate: 1 }, curve: 'linear' }],
@@ -684,7 +716,9 @@ describe('Stage F2 (0.4.0) carry through load and export', () => {
 
     // A non-F2 edit forces a full-state snapshot/restore; undo must return the carried data intact.
     const before = doc.model.snapshot();
-    doc.history.execute(new CreateBoneCommand(doc.ids.mint('bone'), null, { name: 'tmp', ...GEOM }));
+    doc.history.execute(
+      new CreateBoneCommand(doc.ids.mint('bone'), null, { name: 'tmp', ...GEOM }),
+    );
     doc.history.undo();
 
     expect(doc.model.snapshot()).toEqual(before);
@@ -710,7 +744,9 @@ function f3Document(): SkeletonDocument {
     ],
     // The slot carries the path attachment as its setup-active attachment, so the constraint target
     // statically resolves to a path (exercising PATH_TARGET_NOT_PATH's satisfied branch on load).
-    slots: [{ name: 'rail', bone: 'root', color: white, attachment: 'spline', blendMode: 'normal' }],
+    slots: [
+      { name: 'rail', bone: 'root', color: white, attachment: 'spline', blendMode: 'normal' },
+    ],
     skins: [
       {
         name: 'default',
@@ -807,7 +843,9 @@ describe('Stage F3 (0.5.0) path carry through load and export', () => {
 
     // A non-path edit forces a full-state snapshot/restore; undo must return the carried path data intact.
     const before = doc.model.snapshot();
-    doc.history.execute(new CreateBoneCommand(doc.ids.mint('bone'), null, { name: 'tmp', ...GEOM }));
+    doc.history.execute(
+      new CreateBoneCommand(doc.ids.mint('bone'), null, { name: 'tmp', ...GEOM }),
+    );
     doc.history.undo();
 
     expect(doc.model.snapshot()).toEqual(before);

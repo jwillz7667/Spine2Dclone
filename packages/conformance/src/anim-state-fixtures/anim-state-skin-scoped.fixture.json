@@ -2,7 +2,7 @@
   "scenarioId": "anim-state-skin-scoped",
   "rigId": "anim-state-skin-scoped-rig",
   "scenarioHash": "sha256:a2b7d93be225b5b901ca066e4bf68b36af36bfacf2df506767e44d21f0ca70dc",
-  "rigHash": "sha256:8197975d69309346988fb2b15720052c279798bc69cd14690cd8284a10ee061b",
+  "rigHash": "sha256:2fa4658f01bacc059cfc80cf9269da44827f568783bed25eee7bd1cf8a168290",
   "coreVersion": "runtime-core@0.0.0",
   "toolchain": "node-22.13.1-v8",
   "generatedBy": "generate-anim-state.ts",

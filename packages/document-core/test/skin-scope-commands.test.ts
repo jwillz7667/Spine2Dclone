@@ -46,9 +46,9 @@ describe('skin-scope commands (Stage F2)', () => {
     const doc = rigged();
     const skinId = variantSkinId(doc);
 
-    expect(() => doc.history.execute(new AddSkinScopeCommand(skinId, 'bones', 'nope'))).toThrowError(
-      SkinError,
-    );
+    expect(() =>
+      doc.history.execute(new AddSkinScopeCommand(skinId, 'bones', 'nope')),
+    ).toThrowError(SkinError);
     expect(() =>
       doc.history.execute(new AddSkinScopeCommand(skinId, 'constraints', 'nope')),
     ).toThrowError(SkinError);

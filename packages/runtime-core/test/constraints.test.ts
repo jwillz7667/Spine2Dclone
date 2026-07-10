@@ -209,7 +209,10 @@ describe('constraint order (ADR-0010 section 1)', () => {
         bone('ikTarget', 'root', { x: 80, y: 40 }),
       ],
       ikConstraints: [
-        { ...ikConstraint('ik', ['boneC'], 'ikTarget', 1, true), ...(withOrder ? { order: 1 } : {}) },
+        {
+          ...ikConstraint('ik', ['boneC'], 'ikTarget', 1, true),
+          ...(withOrder ? { order: 1 } : {}),
+        },
       ],
       transformConstraints: [
         transformConstraint('tc', ['boneP'], 'tcTarget', {
@@ -232,7 +235,9 @@ describe('constraint order (ADR-0010 section 1)', () => {
     // The default path builds no schedule; the ordered path builds a dense one that puts tc before ik.
     expect(defPose.solveOrder).toBeNull();
     expect(Array.from(ordPose.solveOrder!)).toEqual([1, 0]); // position 0 -> tc (code 1), position 1 -> ik (code 0)
-    expect(Array.from(worldOf(ordPose, 'boneC'))).not.toEqual(Array.from(worldOf(defPose, 'boneC')));
+    expect(Array.from(worldOf(ordPose, 'boneC'))).not.toEqual(
+      Array.from(worldOf(defPose, 'boneC')),
+    );
     noNaN(defPose);
     noNaN(ordPose);
   });

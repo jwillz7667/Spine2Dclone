@@ -3,12 +3,6 @@
   "animation": "default",
   "duration": 1.0,
   "loop": false,
-  "poseTimes": [
-    0.0,
-    0.5,
-    1.0
-  ],
-  "slots": [
-    "tintSlot"
-  ]
+  "poseTimes": [0.0, 0.5, 1.0],
+  "slots": ["tintSlot"]
 }

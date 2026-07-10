@@ -129,11 +129,7 @@ export {
   decodeEffectsDocument,
   PlayerLoadError,
 } from './player/document-loader';
-export type {
-  SkeletonSource,
-  EffectsSource,
-  PlayerLoadErrorCode,
-} from './player/document-loader';
+export type { SkeletonSource, EffectsSource, PlayerLoadErrorCode } from './player/document-loader';
 // Headless sampling harness (TASK-1.10.4): samples the SAME runtime-core path the player renders,
 // with no GL/render context, so WP-1.13 can check editor-vs-runtime parity in plain Node/Vitest.
 export { samplePlaybackWorlds } from './headless/sample-playback';

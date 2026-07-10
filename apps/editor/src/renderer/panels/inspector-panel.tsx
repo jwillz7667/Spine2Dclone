@@ -622,9 +622,7 @@ function SlotDetail(props: SlotDetailProps): ReactElement {
               type="button"
               style={canKey ? smallButtonStyle : { ...smallButtonStyle, ...buttonDisabledStyle }}
               disabled={!canKey}
-              title={
-                canKey ? 'Key the dark color at the playhead' : 'Select an animation to key'
-              }
+              title={canKey ? 'Key the dark color at the playhead' : 'Select an animation to key'}
               onClick={() => keySlotDarkAtPlayhead(slot.id)}
             >
               Key
@@ -1287,7 +1285,12 @@ function keyBoneComponentsAtPlayhead(boneId: BoneId): void {
   const bone = doc.model.getBone(boneId);
   const state = usePlaybackStore.getState();
   if (bone === undefined || state.activeAnimation === null) return;
-  const commands = buildBoneComponentKeyCommands(state.activeAnimation, boneId, bone, state.playhead);
+  const commands = buildBoneComponentKeyCommands(
+    state.activeAnimation,
+    boneId,
+    bone,
+    state.playhead,
+  );
   doc.history.beginInteraction();
   try {
     for (const command of commands) doc.history.execute(command);
@@ -1392,7 +1395,9 @@ function BoneTransformSection(props: BoneTransformSectionProps): ReactElement {
         <button
           type="button"
           style={
-            canKey ? { ...smallButtonStyle, marginLeft: 'auto' } : { ...smallButtonStyle, ...buttonDisabledStyle, marginLeft: 'auto' }
+            canKey
+              ? { ...smallButtonStyle, marginLeft: 'auto' }
+              : { ...smallButtonStyle, ...buttonDisabledStyle, marginLeft: 'auto' }
           }
           disabled={!canKey}
           title={

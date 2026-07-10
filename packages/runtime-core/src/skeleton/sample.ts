@@ -236,7 +236,15 @@ function solveOneIkConstraint(
   if (boneIndices.length === 1) {
     const boneIndex = boneIndices[0]!;
     if (boneIndex < 0) return;
-    solveIkOneBone(pose, boneIndex, targetX, targetY, sampled.mix, sampled.stretch, sampled.compress);
+    solveIkOneBone(
+      pose,
+      boneIndex,
+      targetX,
+      targetY,
+      sampled.mix,
+      sampled.stretch,
+      sampled.compress,
+    );
   } else {
     const parentIndex = boneIndices[0]!;
     const childIndex = boneIndices[1]!;
@@ -531,12 +539,18 @@ function applyBoneEntry(
     // math as the corresponding joint component (translate/shear are setup + value, scale is setup *
     // value). The format's coexistence ban guarantees a channel's joint and split forms never both key,
     // so applying every present track cannot double-write a component.
-    if (applyBoneScalar(channels.translateX, blendLocal, setup, s, false, t, alpha, additive)) touched = true;
-    if (applyBoneScalar(channels.translateY, blendLocal, setup, s + 1, false, t, alpha, additive)) touched = true;
-    if (applyBoneScalar(channels.scaleX, blendLocal, setup, s + 3, true, t, alpha, additive)) touched = true;
-    if (applyBoneScalar(channels.scaleY, blendLocal, setup, s + 4, true, t, alpha, additive)) touched = true;
-    if (applyBoneScalar(channels.shearX, blendLocal, setup, s + 5, false, t, alpha, additive)) touched = true;
-    if (applyBoneScalar(channels.shearY, blendLocal, setup, s + 6, false, t, alpha, additive)) touched = true;
+    if (applyBoneScalar(channels.translateX, blendLocal, setup, s, false, t, alpha, additive))
+      touched = true;
+    if (applyBoneScalar(channels.translateY, blendLocal, setup, s + 1, false, t, alpha, additive))
+      touched = true;
+    if (applyBoneScalar(channels.scaleX, blendLocal, setup, s + 3, true, t, alpha, additive))
+      touched = true;
+    if (applyBoneScalar(channels.scaleY, blendLocal, setup, s + 4, true, t, alpha, additive))
+      touched = true;
+    if (applyBoneScalar(channels.shearX, blendLocal, setup, s + 5, false, t, alpha, additive))
+      touched = true;
+    if (applyBoneScalar(channels.shearY, blendLocal, setup, s + 6, false, t, alpha, additive))
+      touched = true;
 
     if (touched) boneTouched[boneIndex] = 1;
   }
@@ -580,8 +594,14 @@ function applySlotEntry(
   discreteWins: boolean,
 ): void {
   const { slotChannels } = prepared;
-  const { slotColor, slotSetupColor, slotDarkColor, slotSetupDarkColor, slotAttachment, slotAttachmentWinWeight } =
-    pose;
+  const {
+    slotColor,
+    slotSetupColor,
+    slotDarkColor,
+    slotSetupDarkColor,
+    slotAttachment,
+    slotAttachmentWinWeight,
+  } = pose;
   for (let sc = 0; sc < slotChannels.length; sc += 1) {
     const channels: PreparedSlotChannels = slotChannels[sc]!;
     const slotIndex = channels.slotIndex;
@@ -658,8 +678,14 @@ function applyConstraintEntry(
   discreteWins: boolean,
 ): void {
   const { ikChannels, transformChannels, pathChannels } = prepared;
-  const { ikConstraints, transformConstraints, pathConstraints, ikBendWinWeight, ikStretchWinWeight, ikCompressWinWeight } =
-    pose;
+  const {
+    ikConstraints,
+    transformConstraints,
+    pathConstraints,
+    ikBendWinWeight,
+    ikStretchWinWeight,
+    ikCompressWinWeight,
+  } = pose;
 
   for (let c = 0; c < ikChannels.length; c += 1) {
     const channel: PreparedIkChannel = ikChannels[c]!;
@@ -723,9 +749,33 @@ function applyConstraintEntry(
     if (index < 0) continue;
     const constraint = pathConstraints[index]!;
     const sampled = constraint.sampled;
-    blendPathScalar(sampled, 'position', constraint.basePosition, channel.position, t, alpha, additive);
-    blendPathScalar(sampled, 'spacing', constraint.baseSpacing, channel.spacing, t, alpha, additive);
-    blendPathScalar(sampled, 'mixRotate', constraint.baseMixRotate, channel.mixRotate, t, alpha, additive);
+    blendPathScalar(
+      sampled,
+      'position',
+      constraint.basePosition,
+      channel.position,
+      t,
+      alpha,
+      additive,
+    );
+    blendPathScalar(
+      sampled,
+      'spacing',
+      constraint.baseSpacing,
+      channel.spacing,
+      t,
+      alpha,
+      additive,
+    );
+    blendPathScalar(
+      sampled,
+      'mixRotate',
+      constraint.baseMixRotate,
+      channel.mixRotate,
+      t,
+      alpha,
+      additive,
+    );
     blendPathScalar(sampled, 'mixX', constraint.baseMixX, channel.mixX, t, alpha, additive);
     blendPathScalar(sampled, 'mixY', constraint.baseMixY, channel.mixY, t, alpha, additive);
   }
@@ -828,7 +878,8 @@ function prepareAnimation(pose: Pose, animation: Animation): PreparedAnimation {
           ? buildAttachmentTrack(timelines.attachment)
           : null,
       rgb: timelines.rgb && timelines.rgb.length > 0 ? buildRgbTrack(timelines.rgb) : null,
-      alpha: timelines.alpha && timelines.alpha.length > 0 ? buildAlphaTrack(timelines.alpha) : null,
+      alpha:
+        timelines.alpha && timelines.alpha.length > 0 ? buildAlphaTrack(timelines.alpha) : null,
       dark: timelines.dark && timelines.dark.length > 0 ? buildColorTrack(timelines.dark) : null,
     });
   }

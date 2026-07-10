@@ -1,5 +1,9 @@
 import type { Command, CommandContext } from '../command/command';
-import { CommandNotAppliedError, CommandTargetMissingError, EventEditError } from '../command/errors';
+import {
+  CommandNotAppliedError,
+  CommandTargetMissingError,
+  EventEditError,
+} from '../command/errors';
 import { makeEventDef } from '../model/doc-state';
 import type { EventDefId } from '../model/ids';
 import { assertEventNameFree, assertEventNameNonEmpty } from './event-support';

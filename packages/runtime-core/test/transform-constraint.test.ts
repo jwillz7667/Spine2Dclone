@@ -140,7 +140,15 @@ describe('transform-constraint variants (ADR-0010 section 3)', () => {
   it('world absolute (default) drives the bone WORLD rotation to the target world rotation', () => {
     const { pose, boneIndex, targetIndex } = makeParentedPose();
 
-    solveTransformConstraint(pose, boneIndex, targetIndex, { ...noMix, rotate: 1 }, noOffset, false, false);
+    solveTransformConstraint(
+      pose,
+      boneIndex,
+      targetIndex,
+      { ...noMix, rotate: 1 },
+      noOffset,
+      false,
+      false,
+    );
 
     expect(decomposeWorld(resolveWorldMat(pose, boneIndex)).rotation).toBeCloseTo(40, 6);
   });
@@ -148,7 +156,15 @@ describe('transform-constraint variants (ADR-0010 section 3)', () => {
   it('local absolute drives the bone LOCAL rotation to the target local rotation', () => {
     const { pose, boneIndex, targetIndex } = makeParentedPose();
 
-    solveTransformConstraint(pose, boneIndex, targetIndex, { ...noMix, rotate: 1 }, noOffset, true, false);
+    solveTransformConstraint(
+      pose,
+      boneIndex,
+      targetIndex,
+      { ...noMix, rotate: 1 },
+      noOffset,
+      true,
+      false,
+    );
 
     // Bone local rotation now equals the target LOCAL rotation (40), so its world rotation is 25 + 40.
     expect(decomposeWorld(resolveWorldMat(pose, boneIndex)).rotation).toBeCloseTo(65, 6);

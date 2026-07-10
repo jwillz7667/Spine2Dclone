@@ -3,12 +3,6 @@
   "animation": "default",
   "duration": 1.0,
   "loop": false,
-  "poseTimes": [
-    0.0,
-    1.0
-  ],
-  "activeSkins": [
-    null,
-    "gold"
-  ]
+  "poseTimes": [0.0, 1.0],
+  "activeSkins": [null, "gold"]
 }

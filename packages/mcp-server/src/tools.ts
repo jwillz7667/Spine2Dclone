@@ -950,9 +950,7 @@ const channelSchema = z.enum([
 // the channel (checkValueShape); the union here keeps a malformed shape (e.g. extra keys) out. Stage F2
 // (ADR-0009, PP-D10) ADDS the scalar shape (`value`, the per-component bone tracks translateX/Y, scaleX/Y,
 // shearX/Y) and the split slot-color shapes (`rgb`, an RGB triple; `alpha`, a lone channel in [0, 1]).
-const rgbSchema = z
-  .object({ r: colorComponent, g: colorComponent, b: colorComponent })
-  .strict();
+const rgbSchema = z.object({ r: colorComponent, g: colorComponent, b: colorComponent }).strict();
 const rotateValueSchema = z.object({ angle: z.number().finite() }).strict();
 const vec2ValueSchema = z.object({ x: z.number().finite(), y: z.number().finite() }).strict();
 const colorValueSchema = z.object({ color: rgbaSchema }).strict();
@@ -2621,7 +2619,8 @@ const eventTools: readonly ToolDefinition[] = [
     {
       name: 'event.list',
       title: 'List events',
-      description: 'List the document-level event definitions (id, name, payload defaults, audio hint).',
+      description:
+        'List the document-level event definitions (id, name, payload defaults, audio hint).',
       input: z.object({ documentId }).strict(),
     },
     (deps, input) => ({
@@ -3892,7 +3891,9 @@ export const TOOLS: readonly ToolDefinition[] = [
       description:
         'Set a path spline open or closed. Closing drops the trailing anchor; opening appends one at the ' +
         'first anchor, so the control-point count stays valid. Rejected as PATH (reason: notFound).',
-      input: z.object({ documentId, slotId, name: z.string().min(1), closed: z.boolean() }).strict(),
+      input: z
+        .object({ documentId, slotId, name: z.string().min(1), closed: z.boolean() })
+        .strict(),
     },
     (deps, input) => {
       const session = deps.sessions.get(input.documentId);
@@ -5032,9 +5033,7 @@ export const TOOLS: readonly ToolDefinition[] = [
         'transform constraint ids in the desired solve order, a dense unique cover of the current set (a ' +
         'wrong length, duplicate, or unknown id is CONSTRAINT with reason orderInvalid). Pass `order: null` ' +
         'to CLEAR the explicit order and restore the default (all IK in array order, then all transform).',
-      input: z
-        .object({ documentId, order: z.array(z.string().min(1)).nullable() })
-        .strict(),
+      input: z.object({ documentId, order: z.array(z.string().min(1)).nullable() }).strict(),
     },
     (deps, input) => {
       const session = deps.sessions.get(input.documentId);
@@ -5107,7 +5106,10 @@ export const TOOLS: readonly ToolDefinition[] = [
     (deps, input) => {
       const session = deps.sessions.get(input.documentId);
       requireSkin(session, input.skinId);
-      executeSkinEdit(session, new AddSkinScopeCommand(asSkinId(input.skinId), input.scope, input.name));
+      executeSkinEdit(
+        session,
+        new AddSkinScopeCommand(asSkinId(input.skinId), input.scope, input.name),
+      );
       return { revision: session.document.model.revision };
     },
   ),

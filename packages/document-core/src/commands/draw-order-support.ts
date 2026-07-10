@@ -44,7 +44,10 @@ export function assertConsistentDrawOrder(
     }
     const other = targets.get(target);
     if (other !== undefined) {
-      throw new DrawOrderError('targetCollision', `slots ${other} and ${entry.slot} both target ${target}`);
+      throw new DrawOrderError(
+        'targetCollision',
+        `slots ${other} and ${entry.slot} both target ${target}`,
+      );
     }
     targets.set(target, entry.slot);
   }

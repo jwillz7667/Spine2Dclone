@@ -826,7 +826,8 @@ export class SkeletonView {
       for (let k = 0; k < clip.clippedCount; k += 1) {
         const record = scene.recordsBySlot[clip.clippedSlots[k]!];
         if (record === undefined || record === null || !record.visible) continue;
-        const display = record.kind === 'mesh' ? (record.activeMesh?.display ?? null) : record.sprite;
+        const display =
+          record.kind === 'mesh' ? (record.activeMesh?.display ?? null) : record.sprite;
         if (display === null) continue;
         const mask = this.acquireClipMask(maskCount);
         maskCount += 1;
@@ -988,7 +989,13 @@ export class SkeletonView {
     const frameIndex =
       animationId === null
         ? sequence.setupIndex
-        : sampleSlotSequenceFrame(scene.document, animationId, t, scene.pose, scene.pose.slotNames[slotIndex]!);
+        : sampleSlotSequenceFrame(
+            scene.document,
+            animationId,
+            t,
+            scene.pose,
+            scene.pose.slotNames[slotIndex]!,
+          );
     if (frameIndex < 0) return path;
     return sequenceRegionName(path, sequence, frameIndex);
   }
@@ -1024,7 +1031,16 @@ export class SkeletonView {
       for (const entry of record.meshList) entry.display.filters = filter;
     }
     if (record.twoColorFilter !== null) {
-      updateTwoColorFilter(record.twoColorFilter, lightR, lightG, lightB, lightA, darkR, darkG, darkB);
+      updateTwoColorFilter(
+        record.twoColorFilter,
+        lightR,
+        lightG,
+        lightB,
+        lightA,
+        darkR,
+        darkG,
+        darkB,
+      );
     }
     return packTint(darkR, darkG, darkB);
   }

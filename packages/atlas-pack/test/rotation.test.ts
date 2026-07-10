@@ -19,7 +19,16 @@ function patternSprite(name: string, w: number, h: number): TrimmedSprite {
       pixels[i + 3] = 255;
     }
   }
-  return { name, trimmedW: w, trimmedH: h, offsetX: 0, offsetY: 0, originalW: w, originalH: h, pixels };
+  return {
+    name,
+    trimmedW: w,
+    trimmedH: h,
+    offsetX: 0,
+    offsetY: 0,
+    originalW: w,
+    originalH: h,
+    pixels,
+  };
 }
 
 // The reference 90-degree-clockwise rotation of a w x h image into an (h x w) buffer, row-major. Mirrors
@@ -113,7 +122,11 @@ describe('rotation packing', () => {
   });
 
   it('leaves the same scenario unrotated (and possibly multi-page) without allowRotation', () => {
-    const rotated = packAtlas(ROTATION_SCENARIO, { maxPageSize: 80, padding: 2, allowRotation: true });
+    const rotated = packAtlas(ROTATION_SCENARIO, {
+      maxPageSize: 80,
+      padding: 2,
+      allowRotation: true,
+    });
     const straight = packAtlas(ROTATION_SCENARIO, { maxPageSize: 80, padding: 2 });
 
     const straightRotatedFlags = straight.atlas.pages.flatMap((p) =>

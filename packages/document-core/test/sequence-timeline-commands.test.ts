@@ -59,7 +59,9 @@ describe('SetSequenceKeyframe', () => {
     const before = doc.model.snapshot();
     doc.history.beginInteraction();
     for (let i = 1; i <= 4; i += 1) {
-      doc.history.execute(new SetSequenceKeyframeCommand(animId, slotId, first.time, 'loop', 0, i * 0.05));
+      doc.history.execute(
+        new SetSequenceKeyframeCommand(animId, slotId, first.time, 'loop', 0, i * 0.05),
+      );
     }
     const event = doc.history.endInteraction('Set Sequence Key');
     expect(event?.kind).toBe('anim.sequence.set'); // one merged command, not a composite

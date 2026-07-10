@@ -55,7 +55,9 @@ export class ReorderConstraintsCommand implements Command {
       if (current.length === 0) throw new CommandTargetMissingError(this.kind, 'no constraints');
       this.before = current;
       this.after =
-        this.desiredOrder === null ? clearOrders(current) : assignOrders(current, this.desiredOrder);
+        this.desiredOrder === null
+          ? clearOrders(current)
+          : assignOrders(current, this.desiredOrder);
     }
     applyOrders(ctx, this.after);
   }
@@ -100,9 +102,7 @@ function assignOrders(
 
 // Re-stamp one memento with a new order value, preserving its discriminated (kind, branded id) identity.
 function withOrder(c: ConstraintOrderMemento, order: number | undefined): ConstraintOrderMemento {
-  return c.kind === 'ik'
-    ? { kind: 'ik', id: c.id, order }
-    : { kind: 'transform', id: c.id, order };
+  return c.kind === 'ik' ? { kind: 'ik', id: c.id, order } : { kind: 'transform', id: c.id, order };
 }
 
 // Write an order assignment to the model through the dedicated set-order mutator methods (which DELETE the

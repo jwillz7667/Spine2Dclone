@@ -8,10 +8,7 @@ import type { NativeResolveOutput } from './native';
 import { nativeResolveOutputSchema } from './native-schema';
 import { parseHttpTransportConfig } from './http-config';
 import type { HttpTransportConfig } from './http-config';
-import {
-  isRetryableTransportError,
-  RealEngineTransportError,
-} from './errors';
+import { isRetryableTransportError, RealEngineTransportError } from './errors';
 
 // The concrete HTTP transport for the certified engine's NON-TRANSACTING resolve (WP-5.8). It implements
 // NonTransactingResolveClient, so a RealEngineAdapter wrapping it is a drop-in swap for MockMathEngine
@@ -88,15 +85,23 @@ function defaultSleep(ms: number): Promise<void> {
 function classifyStatus(status: number): RealEngineTransportError | undefined {
   if (status >= 200 && status < 300) return undefined;
   if (status === 429) {
-    return new RealEngineTransportError('httpRateLimited', `engine returned HTTP ${status}`, { status });
+    return new RealEngineTransportError('httpRateLimited', `engine returned HTTP ${status}`, {
+      status,
+    });
   }
   if (status >= 400 && status < 500) {
-    return new RealEngineTransportError('httpClientError', `engine returned HTTP ${status}`, { status });
+    return new RealEngineTransportError('httpClientError', `engine returned HTTP ${status}`, {
+      status,
+    });
   }
   if (status >= 500 && status < 600) {
-    return new RealEngineTransportError('httpServerError', `engine returned HTTP ${status}`, { status });
+    return new RealEngineTransportError('httpServerError', `engine returned HTTP ${status}`, {
+      status,
+    });
   }
-  return new RealEngineTransportError('httpUnexpectedStatus', `engine returned HTTP ${status}`, { status });
+  return new RealEngineTransportError('httpUnexpectedStatus', `engine returned HTTP ${status}`, {
+    status,
+  });
 }
 
 export class HttpResolveClient implements NonTransactingResolveClient {
@@ -149,7 +154,10 @@ export class HttpResolveClient implements NonTransactingResolveClient {
       }
     }
     // Unreachable: the loop either returns or throws. Guard for the type checker.
-    throw lastError ?? new RealEngineTransportError('network', 'resolve exhausted with no error recorded');
+    throw (
+      lastError ??
+      new RealEngineTransportError('network', 'resolve exhausted with no error recorded')
+    );
   }
 
   // One HTTP attempt: enforce the per-attempt timeout and caller abort, issue the request, classify the
@@ -217,9 +225,13 @@ export class HttpResolveClient implements NonTransactingResolveClient {
     try {
       json = JSON.parse(raw);
     } catch (cause) {
-      throw new RealEngineTransportError('malformedBody', 'engine response body is not valid JSON', {
-        cause,
-      });
+      throw new RealEngineTransportError(
+        'malformedBody',
+        'engine response body is not valid JSON',
+        {
+          cause,
+        },
+      );
     }
     const parsed = nativeResolveOutputSchema.safeParse(this.decodeResponse(json));
     if (!parsed.success) {

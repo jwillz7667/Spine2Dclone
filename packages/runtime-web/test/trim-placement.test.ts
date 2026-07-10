@@ -182,7 +182,10 @@ describe('trimmed / rotated region placement (runtime-web sprite quad vs shared 
     view.sync(document);
 
     const pose = solve(document);
-    const world = multiply(boneWorld(pose, 'root'), sizedLocal(document.skins[0]!.attachments['s']!['img'] as RegionAttachment));
+    const world = multiply(
+      boneWorld(pose, 'root'),
+      sizedLocal(document.skins[0]!.attachments['s']!['img'] as RegionAttachment),
+    );
     const expected = [
       transformPoint(world, -0.5, -0.5),
       transformPoint(world, 0.5, -0.5),

@@ -71,19 +71,8 @@
             "type": "path",
             "closed": false,
             "constantSpeed": true,
-            "lengths": [
-              100
-            ],
-            "vertices": [
-              0,
-              0,
-              33,
-              0,
-              66,
-              0,
-              100,
-              0
-            ]
+            "lengths": [100],
+            "vertices": [0, 0, 33, 0, 66, 0, 100, 0]
           }
         }
       }
@@ -95,9 +84,7 @@
     {
       "name": "pc",
       "target": "rail",
-      "bones": [
-        "ghost"
-      ],
+      "bones": ["ghost"],
       "positionMode": "percent",
       "spacingMode": "length",
       "rotateMode": "tangent",

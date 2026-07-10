@@ -160,7 +160,9 @@ export class Player {
     this.skeletonView = new SkeletonView();
     this.skeletonView.setTextureResolver(skeletonResolver);
 
-    this.slotView = options.slot ? new SlotSceneView(options.slot.grid, options.slot.options) : null;
+    this.slotView = options.slot
+      ? new SlotSceneView(options.slot.grid, options.slot.options)
+      : null;
     this.particleView = effectsDocument ? new ParticleLayerView(effectsResolver) : null;
     this.effectSystem = effectsDocument
       ? new EffectSystem(effectsDocument, effectSystemOptions(options.effects))

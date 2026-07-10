@@ -83,7 +83,13 @@ function spinTimeline(): PresentationTimeline {
     { kind: 'symbolLand', row: 1, col: 0, symbol: A, atMs: 0, seq: 4 },
     { kind: 'symbolLand', row: 1, col: 1, symbol: C, atMs: 0, seq: 5 },
     { kind: 'symbolAnimate', row: 0, col: 0, set: 'win', atMs: 100, seq: 6 },
-    { kind: 'vfxBurst', preset: 'coin', anchor: { kind: 'cell', row: 0, col: 0 }, atMs: 100, seq: 7 },
+    {
+      kind: 'vfxBurst',
+      preset: 'coin',
+      anchor: { kind: 'cell', row: 0, col: 0 },
+      atMs: 100,
+      seq: 7,
+    },
     {
       kind: 'counterRollup',
       fromUnits: 0,
@@ -131,7 +137,12 @@ describe('PP-C4 slot-scene-state reducer (pure)', () => {
     applyDirective(state, { kind: 'symbolLand', row: 1, col: 0, symbol: B, atMs: 0, seq: 1 });
 
     // Explode the bottom cell, drop the survivor A from row 0 to row 1, refill row 0 with C.
-    applyDirective(state, { kind: 'cascadeExplode', cells: [{ row: 1, col: 0 }], atMs: 10, seq: 2 });
+    applyDirective(state, {
+      kind: 'cascadeExplode',
+      cells: [{ row: 1, col: 0 }],
+      atMs: 10,
+      seq: 2,
+    });
     applyDirective(state, {
       kind: 'cascadeDrop',
       moves: [{ from: { row: 0, col: 0 }, to: { row: 1, col: 0 }, symbol: A }],

@@ -74,7 +74,9 @@ describe('dark timeline (keyable two-color)', () => {
     const target: KeyframeTarget = { kind: 'slot', slotId, channel: 'dark' };
     const before = doc.model.snapshot();
     try {
-      doc.history.execute(new SetKeyframeCommand(animId, target, 0.5, { color: { r: 0, g: 0, b: 0, a: 1 } }));
+      doc.history.execute(
+        new SetKeyframeCommand(animId, target, 0.5, { color: { r: 0, g: 0, b: 0, a: 1 } }),
+      );
       throw new Error('expected TimelineError');
     } catch (error) {
       expect(error).toBeInstanceOf(TimelineError);
@@ -93,7 +95,9 @@ describe('dark timeline (keyable two-color)', () => {
     doc.history.execute(new SetSlotDarkColorCommand(slotId, { r: 0.1, g: 0.1, b: 0.1, a: 1 }));
     const before = doc.model.snapshot();
 
-    doc.history.execute(new SetKeyframeCommand(animId, target, 0.5, { color: { r: 1, g: 0, b: 0, a: 1 } }));
+    doc.history.execute(
+      new SetKeyframeCommand(animId, target, 0.5, { color: { r: 1, g: 0, b: 0, a: 1 } }),
+    );
     const darkKeys = doc.model.getAnimation(animId)!.slots.get(slotId)!.dark;
     expect(darkKeys).toHaveLength(1);
     assertInvariants(doc.model);

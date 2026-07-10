@@ -86,9 +86,9 @@ describe('ReorderConstraints', () => {
     const doc = rigged();
     const ids = combinedIds(doc);
     const before = doc.model.snapshot();
-    expect(() =>
-      doc.history.execute(new ReorderConstraintsCommand([ids[0]!, ids[0]!])),
-    ).toThrow(ConstraintError);
+    expect(() => doc.history.execute(new ReorderConstraintsCommand([ids[0]!, ids[0]!]))).toThrow(
+      ConstraintError,
+    );
     expect(doc.model.snapshot()).toEqual(before);
   });
 
@@ -96,9 +96,9 @@ describe('ReorderConstraints', () => {
     const doc = rigged();
     const ids = combinedIds(doc);
     const before = doc.model.snapshot();
-    expect(() =>
-      doc.history.execute(new ReorderConstraintsCommand([ids[0]!, 'ghost'])),
-    ).toThrow(ConstraintError);
+    expect(() => doc.history.execute(new ReorderConstraintsCommand([ids[0]!, 'ghost']))).toThrow(
+      ConstraintError,
+    );
     expect(doc.model.snapshot()).toEqual(before);
   });
 

@@ -64,7 +64,8 @@ export function buildSkinState(document: SkeletonDocument): SkinState {
   for (const skin of document.skins) bySkin.set(skin.name, indexSkin(skin));
   // The default skin is guaranteed present by the format validator; an empty index is a defensive
   // fallback only (it never occurs for a validated document) so resolution stays total.
-  const defaultSkin = bySkin.get(DEFAULT_SKIN_NAME) ?? new Map<string, ReadonlyMap<string, Attachment>>();
+  const defaultSkin =
+    bySkin.get(DEFAULT_SKIN_NAME) ?? new Map<string, ReadonlyMap<string, Attachment>>();
   return {
     activeSkin: DEFAULT_SKIN_NAME,
     skinNames: [...bySkin.keys()],

@@ -1,7 +1,7 @@
 {
   "rigId": "rig-path-spacing",
-  "rigHash": "sha256:0983da0b18217a09b1e1bb64c7316691eaffcbb6119a6b65e12651a87bf30228",
-  "specHash": "sha256:7a18c5035c61da8ce65ed9a42c0c6d27774b8476717af7ebc45b500ab8079405",
+  "rigHash": "sha256:7396bceebbb649a643d73ce3f858c33ad0e74f3236e3c8dfeac7aa42a1e715ed",
+  "specHash": "sha256:f81e983d0f857b6fea63fb8e0be15426f013ddf7f9afa966fd9ffd09d096d261",
   "coreVersion": "runtime-core@0.0.0",
   "toolchain": "node-22.13.1-v8",
   "generatedBy": "generate.ts",

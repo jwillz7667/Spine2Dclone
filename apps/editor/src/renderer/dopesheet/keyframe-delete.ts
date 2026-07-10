@@ -38,7 +38,10 @@ function buildDeleteIndex(animation: AnimationEntity): Map<KeyframeId, () => Com
   for (const [boneId, set] of animation.bones) {
     for (const channel of BONE_CHANNELS) {
       for (const kf of set[channel]) {
-        index.set(kf.id, () => new DeleteKeyframeCommand(animId, { kind: 'bone', boneId, channel }, kf.id));
+        index.set(
+          kf.id,
+          () => new DeleteKeyframeCommand(animId, { kind: 'bone', boneId, channel }, kf.id),
+        );
       }
     }
   }

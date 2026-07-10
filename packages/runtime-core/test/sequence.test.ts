@@ -23,7 +23,9 @@ describe('resolveSequenceFrame (ADR-0011 section 2)', () => {
   });
 
   it('pingpong bounces between the ends', () => {
-    expect([0, 0.15, 0.35, 0.55, 0.75].map((e) => frame('pingpong', 0, e))).toEqual([0, 1, 3, 1, 1]);
+    expect([0, 0.15, 0.35, 0.55, 0.75].map((e) => frame('pingpong', 0, e))).toEqual([
+      0, 1, 3, 1, 1,
+    ]);
   });
 
   it('onceReverse advances backward and clamps at 0', () => {
@@ -31,7 +33,9 @@ describe('resolveSequenceFrame (ADR-0011 section 2)', () => {
   });
 
   it('loopReverse wraps downward with a non-negative residue', () => {
-    expect([0, 0.15, 0.35, 0.55, 0.75].map((e) => frame('loopReverse', 3, e))).toEqual([3, 2, 0, 2, 0]);
+    expect([0, 0.15, 0.35, 0.55, 0.75].map((e) => frame('loopReverse', 3, e))).toEqual([
+      3, 2, 0, 2, 0,
+    ]);
   });
 
   it('pingpongReverse bounces starting downward', () => {
@@ -85,9 +89,27 @@ describe('sampleSlotSequenceFrame (ADR-0011 section 2)', () => {
         },
       ],
       slots: [
-        { name: 'played', bone: 'root', color: { r: 1, g: 1, b: 1, a: 1 }, attachment: 'a', blendMode: 'normal' },
-        { name: 'setupOnly', bone: 'root', color: { r: 1, g: 1, b: 1, a: 1 }, attachment: 'a', blendMode: 'normal' },
-        { name: 'plain', bone: 'root', color: { r: 1, g: 1, b: 1, a: 1 }, attachment: 'p', blendMode: 'normal' },
+        {
+          name: 'played',
+          bone: 'root',
+          color: { r: 1, g: 1, b: 1, a: 1 },
+          attachment: 'a',
+          blendMode: 'normal',
+        },
+        {
+          name: 'setupOnly',
+          bone: 'root',
+          color: { r: 1, g: 1, b: 1, a: 1 },
+          attachment: 'a',
+          blendMode: 'normal',
+        },
+        {
+          name: 'plain',
+          bone: 'root',
+          color: { r: 1, g: 1, b: 1, a: 1 },
+          attachment: 'p',
+          blendMode: 'normal',
+        },
       ],
       skins: [
         {

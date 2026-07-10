@@ -60,9 +60,7 @@
   "ikConstraints": [
     {
       "name": "ik",
-      "bones": [
-        "root"
-      ],
+      "bones": ["root"],
       "target": "root",
       "mix": 1,
       "bend": 1,

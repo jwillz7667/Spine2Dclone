@@ -65,18 +65,14 @@
     {
       "name": "gold",
       "attachments": {},
-      "constraints": [
-        "tcGold"
-      ]
+      "constraints": ["tcGold"]
     }
   ],
   "ikConstraints": [],
   "transformConstraints": [
     {
       "name": "tcGold",
-      "bones": [
-        "boneA"
-      ],
+      "bones": ["boneA"],
       "target": "target",
       "mixRotate": 1,
       "mixX": 0,
@@ -95,9 +91,7 @@
     },
     {
       "name": "tcAlways",
-      "bones": [
-        "boneB"
-      ],
+      "bones": ["boneB"],
       "target": "target",
       "mixRotate": 1,
       "mixX": 0,

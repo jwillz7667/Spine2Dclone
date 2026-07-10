@@ -235,9 +235,7 @@ describe('PP-C3 ParticleLayerView pooling and transforms', () => {
   it('binds resolved particle textures and falls back to the placeholder for an unknown region', () => {
     const sys = steppedSystem(6);
     const sparkTex = makeSolidTexture(8, 8);
-    const view = new ParticleLayerView(
-      makeRegionTextureResolver(new Map([['spark', sparkTex]])),
-    );
+    const view = new ParticleLayerView(makeRegionTextureResolver(new Map([['spark', sparkTex]])));
     view.update(sys.readState());
     // The emitter's live sprites carry the resolved texture; the ribbon / flash regions are unknown, so
     // those fall back to Texture.WHITE. We assert via the live emitter container child.

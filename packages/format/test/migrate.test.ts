@@ -123,9 +123,7 @@ describe('0.1.x -> 0.5.0 migration chain (ADR-0004, ADR-0008, ADR-0009, ADR-0011
       ...(cloneMinimal() as unknown as Record<string, unknown>),
       formatVersion: '0.3.0',
       hash: '',
-      ikConstraints: [
-        { name: 'ik', bones: ['root'], target: 'root', mix: 1, bendPositive: false },
-      ],
+      ikConstraints: [{ name: 'ik', bones: ['root'], target: 'root', mix: 1, bendPositive: false }],
       animations: {
         idle: {
           duration: 1,

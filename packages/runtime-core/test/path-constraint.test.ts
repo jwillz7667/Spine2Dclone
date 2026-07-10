@@ -88,7 +88,10 @@ describe('path constraint solve (ADR-0013)', () => {
   });
 
   it('is deterministic: two solves of the same document produce identical bone worlds', () => {
-    const document = doc(pathAttachment(), pathConstraint({ rotateMode: 'chain', bones: ['follower'] }));
+    const document = doc(
+      pathAttachment(),
+      pathConstraint({ rotateMode: 'chain', bones: ['follower'] }),
+    );
     const first = followerWorld(document);
     const second = followerWorld(document);
 

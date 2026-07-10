@@ -52,7 +52,10 @@ export class SetKeyframeCommand implements Command {
         const slot = ctx.mutate.getSlot(this.target.slotId);
         if (slot === undefined) throw new CommandTargetMissingError(this.kind, this.target.slotId);
         if (slot.darkColor === null) {
-          throw new TimelineError('darkNoSetup', `slot "${this.target.slotId}" has no setup dark color`);
+          throw new TimelineError(
+            'darkNoSetup',
+            `slot "${this.target.slotId}" has no setup dark color`,
+          );
         }
       }
       // Stage F2 (ADR-0009 section 4.1) coexistence ban (the format's TIMELINE_COMPONENT_CONFLICT): a joint

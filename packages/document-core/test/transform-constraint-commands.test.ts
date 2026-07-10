@@ -166,7 +166,9 @@ describe('SetTransformConstraintVariants (PP-D10)', () => {
     expect(doc.model.getTransformConstraint(id)!.relative).toBe(false);
     const before = doc.model.snapshot();
 
-    doc.history.execute(new SetTransformConstraintVariantsCommand(id, { local: true, relative: true }));
+    doc.history.execute(
+      new SetTransformConstraintVariantsCommand(id, { local: true, relative: true }),
+    );
     assertInvariants(doc.model);
     expect(doc.model.getTransformConstraint(id)!.local).toBe(true);
     expect(doc.model.getTransformConstraint(id)!.relative).toBe(true);

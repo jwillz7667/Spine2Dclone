@@ -323,7 +323,9 @@ describe('weighted-mesh bone-index remap across bone-order changes', () => {
       events: [],
       // The slot carries no setup attachment (the mesh lives only in the named skin), and the default skin
       // stays empty; the named 'costume' skin holds the weighted mesh plus its scoping lists.
-      slots: [{ name: 'mesh_slot', bone: 'root', color: WHITE, attachment: null, blendMode: 'normal' }],
+      slots: [
+        { name: 'mesh_slot', bone: 'root', color: WHITE, attachment: null, blendMode: 'normal' },
+      ],
       skins: [{ name: 'default', attachments: {} }, costume],
     };
 

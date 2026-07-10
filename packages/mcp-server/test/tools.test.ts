@@ -1173,9 +1173,13 @@ describe('MCP path attachment tools (PP-D11)', () => {
     const deps = makeDeps();
     const { documentId } = asRecord(await call(deps, 'document.new', { name: 'rig' }));
     const { boneId } = asRecord(await call(deps, 'bone.create', { documentId, name: 'root' }));
-    const { slotId } = asRecord(await call(deps, 'slot.create', { documentId, boneId, name: 'rail' }));
+    const { slotId } = asRecord(
+      await call(deps, 'slot.create', { documentId, boneId, name: 'rail' }),
+    );
 
-    const created = asRecord(await call(deps, 'attach.path.add', { documentId, slotId, name: 'spline' }));
+    const created = asRecord(
+      await call(deps, 'attach.path.add', { documentId, slotId, name: 'spline' }),
+    );
     expect(created['revision']).toBeTypeOf('number');
 
     // path.get projects the promoted control points and the recomputed arc-length table.
@@ -1219,7 +1223,9 @@ describe('MCP path attachment tools (PP-D11)', () => {
     const deps = makeDeps();
     const { documentId } = asRecord(await call(deps, 'document.new', { name: 'rig' }));
     const { boneId } = asRecord(await call(deps, 'bone.create', { documentId, name: 'root' }));
-    const { slotId } = asRecord(await call(deps, 'slot.create', { documentId, boneId, name: 'rail' }));
+    const { slotId } = asRecord(
+      await call(deps, 'slot.create', { documentId, boneId, name: 'rail' }),
+    );
     await call(deps, 'attach.path.add', { documentId, slotId, name: 'spline' });
 
     await expectToolError(
@@ -1421,7 +1427,11 @@ describe('MCP transform constraint tools (WP-2.7)', () => {
     expect(patched.mixX).toBe(0); // untouched channel kept
 
     // PP-D10 variant flags: set relative, leave local at its default; the projection reads them back.
-    await call(deps, 'transform.setVariants', { documentId, transformConstraintId, relative: true });
+    await call(deps, 'transform.setVariants', {
+      documentId,
+      transformConstraintId,
+      relative: true,
+    });
     const variants = asRecord(
       asRecord(await call(deps, 'transform.get', { documentId, transformConstraintId }))
         .transformConstraint,
@@ -2146,9 +2156,9 @@ describe('MCP event tools (PP-D9)', () => {
     expect(renamed.name).toBe('jump');
 
     await call(deps, 'event.delete', { documentId, eventId });
-    expect((asRecord(await call(deps, 'event.list', { documentId })).events as unknown[]).length).toBe(
-      0,
-    );
+    expect(
+      (asRecord(await call(deps, 'event.list', { documentId })).events as unknown[]).length,
+    ).toBe(0);
   });
 
   it('sets, moves, and deletes event-timeline keys and surfaces them through anim.get', async () => {
@@ -2190,10 +2200,7 @@ describe('MCP event tools (PP-D9)', () => {
     const { documentId, animationId } = await buildEventRig(deps);
     await call(deps, 'event.define', { documentId, name: 'dup' });
 
-    await expectToolError(
-      call(deps, 'event.define', { documentId, name: 'dup' }),
-      'EVENT_EDIT',
-    );
+    await expectToolError(call(deps, 'event.define', { documentId, name: 'dup' }), 'EVENT_EDIT');
     await expectToolError(
       call(deps, 'event.get', { documentId, eventId: 'nope' }),
       'EVENT_NOT_FOUND',
@@ -3032,17 +3039,28 @@ describe('MCP sequence timeline tools (PP-D10)', () => {
       keyframeId: firstId,
       time: 0.4,
     });
-    expect((await seqOf(deps, documentId, animationId, slotId)).find((k) => k.id === firstId)!.time).toBe(
-      0.4,
-    );
+    expect(
+      (await seqOf(deps, documentId, animationId, slotId)).find((k) => k.id === firstId)!.time,
+    ).toBe(0.4);
     // Moving onto the occupied t=1 is a typed KEYFRAME_COLLISION.
     await expectToolError(
-      call(deps, 'anim.sequence.move', { documentId, animationId, slotId, keyframeId: firstId, time: 1 }),
+      call(deps, 'anim.sequence.move', {
+        documentId,
+        animationId,
+        slotId,
+        keyframeId: firstId,
+        time: 1,
+      }),
       'KEYFRAME_COLLISION',
     );
 
     // Delete it.
-    await call(deps, 'anim.sequence.delete', { documentId, animationId, slotId, keyframeId: firstId });
+    await call(deps, 'anim.sequence.delete', {
+      documentId,
+      animationId,
+      slotId,
+      keyframeId: firstId,
+    });
     expect((await seqOf(deps, documentId, animationId, slotId)).length).toBe(1);
     await expectToolError(
       call(deps, 'anim.sequence.delete', { documentId, animationId, slotId, keyframeId: firstId }),

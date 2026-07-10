@@ -72,16 +72,7 @@
             "closed": true,
             "constantSpeed": true,
             "lengths": [],
-            "vertices": [
-              0,
-              0,
-              33,
-              0,
-              66,
-              0,
-              100,
-              0
-            ]
+            "vertices": [0, 0, 33, 0, 66, 0, 100, 0]
           }
         }
       }
@@ -93,9 +84,7 @@
     {
       "name": "pc",
       "target": "rail",
-      "bones": [
-        "root"
-      ],
+      "bones": ["root"],
       "positionMode": "percent",
       "spacingMode": "length",
       "rotateMode": "tangent",

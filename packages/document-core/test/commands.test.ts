@@ -95,7 +95,9 @@ describe('Phase 0 command behaviors', () => {
     expect(shear.coalesceWith(new RotateBoneCommand(id, 10))).toBeNull();
     expect(shear.coalesceWith(new ScaleBoneCommand(id, { scaleX: 2, scaleY: 2 }))).toBeNull();
     // Same kind same target DOES coalesce, keeping the earlier before-memento.
-    expect(shear.coalesceWith(new SetBoneShearCommand(id, { shearX: 9, shearY: 9 }))).not.toBeNull();
+    expect(
+      shear.coalesceWith(new SetBoneShearCommand(id, { shearX: 9, shearY: 9 })),
+    ).not.toBeNull();
   });
 
   it('NormalizeBoneRotation wraps out-of-range rotation and round-trips through redo', () => {

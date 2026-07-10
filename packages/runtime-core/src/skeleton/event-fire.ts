@@ -82,12 +82,7 @@ function enqueue(queue: EventQueue, timeline: PreparedEventTimeline, i: number):
 // event times are non-decreasing, coincident keys keep their authored order (ties broken by index), which
 // is the ADR-0008 "coincident events keep timeline order" rule. A scan (timelines are short) with no
 // allocation.
-function fireRange(
-  timeline: PreparedEventTimeline,
-  lo: number,
-  hi: number,
-  out: EventQueue,
-): void {
+function fireRange(timeline: PreparedEventTimeline, lo: number, hi: number, out: EventQueue): void {
   const { keyCount, times } = timeline;
   for (let i = 0; i < keyCount; i += 1) {
     const t = times[i]!;

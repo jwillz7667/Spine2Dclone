@@ -178,7 +178,9 @@ describe('runtime skin state (PP-B3)', () => {
   it('allocates no heap across repeated resolves (allocation probe)', () => {
     const runGc = (globalThis as { gc?: () => void }).gc;
     if (typeof runGc !== 'function') {
-      throw new Error('the skin-state allocation probe requires the worker to run with --expose-gc');
+      throw new Error(
+        'the skin-state allocation probe requires the worker to run with --expose-gc',
+      );
     }
 
     const doc = makeDoc();

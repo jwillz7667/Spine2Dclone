@@ -86,9 +86,9 @@ describe('move-keyframe commands (PP-D10 deferred moves)', () => {
     const first = frames[0]!; // t=0; t=1 is occupied by the second key
     const before = doc.model.snapshot();
 
-    expect(() =>
-      doc.history.execute(new MoveIkKeyframeCommand(animId, cId, first.id, 1)),
-    ).toThrow(KeyframeCollisionError);
+    expect(() => doc.history.execute(new MoveIkKeyframeCommand(animId, cId, first.id, 1))).toThrow(
+      KeyframeCollisionError,
+    );
     expect(doc.model.snapshot()).toEqual(before);
     expect(doc.history.canUndo).toBe(false);
   });
@@ -102,7 +102,10 @@ describe('move-keyframe commands (PP-D10 deferred moves)', () => {
     const before = doc.model.snapshot();
 
     doc.history.execute(new MoveTransformKeyframeCommand(animId, cId, first.id, 0.3));
-    const moved = doc.model.getAnimation(animId)!.transform.get(cId)!.find((kf) => kf.id === first.id)!;
+    const moved = doc.model
+      .getAnimation(animId)!
+      .transform.get(cId)!
+      .find((kf) => kf.id === first.id)!;
     expect(moved.time).toBe(0.3);
     expect(moved.mixRotate).toBe(first.mixRotate);
 

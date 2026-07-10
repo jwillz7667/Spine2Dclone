@@ -37,7 +37,8 @@ const aimTwoBone = (
   ty: number,
   bendPositive: boolean,
   mix: number,
-): void => solveIkTwoBone(pose, parentIndex, childIndex, tx, ty, bendPositive, mix, 0, false, false, false);
+): void =>
+  solveIkTwoBone(pose, parentIndex, childIndex, tx, ty, bendPositive, mix, 0, false, false, false);
 
 describe('solveIkOneBone', () => {
   it('mix=1 points the bone X axis at the target (root bone)', () => {

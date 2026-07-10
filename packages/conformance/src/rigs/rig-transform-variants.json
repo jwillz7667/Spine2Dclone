@@ -3,19 +3,175 @@
   "name": "rig-transform-variants",
   "hash": "",
   "bones": [
-    { "name": "root", "parent": null, "length": 0, "x": 0, "y": 0, "rotation": 0, "scaleX": 1, "scaleY": 1, "shearX": 0, "shearY": 0, "transformMode": "normal" },
-    { "name": "pA", "parent": "root", "length": 30, "x": 0, "y": 0, "rotation": 25, "scaleX": 1, "scaleY": 1, "shearX": 0, "shearY": 0, "transformMode": "normal" },
-    { "name": "bA", "parent": "pA", "length": 30, "x": 20, "y": 0, "rotation": 10, "scaleX": 1, "scaleY": 1, "shearX": 0, "shearY": 0, "transformMode": "normal" },
-    { "name": "tA", "parent": "root", "length": 10, "x": 40, "y": 0, "rotation": 0, "scaleX": 1, "scaleY": 1, "shearX": 0, "shearY": 0, "transformMode": "normal" },
-    { "name": "pB", "parent": "root", "length": 30, "x": 0, "y": -100, "rotation": 25, "scaleX": 1, "scaleY": 1, "shearX": 0, "shearY": 0, "transformMode": "normal" },
-    { "name": "bB", "parent": "pB", "length": 30, "x": 20, "y": 0, "rotation": 10, "scaleX": 1, "scaleY": 1, "shearX": 0, "shearY": 0, "transformMode": "normal" },
-    { "name": "tB", "parent": "root", "length": 10, "x": 40, "y": -100, "rotation": 0, "scaleX": 1, "scaleY": 1, "shearX": 0, "shearY": 0, "transformMode": "normal" },
-    { "name": "pC", "parent": "root", "length": 30, "x": 0, "y": -200, "rotation": 25, "scaleX": 1, "scaleY": 1, "shearX": 0, "shearY": 0, "transformMode": "normal" },
-    { "name": "bC", "parent": "pC", "length": 30, "x": 20, "y": 0, "rotation": 10, "scaleX": 1, "scaleY": 1, "shearX": 0, "shearY": 0, "transformMode": "normal" },
-    { "name": "tC", "parent": "root", "length": 10, "x": 40, "y": -200, "rotation": 0, "scaleX": 1, "scaleY": 1, "shearX": 0, "shearY": 0, "transformMode": "normal" },
-    { "name": "pD", "parent": "root", "length": 30, "x": 0, "y": -300, "rotation": 25, "scaleX": 1, "scaleY": 1, "shearX": 0, "shearY": 0, "transformMode": "normal" },
-    { "name": "bD", "parent": "pD", "length": 30, "x": 20, "y": 0, "rotation": 10, "scaleX": 1, "scaleY": 1, "shearX": 0, "shearY": 0, "transformMode": "normal" },
-    { "name": "tD", "parent": "root", "length": 10, "x": 40, "y": -300, "rotation": 0, "scaleX": 1, "scaleY": 1, "shearX": 0, "shearY": 0, "transformMode": "normal" }
+    {
+      "name": "root",
+      "parent": null,
+      "length": 0,
+      "x": 0,
+      "y": 0,
+      "rotation": 0,
+      "scaleX": 1,
+      "scaleY": 1,
+      "shearX": 0,
+      "shearY": 0,
+      "transformMode": "normal"
+    },
+    {
+      "name": "pA",
+      "parent": "root",
+      "length": 30,
+      "x": 0,
+      "y": 0,
+      "rotation": 25,
+      "scaleX": 1,
+      "scaleY": 1,
+      "shearX": 0,
+      "shearY": 0,
+      "transformMode": "normal"
+    },
+    {
+      "name": "bA",
+      "parent": "pA",
+      "length": 30,
+      "x": 20,
+      "y": 0,
+      "rotation": 10,
+      "scaleX": 1,
+      "scaleY": 1,
+      "shearX": 0,
+      "shearY": 0,
+      "transformMode": "normal"
+    },
+    {
+      "name": "tA",
+      "parent": "root",
+      "length": 10,
+      "x": 40,
+      "y": 0,
+      "rotation": 0,
+      "scaleX": 1,
+      "scaleY": 1,
+      "shearX": 0,
+      "shearY": 0,
+      "transformMode": "normal"
+    },
+    {
+      "name": "pB",
+      "parent": "root",
+      "length": 30,
+      "x": 0,
+      "y": -100,
+      "rotation": 25,
+      "scaleX": 1,
+      "scaleY": 1,
+      "shearX": 0,
+      "shearY": 0,
+      "transformMode": "normal"
+    },
+    {
+      "name": "bB",
+      "parent": "pB",
+      "length": 30,
+      "x": 20,
+      "y": 0,
+      "rotation": 10,
+      "scaleX": 1,
+      "scaleY": 1,
+      "shearX": 0,
+      "shearY": 0,
+      "transformMode": "normal"
+    },
+    {
+      "name": "tB",
+      "parent": "root",
+      "length": 10,
+      "x": 40,
+      "y": -100,
+      "rotation": 0,
+      "scaleX": 1,
+      "scaleY": 1,
+      "shearX": 0,
+      "shearY": 0,
+      "transformMode": "normal"
+    },
+    {
+      "name": "pC",
+      "parent": "root",
+      "length": 30,
+      "x": 0,
+      "y": -200,
+      "rotation": 25,
+      "scaleX": 1,
+      "scaleY": 1,
+      "shearX": 0,
+      "shearY": 0,
+      "transformMode": "normal"
+    },
+    {
+      "name": "bC",
+      "parent": "pC",
+      "length": 30,
+      "x": 20,
+      "y": 0,
+      "rotation": 10,
+      "scaleX": 1,
+      "scaleY": 1,
+      "shearX": 0,
+      "shearY": 0,
+      "transformMode": "normal"
+    },
+    {
+      "name": "tC",
+      "parent": "root",
+      "length": 10,
+      "x": 40,
+      "y": -200,
+      "rotation": 0,
+      "scaleX": 1,
+      "scaleY": 1,
+      "shearX": 0,
+      "shearY": 0,
+      "transformMode": "normal"
+    },
+    {
+      "name": "pD",
+      "parent": "root",
+      "length": 30,
+      "x": 0,
+      "y": -300,
+      "rotation": 25,
+      "scaleX": 1,
+      "scaleY": 1,
+      "shearX": 0,
+      "shearY": 0,
+      "transformMode": "normal"
+    },
+    {
+      "name": "bD",
+      "parent": "pD",
+      "length": 30,
+      "x": 20,
+      "y": 0,
+      "rotation": 10,
+      "scaleX": 1,
+      "scaleY": 1,
+      "shearX": 0,
+      "shearY": 0,
+      "transformMode": "normal"
+    },
+    {
+      "name": "tD",
+      "parent": "root",
+      "length": 10,
+      "x": 40,
+      "y": -300,
+      "rotation": 0,
+      "scaleX": 1,
+      "scaleY": 1,
+      "shearX": 0,
+      "shearY": 0,
+      "transformMode": "normal"
+    }
   ],
   "slots": [],
   "skins": [{ "name": "default", "attachments": {} }],
@@ -25,43 +181,123 @@
       "name": "tcA_world_absolute",
       "bones": ["bA"],
       "target": "tA",
-      "mixRotate": 1, "mixX": 1, "mixY": 0, "mixScaleX": 0, "mixScaleY": 0, "mixShearY": 0,
-      "offsetRotation": 5, "offsetX": 0, "offsetY": 0, "offsetScaleX": 0, "offsetScaleY": 0, "offsetShearY": 0,
-      "local": false, "relative": false
+      "mixRotate": 1,
+      "mixX": 1,
+      "mixY": 0,
+      "mixScaleX": 0,
+      "mixScaleY": 0,
+      "mixShearY": 0,
+      "offsetRotation": 5,
+      "offsetX": 0,
+      "offsetY": 0,
+      "offsetScaleX": 0,
+      "offsetScaleY": 0,
+      "offsetShearY": 0,
+      "local": false,
+      "relative": false
     },
     {
       "name": "tcB_local_absolute",
       "bones": ["bB"],
       "target": "tB",
-      "mixRotate": 1, "mixX": 1, "mixY": 0, "mixScaleX": 0, "mixScaleY": 0, "mixShearY": 0,
-      "offsetRotation": 5, "offsetX": 0, "offsetY": 0, "offsetScaleX": 0, "offsetScaleY": 0, "offsetShearY": 0,
-      "local": true, "relative": false
+      "mixRotate": 1,
+      "mixX": 1,
+      "mixY": 0,
+      "mixScaleX": 0,
+      "mixScaleY": 0,
+      "mixShearY": 0,
+      "offsetRotation": 5,
+      "offsetX": 0,
+      "offsetY": 0,
+      "offsetScaleX": 0,
+      "offsetScaleY": 0,
+      "offsetShearY": 0,
+      "local": true,
+      "relative": false
     },
     {
       "name": "tcC_world_relative",
       "bones": ["bC"],
       "target": "tC",
-      "mixRotate": 0.5, "mixX": 0.5, "mixY": 0, "mixScaleX": 0, "mixScaleY": 0, "mixShearY": 0,
-      "offsetRotation": 5, "offsetX": 0, "offsetY": 0, "offsetScaleX": 0, "offsetScaleY": 0, "offsetShearY": 0,
-      "local": false, "relative": true
+      "mixRotate": 0.5,
+      "mixX": 0.5,
+      "mixY": 0,
+      "mixScaleX": 0,
+      "mixScaleY": 0,
+      "mixShearY": 0,
+      "offsetRotation": 5,
+      "offsetX": 0,
+      "offsetY": 0,
+      "offsetScaleX": 0,
+      "offsetScaleY": 0,
+      "offsetShearY": 0,
+      "local": false,
+      "relative": true
     },
     {
       "name": "tcD_local_relative",
       "bones": ["bD"],
       "target": "tD",
-      "mixRotate": 0.5, "mixX": 0.5, "mixY": 0, "mixScaleX": 0, "mixScaleY": 0, "mixShearY": 0,
-      "offsetRotation": 5, "offsetX": 0, "offsetY": 0, "offsetScaleX": 0, "offsetScaleY": 0, "offsetShearY": 0,
-      "local": true, "relative": true
+      "mixRotate": 0.5,
+      "mixX": 0.5,
+      "mixY": 0,
+      "mixScaleX": 0,
+      "mixScaleY": 0,
+      "mixShearY": 0,
+      "offsetRotation": 5,
+      "offsetX": 0,
+      "offsetY": 0,
+      "offsetScaleX": 0,
+      "offsetScaleY": 0,
+      "offsetShearY": 0,
+      "local": true,
+      "relative": true
     }
   ],
   "animations": {
     "default": {
       "duration": 1,
       "bones": {
-        "tA": { "rotate": [ { "time": 0, "value": { "angle": 0 }, "curve": "linear" }, { "time": 1, "value": { "angle": 50 }, "curve": "linear" } ], "translate": [ { "time": 0, "value": { "x": 0, "y": 0 }, "curve": "linear" }, { "time": 1, "value": { "x": 40, "y": 0 }, "curve": "linear" } ] },
-        "tB": { "rotate": [ { "time": 0, "value": { "angle": 0 }, "curve": "linear" }, { "time": 1, "value": { "angle": 50 }, "curve": "linear" } ], "translate": [ { "time": 0, "value": { "x": 0, "y": 0 }, "curve": "linear" }, { "time": 1, "value": { "x": 40, "y": 0 }, "curve": "linear" } ] },
-        "tC": { "rotate": [ { "time": 0, "value": { "angle": 0 }, "curve": "linear" }, { "time": 1, "value": { "angle": 50 }, "curve": "linear" } ], "translate": [ { "time": 0, "value": { "x": 0, "y": 0 }, "curve": "linear" }, { "time": 1, "value": { "x": 40, "y": 0 }, "curve": "linear" } ] },
-        "tD": { "rotate": [ { "time": 0, "value": { "angle": 0 }, "curve": "linear" }, { "time": 1, "value": { "angle": 50 }, "curve": "linear" } ], "translate": [ { "time": 0, "value": { "x": 0, "y": 0 }, "curve": "linear" }, { "time": 1, "value": { "x": 40, "y": 0 }, "curve": "linear" } ] }
+        "tA": {
+          "rotate": [
+            { "time": 0, "value": { "angle": 0 }, "curve": "linear" },
+            { "time": 1, "value": { "angle": 50 }, "curve": "linear" }
+          ],
+          "translate": [
+            { "time": 0, "value": { "x": 0, "y": 0 }, "curve": "linear" },
+            { "time": 1, "value": { "x": 40, "y": 0 }, "curve": "linear" }
+          ]
+        },
+        "tB": {
+          "rotate": [
+            { "time": 0, "value": { "angle": 0 }, "curve": "linear" },
+            { "time": 1, "value": { "angle": 50 }, "curve": "linear" }
+          ],
+          "translate": [
+            { "time": 0, "value": { "x": 0, "y": 0 }, "curve": "linear" },
+            { "time": 1, "value": { "x": 40, "y": 0 }, "curve": "linear" }
+          ]
+        },
+        "tC": {
+          "rotate": [
+            { "time": 0, "value": { "angle": 0 }, "curve": "linear" },
+            { "time": 1, "value": { "angle": 50 }, "curve": "linear" }
+          ],
+          "translate": [
+            { "time": 0, "value": { "x": 0, "y": 0 }, "curve": "linear" },
+            { "time": 1, "value": { "x": 40, "y": 0 }, "curve": "linear" }
+          ]
+        },
+        "tD": {
+          "rotate": [
+            { "time": 0, "value": { "angle": 0 }, "curve": "linear" },
+            { "time": 1, "value": { "angle": 50 }, "curve": "linear" }
+          ],
+          "translate": [
+            { "time": 0, "value": { "x": 0, "y": 0 }, "curve": "linear" },
+            { "time": 1, "value": { "x": 40, "y": 0 }, "curve": "linear" }
+          ]
+        }
       },
       "slots": {},
       "ik": {},

@@ -41,7 +41,11 @@ export function previewAfterDelete(deletedName: string, currentPreview: string):
 
 // Reconcile the EPHEMERAL skin preview after a skin is renamed: if the previewed skin was the one renamed,
 // follow it to the new name so the viewport keeps showing the same costume.
-export function previewAfterRename(oldName: string, newName: string, currentPreview: string): string {
+export function previewAfterRename(
+  oldName: string,
+  newName: string,
+  currentPreview: string,
+): string {
   return currentPreview === oldName ? newName : currentPreview;
 }
 

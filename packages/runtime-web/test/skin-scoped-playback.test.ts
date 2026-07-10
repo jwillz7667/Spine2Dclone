@@ -59,10 +59,12 @@ describe('skin-scoped constraints through playback', () => {
 
     for (let frame = 0; frame < times.length; frame += 1) {
       for (let bone = 0; bone < doc.bones.length; bone += 1) {
-        expect(worldsEqual(noArg[frame]!.worlds[bone]!, explicitNull[frame]!.worlds[bone]!)).toBe(true);
-        expect(worldsEqual(noArg[frame]!.worlds[bone]!, explicitDefault[frame]!.worlds[bone]!)).toBe(
+        expect(worldsEqual(noArg[frame]!.worlds[bone]!, explicitNull[frame]!.worlds[bone]!)).toBe(
           true,
         );
+        expect(
+          worldsEqual(noArg[frame]!.worlds[bone]!, explicitDefault[frame]!.worlds[bone]!),
+        ).toBe(true);
       }
     }
   });

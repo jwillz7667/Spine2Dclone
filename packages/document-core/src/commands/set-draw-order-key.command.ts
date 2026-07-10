@@ -1,6 +1,10 @@
 import type { Command, CommandContext } from '../command/command';
 import { CommandNotAppliedError, CommandTargetMissingError } from '../command/errors';
-import { makeDrawOrderKey, type DrawOrderKeyEntity, type DrawOrderOffsetEntity } from '../model/doc-state';
+import {
+  makeDrawOrderKey,
+  type DrawOrderKeyEntity,
+  type DrawOrderOffsetEntity,
+} from '../model/doc-state';
 import type { AnimationId, KeyframeId } from '../model/ids';
 import { assertConsistentDrawOrder, sortDrawOrderKeysByTime } from './draw-order-support';
 import { findAnimationSnapshot, type CommandSpec } from './spec';

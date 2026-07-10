@@ -108,24 +108,8 @@
           "baseMesh": {
             "type": "mesh",
             "path": "baseRegion",
-            "uvs": [
-              0,
-              0,
-              1,
-              0,
-              1,
-              1,
-              0,
-              1
-            ],
-            "triangles": [
-              0,
-              1,
-              2,
-              0,
-              2,
-              3
-            ],
+            "uvs": [0, 0, 1, 0, 1, 1, 0, 1],
+            "triangles": [0, 1, 2, 0, 2, 3],
             "hullLength": 4,
             "width": 64,
             "height": 64,
@@ -135,16 +119,7 @@
               "b": 1,
               "a": 1
             },
-            "vertices": [
-              -10,
-              -10,
-              10,
-              -10,
-              10,
-              10,
-              -10,
-              10
-            ]
+            "vertices": [-10, -10, 10, -10, 10, 10, -10, 10]
           },
           "linkedLimb": {
             "type": "linkedmesh",
@@ -162,22 +137,14 @@
           }
         }
       },
-      "bones": [
-        "child"
-      ],
-      "constraints": [
-        "ik1",
-        "tc1"
-      ]
+      "bones": ["child"],
+      "constraints": ["ik1", "tc1"]
     }
   ],
   "ikConstraints": [
     {
       "name": "ik1",
-      "bones": [
-        "root",
-        "child"
-      ],
+      "bones": ["root", "child"],
       "target": "target",
       "mix": 1,
       "bend": 1,
@@ -189,9 +156,7 @@
     },
     {
       "name": "ik2",
-      "bones": [
-        "child"
-      ],
+      "bones": ["child"],
       "target": "target",
       "mix": 0.5,
       "bend": -1,
@@ -205,9 +170,7 @@
   "transformConstraints": [
     {
       "name": "tc1",
-      "bones": [
-        "child"
-      ],
+      "bones": ["child"],
       "target": "root",
       "mixRotate": 1,
       "mixX": 0,
@@ -432,16 +395,7 @@
               {
                 "time": 0,
                 "value": {
-                  "offsets": [
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0
-                  ]
+                  "offsets": [0, 0, 0, 0, 0, 0, 0, 0]
                 },
                 "curve": "linear"
               }

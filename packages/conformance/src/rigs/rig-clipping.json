@@ -107,7 +107,11 @@
           "meshslot": {
             "panel": [
               { "time": 0, "value": { "offsets": [0, 0, 0, 0, 0, 0, 0, 0] }, "curve": "linear" },
-              { "time": 0.5, "value": { "offsets": [4, 0, 4, 0, -4, 0, -4, 0] }, "curve": "linear" },
+              {
+                "time": 0.5,
+                "value": { "offsets": [4, 0, 4, 0, -4, 0, -4, 0] },
+                "curve": "linear"
+              },
               { "time": 1, "value": { "offsets": [0, 0, 0, 0, 0, 0, 0, 0] }, "curve": "linear" }
             ]
           }

@@ -339,7 +339,8 @@ function buildSolveOrder(
 
   const codes = new Int32Array(total).fill(-1);
   const place = (order: number, code: number): boolean => {
-    if (!Number.isInteger(order) || order < 0 || order >= total || codes[order] !== -1) return false;
+    if (!Number.isInteger(order) || order < 0 || order >= total || codes[order] !== -1)
+      return false;
     codes[order] = code;
     return true;
   };

@@ -49,9 +49,11 @@ export const deleteDrawOrderKeySpec: CommandSpec = {
   },
   assertApplied: (before, after) => {
     const target = before.animations[0];
-    if (target === undefined) throw new Error('draworder.key.delete fixture seed had no animations');
+    if (target === undefined)
+      throw new Error('draworder.key.delete fixture seed had no animations');
     const b = findAnimationSnapshot(before, target.id)?.drawOrder.length ?? 0;
     const a = findAnimationSnapshot(after, target.id)?.drawOrder.length ?? 0;
-    if (a !== b - 1) throw new Error('draworder.key.delete did not remove exactly one draw-order key');
+    if (a !== b - 1)
+      throw new Error('draworder.key.delete did not remove exactly one draw-order key');
   },
 };

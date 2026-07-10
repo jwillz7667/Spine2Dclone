@@ -118,7 +118,9 @@ export function DrawOrderPanel(_props: IDockviewPanelProps): ReactElement {
           disabled={!canKey}
           onClick={keyAtPlayhead}
           title={
-            canKey ? 'Key the current slot order at the playhead' : 'Select an active animation first'
+            canKey
+              ? 'Key the current slot order at the playhead'
+              : 'Select an active animation first'
           }
         >
           Key at playhead
@@ -219,7 +221,11 @@ const captionStyle: CSSProperties = {
   flex: '0 0 auto',
 };
 
-const countStyle: CSSProperties = { marginLeft: 'auto', color: '#888888', fontVariantNumeric: 'tabular-nums' };
+const countStyle: CSSProperties = {
+  marginLeft: 'auto',
+  color: '#888888',
+  fontVariantNumeric: 'tabular-nums',
+};
 const listStyle: CSSProperties = { flex: '1 1 auto', minHeight: 0, overflowY: 'auto' };
 const emptyStyle: CSSProperties = { color: '#777777', padding: 12 };
 
@@ -270,7 +276,11 @@ const stepButtonStyle: CSSProperties = {
   cursor: 'pointer',
 };
 
-const disabledStepStyle: CSSProperties = { ...stepButtonStyle, color: '#555555', cursor: 'default' };
+const disabledStepStyle: CSSProperties = {
+  ...stepButtonStyle,
+  color: '#555555',
+  cursor: 'default',
+};
 
 const smallButtonStyle: CSSProperties = {
   flex: '0 0 auto',

@@ -90,9 +90,21 @@ export interface Mutator extends DocumentReadModel {
     slotId: SlotId,
     keyframes: readonly KeyframeEntity[],
   ): void;
-  setSlotDarkChannel(animId: AnimationId, slotId: SlotId, keyframes: readonly KeyframeEntity[]): void;
-  setSlotRgbChannel(animId: AnimationId, slotId: SlotId, keyframes: readonly KeyframeEntity[]): void;
-  setSlotAlphaChannel(animId: AnimationId, slotId: SlotId, keyframes: readonly KeyframeEntity[]): void;
+  setSlotDarkChannel(
+    animId: AnimationId,
+    slotId: SlotId,
+    keyframes: readonly KeyframeEntity[],
+  ): void;
+  setSlotRgbChannel(
+    animId: AnimationId,
+    slotId: SlotId,
+    keyframes: readonly KeyframeEntity[],
+  ): void;
+  setSlotAlphaChannel(
+    animId: AnimationId,
+    slotId: SlotId,
+    keyframes: readonly KeyframeEntity[],
+  ): void;
   setSlotAttachmentChannel(
     animId: AnimationId,
     slotId: SlotId,

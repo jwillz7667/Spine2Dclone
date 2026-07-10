@@ -55,13 +55,17 @@ const SKIN_SCOPED_RIG_PATH = join(
 );
 
 function loadSkinScopedRig(): SkeletonDocument {
-  return parseDocument(JSON.parse(readFileSync(SKIN_SCOPED_RIG_PATH, 'utf8')), { verifyHash: false });
+  return parseDocument(JSON.parse(readFileSync(SKIN_SCOPED_RIG_PATH, 'utf8')), {
+    verifyHash: false,
+  });
 }
 
 // Solve the empty 'default' animation of rig-skin-scoped under `skin` through a fresh view, returning the
 // rendered bone transforms keyed by bone name. The rig scopes tcGold (drives boneA) to skin 'gold' and
 // leaves tcAlways (drives boneB) unscoped.
-function renderSkinScopedBones(skin: string): Map<string, { x: number; y: number; rotation: number }> {
+function renderSkinScopedBones(
+  skin: string,
+): Map<string, { x: number; y: number; rotation: number }> {
   const document = loadSkinScopedRig();
   const view = new SkeletonView();
   view.setActiveSkin(skin);
@@ -154,7 +158,10 @@ describe('SkeletonView.syncState (ADR-0005)', () => {
 
     // boneA is driven by tcGold, scoped to 'gold': its rendered transform differs once gold is active,
     // proving syncState forwarded the active skin into applyAnimationState's constraint solve.
-    expect(underGold.get('boneA')!.rotation).not.toBeCloseTo(underDefault.get('boneA')!.rotation, 3);
+    expect(underGold.get('boneA')!.rotation).not.toBeCloseTo(
+      underDefault.get('boneA')!.rotation,
+      3,
+    );
     // boneB is driven by tcAlways (unscoped): identical under either skin.
     expect(underGold.get('boneB')!.rotation).toBeCloseTo(underDefault.get('boneB')!.rotation, 6);
   });

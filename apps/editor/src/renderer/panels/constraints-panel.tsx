@@ -51,8 +51,7 @@ export function ConstraintsPanel(_props: IDockviewPanelProps): ReactElement {
   }, [selection, ikIds, transformIds]);
 
   const selectedIk = useMemo(
-    () =>
-      selection?.kind === 'ik' ? ikConstraints.find((c) => c.id === selection.id) : undefined,
+    () => (selection?.kind === 'ik' ? ikConstraints.find((c) => c.id === selection.id) : undefined),
     [selection, ikConstraints],
   );
   const selectedTransform = useMemo(
@@ -404,7 +403,10 @@ const rowStyle: CSSProperties = {
   userSelect: 'none',
 };
 
-const rowActiveStyle: CSSProperties = { background: '#26354a', boxShadow: `inset 2px 0 0 ${ACCENT}` };
+const rowActiveStyle: CSSProperties = {
+  background: '#26354a',
+  boxShadow: `inset 2px 0 0 ${ACCENT}`,
+};
 
 const nameStyle: CSSProperties = {
   flex: '1 1 auto',

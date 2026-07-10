@@ -26,11 +26,5 @@ export type {
 } from './http-transport';
 export { httpTransportConfigSchema, parseHttpTransportConfig } from './http-config';
 export type { HttpTransportConfig } from './http-config';
-export {
-  RealEngineTransportError,
-  isRetryableTransportError,
-} from './errors';
-export type {
-  RealEngineTransportErrorCode,
-  RealEngineTransportErrorOptions,
-} from './errors';
+export { RealEngineTransportError, isRetryableTransportError } from './errors';
+export type { RealEngineTransportErrorCode, RealEngineTransportErrorOptions } from './errors';

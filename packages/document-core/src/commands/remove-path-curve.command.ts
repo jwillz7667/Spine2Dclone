@@ -65,7 +65,10 @@ export const removePathCurveSpec: CommandSpec = {
       if (b.kind !== 'path') continue;
       const a = findAttachmentSnapshot(after, b.slotId, b.name);
       if (!a || a.kind !== 'path') continue;
-      if (a.vertices.length === b.vertices.length - 6 && a.lengths.length === b.lengths.length - 1) {
+      if (
+        a.vertices.length === b.vertices.length - 6 &&
+        a.lengths.length === b.lengths.length - 1
+      ) {
         shrank = true;
       }
     }

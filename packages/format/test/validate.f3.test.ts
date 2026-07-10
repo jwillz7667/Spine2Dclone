@@ -70,7 +70,12 @@ describe('path attachment geometry (ADR-0011 section 1)', () => {
 
   it('accepts a closed unweighted path (3 control points, 1 wrapping curve)', () => {
     const doc = withPath(
-      openPath({ closed: true, constantSpeed: false, lengths: [200], vertices: [0, 0, 50, 50, -50, 50] }),
+      openPath({
+        closed: true,
+        constantSpeed: false,
+        lengths: [200],
+        vertices: [0, 0, 50, 50, -50, 50],
+      }),
     );
     expect(validateDocument(doc, { verifyHash: false }).ok).toBe(true);
   });
@@ -87,7 +92,9 @@ describe('path attachment geometry (ADR-0011 section 1)', () => {
 
   it('PATH_VERTEX_COUNT when the control-point count does not fit the openness', () => {
     // A closed spline needs a multiple of 3 control points; 4 (8 numbers) fits neither.
-    const doc = withPath(openPath({ closed: true, lengths: [], vertices: [0, 0, 1, 0, 2, 0, 3, 0] }));
+    const doc = withPath(
+      openPath({ closed: true, lengths: [], vertices: [0, 0, 1, 0, 2, 0, 3, 0] }),
+    );
     expect(codes(doc)).toEqual(['PATH_VERTEX_COUNT']);
   });
 

@@ -160,7 +160,10 @@ describe('A.2 reference-rig coverage (phase-5 TASK-5.5.8, the shared-core compen
   it('every non-normal transformMode (onlyTranslation/noRotationOrReflection/noScale/noScaleOrReflection) is observably exercised', () => {
     const fixture = loadFixture('rig-transform-modes');
     const sample = fixture.samples.find((s) => s.time === 1.0);
-    expect(sample, 'rig-transform-modes must sample the fully-transformed t=1.0 frame').toBeDefined();
+    expect(
+      sample,
+      'rig-transform-modes must sample the fully-transformed t=1.0 frame',
+    ).toBeDefined();
     const bones = sample!.bones;
 
     // The A.2 parent conditions, read off the captured parent basis so the test documents what it tests:
@@ -267,7 +270,10 @@ describe('A.2 reference-rig coverage (phase-5 TASK-5.5.8, the shared-core compen
     // boundary more than once, so a single event name recurs. A non-looping (or loop-unaware) fire would
     // produce each key at most once.
     const loopPointFires = events.filter((e) => e.name === 'loop');
-    expect(loopPointFires.length, 'the loop-point event fires once per loop crossing').toBeGreaterThan(1);
+    expect(
+      loopPointFires.length,
+      'the loop-point event fires once per loop crossing',
+    ).toBeGreaterThan(1);
     // All loop-point fires carry the same authored key time (== duration) and resolved float payload.
     expect(new Set(loopPointFires.map((e) => e.time)).size).toBe(1);
     expect(loopPointFires.every((e) => e.float !== undefined)).toBe(true);

@@ -133,12 +133,11 @@ export async function openDocumentFromDialog(): Promise<FileActionOutcome> {
     // directory (PP-D5). A restore failure is non-fatal: the document opened, so keep the placeholder
     // rather than failing the open. load() cleared the previous session's textures, so this repopulates.
     try {
-      await restoreAtlasTextures(
-        documentHost.current().model.preserved().atlas,
-        result.data.pages,
-      );
+      await restoreAtlasTextures(documentHost.current().model.preserved().atlas, result.data.pages);
     } catch (error) {
-      console.error(`[marionette] atlas texture restore failed: ${messageOf(error, 'unknown error')}`);
+      console.error(
+        `[marionette] atlas texture restore failed: ${messageOf(error, 'unknown error')}`,
+      );
     }
     return { kind: 'opened', name: result.data.name };
   } catch (error) {

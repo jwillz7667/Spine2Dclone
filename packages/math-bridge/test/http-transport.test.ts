@@ -127,7 +127,10 @@ describe('HttpResolveClient typed failures (WP-5.8)', () => {
     const { fetch } = sequenceFetch([new Error('ECONNREFUSED')]);
     // Single attempt so we assert the terminal code, not a retry.
     const client = new HttpResolveClient(
-      parseHttpTransportConfig({ baseUrl: 'https://engine.test/resolve', retry: { maxRetries: 0 } }),
+      parseHttpTransportConfig({
+        baseUrl: 'https://engine.test/resolve',
+        retry: { maxRetries: 0 },
+      }),
       { fetch, ...FAST_DEPS },
     );
     await expect(client.resolve(INPUT)).rejects.toMatchObject({
@@ -187,7 +190,10 @@ describe('HttpResolveClient typed failures (WP-5.8)', () => {
 
   it('rejects a malformed outbound SpinInput before any request (code "schemaInvalid")', async () => {
     const { fetch, calls } = sequenceFetch([jsonResponse(200, NATIVE)]);
-    const bad = { bet: 0, seed: { serverSeedHash: 'h', clientSeed: 'c', nonce: 1 } } as unknown as SpinInput;
+    const bad = {
+      bet: 0,
+      seed: { serverSeedHash: 'h', clientSeed: 'c', nonce: 1 },
+    } as unknown as SpinInput;
     await expect(clientWith(fetch).resolve(bad)).rejects.toMatchObject({ code: 'schemaInvalid' });
     expect(calls).toHaveLength(0);
   });
@@ -215,14 +221,18 @@ describe('HttpResolveClient retry policy (WP-5.8, idempotent resolve only)', () 
 
   it('gives up after maxRetries+1 attempts on a persistent retryable cause', async () => {
     const { fetch, calls } = sequenceFetch([jsonResponse(503, 'x')]);
-    await expect(clientWith(fetch).resolve(INPUT)).rejects.toMatchObject({ code: 'httpServerError' });
+    await expect(clientWith(fetch).resolve(INPUT)).rejects.toMatchObject({
+      code: 'httpServerError',
+    });
     // maxRetries=3 => 4 total attempts.
     expect(calls).toHaveLength(4);
   });
 
   it('does NOT retry a non-retryable cause (single attempt)', async () => {
     const { fetch, calls } = sequenceFetch([jsonResponse(422, 'x')]);
-    await expect(clientWith(fetch).resolve(INPUT)).rejects.toMatchObject({ code: 'httpClientError' });
+    await expect(clientWith(fetch).resolve(INPUT)).rejects.toMatchObject({
+      code: 'httpClientError',
+    });
     expect(calls).toHaveLength(1);
   });
 
@@ -245,7 +255,9 @@ describe('HttpResolveClient timeout and abort (WP-5.8, fake timers)', () => {
     // A fetch that never resolves on its own; it rejects only when its AbortSignal fires.
     const hangingFetch: ResolveFetch = (request) =>
       new Promise((_resolve, reject) => {
-        request.signal.addEventListener('abort', () => reject(new Error('aborted')), { once: true });
+        request.signal.addEventListener('abort', () => reject(new Error('aborted')), {
+          once: true,
+        });
       });
     // No retries so the terminal error is the timeout itself (not a later attempt's outcome).
     const config = parseHttpTransportConfig({
@@ -265,7 +277,9 @@ describe('HttpResolveClient timeout and abort (WP-5.8, fake timers)', () => {
     const { fetch, calls } = sequenceFetch([jsonResponse(200, NATIVE)]);
     const controller = new AbortController();
     controller.abort();
-    await expect(clientWith(fetch).resolve(INPUT, { signal: controller.signal })).rejects.toMatchObject({
+    await expect(
+      clientWith(fetch).resolve(INPUT, { signal: controller.signal }),
+    ).rejects.toMatchObject({
       code: 'aborted',
     });
     expect(calls).toHaveLength(0);
@@ -275,7 +289,9 @@ describe('HttpResolveClient timeout and abort (WP-5.8, fake timers)', () => {
     const controller = new AbortController();
     const abortingFetch: ResolveFetch = (request) =>
       new Promise((_resolve, reject) => {
-        request.signal.addEventListener('abort', () => reject(new Error('aborted')), { once: true });
+        request.signal.addEventListener('abort', () => reject(new Error('aborted')), {
+          once: true,
+        });
         controller.abort();
       });
     const config = parseHttpTransportConfig({
@@ -297,7 +313,9 @@ describe('config and construction guards (WP-5.8)', () => {
   });
 
   it('parseHttpTransportConfig rejects a non-http base URL with a typed error', () => {
-    expect(() => parseHttpTransportConfig({ baseUrl: 'ftp://engine.test' })).toThrow(RealEngineConfigError);
+    expect(() => parseHttpTransportConfig({ baseUrl: 'ftp://engine.test' })).toThrow(
+      RealEngineConfigError,
+    );
     expect(() => parseHttpTransportConfig({ baseUrl: 'not a url' })).toThrow(RealEngineConfigError);
   });
 
@@ -335,7 +353,12 @@ describe('config and construction guards (WP-5.8)', () => {
       bonuses: [],
       total: 100,
       tumbles: [
-        { removedCells: [[1, 0]], fill: [{ column: 0, pieces: ['E'] }], winThisStep: 100, runningTotal: 100 },
+        {
+          removedCells: [[1, 0]],
+          fill: [{ column: 0, pieces: ['E'] }],
+          winThisStep: 100,
+          runningTotal: 100,
+        },
       ],
     };
     const { fetch } = sequenceFetch([jsonResponse(200, inconsistent)]);

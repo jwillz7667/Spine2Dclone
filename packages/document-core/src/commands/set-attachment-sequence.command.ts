@@ -53,7 +53,10 @@ function assertValidSequence(seq: Sequence): void {
     throw new SequenceError('shape', 'start/digits/setupIndex must be non-negative integers');
   }
   if (seq.setupIndex >= seq.count) {
-    throw new SequenceError('setupRange', `setupIndex ${seq.setupIndex} must be in [0, ${seq.count})`);
+    throw new SequenceError(
+      'setupRange',
+      `setupIndex ${seq.setupIndex} must be in [0, ${seq.count})`,
+    );
   }
 }
 

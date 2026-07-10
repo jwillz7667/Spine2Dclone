@@ -28,5 +28,4 @@ describe('typed render errors', () => {
       }),
     ).toThrow(MalformedAtlasPageError);
   });
-
 });

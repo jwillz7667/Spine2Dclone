@@ -99,7 +99,12 @@ function regionAttachment(overrides: Partial<RegionAttachment>): RegionAttachmen
 }
 
 describe('trim placement parity (render-preview vs runtime-web sprite matrix)', () => {
-  const cases: { name: string; region: RegionAttachment; trim: RegionTrim; boneRotation: number }[] = [
+  const cases: {
+    name: string;
+    region: RegionAttachment;
+    trim: RegionTrim;
+    boneRotation: number;
+  }[] = [
     {
       name: 'asymmetric trim, upright bone',
       region: regionAttachment({ width: 40, height: 40 }),
@@ -145,7 +150,14 @@ describe('trim placement parity (render-preview vs runtime-web sprite matrix)', 
     const region = regionAttachment({ width: 40, height: 40 });
 
     const withoutTrim = regionWorldCorners(boneWorld, region);
-    const untrimmed: RegionTrim = { offsetX: 0, offsetY: 0, w: 40, h: 40, originalW: 40, originalH: 40 };
+    const untrimmed: RegionTrim = {
+      offsetX: 0,
+      offsetY: 0,
+      w: 40,
+      h: 40,
+      originalW: 40,
+      originalH: 40,
+    };
     const withUntrimmed = regionWorldCorners(boneWorld, region, untrimmed);
 
     // Passing an explicitly-untrimmed trim must equal the no-trim path exactly (offset 0, packed==original).

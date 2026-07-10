@@ -39,7 +39,9 @@ describe('sequenceRegionName (runtime-web, parity with render-preview)', () => {
     const seq = { count: 3, start: 0, digits: 2, setupIndex: 0 };
     expect(sequenceRegionName('frame', seq, 0)).toBe('frame00');
     expect(sequenceRegionName('frame', seq, 2)).toBe('frame02');
-    expect(sequenceRegionName('img', { count: 10, start: 5, digits: 3, setupIndex: 0 }, 2)).toBe('img007');
+    expect(sequenceRegionName('img', { count: 10, start: 5, digits: 3, setupIndex: 0 }, 2)).toBe(
+      'img007',
+    );
   });
 });
 

@@ -549,11 +549,15 @@ function loadSlotTimelines(
 }
 
 function loadSequenceKeyframes(
-  keys: ReadonlyArray<{ time: number; mode: SequenceMode; index: number; delay: number }> | undefined,
+  keys:
+    | ReadonlyArray<{ time: number; mode: SequenceMode; index: number; delay: number }>
+    | undefined,
   ids: IdFactory,
 ): SequenceKeyframeEntity[] {
   if (keys === undefined) return [];
-  return keys.map((k) => makeSequenceKeyframe(ids.mint('keyframe'), k.time, k.mode, k.index, k.delay));
+  return keys.map((k) =>
+    makeSequenceKeyframe(ids.mint('keyframe'), k.time, k.mode, k.index, k.delay),
+  );
 }
 
 function loadIkFrames(
@@ -568,7 +572,11 @@ function loadIkFrames(
       // Map the signed format `bend` (ADR-0009) to the model's boolean losslessly (+1 -> true, -1 -> false).
       frame.value.bend > 0,
       frame.curve,
-      { softness: frame.value.softness, stretch: frame.value.stretch, compress: frame.value.compress },
+      {
+        softness: frame.value.softness,
+        stretch: frame.value.stretch,
+        compress: frame.value.compress,
+      },
     ),
   );
 }

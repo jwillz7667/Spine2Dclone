@@ -451,7 +451,14 @@ function f2CompleteDraft(): SkeletonDocument {
     hash: '',
     bones: [bone('root', null, 0), bone('child', 'root', 100), bone('target', 'root', 200)],
     slots: [
-      { name: 'body', bone: 'root', color: white, darkColor: { r: 0, g: 0, b: 0, a: 1 }, attachment: 'body', blendMode: 'normal' },
+      {
+        name: 'body',
+        bone: 'root',
+        color: white,
+        darkColor: { r: 0, g: 0, b: 0, a: 1 },
+        attachment: 'body',
+        blendMode: 'normal',
+      },
       { name: 'limb', bone: 'child', color: white, attachment: 'baseMesh', blendMode: 'normal' },
     ],
     skins: [
@@ -625,7 +632,11 @@ function f2CompleteDraft(): SkeletonDocument {
           file: 'atlas.png',
           width: 256,
           height: 256,
-          regions: [atlasRegion('body', 0), atlasRegion('baseRegion', 64), atlasRegion('linkedRegion', 128)],
+          regions: [
+            atlasRegion('body', 0),
+            atlasRegion('baseRegion', 64),
+            atlasRegion('linkedRegion', 128),
+          ],
         },
       ],
     },

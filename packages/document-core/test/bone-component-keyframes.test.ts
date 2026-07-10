@@ -121,8 +121,10 @@ describe('per-component bone keyframes (Stage F2)', () => {
     doc.history.execute(new SetKeyframeCommand(animId, target, 0.25, { value: 5 }));
 
     const before = doc.model.snapshot();
-    const keyId = doc.model.animations().find((a) => a.id === animId)!.bones.get(boneId)!.shearX[0]!
-      .id;
+    const keyId = doc.model
+      .animations()
+      .find((a) => a.id === animId)!
+      .bones.get(boneId)!.shearX[0]!.id;
 
     doc.history.execute(new MoveKeyframeCommand(animId, target, keyId, 0.75));
     doc.history.execute(new SetCurveCommand(animId, target, keyId, 'stepped'));

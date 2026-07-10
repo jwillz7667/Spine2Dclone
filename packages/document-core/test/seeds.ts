@@ -315,7 +315,11 @@ function eventedDoc(): SkeletonDocument {
     transformConstraints: [],
     pathConstraints: [],
     events: [
-      { name: 'footstep', int: 3, audio: { path: 'sfx/footstep.wav', volume: 0.8, balance: -0.25 } },
+      {
+        name: 'footstep',
+        int: 3,
+        audio: { path: 'sfx/footstep.wav', volume: 0.8, balance: -0.25 },
+      },
       { name: 'landing', float: 1.5 },
     ],
     animations: { walk },

@@ -135,7 +135,11 @@ export function buildTracks(animation: AnimationEntity, names: TrackNames): Trac
       for (const [attachmentName, keys] of byAttachment) {
         if (keys.length === 0) continue;
         const list = deformBySlot.get(slotId) ?? [];
-        list.push({ skinKey, attachmentName, keys: keys.map((kf) => ({ id: kf.id, time: kf.time })) });
+        list.push({
+          skinKey,
+          attachmentName,
+          keys: keys.map((kf) => ({ id: kf.id, time: kf.time })),
+        });
         deformBySlot.set(slotId, list);
       }
     }

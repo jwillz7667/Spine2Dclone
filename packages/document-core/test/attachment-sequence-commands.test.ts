@@ -50,7 +50,12 @@ describe('SetAttachmentSequence', () => {
     const doc = loadDocument(seeds.linked, env);
     const { slotId, name } = meshSlot(doc);
     doc.history.execute(
-      new SetAttachmentSequenceCommand(slotId, name, { count: 4, start: 0, digits: 2, setupIndex: 0 }),
+      new SetAttachmentSequenceCommand(slotId, name, {
+        count: 4,
+        start: 0,
+        digits: 2,
+        setupIndex: 0,
+      }),
     );
     const withSeq = doc.model.snapshot();
 
@@ -107,7 +112,12 @@ describe('SetAttachmentSequence', () => {
     const doc = loadDocument(seeds.linked, env);
     const { slotId, name } = meshSlot(doc);
     doc.history.execute(
-      new SetAttachmentSequenceCommand(slotId, name, { count: 6, start: 2, digits: 3, setupIndex: 1 }),
+      new SetAttachmentSequenceCommand(slotId, name, {
+        count: 6,
+        start: 2,
+        digits: 3,
+        setupIndex: 1,
+      }),
     );
     const reloaded = loadDocument(exportDocument(doc.model), makeTestEnv().env);
     expect(reloaded.model.snapshot()).toEqual(doc.model.snapshot());

@@ -194,7 +194,8 @@ export function AssetsPanel(_props: IDockviewPanelProps): ReactElement {
       <div style={listStyle}>
         {atlasView.regionCount === 0 ? (
           <div style={emptyStyle}>
-            No atlas yet. Import a folder of sprites, click Add images, or drag PNGs onto this panel.
+            No atlas yet. Import a folder of sprites, click Add images, or drag PNGs onto this
+            panel.
           </div>
         ) : (
           atlasView.regions.map((region) => (
@@ -279,8 +280,7 @@ const thumbImageStyle: CSSProperties = {
 const thumbPlaceholderStyle: CSSProperties = {
   width: 40,
   height: 40,
-  background:
-    'repeating-conic-gradient(#2a2a2a 0% 25%, #202020 0% 50%) 50% / 12px 12px',
+  background: 'repeating-conic-gradient(#2a2a2a 0% 25%, #202020 0% 50%) 50% / 12px 12px',
   opacity: 0.6,
 };
 

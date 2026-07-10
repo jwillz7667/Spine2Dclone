@@ -42,7 +42,12 @@ function clipDoc(): unknown {
         name: 'default',
         attachments: {
           s_clip: {
-            clip: { type: 'clipping', end: 's_img', vertices: [-20, -20, 0, -20, 0, 20, -20, 20], color: WHITE },
+            clip: {
+              type: 'clipping',
+              end: 's_img',
+              vertices: [-20, -20, 0, -20, 0, 20, -20, 20],
+              color: WHITE,
+            },
           },
           s_img: {
             img: {
@@ -72,7 +77,18 @@ function clipDoc(): unknown {
           width: 8,
           height: 8,
           regions: [
-            { name: 'img', x: 0, y: 0, w: 8, h: 8, rotated: false, offsetX: 0, offsetY: 0, originalW: 8, originalH: 8 },
+            {
+              name: 'img',
+              x: 0,
+              y: 0,
+              w: 8,
+              h: 8,
+              rotated: false,
+              offsetX: 0,
+              offsetY: 0,
+              originalW: 8,
+              originalH: 8,
+            },
           ],
         },
       ],
@@ -83,7 +99,9 @@ function clipDoc(): unknown {
 // A single-slot region rig with NO clip attachment (the no-clip control).
 function plainDoc(): unknown {
   const doc = clipDoc() as { slots: unknown[]; skins: { attachments: Record<string, unknown> }[] };
-  doc.slots = [{ name: 's_img', bone: 'root', color: WHITE, attachment: 'img', blendMode: 'normal' }];
+  doc.slots = [
+    { name: 's_img', bone: 'root', color: WHITE, attachment: 'img', blendMode: 'normal' },
+  ];
   delete (doc.skins[0]!.attachments as Record<string, unknown>).s_clip;
   return doc;
 }

@@ -32,9 +32,7 @@ export const httpTransportConfigSchema = z.object({
     }),
   // Optional bearer/API-key header applied to every request. Kept as a name/value pair so a secret is
   // passed in from the host env, never embedded here.
-  authHeader: z
-    .object({ name: z.string().min(1), value: z.string().min(1) })
-    .optional(),
+  authHeader: z.object({ name: z.string().min(1), value: z.string().min(1) }).optional(),
   // Per-attempt wall-clock budget. Each attempt (not the whole retry sequence) is bounded by this.
   timeoutMs: z.number().int().positive().max(120_000).default(10_000),
   retry: retryPolicySchema.default({}),

@@ -3,11 +3,41 @@
   "name": "rig-linked-mesh",
   "hash": "",
   "bones": [
-    { "name": "root", "parent": null, "length": 0, "x": 0, "y": 0, "rotation": 0, "scaleX": 1, "scaleY": 1, "shearX": 0, "shearY": 0, "transformMode": "normal" },
-    { "name": "b1", "parent": "root", "length": 40, "x": 0, "y": 0, "rotation": 0, "scaleX": 1, "scaleY": 1, "shearX": 0, "shearY": 0, "transformMode": "normal" }
+    {
+      "name": "root",
+      "parent": null,
+      "length": 0,
+      "x": 0,
+      "y": 0,
+      "rotation": 0,
+      "scaleX": 1,
+      "scaleY": 1,
+      "shearX": 0,
+      "shearY": 0,
+      "transformMode": "normal"
+    },
+    {
+      "name": "b1",
+      "parent": "root",
+      "length": 40,
+      "x": 0,
+      "y": 0,
+      "rotation": 0,
+      "scaleX": 1,
+      "scaleY": 1,
+      "shearX": 0,
+      "shearY": 0,
+      "transformMode": "normal"
+    }
   ],
   "slots": [
-    { "name": "mesh_slot", "bone": "b1", "color": { "r": 1, "g": 1, "b": 1, "a": 1 }, "attachment": "body", "blendMode": "normal" }
+    {
+      "name": "mesh_slot",
+      "bone": "b1",
+      "color": { "r": 1, "g": 1, "b": 1, "a": 1 },
+      "attachment": "body",
+      "blendMode": "normal"
+    }
   ],
   "skins": [
     {
@@ -89,9 +119,42 @@
         "width": 128,
         "height": 64,
         "regions": [
-          { "name": "body_tex", "x": 0, "y": 0, "w": 40, "h": 40, "rotated": false, "offsetX": 0, "offsetY": 0, "originalW": 40, "originalH": 40 },
-          { "name": "body_shared_tex", "x": 40, "y": 0, "w": 40, "h": 40, "rotated": false, "offsetX": 0, "offsetY": 0, "originalW": 40, "originalH": 40 },
-          { "name": "body_own_tex", "x": 80, "y": 0, "w": 40, "h": 40, "rotated": false, "offsetX": 0, "offsetY": 0, "originalW": 40, "originalH": 40 }
+          {
+            "name": "body_tex",
+            "x": 0,
+            "y": 0,
+            "w": 40,
+            "h": 40,
+            "rotated": false,
+            "offsetX": 0,
+            "offsetY": 0,
+            "originalW": 40,
+            "originalH": 40
+          },
+          {
+            "name": "body_shared_tex",
+            "x": 40,
+            "y": 0,
+            "w": 40,
+            "h": 40,
+            "rotated": false,
+            "offsetX": 0,
+            "offsetY": 0,
+            "originalW": 40,
+            "originalH": 40
+          },
+          {
+            "name": "body_own_tex",
+            "x": 80,
+            "y": 0,
+            "w": 40,
+            "h": 40,
+            "rotated": false,
+            "offsetX": 0,
+            "offsetY": 0,
+            "originalW": 40,
+            "originalH": 40
+          }
         ]
       }
     ]

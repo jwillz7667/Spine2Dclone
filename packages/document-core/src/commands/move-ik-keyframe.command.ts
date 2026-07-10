@@ -40,11 +40,18 @@ export class MoveIkKeyframeCommand implements Command {
       this.before = channel;
       // Preserve every field of the moved frame; only `time` changes. The carried F2 depth channels
       // (softness/stretch/compress) are passed through so a move never drops them.
-      const moved = makeIkKeyframe(moving.id, this.newTime, moving.mix, moving.bendPositive, moving.curve, {
-        softness: moving.softness,
-        stretch: moving.stretch,
-        compress: moving.compress,
-      });
+      const moved = makeIkKeyframe(
+        moving.id,
+        this.newTime,
+        moving.mix,
+        moving.bendPositive,
+        moving.curve,
+        {
+          softness: moving.softness,
+          stretch: moving.stretch,
+          compress: moving.compress,
+        },
+      );
       this.after = channel
         .map((kf) => (kf.id === this.keyframeId ? moved : kf))
         .sort((a, b) => a.time - b.time);

@@ -69,7 +69,11 @@ describe('real HTTP adapter vs MockMathEngine (WP-5.8 swap-in guarantee)', () =>
       const real: MathEngine = createRealHttpEngine({
         config: { baseUrl: 'https://engine.test/resolve' },
         gridSize: scenario.gridSize,
-        deps: { fetch: singleShotFetch(spinResultToNative(expected)), sleep: async () => {}, random: () => 0 },
+        deps: {
+          fetch: singleShotFetch(spinResultToNative(expected)),
+          sleep: async () => {},
+          random: () => 0,
+        },
       });
       const actual = await real.spin(INPUT);
 

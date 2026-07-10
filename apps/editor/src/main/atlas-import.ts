@@ -40,7 +40,11 @@ async function packAndReadPages(
     return handlerError(`could not create atlas output directory ${outputDir}`);
   }
   try {
-    const atlas = await runAtlasPipeline({ sourceDir, outputDir, fileStore: createNodeFileStore() });
+    const atlas = await runAtlasPipeline({
+      sourceDir,
+      outputDir,
+      fileStore: createNodeFileStore(),
+    });
     const pages = await Promise.all(
       atlas.pages.map(async (page) => ({
         file: page.file,

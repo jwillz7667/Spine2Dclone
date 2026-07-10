@@ -59,7 +59,12 @@ function rotate90CW(src: Uint8Array, w: number, h: number): Uint8Array {
   return out;
 }
 
-function pageSource(file: string, width: number, height: number, rgba: Uint8Array): AtlasPixelSource {
+function pageSource(
+  file: string,
+  width: number,
+  height: number,
+  rgba: Uint8Array,
+): AtlasPixelSource {
   return { pages: new Map([[file, { width, height, rgba }]]) };
 }
 
@@ -93,7 +98,13 @@ function regionDoc(params: {
       },
     ],
     slots: [
-      { name: 's', bone: 'root', color: white, attachment: 'img', blendMode: params.blendMode ?? 'normal' },
+      {
+        name: 's',
+        bone: 'root',
+        color: white,
+        attachment: 'img',
+        blendMode: params.blendMode ?? 'normal',
+      },
     ],
     skins: [
       {
@@ -344,6 +355,8 @@ describe('rotation rendered sampling', () => {
       background: CLEAR,
     });
 
-    expect(maxChannelDiff(decode(rotatedTrimmed.png), decode(unrotatedTrimmed.png))).toBeLessThanOrEqual(2);
+    expect(
+      maxChannelDiff(decode(rotatedTrimmed.png), decode(unrotatedTrimmed.png)),
+    ).toBeLessThanOrEqual(2);
   });
 });

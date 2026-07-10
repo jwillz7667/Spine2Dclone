@@ -77,7 +77,9 @@ describe('event definition commands (PP-D9)', () => {
       doc.history.execute(new SetEventAudioCommand(id, { path: 'a.wav', volume: 2, balance: 0 })),
     ).toThrow(EventEditError);
     expect(() =>
-      doc.history.execute(new SetEventAudioCommand(id, { path: 'a.wav', volume: 0.5, balance: -3 })),
+      doc.history.execute(
+        new SetEventAudioCommand(id, { path: 'a.wav', volume: 0.5, balance: -3 }),
+      ),
     ).toThrow(EventEditError);
     expect(doc.model.getEventDef(id)!.audio).toBeUndefined(); // unchanged
   });
@@ -154,9 +156,9 @@ describe('draw-order key commands (PP-D9)', () => {
     // Add a second draw-order key at t=0.2, then try to move it onto the existing 0.5 key.
     doc.history.execute(new SetDrawOrderKeyCommand(wId, 0.2, [{ slot: back.id, offset: 1 }]));
     const moved = doc.model.getAnimation(wId)!.drawOrder.find((k) => k.time === 0.2)!;
-    expect(() =>
-      doc.history.execute(new MoveDrawOrderKeyCommand(wId, moved.id, 0.5)),
-    ).toThrow(KeyframeCollisionError);
+    expect(() => doc.history.execute(new MoveDrawOrderKeyCommand(wId, moved.id, 0.5))).toThrow(
+      KeyframeCollisionError,
+    );
   });
 });
 

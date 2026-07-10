@@ -54,7 +54,8 @@ export const deleteSequenceKeyframeSpec: CommandSpec = {
   },
   assertApplied: (before, after) => {
     const animBefore = before.animations.find((a) => a.name === 'move') ?? before.animations[0];
-    if (animBefore === undefined) throw new Error('anim.sequence.delete fixture seed had no animations');
+    if (animBefore === undefined)
+      throw new Error('anim.sequence.delete fixture seed had no animations');
     for (const track of animBefore.slots) {
       if (track.sequence.length === 0) continue;
       const a = findAnimationSnapshot(after, animBefore.id)?.slots.find(

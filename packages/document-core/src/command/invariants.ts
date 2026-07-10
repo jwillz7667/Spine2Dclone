@@ -548,7 +548,10 @@ export function assertInvariants(model: DocumentReadModel): void {
     // non-decreasing and reference a live event, and draw-order keys are strictly ascending and reference
     // live slots (no slot twice per key).
     for (const key of animation.events) noteKeyframeId(key.id, animation.name);
-    maxTime = Math.max(maxTime, checkEventKeys(animation.name, animation.events, duration, eventDefIds));
+    maxTime = Math.max(
+      maxTime,
+      checkEventKeys(animation.name, animation.events, duration, eventDefIds),
+    );
     for (const key of animation.drawOrder) noteKeyframeId(key.id, animation.name);
     maxTime = Math.max(
       maxTime,

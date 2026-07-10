@@ -37,7 +37,13 @@ export class MoveSequenceKeyframeCommand implements Command {
         throw new KeyframeCollisionError(this.keyframeId, this.newTime);
       }
       this.before = channel;
-      const moved = makeSequenceKeyframe(moving.id, this.newTime, moving.mode, moving.index, moving.delay);
+      const moved = makeSequenceKeyframe(
+        moving.id,
+        this.newTime,
+        moving.mode,
+        moving.index,
+        moving.delay,
+      );
       this.after = channel
         .map((k) => (k.id === this.keyframeId ? moved : k))
         .sort((a, b) => a.time - b.time);
@@ -98,7 +104,8 @@ export const moveSequenceKeyframeSpec: CommandSpec = {
   },
   assertApplied: (before, after) => {
     const animBefore = before.animations.find((a) => a.name === 'move') ?? before.animations[0];
-    if (animBefore === undefined) throw new Error('anim.sequence.move fixture seed had no animations');
+    if (animBefore === undefined)
+      throw new Error('anim.sequence.move fixture seed had no animations');
     for (const track of animBefore.slots) {
       if (track.sequence.length < 2) continue;
       const b = sequenceTimes(findAnimationSnapshot(before, animBefore.id), track.slotId);

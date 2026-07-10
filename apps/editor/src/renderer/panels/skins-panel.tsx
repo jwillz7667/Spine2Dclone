@@ -274,7 +274,8 @@ function SkinAssignments(props: SkinAssignmentsProps): ReactElement {
       <div style={subHeaderStyle}>Skin: {skin.name}</div>
       {placeholders.length === 0 && (
         <div style={emptyStyle}>
-          No slot has an active attachment yet. Set a slot attachment in the Inspector, then override it here.
+          No slot has an active attachment yet. Set a slot attachment in the Inspector, then
+          override it here.
         </div>
       )}
       {placeholders.map((slot) => {

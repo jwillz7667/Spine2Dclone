@@ -32,11 +32,7 @@ export function thumbnailBox(regionW: number, regionH: number, max: number): Thu
 // (the packer may store a region turned 90 degrees; the editor packs non-rotated today, but this stays
 // correct if that changes) by rotating the draw so the thumbnail shows the region upright. Returns null
 // when a 2D context is unavailable.
-function drawRegionThumbnail(
-  bitmap: ImageBitmap,
-  region: AtlasRegion,
-  max: number,
-): string | null {
+function drawRegionThumbnail(bitmap: ImageBitmap, region: AtlasRegion, max: number): string | null {
   const box = thumbnailBox(region.w, region.h, max);
   const canvas = document.createElement('canvas');
   canvas.width = box.w;

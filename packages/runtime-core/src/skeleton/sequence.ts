@@ -109,5 +109,11 @@ export function sampleSlotSequenceFrame(
     else break;
   }
   if (active === null) return block.setupIndex;
-  return resolveSequenceFrame(active.mode, active.index, active.delay, block.count, t - active.time);
+  return resolveSequenceFrame(
+    active.mode,
+    active.index,
+    active.delay,
+    block.count,
+    t - active.time,
+  );
 }

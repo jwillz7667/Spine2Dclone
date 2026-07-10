@@ -1,7 +1,7 @@
 {
   "rigId": "rig-skin-scoped",
-  "rigHash": "sha256:fd416a7f00e9069f0edb61d7f654c55497d2148472270216cd1575e2f26dc23d",
-  "specHash": "sha256:45ecc3019e4f14a9eaff25df90cc2b3a8eefd2b01738ca609f86785c1b2fe247",
+  "rigHash": "sha256:652887d632a0f86252f42268d6f51a4ca9b9320d8af4b77d50193dec79ea9d47",
+  "specHash": "sha256:9fca8b6fe5c37e793c3902e2126df1c82fd234a0867a633e450099f76a9b8677",
   "coreVersion": "runtime-core@0.0.0",
   "toolchain": "node-22.13.1-v8",
   "generatedBy": "generate.ts",

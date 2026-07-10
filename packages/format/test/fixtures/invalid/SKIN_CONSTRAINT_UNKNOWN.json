@@ -55,9 +55,7 @@
           }
         }
       },
-      "constraints": [
-        "ghost"
-      ]
+      "constraints": ["ghost"]
     }
   ],
   "ikConstraints": [],

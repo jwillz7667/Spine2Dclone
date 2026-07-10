@@ -105,19 +105,8 @@
             "type": "path",
             "closed": false,
             "constantSpeed": true,
-            "lengths": [
-              424.26406871192853
-            ],
-            "vertices": [
-              0,
-              0,
-              100,
-              100,
-              200,
-              200,
-              300,
-              300
-            ]
+            "lengths": [424.26406871192853],
+            "vertices": [0, 0, 100, 100, 200, 200, 300, 300]
           }
         }
       }
@@ -130,9 +119,7 @@
     {
       "name": "pc_tangent",
       "target": "rail",
-      "bones": [
-        "t0"
-      ],
+      "bones": ["t0"],
       "positionMode": "percent",
       "spacingMode": "fixed",
       "rotateMode": "tangent",
@@ -146,10 +133,7 @@
     {
       "name": "pc_chain",
       "target": "rail",
-      "bones": [
-        "c0",
-        "c1"
-      ],
+      "bones": ["c0", "c1"],
       "positionMode": "fixed",
       "spacingMode": "fixed",
       "rotateMode": "chain",
@@ -163,10 +147,7 @@
     {
       "name": "pc_chainscale",
       "target": "rail",
-      "bones": [
-        "s0",
-        "s1"
-      ],
+      "bones": ["s0", "s1"],
       "positionMode": "fixed",
       "spacingMode": "fixed",
       "rotateMode": "chainScale",

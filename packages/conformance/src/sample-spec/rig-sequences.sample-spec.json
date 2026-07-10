@@ -3,21 +3,6 @@
   "animation": "default",
   "duration": 1.0,
   "loop": false,
-  "poseTimes": [
-    0.0,
-    0.15,
-    0.35,
-    0.55,
-    0.75
-  ],
-  "captureSequences": [
-    "slot0",
-    "slot1",
-    "slot2",
-    "slot3",
-    "slot4",
-    "slot5",
-    "slot6",
-    "slot7"
-  ]
+  "poseTimes": [0.0, 0.15, 0.35, 0.55, 0.75],
+  "captureSequences": ["slot0", "slot1", "slot2", "slot3", "slot4", "slot5", "slot6", "slot7"]
 }

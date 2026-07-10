@@ -24,38 +24,80 @@ describe('split component bone tracks (ADR-0011 section 3)', () => {
   };
 
   it('translateX/translateY equal the joint translate channel', () => {
-    const joint = worldAt(anim({ bones: { b: { translate: [
-      { time: 0, value: { x: 0, y: 0 }, curve: linear },
-      { time: 1, value: { x: 20, y: -15 }, curve: linear },
-    ] } } }));
-    const split = worldAt(anim({ bones: { b: {
-      translateX: [scalarKey(0, 0), scalarKey(1, 20)],
-      translateY: [scalarKey(0, 0), scalarKey(1, -15)],
-    } } }));
+    const joint = worldAt(
+      anim({
+        bones: {
+          b: {
+            translate: [
+              { time: 0, value: { x: 0, y: 0 }, curve: linear },
+              { time: 1, value: { x: 20, y: -15 }, curve: linear },
+            ],
+          },
+        },
+      }),
+    );
+    const split = worldAt(
+      anim({
+        bones: {
+          b: {
+            translateX: [scalarKey(0, 0), scalarKey(1, 20)],
+            translateY: [scalarKey(0, 0), scalarKey(1, -15)],
+          },
+        },
+      }),
+    );
     expect(split).toEqual(joint);
   });
 
   it('scaleX/scaleY equal the joint scale channel', () => {
-    const joint = worldAt(anim({ bones: { b: { scale: [
-      { time: 0, value: { x: 1, y: 1 }, curve: linear },
-      { time: 1, value: { x: 1.4, y: 0.7 }, curve: linear },
-    ] } } }));
-    const split = worldAt(anim({ bones: { b: {
-      scaleX: [scalarKey(0, 1), scalarKey(1, 1.4)],
-      scaleY: [scalarKey(0, 1), scalarKey(1, 0.7)],
-    } } }));
+    const joint = worldAt(
+      anim({
+        bones: {
+          b: {
+            scale: [
+              { time: 0, value: { x: 1, y: 1 }, curve: linear },
+              { time: 1, value: { x: 1.4, y: 0.7 }, curve: linear },
+            ],
+          },
+        },
+      }),
+    );
+    const split = worldAt(
+      anim({
+        bones: {
+          b: {
+            scaleX: [scalarKey(0, 1), scalarKey(1, 1.4)],
+            scaleY: [scalarKey(0, 1), scalarKey(1, 0.7)],
+          },
+        },
+      }),
+    );
     expect(split).toEqual(joint);
   });
 
   it('shearX/shearY equal the joint shear channel', () => {
-    const joint = worldAt(anim({ bones: { b: { shear: [
-      { time: 0, value: { x: 0, y: 0 }, curve: linear },
-      { time: 1, value: { x: 10, y: 6 }, curve: linear },
-    ] } } }));
-    const split = worldAt(anim({ bones: { b: {
-      shearX: [scalarKey(0, 0), scalarKey(1, 10)],
-      shearY: [scalarKey(0, 0), scalarKey(1, 6)],
-    } } }));
+    const joint = worldAt(
+      anim({
+        bones: {
+          b: {
+            shear: [
+              { time: 0, value: { x: 0, y: 0 }, curve: linear },
+              { time: 1, value: { x: 10, y: 6 }, curve: linear },
+            ],
+          },
+        },
+      }),
+    );
+    const split = worldAt(
+      anim({
+        bones: {
+          b: {
+            shearX: [scalarKey(0, 0), scalarKey(1, 10)],
+            shearY: [scalarKey(0, 0), scalarKey(1, 6)],
+          },
+        },
+      }),
+    );
     expect(split).toEqual(joint);
   });
 });

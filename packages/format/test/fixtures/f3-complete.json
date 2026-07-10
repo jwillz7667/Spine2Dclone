@@ -66,74 +66,27 @@
             "type": "path",
             "closed": false,
             "constantSpeed": true,
-            "lengths": [
-              100
-            ],
-            "vertices": [
-              0,
-              0,
-              33,
-              0,
-              66,
-              0,
-              100,
-              0
-            ]
+            "lengths": [100],
+            "vertices": [0, 0, 33, 0, 66, 0, 100, 0]
           },
           "loopPath": {
             "type": "path",
             "closed": true,
             "constantSpeed": false,
-            "lengths": [
-              200
-            ],
-            "vertices": [
-              0,
-              0,
-              50,
-              50,
-              -50,
-              50
-            ]
+            "lengths": [200],
+            "vertices": [0, 0, 50, 50, -50, 50]
           },
           "weightedPath": {
             "type": "path",
             "closed": false,
             "constantSpeed": true,
-            "lengths": [
-              100
-            ],
-            "bones": [
-              0
-            ],
-            "vertices": [
-              1,
-              0,
-              0,
-              0,
-              1,
-              1,
-              0,
-              33,
-              0,
-              1,
-              1,
-              0,
-              66,
-              0,
-              1,
-              1,
-              0,
-              100,
-              0,
-              1
-            ]
+            "lengths": [100],
+            "bones": [0],
+            "vertices": [1, 0, 0, 0, 1, 1, 0, 33, 0, 1, 1, 0, 66, 0, 1, 1, 0, 100, 0, 1]
           }
         }
       },
-      "constraints": [
-        "pc1"
-      ]
+      "constraints": ["pc1"]
     }
   ],
   "ikConstraints": [],
@@ -142,10 +95,7 @@
     {
       "name": "pc1",
       "target": "rail",
-      "bones": [
-        "followerA",
-        "followerB"
-      ],
+      "bones": ["followerA", "followerB"],
       "positionMode": "percent",
       "spacingMode": "length",
       "rotateMode": "tangent",

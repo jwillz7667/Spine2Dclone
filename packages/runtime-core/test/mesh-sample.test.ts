@@ -297,7 +297,10 @@ describe('sampleMeshVertices linked mesh (ADR-0011 section 1)', () => {
         deform: {
           [skinName]: {
             [slotName]: {
-              parent: [deformKey(0, [0, 0, 0, 0, 0, 0, 0, 0]), deformKey(1, [5, 0, 5, 0, 5, 0, 5, 0])],
+              parent: [
+                deformKey(0, [0, 0, 0, 0, 0, 0, 0, 0]),
+                deformKey(1, [5, 0, 5, 0, 5, 0, 5, 0]),
+              ],
               own: [deformKey(0, [0, 0, 0, 0, 0, 0, 0, 0]), deformKey(1, [0, 9, 0, 9, 0, 9, 0, 9])],
             },
           },

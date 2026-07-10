@@ -75,7 +75,8 @@ export const setEventDefaultsSpec: CommandSpec = {
   },
   assertApplied: (before, after) => {
     const id = before.eventOrder[0];
-    if (id === undefined) throw new Error('event.setDefaults fixture seed had no event definitions');
+    if (id === undefined)
+      throw new Error('event.setDefaults fixture seed had no event definitions');
     const a = after.events.find((d) => d.id === id);
     if (!a) throw new Error('event.setDefaults target missing from snapshot');
     if (a.int !== 99 || a.float !== 1.25 || a.string !== 'hit') {

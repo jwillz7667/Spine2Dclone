@@ -3,9 +3,5 @@
   "animation": "spacing",
   "duration": 1,
   "loop": false,
-  "poseTimes": [
-    0,
-    0.5,
-    1
-  ]
+  "poseTimes": [0, 0.5, 1]
 }

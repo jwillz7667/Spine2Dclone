@@ -18,13 +18,7 @@ const SQRT2 = Math.SQRT2;
 // A closed-form world affine [a, b, c, d, tx, ty] for a bone at world rotation `angleDeg`, world scale
 // (sx, sy), and world position (px, py). Matches compose() with shear 0: the X column is the rotated axis
 // scaled by sx, the Y column the perpendicular scaled by sy. Independent of runtime-core (uses raw cos/sin).
-function expectedAffine(
-  angleDeg: number,
-  sx: number,
-  sy: number,
-  px: number,
-  py: number,
-): Affine {
+function expectedAffine(angleDeg: number, sx: number, sy: number, px: number, py: number): Affine {
   const r = (angleDeg * Math.PI) / 180;
   const cos = Math.cos(r);
   const sin = Math.sin(r);

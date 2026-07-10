@@ -29,7 +29,15 @@ function sequenceDoc(): unknown {
         transformMode: 'normal',
       },
     ],
-    slots: [{ name: 'seqSlot', bone: 'root', color: { r: 1, g: 1, b: 1, a: 1 }, attachment: 'seq', blendMode: 'normal' }],
+    slots: [
+      {
+        name: 'seqSlot',
+        bone: 'root',
+        color: { r: 1, g: 1, b: 1, a: 1 },
+        attachment: 'seq',
+        blendMode: 'normal',
+      },
+    ],
     skins: [
       {
         name: 'default',
@@ -75,13 +83,57 @@ function sequenceDoc(): unknown {
           height: 8,
           regions: [
             // The NUMBERED frame regions the renderer samples (path + zero-padded index).
-            { name: 'frame00', x: 0, y: 0, w: 8, h: 8, rotated: false, offsetX: 0, offsetY: 0, originalW: 8, originalH: 8 },
-            { name: 'frame01', x: 8, y: 0, w: 8, h: 8, rotated: false, offsetX: 0, offsetY: 0, originalW: 8, originalH: 8 },
-            { name: 'frame02', x: 16, y: 0, w: 8, h: 8, rotated: false, offsetX: 0, offsetY: 0, originalW: 8, originalH: 8 },
+            {
+              name: 'frame00',
+              x: 0,
+              y: 0,
+              w: 8,
+              h: 8,
+              rotated: false,
+              offsetX: 0,
+              offsetY: 0,
+              originalW: 8,
+              originalH: 8,
+            },
+            {
+              name: 'frame01',
+              x: 8,
+              y: 0,
+              w: 8,
+              h: 8,
+              rotated: false,
+              offsetX: 0,
+              offsetY: 0,
+              originalW: 8,
+              originalH: 8,
+            },
+            {
+              name: 'frame02',
+              x: 16,
+              y: 0,
+              w: 8,
+              h: 8,
+              rotated: false,
+              offsetX: 0,
+              offsetY: 0,
+              originalW: 8,
+              originalH: 8,
+            },
             // The BASE `path` region: the validator requires it to exist (ATTACHMENT_REGION_MISSING), like
             // the conformance sequence rig. The renderer never samples it (a resolved frame is always a
             // numbered region), so its color (gray) proves it is not what shows.
-            { name: 'frame', x: 24, y: 0, w: 8, h: 8, rotated: false, offsetX: 0, offsetY: 0, originalW: 8, originalH: 8 },
+            {
+              name: 'frame',
+              x: 24,
+              y: 0,
+              w: 8,
+              h: 8,
+              rotated: false,
+              offsetX: 0,
+              offsetY: 0,
+              originalW: 8,
+              originalH: 8,
+            },
           ],
         },
       ],
@@ -126,9 +178,13 @@ describe('sequenceRegionName', () => {
   });
 
   it('offsets by start and pads to digits width', () => {
-    expect(sequenceRegionName('img', { count: 10, start: 5, digits: 3, setupIndex: 0 }, 2)).toBe('img007');
+    expect(sequenceRegionName('img', { count: 10, start: 5, digits: 3, setupIndex: 0 }, 2)).toBe(
+      'img007',
+    );
     // A value already wider than digits is not truncated.
-    expect(sequenceRegionName('img', { count: 200, start: 0, digits: 2, setupIndex: 0 }, 150)).toBe('img150');
+    expect(sequenceRegionName('img', { count: 200, start: 0, digits: 2, setupIndex: 0 }, 150)).toBe(
+      'img150',
+    );
   });
 });
 

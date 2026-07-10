@@ -23,7 +23,12 @@ import {
 
 export type BoneKeyChannel = 'rotate' | 'translate' | 'scale' | 'shear';
 
-export const ALL_BONE_CHANNELS: readonly BoneKeyChannel[] = ['rotate', 'translate', 'scale', 'shear'];
+export const ALL_BONE_CHANNELS: readonly BoneKeyChannel[] = [
+  'rotate',
+  'translate',
+  'scale',
+  'shear',
+];
 
 // The desired local transform for a channel, taken from the bone's CURRENT (inspector-displayed) values.
 function editForChannel(channel: BoneKeyChannel, t: SetupTransform): BoneTransformEdit {

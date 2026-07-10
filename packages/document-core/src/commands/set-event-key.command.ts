@@ -1,5 +1,9 @@
 import type { Command, CommandContext } from '../command/command';
-import { CommandNotAppliedError, CommandTargetMissingError, EventEditError } from '../command/errors';
+import {
+  CommandNotAppliedError,
+  CommandTargetMissingError,
+  EventEditError,
+} from '../command/errors';
 import { makeEventKey, type EventKeyEntity } from '../model/doc-state';
 import type { AnimationId, EventDefId, KeyframeId } from '../model/ids';
 import { sortEventKeysByTime } from './event-support';
@@ -43,7 +47,9 @@ export class SetEventKeyCommand implements Command {
       if (existing) {
         this.touchedId = existing.id;
         const updated = makeEventKey(existing.id, existing.time, this.eventId, this.overrides);
-        this.after = sortEventKeysByTime(keys.map((key) => (key.id === existing.id ? updated : key)));
+        this.after = sortEventKeysByTime(
+          keys.map((key) => (key.id === existing.id ? updated : key)),
+        );
       } else {
         const id = ctx.ids.mint('keyframe');
         this.touchedId = id;

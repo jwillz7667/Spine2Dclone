@@ -1022,7 +1022,12 @@ export class DocumentModelInternal implements DocumentReadModel {
         skinsChanged = true;
         // Preserve the Stage F2 (ADR-0009 section 5) skin-scoping name lists through the rebuild; a bone
         // reorder that triggers the weighted-mesh remap must not silently drop a skin's bones/constraints.
-        nextSkins.set(id, { id: skin.id, name: skin.name, attachments: nextInner, ...skinScoping(skin) });
+        nextSkins.set(id, {
+          id: skin.id,
+          name: skin.name,
+          attachments: nextInner,
+          ...skinScoping(skin),
+        });
       } else {
         nextSkins.set(id, skin);
       }
@@ -1386,7 +1391,11 @@ export class DocumentModelInternal implements DocumentReadModel {
 
   // Replace a slot's dark-color (two-color tint) keyframes (PP-D10). Same create-on-write / prune-on-empty
   // contract as the other slot channels; the caller passes an already-time-sorted array of immutable keys.
-  setSlotDarkChannel(animId: AnimationId, slotId: SlotId, keyframes: readonly KeyframeEntity[]): void {
+  setSlotDarkChannel(
+    animId: AnimationId,
+    slotId: SlotId,
+    keyframes: readonly KeyframeEntity[],
+  ): void {
     this.writeAnimation(animId, (animation) => {
       let set = animation.slots.get(slotId);
       if (keyframes.length === 0) {
@@ -1405,7 +1414,11 @@ export class DocumentModelInternal implements DocumentReadModel {
 
   // Replace a slot's split rgb-color keyframes (Stage F2, ADR-0009 section 4.2, PP-D10). Same create-on-write
   // / prune-on-empty contract as the other slot channels; the caller passes an already-time-sorted array.
-  setSlotRgbChannel(animId: AnimationId, slotId: SlotId, keyframes: readonly KeyframeEntity[]): void {
+  setSlotRgbChannel(
+    animId: AnimationId,
+    slotId: SlotId,
+    keyframes: readonly KeyframeEntity[],
+  ): void {
     this.writeAnimation(animId, (animation) => {
       let set = animation.slots.get(slotId);
       if (keyframes.length === 0) {

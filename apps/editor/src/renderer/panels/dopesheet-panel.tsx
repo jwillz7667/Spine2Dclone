@@ -42,7 +42,11 @@ import {
   type TrackNames,
   type TrackRow,
 } from '../dopesheet/tracks';
-import { beginSpecialDrag, updateSpecialDrag, type SpecialDrag } from '../dopesheet/event-track-edit';
+import {
+  beginSpecialDrag,
+  updateSpecialDrag,
+  type SpecialDrag,
+} from '../dopesheet/event-track-edit';
 import {
   beginTimelineDrag,
   updateTimelineDrag,
@@ -82,7 +86,8 @@ export function DopesheetPanel(_props: IDockviewPanelProps): ReactElement {
       slotName: (id) => model.getSlot(id)?.name ?? String(id),
       ikName: (id) => model.getIkConstraint(id)?.name ?? String(id),
       transformName: (id) => model.getTransformConstraint(id)?.name ?? String(id),
-      skinName: (key) => (key === 'default' ? 'default' : (model.getSkin(key)?.name ?? String(key))),
+      skinName: (key) =>
+        key === 'default' ? 'default' : (model.getSkin(key)?.name ?? String(key)),
     }),
     [model],
   );
@@ -92,7 +97,9 @@ export function DopesheetPanel(_props: IDockviewPanelProps): ReactElement {
     const animation = model.getAnimation(activeAnimation);
     // The value channels first, then the two Stage F1 special rows (events, draw order), which are
     // always emitted for an active animation so their keys stay visible and editable even when empty.
-    return animation ? [...buildTracks(animation, trackNames), ...buildSpecialTracks(animation)] : [];
+    return animation
+      ? [...buildTracks(animation, trackNames), ...buildSpecialTracks(animation)]
+      : [];
   }, [activeAnimation, revision, model, trackNames]);
 
   const duration = useMemo(() => {
@@ -234,13 +241,34 @@ export function DopesheetPanel(_props: IDockviewPanelProps): ReactElement {
     // transform) keys in the selection all move inside the SAME open interaction session, so a mixed drag is
     // still one undo step.
     if (interaction.drag !== null) {
-      updateKeyframeDrag(history, interaction.drag, deltaSeconds, !disableSnap, workingFps, duration);
+      updateKeyframeDrag(
+        history,
+        interaction.drag,
+        deltaSeconds,
+        !disableSnap,
+        workingFps,
+        duration,
+      );
     }
     if (interaction.special !== null) {
-      updateSpecialDrag(history, interaction.special, deltaSeconds, !disableSnap, workingFps, duration);
+      updateSpecialDrag(
+        history,
+        interaction.special,
+        deltaSeconds,
+        !disableSnap,
+        workingFps,
+        duration,
+      );
     }
     if (interaction.timeline !== null) {
-      updateTimelineDrag(history, interaction.timeline, deltaSeconds, !disableSnap, workingFps, duration);
+      updateTimelineDrag(
+        history,
+        interaction.timeline,
+        deltaSeconds,
+        !disableSnap,
+        workingFps,
+        duration,
+      );
     }
   }
 
@@ -313,7 +341,13 @@ export function DopesheetPanel(_props: IDockviewPanelProps): ReactElement {
         return;
       }
       documentHost.current().history.beginInteraction();
-      interactionRef.current = { kind: 'drag', startX: interaction.startX, drag, special, timeline };
+      interactionRef.current = {
+        kind: 'drag',
+        startX: interaction.startX,
+        drag,
+        special,
+        timeline,
+      };
       applyDrag(interaction.startX, x, event.altKey);
       return;
     }

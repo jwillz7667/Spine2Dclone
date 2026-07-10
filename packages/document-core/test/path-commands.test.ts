@@ -120,9 +120,9 @@ describe('MovePathControlPoint', () => {
     const { slotId, name } = pathTarget(doc);
     const before = doc.model.snapshot();
 
-    expect(() => doc.history.execute(new MovePathControlPointCommand(slotId, name, 99, 0, 0))).toThrow(
-      PathError,
-    );
+    expect(() =>
+      doc.history.execute(new MovePathControlPointCommand(slotId, name, 99, 0, 0)),
+    ).toThrow(PathError);
     expect(doc.model.snapshot()).toEqual(before);
   });
 });

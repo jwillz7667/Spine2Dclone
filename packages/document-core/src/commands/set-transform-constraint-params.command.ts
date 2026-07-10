@@ -8,7 +8,10 @@ import type { CommandSpec } from './spec';
 // entity except its identity fields and the Stage F2 variant flags/order, which no command authors yet,
 // PP-D10). A patch is a Partial of these; `before` captures the prior values of exactly the patched keys.
 type TransformConstraintParamPatch = Partial<
-  Omit<TransformConstraintEntity, 'id' | 'name' | 'bones' | 'target' | 'local' | 'relative' | 'order'>
+  Omit<
+    TransformConstraintEntity,
+    'id' | 'name' | 'bones' | 'target' | 'local' | 'relative' | 'order'
+  >
 >;
 
 // The patchable channel keys as a typed tuple, so before-capture iterates a fixed, statically-typed key set

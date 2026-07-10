@@ -129,7 +129,11 @@ export function applyDirective(state: SlotSceneState, directive: PresentationDir
 // becomes empty until a refill fills it.
 function applyCascadeDrop(
   state: SlotSceneState,
-  moves: readonly { from: { row: number; col: number }; to: { row: number; col: number }; symbol: SymbolId }[],
+  moves: readonly {
+    from: { row: number; col: number };
+    to: { row: number; col: number };
+    symbol: SymbolId;
+  }[],
 ): void {
   const destinations = new Set<number>();
   for (const move of moves) {

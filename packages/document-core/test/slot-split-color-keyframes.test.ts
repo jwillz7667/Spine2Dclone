@@ -40,7 +40,12 @@ function freshAnim(doc: Document): AnimationId {
 }
 
 function rgbKeys(doc: Document, animId: AnimationId, slotId: SlotId) {
-  return doc.model.animations().find((a) => a.id === animId)?.slots.get(slotId)?.rgb ?? [];
+  return (
+    doc.model
+      .animations()
+      .find((a) => a.id === animId)
+      ?.slots.get(slotId)?.rgb ?? []
+  );
 }
 
 describe('split slot-color keyframes (Stage F2)', () => {
@@ -52,11 +57,15 @@ describe('split slot-color keyframes (Stage F2)', () => {
 
     const rgbTarget: KeyframeTarget = { kind: 'slot', slotId, channel: 'rgb' };
     const alphaTarget: KeyframeTarget = { kind: 'slot', slotId, channel: 'alpha' };
-    doc.history.execute(new SetKeyframeCommand(animId, rgbTarget, 0.5, { rgb: { r: 1, g: 0, b: 0 } }));
+    doc.history.execute(
+      new SetKeyframeCommand(animId, rgbTarget, 0.5, { rgb: { r: 1, g: 0, b: 0 } }),
+    );
     doc.history.execute(new SetKeyframeCommand(animId, alphaTarget, 0.5, { alpha: 0.5 }));
 
     const keys = rgbKeys(doc, animId, slotId);
-    expect(keys.map((k) => ('rgb' in k.value ? k.value.rgb : null))).toEqual([{ r: 1, g: 0, b: 0 }]);
+    expect(keys.map((k) => ('rgb' in k.value ? k.value.rgb : null))).toEqual([
+      { r: 1, g: 0, b: 0 },
+    ]);
 
     doc.history.undo();
     doc.history.undo();
@@ -110,8 +119,10 @@ describe('split slot-color keyframes (Stage F2)', () => {
     doc.history.execute(new SetKeyframeCommand(animId, target, 0.25, { alpha: 0.3 }));
 
     const before = doc.model.snapshot();
-    const keyId = doc.model.animations().find((a) => a.id === animId)!.slots.get(slotId)!.alpha[0]!
-      .id;
+    const keyId = doc.model
+      .animations()
+      .find((a) => a.id === animId)!
+      .slots.get(slotId)!.alpha[0]!.id;
 
     doc.history.execute(new MoveKeyframeCommand(animId, target, keyId, 0.75));
     doc.history.execute(new SetCurveCommand(animId, target, keyId, 'stepped'));
@@ -133,13 +144,17 @@ describe('split slot-color keyframes (Stage F2)', () => {
       }),
     );
     doc.history.execute(
-      new SetKeyframeCommand(animId, { kind: 'slot', slotId, channel: 'alpha' }, 0.5, { alpha: 0.8 }),
+      new SetKeyframeCommand(animId, { kind: 'slot', slotId, channel: 'alpha' }, 0.5, {
+        alpha: 0.8,
+      }),
     );
 
     const exported = exportDocument(doc.model);
     const splitAnim = exported.animations['split'];
     const onlySlot = splitAnim ? Object.values(splitAnim.slots)[0] : undefined;
-    expect(onlySlot?.rgb).toEqual([{ time: 0.5, value: { rgb: { r: 0.2, g: 0.4, b: 0.6 } }, curve: 'linear' }]);
+    expect(onlySlot?.rgb).toEqual([
+      { time: 0.5, value: { rgb: { r: 0.2, g: 0.4, b: 0.6 } }, curve: 'linear' },
+    ]);
     expect(onlySlot?.alpha).toEqual([{ time: 0.5, value: { alpha: 0.8 }, curve: 'linear' }]);
 
     const { env } = makeTestEnv();

@@ -35,13 +35,20 @@ export class SetSequenceKeyframeCommand implements Command {
     if (this.before === undefined) {
       const animation = ctx.mutate.getAnimation(this.animId);
       if (!animation) throw new CommandTargetMissingError(this.kind, this.animId);
-      if (!ctx.mutate.getSlot(this.slotId)) throw new CommandTargetMissingError(this.kind, this.slotId);
+      if (!ctx.mutate.getSlot(this.slotId))
+        throw new CommandTargetMissingError(this.kind, this.slotId);
       const channel = animation.slots.get(this.slotId)?.sequence ?? [];
       this.before = channel;
       const existing = channel.find((k) => k.time === this.time);
       if (existing) {
         this.touchedId = existing.id;
-        const updated = makeSequenceKeyframe(existing.id, existing.time, this.mode, this.index, this.delay);
+        const updated = makeSequenceKeyframe(
+          existing.id,
+          existing.time,
+          this.mode,
+          this.index,
+          this.delay,
+        );
         this.after = sortByTime(channel.map((k) => (k.id === existing.id ? updated : k)));
       } else {
         const id = ctx.ids.mint('keyframe');
@@ -83,10 +90,7 @@ export class SetSequenceKeyframeCommand implements Command {
   }
 }
 
-function sequenceCount(
-  snapshot: ReturnType<typeof findAnimationSnapshot>,
-  slotId: string,
-): number {
+function sequenceCount(snapshot: ReturnType<typeof findAnimationSnapshot>, slotId: string): number {
   if (snapshot === undefined) return 0;
   const track = snapshot.slots.find((t) => t.slotId === slotId);
   return track ? track.sequence.length : 0;
@@ -103,13 +107,16 @@ export const setSequenceKeyframeSpec: CommandSpec = {
     for (const slot of model.slots()) {
       const seq = animation.slots.get(slot.id)?.sequence ?? [];
       if (seq.length === 0) continue;
-      return { command: new SetSequenceKeyframeCommand(animation.id, slot.id, 0.75, 'loop', 0, 0.1) };
+      return {
+        command: new SetSequenceKeyframeCommand(animation.id, slot.id, 0.75, 'loop', 0, 0.1),
+      };
     }
     return null;
   },
   assertApplied: (before, after) => {
     const animBefore = before.animations.find((a) => a.name === 'move') ?? before.animations[0];
-    if (animBefore === undefined) throw new Error('anim.sequence.set fixture seed had no animations');
+    if (animBefore === undefined)
+      throw new Error('anim.sequence.set fixture seed had no animations');
     for (const track of animBefore.slots) {
       if (track.sequence.length === 0) continue;
       const b = sequenceCount(findAnimationSnapshot(before, animBefore.id), track.slotId);

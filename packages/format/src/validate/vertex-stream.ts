@@ -118,7 +118,8 @@ export function checkWeightedVertexStream(
 
   const manifestSet = new Set(manifest);
   const ascendingUnique =
-    manifest.length === manifestSet.size && manifest.every((v, i) => i === 0 || v > manifest[i - 1]!);
+    manifest.length === manifestSet.size &&
+    manifest.every((v, i) => i === 0 || v > manifest[i - 1]!);
   const sameMembers =
     manifestSet.size === referenced.size && [...referenced].every((v) => manifestSet.has(v));
   if (!ascendingUnique || !sameMembers) {

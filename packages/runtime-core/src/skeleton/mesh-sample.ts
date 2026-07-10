@@ -155,7 +155,12 @@ function resolveMeshGeometry(
     throw new MeshAttachmentError('not-found', skinName, slotName, attachmentName);
   }
   if (attachment.type === 'mesh') {
-    return { geometry: attachment, deformSkin: skinName, deformSlot: slotName, deformName: attachmentName };
+    return {
+      geometry: attachment,
+      deformSkin: skinName,
+      deformSlot: slotName,
+      deformName: attachmentName,
+    };
   }
   if (attachment.type !== 'linkedmesh') {
     throw new MeshAttachmentError('not-a-mesh', skinName, slotName, attachmentName);
@@ -167,7 +172,11 @@ function resolveMeshGeometry(
   let deformSkin = skinName;
   let deformName = attachmentName;
   let deformNode: LinkedMeshAttachment | null = attachment;
-  for (let hop = 0; hop < MAX_LINKED_MESH_DEPTH && deformNode !== null && deformNode.timelines; hop += 1) {
+  for (
+    let hop = 0;
+    hop < MAX_LINKED_MESH_DEPTH && deformNode !== null && deformNode.timelines;
+    hop += 1
+  ) {
     const parentSkin = deformNode.skin ?? deformSkin;
     const parentName = deformNode.parent;
     const parent = lookupAttachment(document, parentSkin, slotName, parentName);

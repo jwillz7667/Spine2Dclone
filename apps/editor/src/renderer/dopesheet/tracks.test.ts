@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import type { BoneId, DeformSkinKey, IkConstraintId, SlotId, TransformConstraintId } from '../document';
+import type {
+  BoneId,
+  DeformSkinKey,
+  IkConstraintId,
+  SlotId,
+  TransformConstraintId,
+} from '../document';
 import { buildTracks, visibleRowRange, type TrackNames } from './tracks';
 import {
   addAnimation,
@@ -61,7 +67,10 @@ describe('dopesheet tracks', () => {
 
     const rows = buildTracks(doc.model.getAnimation(anim)!, names(doc));
 
-    expect(rows.map((row) => `${row.kind}:${row.label}`)).toEqual(['group:root', 'channel:Scale X']);
+    expect(rows.map((row) => `${row.kind}:${row.label}`)).toEqual([
+      'group:root',
+      'channel:Scale X',
+    ]);
     const channel = rows[1];
     if (channel?.kind === 'channel') {
       expect(channel.target).toEqual({ kind: 'bone', boneId: bone, channel: 'scaleX' });

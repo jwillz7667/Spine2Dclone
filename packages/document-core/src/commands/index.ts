@@ -33,10 +33,7 @@ export {
 } from './add-region-attachment.command';
 export type { RegionAttachmentInit } from './add-region-attachment.command';
 export { RemoveAttachmentCommand, removeAttachmentSpec } from './remove-attachment.command';
-export {
-  CreateLinkedMeshCommand,
-  createLinkedMeshSpec,
-} from './create-linked-mesh.command';
+export { CreateLinkedMeshCommand, createLinkedMeshSpec } from './create-linked-mesh.command';
 export type { LinkedMeshInit } from './create-linked-mesh.command';
 export { UnlinkMeshCommand, unlinkMeshSpec } from './unlink-mesh.command';
 export {
@@ -154,10 +151,7 @@ export {
   setTransformConstraintVariantsSpec,
 } from './set-transform-constraint-variants.command';
 export type { TransformVariantPatch } from './set-transform-constraint-variants.command';
-export {
-  ReorderConstraintsCommand,
-  reorderConstraintsSpec,
-} from './reorder-constraints.command';
+export { ReorderConstraintsCommand, reorderConstraintsSpec } from './reorder-constraints.command';
 export type { TransformConstraintParams } from './create-transform-constraint.command';
 export {
   DeleteTransformConstraintCommand,

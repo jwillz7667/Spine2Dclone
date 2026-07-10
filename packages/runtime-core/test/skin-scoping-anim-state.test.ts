@@ -16,7 +16,8 @@ import { anim, bone, fullDoc, transformConstraint } from './constraint-fixtures'
 // with the active skin under AnimationState EXACTLY as it does under single-animation sampleSkeleton. This
 // asserts the two paths agree: the same rig, the same scoping, driven through the AnimationState surface.
 
-const worldRotation = (pose: Pose, name: string): number => decomposeWorld(worldOf(pose, name)).rotation;
+const worldRotation = (pose: Pose, name: string): number =>
+  decomposeWorld(worldOf(pose, name)).rotation;
 
 // boneA driven by a transform constraint scoped to skin "gold"; boneB by an unscoped one; boneC by a
 // constraint scoped to the always-active "default" skin. The target sits at rotation 40; a solved bone

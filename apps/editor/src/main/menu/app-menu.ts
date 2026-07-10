@@ -62,6 +62,7 @@ export function buildAppMenuTemplate(options: AppMenuOptions): MenuItemConstruct
       action('Import Sprites...', 'file:importSprites', dispatch, `${mod}+Shift+I`),
       action('Import Atlas...', 'file:importAtlas', dispatch),
       action('Slice Sprite Sheet...', 'file:importGrid', dispatch),
+      action('Import Layered File (PSD/ORA)...', 'file:importLayered', dispatch),
       action('Import Spine Project...', 'file:importSpine', dispatch),
       { type: 'separator' },
       action('Export...', 'file:export', dispatch, `${mod}+E`),

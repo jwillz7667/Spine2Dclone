@@ -10,6 +10,7 @@ import {
 } from 'react';
 import { documentHost } from '../document';
 import { runImageImport, runPremadeAtlasImport, runSpriteImport } from '../actions/import-sprites';
+import { importLayeredFromDialog } from '../actions/import-layered';
 import { atlasTextureStore } from '../editor-state/atlas-texture-store';
 import { useGridSliceStore } from '../editor-state/grid-slice-store';
 import { useDocumentRevision } from '../editor-state/use-document-revision';
@@ -115,6 +116,19 @@ export function AssetsPanel(_props: IDockviewPanelProps): ReactElement {
     }
   }
 
+  // Import a layered source file (.psd/.ora) as a rig (PP-D5): main owns the dialog, parses and packs the
+  // layers, and returns a freshly built document that loads through the validated load flow while its atlas
+  // textures publish. Any layer feature that could not be represented shows in the results dialog.
+  async function importLayered(): Promise<void> {
+    setIsImporting(true);
+    try {
+      const outcome = await importLayeredFromDialog();
+      if (outcome.kind === 'error') showNotice(outcome.message);
+    } finally {
+      setIsImporting(false);
+    }
+  }
+
   // Import a set of dropped or picked image Files (PP-D5). The renderer reads each File's bytes with the web
   // File API (no filesystem access) and hands them to main, which stages and packs them exactly like a
   // folder import. Non-image entries are ignored before reading; the packer filters to PNG, so a dropped
@@ -206,6 +220,17 @@ export function AssetsPanel(_props: IDockviewPanelProps): ReactElement {
           onClick={() => useGridSliceStore.getState().show()}
         >
           Slice sheet
+        </button>
+        <button
+          type="button"
+          style={isImporting ? { ...buttonStyle, ...buttonBusyStyle } : buttonStyle}
+          disabled={isImporting}
+          title="Import a layered PSD or ORA file, one slot and region per layer"
+          onClick={() => {
+            void importLayered();
+          }}
+        >
+          Import layered
         </button>
         <input
           ref={fileInputRef}

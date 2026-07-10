@@ -23,7 +23,14 @@ pipeline is Phase 5 WP-5.7.
   `atlas/` (re-exports `@marionette/atlas-pack` plus the Node file store; `rembg.ts` background
   removal gated by the `MARIONETTE_REMBG_BIN` env var), `export-profile/` (WP-5.0 export-profile
   schema and loader), `file-io.ts` (save/open dialogs and disk IO), `csp.ts`,
-  `window-options.ts`.
+  `window-options.ts`. Import entry points (PP-D5): `atlas-premade*.ts` (import an existing packed
+  atlas or slice a plain sprite sheet, no repack), `psd-parse.ts` / `ora-parse.ts` /
+  `layered-*.ts` (parse a PSD or ORA in-process and project its raster layers into a rig), and
+  `spine-import*.ts` (the clean-room Spine importer, PP-A5).
+- **Import dependencies** (pure-JS, no native binaries): `ag-psd@31.0.2` (MIT; Photoshop .psd
+  reader, pulls `base64-js@1.5.1` MIT + `pako@2.1.0` MIT) and `fflate@0.8.3` (MIT; the zip reader
+  for OpenRaster .ora). PNG decode/encode reuses `@marionette/atlas-pack` (`pngjs`); ORA's
+  stack.xml is parsed by a small dependency-free reader in `ora-parse.ts`.
 - **`src/preload/preload.ts`**: the sandboxed `contextBridge` exposing `window.marionette`.
   Bundled as CJS with Zod inlined (a sandboxed preload cannot `require` at runtime).
 - **`src/shared/ipc-contract.ts`**: the isomorphic IPC contract imported by main, preload, and
@@ -35,9 +42,10 @@ pipeline is Phase 5 WP-5.7.
 `contextIsolation: true`, `sandbox: true`, `nodeIntegration: false`, `webSecurity: true`. The CSP
 is single-sourced in `csp.ts` and applied both as an HTTP header and a build-time meta tag:
 production is strict `script-src 'self'` with no remote origins; dev adds what Vite HMR needs.
-Channels are a frozen allowlist (`app:getVersion`, `file:save`, `file:open`, `atlas:import`, and
-the main-to-renderer `menu:action` push); every payload is Zod-validated at the main boundary and
-returns a typed `IpcResult`. Documents cross IPC as opaque values and are deep-validated by
+Channels are a frozen allowlist (`app:getVersion`, `file:save`, `file:open`, `atlas:import`,
+`atlas:importImages`, `atlas:importPremade`, `atlas:importGrid`, `layered:import`, `spine:import`,
+and the main-to-renderer `menu:action` push); every payload is Zod-validated at the main boundary
+and returns a typed `IpcResult`. Documents cross IPC as opaque values and are deep-validated by
 `@marionette/format` with `verifyHash: true` before any disk write and after every read. Save and
 open paths come from main-process dialogs, never from the renderer.
 

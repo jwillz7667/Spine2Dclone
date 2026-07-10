@@ -20,6 +20,7 @@ import { attachKeybindings } from './viewport/keybindings';
 import { attachMenuActions } from './menu-actions';
 import { SpineImportResults } from './spine-import-results';
 import { ExportDialog } from './export/export-dialog';
+import { LayeredImportResults } from './layered-import-results';
 import { GridSliceDialog } from './grid-slice-dialog';
 import 'dockview/dist/styles/dockview.css';
 
@@ -167,6 +168,7 @@ export function App(): ReactElement {
       <DockviewReact components={components} onReady={onReady} className="dockview-theme-abyss" />
       <SpineImportResults />
       <ExportDialog />
+      <LayeredImportResults />
       <GridSliceDialog />
     </>
   );

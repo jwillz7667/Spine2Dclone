@@ -19,6 +19,7 @@ import {
   fileSaveRequestSchema,
   getVersionRequestSchema,
   getVersionResponseSchema,
+  layeredImportRequestSchema,
   spineImportRequestSchema,
   validateWith,
   type AtlasImportResponse,
@@ -32,6 +33,7 @@ import {
   type FileSaveResponse,
   type GetVersionResponse,
   type IpcResult,
+  type LayeredImportResponse,
   type SpineImportResponse,
 } from '../../shared';
 import { importAtlasFromDirectory, importAtlasImages } from '../atlas-import';
@@ -46,6 +48,7 @@ import {
   writeVideoToFile,
 } from '../export';
 import { openDocumentFromFile, saveDocumentToFile } from '../file-io';
+import { importLayeredFromFile } from '../layered-import';
 import { importSpineProjectFromFile } from '../spine-import';
 
 export function registerIpc(): void {
@@ -179,6 +182,15 @@ export function registerIpc(): void {
       return importGridAtlasFromImage(request.data.image, request.data.grid);
     },
   );
+
+  ipcMain.handle(
+    IpcChannel.layeredImport,
+    async (_event, payload: unknown): Promise<IpcResult<LayeredImportResponse>> => {
+      const request = validateWith(layeredImportRequestSchema, payload, 'IPC_BAD_REQUEST');
+      if (!request.ok) return request;
+      return importLayeredFromFile();
+    },
+  );
 }
 
 export function disposeIpc(): void {
@@ -196,4 +208,5 @@ export function disposeIpc(): void {
   ipcMain.removeHandler(IpcChannel.exportProfileSave);
   ipcMain.removeHandler(IpcChannel.atlasImportPremade);
   ipcMain.removeHandler(IpcChannel.atlasImportGrid);
+  ipcMain.removeHandler(IpcChannel.layeredImport);
 }

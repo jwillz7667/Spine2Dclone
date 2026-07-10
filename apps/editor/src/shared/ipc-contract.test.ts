@@ -21,6 +21,7 @@ import {
   IpcChannel,
   isAllowedChannel,
   isMenuActionId,
+  layeredImportResponseSchema,
   mediaExportOptionsSchema,
   spineImportResponseSchema,
   validateWith,
@@ -445,6 +446,45 @@ describe('ipc-contract validation', () => {
       ).ok,
     ).toBe(false);
     expect(validateWith(gridSpecSchema, { mode: 'diagonal' }, 'IPC_BAD_REQUEST').ok).toBe(false);
+  });
+
+  it('allowlists the layered:import channel and the file:importLayered menu action (PP-D5)', () => {
+    expect(isAllowedChannel(IpcChannel.layeredImport)).toBe(true);
+    expect(isAllowedChannel('layered:import')).toBe(true);
+    expect(isMenuActionId('file:importLayered')).toBe(true);
+  });
+
+  it('accepts imported, failed, and canceled layered:import responses, rejects an unknown status', () => {
+    expect(
+      validateWith(
+        layeredImportResponseSchema,
+        {
+          status: 'imported',
+          name: 'hero',
+          document: { anything: true },
+          pages: [{ file: 'atlas-0.png', data: new Uint8Array([1]) }],
+          diagnostics: [{ feature: 'non-raster-layer', layer: 'levels', why: 'no raster' }],
+        },
+        'IPC_BAD_RESPONSE',
+      ).ok,
+    ).toBe(true);
+    expect(
+      validateWith(
+        layeredImportResponseSchema,
+        {
+          status: 'failed',
+          errors: [{ code: 'ORA_NO_STACK', path: '', message: 'no stack.xml' }],
+          diagnostics: [],
+        },
+        'IPC_BAD_RESPONSE',
+      ).ok,
+    ).toBe(true);
+    expect(
+      validateWith(layeredImportResponseSchema, { status: 'canceled' }, 'IPC_BAD_RESPONSE').ok,
+    ).toBe(true);
+    expect(
+      validateWith(layeredImportResponseSchema, { status: 'kaboom' }, 'IPC_BAD_RESPONSE').ok,
+    ).toBe(false);
   });
 
   it('accepts a grid-import request with image bytes and a spec, rejects a malformed one', () => {

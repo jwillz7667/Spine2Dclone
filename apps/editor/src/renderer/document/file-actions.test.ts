@@ -11,6 +11,7 @@ import type {
   FileSaveResponse,
   GetVersionResponse,
   IpcResult,
+  LayeredImportResponse,
   MarionetteApi,
   SpineImportResponse,
 } from '../../shared';
@@ -102,6 +103,12 @@ function installApi(behavior: Behavior): { savedDocument: () => unknown } {
       data: { status: 'canceled' },
     }),
     importGridAtlas: async (): Promise<IpcResult<AtlasImportResponse>> => ({
+      ok: true,
+      data: { status: 'canceled' },
+    }),
+    // The MarionetteApi contract gained importLayeredFile (layered:import, PP-D5). These file actions never
+    // import a layered file; a canceled default keeps the bridge complete.
+    importLayeredFile: async (): Promise<IpcResult<LayeredImportResponse>> => ({
       ok: true,
       data: { status: 'canceled' },
     }),

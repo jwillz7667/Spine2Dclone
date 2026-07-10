@@ -32,6 +32,13 @@ export const IpcChannel = {
   // in a small dialog; main decodes the PNG, slices it, and returns the AtlasRef + the source image as the
   // single page, reusing atlasImportResponseSchema. No repack: the page IS the user's sheet.
   atlasImportGrid: 'atlas:importGrid',
+  // layered:import. Import a layered source file (.psd / .ora) and project its raster layers into a rig
+  // (PP-D5): main owns the file dialog, parses the file in the main process (pure-JS, no native binaries),
+  // packs the layer bitmaps into an atlas, and returns a freshly built, validated document (one slot +
+  // region attachment per layer at its document coordinates) plus the atlas page bytes and typed diagnostics
+  // for any layer feature that could not be represented. The document is opaque at the transport layer
+  // (z.unknown), exactly like spine:import: it is re-validated by loadDocument on the renderer (LAW 3).
+  layeredImport: 'layered:import',
   // menu:action is the one MAIN -> RENDERER push channel (webContents.send): the native application menu
   // lives in the main process, and a menu click dispatches one of the allowlisted MenuActionId strings to
   // the renderer, which maps it to the same action a keybinding would (undo/redo/save/open/import/tool/mode).
@@ -77,6 +84,7 @@ export const MENU_ACTION_IDS = [
   'file:export',
   'file:importAtlas',
   'file:importGrid',
+  'file:importLayered',
   'edit:undo',
   'edit:redo',
   'tool:select',
@@ -260,6 +268,39 @@ export const atlasImportGridRequestSchema = z
   .strict();
 
 export type AtlasImportGridRequest = z.infer<typeof atlasImportGridRequestSchema>;
+
+// layered:import. No request payload (main owns the .psd/.ora dialog; the path-injection defense). A typed
+// diagnostic notes one layer feature that could not be represented (an exotic bit depth, an adjustment or
+// non-raster layer, a smart object without an embedded composite); `layer` is the path-joined layer name (or
+// empty for a document-wide note). The failed branch mirrors the spine-import error shape (code/path/message).
+export const layeredImportDiagnosticSchema = z
+  .object({ feature: z.string().min(1), layer: z.string(), why: z.string().min(1) })
+  .strict();
+
+export type LayeredImportDiagnostic = z.infer<typeof layeredImportDiagnosticSchema>;
+
+export const layeredImportRequestSchema = z.undefined();
+export const layeredImportResponseSchema = z.discriminatedUnion('status', [
+  z
+    .object({
+      status: z.literal('imported'),
+      name: z.string().min(1),
+      document: z.unknown(),
+      pages: z.array(atlasImportPageSchema),
+      diagnostics: z.array(layeredImportDiagnosticSchema),
+    })
+    .strict(),
+  z
+    .object({
+      status: z.literal('failed'),
+      errors: z.array(spineImportErrorSchema),
+      diagnostics: z.array(layeredImportDiagnosticSchema),
+    })
+    .strict(),
+  z.object({ status: z.literal('canceled') }).strict(),
+]);
+
+export type LayeredImportResponse = z.infer<typeof layeredImportResponseSchema>;
 
 // Typed IPC error model. The main boundary never throws a bare string across the wire; it returns
 // a discriminated result so the renderer can branch on success without try/catch over IPC.
@@ -483,6 +524,10 @@ export interface MarionetteApi {
     image: AtlasImportGridRequest['image'],
     grid: GridSpec,
   ): Promise<IpcResult<AtlasImportResponse>>;
+  // Import a layered file (.psd/.ora) as a rig; main owns the dialog, parses in-process, packs the layers,
+  // and returns a freshly built validated document plus atlas page bytes and typed diagnostics, a typed
+  // failure, or a canceled status.
+  importLayeredFile(): Promise<IpcResult<LayeredImportResponse>>;
   // Subscribe to application-menu clicks pushed from the main process (menu:action). The callback receives
   // one allowlisted MenuActionId per click; returns an unsubscribe function. This is the only MAIN ->
   // RENDERER push in the bridge; everything else is request/response.

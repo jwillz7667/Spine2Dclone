@@ -7,6 +7,7 @@ import {
 import { runPremadeAtlasImport, runSpriteImport } from './actions/import-sprites';
 import { importSpineProjectFromDialog } from './actions/import-spine';
 import { openExportDialog } from './actions/export';
+import { importLayeredFromDialog } from './actions/import-layered';
 import { useGridSliceStore } from './editor-state/grid-slice-store';
 import { useToolStore } from './editor-state/tool-store';
 import { usePlaybackStore } from './editor-state/playback-store';
@@ -46,6 +47,13 @@ export function attachMenuActions(): () => void {
         return;
       case 'file:importGrid':
         useGridSliceStore.getState().show();
+        return;
+      case 'file:importLayered':
+        void importLayeredFromDialog().then((outcome) => {
+          if (outcome.kind === 'error') {
+            console.error(`[marionette] layered import failed: ${outcome.message}`);
+          }
+        });
         return;
       case 'file:importSpine':
         void importSpineProjectFromDialog().then((outcome) => {

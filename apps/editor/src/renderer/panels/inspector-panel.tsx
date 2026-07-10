@@ -23,12 +23,17 @@ import {
   SetSlotColorCommand,
   SetSlotDarkColorCommand,
   UnbindMeshCommand,
+  AddPathCurveCommand,
+  RemovePathCurveCommand,
+  SetPathClosedCommand,
+  SetPathConstantSpeedCommand,
   documentHost,
   type AttachmentEntity,
   type BoneEntity,
   type BoneId,
   type LinkedMeshAttachmentEntity,
   type MeshAttachmentEntity,
+  type PathAttachmentEntity,
   type RegionAttachmentEntity,
   type RegionTransform,
   type SlotEntity,
@@ -726,6 +731,12 @@ function AttachmentRow(props: AttachmentRowProps): ReactElement {
     return <LinkedMeshAttachmentRow slotId={slotId} linked={attachment} />;
   }
 
+  // Path attachments (PP-D11): a Bezier rail. Control-point editing lives in the viewport Path tool; this
+  // row carries the openness / parametrization flags and the add/remove-curve actions.
+  if (attachment.kind === 'path') {
+    return <PathAttachmentRow slotId={slotId} path={attachment} />;
+  }
+
   function commitField(field: TransformField, raw: string): boolean {
     const live = documentHost.current().model.getAttachment(slotId, attachment.name);
     if (live === undefined || live.kind !== 'region') return false;
@@ -968,6 +979,89 @@ function LinkedMeshAttachmentRow(props: {
       </div>
     </div>
   );
+}
+
+// The path attachment inspector row (PP-D11): its curve count and control-point count, the openness and
+// constant-speed flags (each a checkbox dispatching its command), and the add/remove-curve actions. Control
+// points are dragged in the viewport Path tool; the arc-length table is recomputed by the commands.
+function PathAttachmentRow(props: {
+  readonly slotId: SlotId;
+  readonly path: PathAttachmentEntity;
+}): ReactElement {
+  const { slotId, path } = props;
+  const curveCount = path.lengths.length;
+  const pointCount = path.vertices.length / 2;
+  return (
+    <div style={attachmentBlockStyle}>
+      <div style={attachmentRowStyle}>
+        <span style={rowNameStyle}>{path.name}</span>
+        <span style={rowBoneStyle}>
+          path: {curveCount} {curveCount === 1 ? 'curve' : 'curves'}, {pointCount} points
+        </span>
+        <button
+          type="button"
+          style={smallButtonStyle}
+          title="Append a cubic curve (three control points) to the end of the spline"
+          onClick={() => addPathCurve(slotId, path.name)}
+        >
+          + Curve
+        </button>
+        <button
+          type="button"
+          style={curveCount > 1 ? smallButtonStyle : { ...smallButtonStyle, ...buttonDisabledStyle }}
+          disabled={curveCount <= 1}
+          title="Drop the last curve (a path keeps at least one)"
+          onClick={() => removePathCurve(slotId, path.name)}
+        >
+          - Curve
+        </button>
+        <button
+          type="button"
+          style={smallButtonStyle}
+          title="Remove attachment"
+          onClick={() => removeAttachment(slotId, path.name)}
+        >
+          Remove
+        </button>
+      </div>
+      <div style={detailRowStyle}>
+        <label style={labelStyle}>
+          <input
+            type="checkbox"
+            checked={path.closed}
+            onChange={(event) => setPathClosed(slotId, path.name, event.target.checked)}
+          />{' '}
+          Closed
+        </label>
+        <label style={labelStyle}>
+          <input
+            type="checkbox"
+            checked={path.constantSpeed}
+            onChange={(event) => setPathConstantSpeed(slotId, path.name, event.target.checked)}
+          />{' '}
+          Constant speed
+        </label>
+      </div>
+    </div>
+  );
+}
+
+function setPathClosed(slotId: SlotId, name: string, closed: boolean): void {
+  documentHost.current().history.execute(new SetPathClosedCommand(slotId, name, closed));
+}
+
+function setPathConstantSpeed(slotId: SlotId, name: string, constantSpeed: boolean): void {
+  documentHost
+    .current()
+    .history.execute(new SetPathConstantSpeedCommand(slotId, name, constantSpeed));
+}
+
+function addPathCurve(slotId: SlotId, name: string): void {
+  documentHost.current().history.execute(new AddPathCurveCommand(slotId, name));
+}
+
+function removePathCurve(slotId: SlotId, name: string): void {
+  documentHost.current().history.execute(new RemovePathCurveCommand(slotId, name));
 }
 
 // Convert a region attachment to a pixel-identical 4-vertex quad mesh (TASK-2.1.1) as one undo step.

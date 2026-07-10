@@ -117,6 +117,20 @@ export function parsePhysicsParam(field: PhysicsParamField, raw: string): number
   }
 }
 
+// Whether the Inspector shows the SKELETON-level physics settings section (the global gravity/wind and master
+// mix, ADR-0014). Those settings only act on physics constraints, so the section is offered whenever the
+// skeleton has at least one physics constraint (there is something for them to scale, and the author can Enable
+// a block), OR a settings block already exists (so a block authored earlier stays editable and Clearable even
+// after its last constraint was removed). With no physics constraints and no block the global settings are
+// inert, so the section stays hidden to avoid clutter. This makes the settings reachable at skeleton scope,
+// without first selecting a physics constraint (their previous, selection-gated home).
+export function shouldShowSkeletonPhysics(
+  physicsConstraintCount: number,
+  hasSettings: boolean,
+): boolean {
+  return physicsConstraintCount > 0 || hasSettings;
+}
+
 // The five simulated local channels a physics constraint may drive (ADR-0014), in canonical order so a
 // toggled set stays stable regardless of click sequence.
 export const PHYSICS_CHANNELS: readonly PhysicsChannel[] = [

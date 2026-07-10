@@ -10,6 +10,7 @@ import {
   parsePhysicsParam,
   regionAttachmentDefaults,
   reorderTarget,
+  shouldShowSkeletonPhysics,
   togglePhysicsChannel,
   uniqueAttachmentName,
   uniqueSlotName,
@@ -258,5 +259,27 @@ describe('inspector-logic: togglePhysicsChannel', () => {
 
   it('returns null when the toggle would empty the set (keeping at least one channel)', () => {
     expect(togglePhysicsChannel(['rotation'], 'rotation')).toBeNull();
+  });
+});
+
+describe('inspector-logic: shouldShowSkeletonPhysics', () => {
+  it('shows the section when the skeleton has at least one physics constraint', () => {
+    // A constraint exists for the global gravity/wind/mix to scale, and the author can Enable the block.
+    expect(shouldShowSkeletonPhysics(1, false)).toBe(true);
+    expect(shouldShowSkeletonPhysics(3, false)).toBe(true);
+  });
+
+  it('shows the section when a settings block already exists, even with no constraints', () => {
+    // A block authored earlier stays editable and Clearable after its last constraint was removed.
+    expect(shouldShowSkeletonPhysics(0, true)).toBe(true);
+  });
+
+  it('hides the section when there are no physics constraints and no settings block', () => {
+    // The global settings are inert with nothing to act on, so the section stays hidden to avoid clutter.
+    expect(shouldShowSkeletonPhysics(0, false)).toBe(false);
+  });
+
+  it('shows the section when both a constraint and a settings block are present', () => {
+    expect(shouldShowSkeletonPhysics(2, true)).toBe(true);
   });
 });

@@ -78,6 +78,7 @@ import {
   parsePhysicsParam,
   regionAttachmentDefaults,
   reorderTarget,
+  shouldShowSkeletonPhysics,
   togglePhysicsChannel,
   uniqueAttachmentName,
   uniqueSlotName,
@@ -126,6 +127,10 @@ export function InspectorPanel(_props: IDockviewPanelProps): ReactElement {
   );
   const physicsBones = useMemo(() => model.bones(), [model, revision]);
   const physicsSettings = useMemo(() => model.physicsSettings(), [model, revision]);
+  const physicsConstraintCount = useMemo(
+    () => model.physicsConstraints().length,
+    [model, revision],
+  );
 
   // The PRIMARY selected bone (the pivot; the gizmo and numeric entry act on it). Resolved against the
   // LIVE model so an undo/redo/delete that removes it collapses the section rather than showing a stale
@@ -169,12 +174,12 @@ export function InspectorPanel(_props: IDockviewPanelProps): ReactElement {
 
   return (
     <div style={rootStyle}>
+      {shouldShowSkeletonPhysics(physicsConstraintCount, physicsSettings !== undefined) && (
+        <SkeletonPhysicsSettingsSection settings={physicsSettings} />
+      )}
+
       {selectedPhysics !== undefined && (
-        <PhysicsConstraintSection
-          constraint={selectedPhysics}
-          bones={physicsBones}
-          settings={physicsSettings}
-        />
+        <PhysicsConstraintSection constraint={selectedPhysics} bones={physicsBones} />
       )}
 
       {primaryBone !== undefined && (
@@ -1595,16 +1600,16 @@ function physicsSettingsWith(
 interface PhysicsConstraintSectionProps {
   readonly constraint: PhysicsConstraintEntity;
   readonly bones: readonly BoneEntity[];
-  readonly settings: PhysicsSettings | undefined;
 }
 
 // The physics-constraint inspector section (PP-D12), driven by the Constraints-panel selection. Edits the
 // target bone, the simulated channel set (toggles that never empty the set), and the eight numeric parameters,
-// each through its document-core command on the live History (LAW 2). Also edits the OPTIONAL skeleton physics
-// settings block (global gravity/wind and a master mix), which SetPhysicsSettings(null) clears. DATA ONLY:
-// this section never runs the physics solve (a live preview is a deferred follow-up).
+// each through its document-core command on the live History (LAW 2). The SKELETON-level settings (global
+// gravity/wind and master mix) are edited in SkeletonPhysicsSettingsSection, which is reachable at skeleton
+// scope without selecting a constraint (they were previously wedged into the bottom of this selection-gated
+// section). This section edits per-constraint DATA; the live physics solve runs in the viewport during playback.
 function PhysicsConstraintSection(props: PhysicsConstraintSectionProps): ReactElement {
-  const { constraint, bones, settings } = props;
+  const { constraint, bones } = props;
   const c = constraint;
   const channelSet = new Set(c.channels);
 
@@ -1615,16 +1620,6 @@ function PhysicsConstraintSection(props: PhysicsConstraintSectionProps): ReactEl
     const parsed = parsePhysicsParam(field, raw);
     if (parsed === null || parsed === current) return false;
     commitPhysicsParams(c.id, physicsParamPatch(field, parsed));
-    return true;
-  }
-
-  function commitSettingsField(field: PhysicsSettingsField, raw: string): boolean {
-    const live = documentHost.current().model.physicsSettings();
-    if (live === undefined) return false;
-    const current = live[field];
-    const parsed = parsePhysicsParam(field, raw);
-    if (parsed === null || parsed === current) return false;
-    commitPhysicsSettings(physicsSettingsWith(live, field, parsed));
     return true;
   }
 
@@ -1689,6 +1684,35 @@ function PhysicsConstraintSection(props: PhysicsConstraintSectionProps): ReactEl
             />
           </label>
         ))}
+      </div>
+    </div>
+  );
+}
+
+// The SKELETON-level physics settings section (PP-D12 follow-up): the global gravity/wind and a master mix that
+// scale into EVERY physics constraint (ADR-0014). It lives at skeleton scope so it is reachable WITHOUT first
+// selecting a physics constraint (its previous home was wedged into the selection-gated constraint section); the
+// parent gates it on shouldShowSkeletonPhysics. Enable creates the block, Clear removes it, and each field edit
+// routes through the SAME SetPhysicsSettings command on the live History (LAW 2). No new mutation path.
+function SkeletonPhysicsSettingsSection(props: {
+  readonly settings: PhysicsSettings | undefined;
+}): ReactElement {
+  const { settings } = props;
+
+  function commitSettingsField(field: PhysicsSettingsField, raw: string): boolean {
+    const live = documentHost.current().model.physicsSettings();
+    if (live === undefined) return false;
+    const current = live[field];
+    const parsed = parsePhysicsParam(field, raw);
+    if (parsed === null || parsed === current) return false;
+    commitPhysicsSettings(physicsSettingsWith(live, field, parsed));
+    return true;
+  }
+
+  return (
+    <div style={boneSectionStyle}>
+      <div style={subHeaderStyle}>
+        <span>Skeleton Physics</span>
       </div>
 
       <div style={detailRowStyle}>

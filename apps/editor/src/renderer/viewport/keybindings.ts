@@ -50,13 +50,14 @@ export function attachKeybindings(): () => void {
       return;
     }
 
-    // Tool switch (no modifier): V selects, B creates, M edits meshes, W paints weights. Guarded by !mod
-    // so it never shadows a shortcut.
+    // Tool switch (no modifier): V selects, B creates, M edits meshes, W paints weights, P edits paths.
+    // Guarded by !mod so it never shadows a shortcut.
     if (mod) return;
     if (key === 'v') useToolStore.getState().setTool('select');
     else if (key === 'b') useToolStore.getState().setTool('createBone');
     else if (key === 'm') useToolStore.getState().setTool('mesh');
     else if (key === 'w') useToolStore.getState().setTool('weights');
+    else if (key === 'p') useToolStore.getState().setTool('path');
     else if (key === 'delete' || key === 'backspace') deleteSelectedMeshVertex();
   };
 

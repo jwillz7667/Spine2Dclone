@@ -6,6 +6,7 @@ import { documentHost, exportDocument } from '../document';
 import { atlasTextureStore } from '../editor-state/atlas-texture-store';
 import { useCameraStore } from '../editor-state/camera-store';
 import { useMeshEditStore } from '../editor-state/mesh-edit-store';
+import { usePathEditStore } from '../editor-state/path-edit-store';
 import { useSelectionStore } from '../editor-state/selection-store';
 import { useMarqueeStore } from '../editor-state/marquee-store';
 import { useSlotSelectionStore } from '../editor-state/slot-selection-store';
@@ -18,6 +19,8 @@ import { createViewportLayers } from './layers';
 import { MoveRotateGizmo } from './gizmo/move-rotate-gizmo';
 import { resolveMeshEditTarget } from './mesh-edit';
 import { MeshEditOverlay } from './mesh-overlay';
+import { resolvePathEditTarget } from './path-edit';
+import { PathEditOverlay } from './path-overlay';
 import { resolveWeightPaintTarget } from './weight-paint';
 import { WeightPaintOverlay } from './weight-overlay';
 import { MarqueeOverlay } from './marquee-overlay';
@@ -25,6 +28,7 @@ import { solveWorldById } from './scene-solve';
 import { attachToolInput } from './tool-input';
 import { CreateBoneTool } from './tools/create-bone-tool';
 import { MeshTool } from './tools/mesh-tool';
+import { PathTool } from './tools/path-tool';
 import { WeightPaintTool } from './tools/weight-paint-tool';
 import { SelectMoveTool } from './tools/select-move-tool';
 import { renderTargetsEqual, resolveRenderTarget, type RenderTarget } from './render-target';
@@ -64,6 +68,7 @@ export function ViewportPanelContent(): ReactElement {
     let unsubscribeTextures: (() => void) | null = null;
     let unsubscribeSlotSelection: (() => void) | null = null;
     let unsubscribeMeshEdit: (() => void) | null = null;
+    let unsubscribePathEdit: (() => void) | null = null;
     let unsubscribeWeightPaint: (() => void) | null = null;
     let unsubscribeTool: (() => void) | null = null;
     let unsubscribeMarquee: (() => void) | null = null;
@@ -95,6 +100,8 @@ export function ViewportPanelContent(): ReactElement {
       layers.overlay.addChild(gizmo.container);
       const meshOverlay = new MeshEditOverlay();
       layers.overlay.addChild(meshOverlay.container);
+      const pathOverlay = new PathEditOverlay();
+      layers.overlay.addChild(pathOverlay.container);
       const weightOverlay = new WeightPaintOverlay();
       layers.overlay.addChild(weightOverlay.container);
       const marqueeOverlay = new MarqueeOverlay();
@@ -103,6 +110,9 @@ export function ViewportPanelContent(): ReactElement {
       // The mesh overlay redraws on document revision, slot/vertex selection, tool, and zoom changes
       // (event-driven, never per idle frame); the tick applies it below, mirroring the gizmo pattern.
       let meshOverlayDirty = true;
+      // The path overlay redraws on document revision, slot/point selection, tool, and zoom changes (same
+      // event-driven contract as the mesh overlay); the tick applies it below.
+      let pathOverlayDirty = true;
       // The weight overlay redraws on document revision, slot/bone selection, brush state, tool, and zoom
       // changes (same event-driven contract); the brush cursor follows via the brush-state subscription.
       let weightOverlayDirty = true;
@@ -114,9 +124,11 @@ export function ViewportPanelContent(): ReactElement {
         layers.world.scale.set(camera.zoom);
         gizmo.applyZoom(camera.zoom); // keep handles a constant pixel size as zoom changes
         meshOverlay.applyZoom(camera.zoom);
+        pathOverlay.applyZoom(camera.zoom);
         weightOverlay.applyZoom(camera.zoom);
         marqueeOverlay.applyZoom(camera.zoom);
         meshOverlayDirty = true;
+        pathOverlayDirty = true;
         weightOverlayDirty = true;
         marqueeDirty = true;
       };
@@ -139,6 +151,7 @@ export function ViewportPanelContent(): ReactElement {
         createBone: new CreateBoneTool(),
         mesh: new MeshTool(),
         weights: new WeightPaintTool(),
+        path: new PathTool(),
       };
       detachTool = attachToolInput(app.canvas, {
         getCamera: () => useCameraStore.getState(),
@@ -153,16 +166,21 @@ export function ViewportPanelContent(): ReactElement {
       });
       unsubscribeSlotSelection = useSlotSelectionStore.subscribe(() => {
         meshOverlayDirty = true;
+        pathOverlayDirty = true;
         weightOverlayDirty = true;
       });
       unsubscribeMeshEdit = useMeshEditStore.subscribe(() => {
         meshOverlayDirty = true;
+      });
+      unsubscribePathEdit = usePathEditStore.subscribe(() => {
+        pathOverlayDirty = true;
       });
       unsubscribeWeightPaint = useWeightPaintStore.subscribe(() => {
         weightOverlayDirty = true;
       });
       unsubscribeTool = useToolStore.subscribe(() => {
         meshOverlayDirty = true;
+        pathOverlayDirty = true;
         weightOverlayDirty = true;
       });
       unsubscribeMarquee = useMarqueeStore.subscribe(() => {
@@ -314,6 +332,16 @@ export function ViewportPanelContent(): ReactElement {
           meshOverlayDirty = false;
         }
 
+        if (revisionChanged) pathOverlayDirty = true;
+        if (pathOverlayDirty) {
+          const pathTarget =
+            useToolStore.getState().tool === 'path'
+              ? resolvePathEditTarget(model, useSlotSelectionStore.getState().selectedSlotId)
+              : null;
+          pathOverlay.refresh(pathTarget, usePathEditStore.getState().selectedPoint);
+          pathOverlayDirty = false;
+        }
+
         if (revisionChanged) weightOverlayDirty = true;
         if (weightOverlayDirty) {
           const weightsActive = useToolStore.getState().tool === 'weights';
@@ -347,6 +375,7 @@ export function ViewportPanelContent(): ReactElement {
       unsubscribeTextures?.();
       unsubscribeSlotSelection?.();
       unsubscribeMeshEdit?.();
+      unsubscribePathEdit?.();
       unsubscribeWeightPaint?.();
       unsubscribeTool?.();
       unsubscribeMarquee?.();
@@ -418,6 +447,7 @@ function ViewportToolbar(): ReactElement {
       {toolButton('createBone', 'Create Bone (B)')}
       {toolButton('mesh', 'Mesh (M)')}
       {toolButton('weights', 'Weights (W)')}
+      {toolButton('path', 'Path (P)')}
       <span style={dividerStyle} />
       <button
         type="button"

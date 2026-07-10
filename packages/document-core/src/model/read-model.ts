@@ -337,6 +337,10 @@ export interface AnimationSnapshot {
   readonly deform: readonly DeformTimelineSnapshot[]; // sorted by (skin, slotId, attachment)
   readonly drawOrder: readonly DrawOrderKeySnapshot[]; // in time order (strictly ascending)
   readonly events: readonly EventKeySnapshot[]; // in time order (non-decreasing)
+  // Stage F3 (ADR-0011, PP-D11) carried path-constraint timeline record, keyed by the on-disk constraint
+  // NAME (path is carried verbatim, not id-resolved). Projected into the snapshot so the round-trip harness
+  // compares it, mirroring the Stage F2 skin-scoping name lists; empty ({}) when the animation keys none.
+  readonly path: AnimationEntity['path'];
 }
 
 // A plain event-definition projection (Stage F1): the internal EventDefId, the name, the payload defaults,
@@ -692,6 +696,16 @@ export function animationToSnapshot(animation: AnimationEntity): AnimationSnapsh
       (a.slotId < b.slotId ? -1 : a.slotId > b.slotId ? 1 : 0) ||
       (a.attachment < b.attachment ? -1 : a.attachment > b.attachment ? 1 : 0),
   );
+  // Carried path timelines (PP-D11): deep-copy each named track (value + curve) so the snapshot never
+  // aliases the frozen model, with the constraint names sorted for a deterministic, stable projection.
+  const path: Record<string, AnimationEntity['path'][string][number][]> = {};
+  for (const name of Object.keys(animation.path).sort()) {
+    path[name] = animation.path[name]!.map((frame) => ({
+      time: frame.time,
+      value: { ...frame.value },
+      curve: cloneCurve(frame.curve),
+    }));
+  }
   return {
     id: animation.id,
     name: animation.name,
@@ -703,6 +717,7 @@ export function animationToSnapshot(animation: AnimationEntity): AnimationSnapsh
     deform,
     drawOrder: animation.drawOrder.map(drawOrderKeyToSnapshot),
     events: animation.events.map(eventKeyToSnapshot),
+    path,
   };
 }
 

@@ -85,6 +85,7 @@ function richDocument(): SkeletonDocument {
     ],
     ikConstraints: [],
     transformConstraints: [],
+    pathConstraints: [],
     events: [],
     animations: {},
     atlas: {
@@ -192,6 +193,7 @@ function meshDocument(): SkeletonDocument {
     ],
     ikConstraints: [],
     transformConstraints: [],
+    pathConstraints: [],
     events: [],
     animations: {},
     atlas: {
@@ -257,6 +259,7 @@ describe('save / load seam', () => {
         'skins',
         'slots',
         'transformConstraints',
+        'pathConstraints',
         'events',
         'animations',
       ].sort(),
@@ -341,9 +344,9 @@ describe('save / load seam', () => {
     const doc = loadDocument(seeds.animated, makeTestEnv().env);
     const json1 = exportDocument(doc.model);
 
-    // Phase 2 (ADR-0004) plus Stage F1 (ADR-0008): the format Animation is now { duration, bones, slots,
-    // ik, transform, deform, drawOrder, events }. The model authors only bone/slot timelines today, so
-    // ik/transform/deform export as empty records and drawOrder/events as empty arrays.
+    // Phase 2 (ADR-0004) plus Stage F1 (ADR-0008) plus Stage F3 (ADR-0011): the format Animation is now
+    // { duration, bones, slots, ik, transform, deform, drawOrder, events, path }. The model authors only
+    // bone/slot timelines today, so ik/transform/deform/path export empty and drawOrder/events as empty arrays.
     expect(Object.keys(json1.animations)).toEqual(['idle']);
     expect(Object.keys(json1.animations.idle!).sort()).toEqual([
       'bones',
@@ -352,6 +355,7 @@ describe('save / load seam', () => {
       'duration',
       'events',
       'ik',
+      'path',
       'slots',
       'transform',
     ]);
@@ -384,6 +388,7 @@ describe('save / load seam', () => {
       skins: [{ name: 'default', attachments: {} }],
       ikConstraints: [],
       transformConstraints: [],
+      pathConstraints: [],
       // A named event with an int payload and an audio hint, referenced by the animation's event timeline.
       events: [
         { name: 'footstep', int: 3, audio: { path: 'sfx/footstep.wav', volume: 0.8, balance: -0.25 } },
@@ -404,6 +409,7 @@ describe('save / load seam', () => {
             { time: 0.25, name: 'footstep' },
             { time: 0.75, name: 'footstep', int: 7 },
           ],
+          path: {},
         },
       },
       atlas: { pages: [] },
@@ -587,6 +593,7 @@ function f2Document(): SkeletonDocument {
         order: 1,
       },
     ],
+    pathConstraints: [],
     events: [],
     animations: {
       a1: {
@@ -629,6 +636,7 @@ function f2Document(): SkeletonDocument {
         deform: {},
         drawOrder: [],
         events: [],
+        path: {},
       },
     },
     atlas: {
@@ -663,9 +671,10 @@ describe('Stage F2 (0.4.0) carry through load and export', () => {
     const doc = loadDocument(original, makeTestEnv().env);
     const exported = exportDocument(doc.model);
 
-    // Lossless: the projection reproduces the source byte for byte (content hash included).
+    // Lossless: the projection reproduces the source byte for byte (content hash included). The F2 shapes
+    // are stamped at the CURRENT version (the builder uses CURRENT_FORMAT_VERSION, now 0.5.0).
     expect(exported).toEqual(original);
-    expect(exported.formatVersion).toBe('0.4.0');
+    expect(exported.formatVersion).toBe(CURRENT_FORMAT_VERSION);
     expect(verifyContentHash(exported)).toBe(true);
   });
 
@@ -674,6 +683,122 @@ describe('Stage F2 (0.4.0) carry through load and export', () => {
     const doc = loadDocument(original, makeTestEnv().env);
 
     // A non-F2 edit forces a full-state snapshot/restore; undo must return the carried data intact.
+    const before = doc.model.snapshot();
+    doc.history.execute(new CreateBoneCommand(doc.ids.mint('bone'), null, { name: 'tmp', ...GEOM }));
+    doc.history.undo();
+
+    expect(doc.model.snapshot()).toEqual(before);
+    expect(exportDocument(doc.model)).toEqual(original);
+  });
+});
+
+// A document that exercises EVERY Stage F3 (ADR-0011, formatVersion 0.5.0) path shape at once: a `path`
+// ATTACHMENT (a one-curve open cubic spline carried on a slot as its setup-active attachment), a root
+// path CONSTRAINT that distributes a bone along that slot's path, and a per-animation `path` TIMELINE that
+// keys the constraint. document-core carries all three verbatim (no authoring command yet, PP-D11): the
+// path attachment rides the preserved-attachment kind, the constraint rides preserved.pathConstraints, and
+// the timeline rides the AnimationEntity.path record, so exportDocument(loadDocument(R)) === R.
+function f3Document(): SkeletonDocument {
+  const white = { r: 1, g: 1, b: 1, a: 1 } as const;
+  const draft: SkeletonDocument = {
+    formatVersion: CURRENT_FORMAT_VERSION,
+    name: 'f3',
+    hash: '',
+    bones: [
+      { name: 'root', parent: null, ...GEOM, rotation: 0 },
+      { name: 'rider', parent: 'root', ...GEOM, rotation: 0 },
+    ],
+    // The slot carries the path attachment as its setup-active attachment, so the constraint target
+    // statically resolves to a path (exercising PATH_TARGET_NOT_PATH's satisfied branch on load).
+    slots: [{ name: 'rail', bone: 'root', color: white, attachment: 'spline', blendMode: 'normal' }],
+    skins: [
+      {
+        name: 'default',
+        attachments: {
+          rail: {
+            // An OPEN one-curve cubic spline: V = 4 control points (8 coords), so (V-1) % 3 == 0 and
+            // curveCount == 1; one cumulative arc length in `lengths`. Unweighted (no `bones`).
+            spline: {
+              type: 'path',
+              closed: false,
+              constantSpeed: true,
+              lengths: [100],
+              vertices: [0, 0, 33, 0, 66, 0, 100, 0],
+            },
+          },
+        },
+      },
+    ],
+    ikConstraints: [],
+    transformConstraints: [],
+    pathConstraints: [
+      {
+        name: 'pc1',
+        target: 'rail',
+        bones: ['rider'],
+        positionMode: 'percent',
+        spacingMode: 'length',
+        rotateMode: 'tangent',
+        position: 0,
+        spacing: 0,
+        offsetRotation: 0,
+        mixRotate: 1,
+        mixX: 1,
+        mixY: 1,
+      },
+    ],
+    events: [],
+    animations: {
+      glide: {
+        duration: 1,
+        bones: {},
+        slots: {},
+        ik: {},
+        transform: {},
+        deform: {},
+        drawOrder: [],
+        events: [],
+        // A path timeline keying the base position and the rotate mix over time (partial frames).
+        path: {
+          pc1: [
+            { time: 0, value: { position: 0, mixRotate: 1 }, curve: 'linear' },
+            { time: 1, value: { position: 1, mixRotate: 0 }, curve: 'stepped' },
+          ],
+        },
+      },
+    },
+    atlas: { pages: [] },
+  };
+  return { ...draft, hash: computeContentHash(draft) };
+}
+
+describe('Stage F3 (0.5.0) path carry through load and export', () => {
+  it('round-trips a path attachment, path constraint, and path timeline deep-equal (hash included)', () => {
+    const original = f3Document();
+
+    const doc = loadDocument(original, makeTestEnv().env);
+
+    // The path attachment loads as a preserved attachment (document-core promotes only region/mesh/linked).
+    const rail = doc.model.slots().find((s) => s.name === 'rail')!;
+    const spline = doc.model.getAttachment(rail.id, 'spline');
+    expect(spline?.kind).toBe('preserved');
+    // The root path constraints and the per-animation path timeline are carried, not dropped.
+    expect(doc.model.preserved().pathConstraints.map((c) => c.name)).toEqual(['pc1']);
+    const glide = doc.model.animations().find((a) => a.name === 'glide')!;
+    expect(Object.keys(glide.path)).toEqual(['pc1']);
+    expect(glide.path['pc1']).toHaveLength(2);
+
+    const exported = exportDocument(doc.model);
+    expect(exported).toEqual(original); // lossless, hash included
+    expect(exported.formatVersion).toBe(CURRENT_FORMAT_VERSION);
+    expect(verifyContentHash(exported)).toBe(true);
+  });
+
+  it('survives a History snapshot round-trip without dropping carried path data', () => {
+    const original = f3Document();
+    const doc = loadDocument(original, makeTestEnv().env);
+
+    // A non-path edit forces a full-state snapshot/restore; undo must return the carried path data intact.
     const before = doc.model.snapshot();
     doc.history.execute(new CreateBoneCommand(doc.ids.mint('bone'), null, { name: 'tmp', ...GEOM }));
     doc.history.undo();

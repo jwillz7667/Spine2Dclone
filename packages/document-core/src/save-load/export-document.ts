@@ -338,7 +338,19 @@ function animationToFormat(
     ...(key.float !== undefined ? { float: key.float } : {}),
     ...(key.string !== undefined ? { string: key.string } : {}),
   }));
-  return { duration: animation.duration, bones, slots, ik, transform, deform, drawOrder, events };
+  // Stage F3 (ADR-0011 section 3): the carried path-constraint timeline record is emitted verbatim (it is
+  // already the on-disk shape, keyed by constraint name); REQUIRED, empty ({}) when the animation keys none.
+  return {
+    duration: animation.duration,
+    bones,
+    slots,
+    ik,
+    transform,
+    deform,
+    drawOrder,
+    events,
+    path: animation.path,
+  };
 }
 
 // Resolve a deform skin key to its on-disk name: the literal 'default' passes through; a SkinId resolves
@@ -515,6 +527,9 @@ export function exportDocument(model: DocumentReadModel): SkeletonDocument {
     skins,
     ikConstraints,
     transformConstraints,
+    // Stage F3 (ADR-0011 section 2): the carried root path constraints are emitted verbatim as on-disk
+    // names (PP-D11); REQUIRED, empty ([]) when the rig has none.
+    pathConstraints: [...model.preserved().pathConstraints],
     events: orderedEventDefs.map((event) => ({
       name: event.name,
       ...(event.int !== undefined ? { int: event.int } : {}),

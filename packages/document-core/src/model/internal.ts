@@ -295,6 +295,9 @@ interface MutableAnimation {
   // objects are immutable), never patched in place, so a shared array reference is safe.
   drawOrder: readonly DrawOrderKeyEntity[];
   events: readonly EventKeyEntity[];
+  // Stage F3 (ADR-0011) path-constraint timeline record, carried verbatim (no authoring command yet,
+  // PP-D11). Deep-frozen at load and never mutated in place, so a shared reference is safe like above.
+  path: AnimationEntity['path'];
 }
 
 function toMutableBoneSet(set: BoneTimelineSet): MutableBoneTimelineSet {
@@ -408,6 +411,7 @@ function toMutableAnimation(animation: AnimationEntity): MutableAnimation {
     deform: cloneDeformMap(animation.deform),
     drawOrder: animation.drawOrder,
     events: animation.events,
+    path: animation.path,
   };
 }
 
@@ -433,6 +437,7 @@ function cloneMutableAnimation(a: MutableAnimation): MutableAnimation {
     deform: cloneDeformMap(a.deform),
     drawOrder: a.drawOrder,
     events: a.events,
+    path: a.path,
   };
 }
 
@@ -486,6 +491,8 @@ function freezeAnimation(a: MutableAnimation): AnimationEntity {
     deform: freezeDeformMap(a.deform),
     drawOrder: Object.freeze(a.drawOrder.slice()),
     events: Object.freeze(a.events.slice()),
+    // Carried verbatim (PP-D11): already deep-frozen at load and never mutated, so share the reference.
+    path: a.path,
   });
 }
 
@@ -683,6 +690,7 @@ export class DocumentModelInternal implements DocumentReadModel {
     this.slotSceneValue = cloneSlotSceneState(state.slotScene);
     this.preservedContent = deepFreeze({
       atlas: state.preserved.atlas,
+      pathConstraints: state.preserved.pathConstraints,
     });
   }
 
@@ -1842,7 +1850,11 @@ export class DocumentModelInternal implements DocumentReadModel {
   // a discrete edit, never part of a drag. NO content hash is computed here (the exporter is the sole hash
   // owner, LAW 3).
   setAtlas(atlas: AtlasRef): void {
-    this.preservedContent = deepFreeze({ atlas });
+    // Replace only the atlas; the carried Stage F3 path constraints (PP-D11) ride through unchanged.
+    this.preservedContent = deepFreeze({
+      atlas,
+      pathConstraints: this.preservedContent.pathConstraints,
+    });
     this.revisionValue += 1;
   }
 

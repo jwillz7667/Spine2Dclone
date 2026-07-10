@@ -241,6 +241,8 @@ function riggedDoc(): SkeletonDocument {
     // injects them, unlike the 0.1.0 doc() builder below).
     drawOrder: [],
     events: [],
+    // Stage F3 (ADR-0011, formatVersion 0.5.0) required path timeline: keys no path constraint, so empty.
+    path: {},
   };
   return {
     formatVersion: CURRENT_FORMAT_VERSION,
@@ -262,6 +264,7 @@ function riggedDoc(): SkeletonDocument {
     ],
     ikConstraints,
     transformConstraints,
+    pathConstraints: [],
     events: [],
     animations: { move: moveAnimation },
     atlas: {
@@ -298,6 +301,8 @@ function eventedDoc(): SkeletonDocument {
       { time: 0.25, name: 'footstep' },
       { time: 0.75, name: 'landing', float: 2.5 },
     ],
+    // Stage F3 (ADR-0011, formatVersion 0.5.0) required path timeline: keys no path constraint, so empty.
+    path: {},
   };
   return {
     formatVersion: CURRENT_FORMAT_VERSION,
@@ -308,6 +313,7 @@ function eventedDoc(): SkeletonDocument {
     skins: [{ name: 'default', attachments: {} }],
     ikConstraints: [],
     transformConstraints: [],
+    pathConstraints: [],
     events: [
       { name: 'footstep', int: 3, audio: { path: 'sfx/footstep.wav', volume: 0.8, balance: -0.25 } },
       { name: 'landing', float: 1.5 },

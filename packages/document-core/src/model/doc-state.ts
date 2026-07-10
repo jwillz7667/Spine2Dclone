@@ -1,9 +1,11 @@
 import { CURRENT_FORMAT_VERSION } from '@marionette/format';
 import type {
+  Animation,
   Attachment,
   AtlasRef,
   BlendMode,
   CurveType,
+  PathConstraint,
   RegionAttachment,
   RGB,
   RGBA,
@@ -17,6 +19,12 @@ import type {
 // so a 0.4.0 document round-trips. They are non-empty arrays of the exact on-disk shape (a NonNullable of
 // the optional format channel), deep-frozen and shared by reference (never mutated in place).
 type CarriedSequence = NonNullable<RegionAttachment['sequence']>;
+// Stage F3 (ADR-0011, formatVersion 0.5.0) carried path-constraint timelines: the per-animation `path`
+// record (constraintName -> Keyframe<PathFrame>[]), held VERBATIM as the on-disk shape. Document-core
+// authors no path timeline yet (PP-D11); it carries the record losslessly through load and export so a
+// 0.5.0 document round-trips, deep-frozen and shared by reference (never mutated in place), mirroring how
+// drawOrder/events and the Stage F2 tracks above are carried.
+type CarriedPathTimelines = Animation['path'];
 import type {
   AnimationId,
   BoneId,
@@ -458,6 +466,10 @@ export interface AnimationEntity {
   // insert/delete never invalidates a captured command, exactly like the value/deform timelines.
   readonly drawOrder: readonly DrawOrderKeyEntity[];
   readonly events: readonly EventKeyEntity[];
+  // Stage F3 (ADR-0011, formatVersion 0.5.0) path-constraint timeline record, carried verbatim (no command
+  // authors it yet, PP-D11). REQUIRED and empty ({}) when an animation keys no path constraint, mirroring
+  // the always-present drawOrder/events collections; a load/export round-trip preserves it exactly.
+  readonly path: CarriedPathTimelines;
 }
 
 // An IK constraint (WP-2.6, format IkConstraint), mirrored BY VALUE except `bones`/`target`, which are
@@ -532,6 +544,10 @@ export interface SkinEntity {
 // DocState.metadata by PP-D9 (Stage F1); non-default skins were promoted to DocState.skins by WP-2.8.
 export interface PreservedContent {
   readonly atlas: AtlasRef;
+  // Stage F3 (ADR-0011, formatVersion 0.5.0) root path-constraint array, carried verbatim as on-disk
+  // names (no command authors path constraints yet, PP-D11), mirroring how the Stage F2 skin-scoping name
+  // lists are carried. REQUIRED and empty ([]) when the rig has none; a round-trip preserves it exactly.
+  readonly pathConstraints: readonly PathConstraint[];
 }
 
 // The full internal document state. Bones, slots, animations, constraints, and named skins are the
@@ -578,6 +594,7 @@ export interface DocState {
 export function emptyPreservedContent(): PreservedContent {
   return {
     atlas: { pages: [] },
+    pathConstraints: [],
   };
 }
 
@@ -870,12 +887,13 @@ export function isSlotTimelineSetEmpty(set: SlotTimelineSet): boolean {
   );
 }
 
-// The empty ik/transform/deform timeline maps a fresh animation starts with (Phase 2). They stay empty
-// until an IK/transform/deform keyframe command writes one, so a pre-Phase-2 animation that keys none of
-// them projects to empty `{ ik, transform, deform }` records on export (the format requires the keys).
+// The empty ik/transform/deform/path constraint timelines a fresh animation starts with (Phase 2, extended
+// with the Stage F3 path record). They stay empty until an IK/transform/deform keyframe command writes one
+// (path has no authoring command yet, PP-D11), so a fresh animation projects to empty
+// `{ ik, transform, deform }` records and an empty `path` on export (the format requires all four keys).
 export function emptyAnimationConstraintTimelines(): Pick<
   AnimationEntity,
-  'ik' | 'transform' | 'deform'
+  'ik' | 'transform' | 'deform' | 'path'
 > {
-  return { ik: new Map(), transform: new Map(), deform: new Map() };
+  return { ik: new Map(), transform: new Map(), deform: new Map(), path: {} };
 }

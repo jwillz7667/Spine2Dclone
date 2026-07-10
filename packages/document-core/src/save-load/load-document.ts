@@ -424,6 +424,10 @@ function formatToDocState(document: SkeletonDocument, ids: IdFactory): DocState 
       deform: deformTracks,
       drawOrder: drawOrderKeys,
       events: eventKeys,
+      // Stage F3 (ADR-0011 section 3) path-constraint timelines, carried verbatim as the on-disk record
+      // (constraintName -> frames) until an authoring command lands (PP-D11); deep-frozen so the model
+      // never aliases the parsed document.
+      path: carry(animation.path),
     });
   }
 
@@ -465,6 +469,9 @@ function formatToDocState(document: SkeletonDocument, ids: IdFactory): DocState 
     slotScene: defaultSlotSceneState(),
     preserved: {
       atlas: document.atlas,
+      // Stage F3 (ADR-0011 section 2) root path constraints, carried verbatim as on-disk names until an
+      // authoring command lands (PP-D11); deep-frozen so the model never aliases the parsed document.
+      pathConstraints: carry(document.pathConstraints),
     },
   };
 }

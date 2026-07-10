@@ -19,18 +19,23 @@ function boneByName(doc: SkeletonDocument): Map<string, Bone> {
   return map;
 }
 
-// Constraint names are unique across ALL THREE arrays (ik, transform, path share one namespace, ADR-0004,
-// ADR-0011 section 2.3). The arrays are checked in that fixed order so a duplicate is reported at its
-// second (or later) occurrence.
+// Constraint names are unique across ALL FOUR arrays (ik, transform, path, physics share one namespace,
+// ADR-0004, ADR-0011 section 2.3, ADR-0014 section 4). The arrays are checked in that fixed order so a
+// duplicate is reported at its second (or later) occurrence.
 function checkConstraintNames(doc: SkeletonDocument, errors: FormatError[]): void {
   const seen = new Set<string>();
   const arrays: ReadonlyArray<{
-    readonly key: 'ikConstraints' | 'transformConstraints' | 'pathConstraints';
+    readonly key:
+      | 'ikConstraints'
+      | 'transformConstraints'
+      | 'pathConstraints'
+      | 'physicsConstraints';
     readonly constraints: ReadonlyArray<{ readonly name: string }>;
   }> = [
     { key: 'ikConstraints', constraints: doc.ikConstraints },
     { key: 'transformConstraints', constraints: doc.transformConstraints },
     { key: 'pathConstraints', constraints: doc.pathConstraints },
+    { key: 'physicsConstraints', constraints: doc.physicsConstraints },
   ];
   for (const { key, constraints } of arrays) {
     for (const [index, constraint] of constraints.entries()) {
@@ -123,12 +128,12 @@ function checkTransform(
   }
 }
 
-// Explicit constraint order (ADR-0009 section 1.3, ADR-0011 section 2.3): `order` is a single ordering
-// over the combined ikConstraints + transformConstraints + pathConstraints set. Omitted everywhere means
-// the default IK-then-transform-then-path document order (ADR-0003); present anywhere it must be present
-// EVERYWHERE and be a dense, unique permutation of [0, N). A partial assignment, a duplicate, a gap, or an
-// out-of-range value is CONSTRAINT_ORDER_INVALID: the ordering is not a well-formed total order the runtime
-// can sort by.
+// Explicit constraint order (ADR-0009 section 1.3, ADR-0011 section 2.3, ADR-0014 section 4): `order` is a
+// single ordering over the combined ikConstraints + transformConstraints + pathConstraints + physicsConstraints
+// set. Omitted everywhere means the default IK-then-transform-then-path-then-physics document order (ADR-0003);
+// present anywhere it must be present EVERYWHERE and be a dense, unique permutation of [0, N). A partial
+// assignment, a duplicate, a gap, or an out-of-range value is CONSTRAINT_ORDER_INVALID: the ordering is not a
+// well-formed total order the runtime can sort by.
 function checkConstraintOrder(doc: SkeletonDocument, errors: FormatError[]): void {
   const entries: ReadonlyArray<{
     readonly order: number | undefined;
@@ -149,6 +154,11 @@ function checkConstraintOrder(doc: SkeletonDocument, errors: FormatError[]): voi
       order: c.order,
       nodePath: ['pathConstraints', index],
       orderPath: ['pathConstraints', index, 'order'],
+    })),
+    ...doc.physicsConstraints.map((c, index) => ({
+      order: c.order,
+      nodePath: ['physicsConstraints', index],
+      orderPath: ['physicsConstraints', index, 'order'],
     })),
   ];
   const present = entries.filter((entry) => entry.order !== undefined);

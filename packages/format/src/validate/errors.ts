@@ -93,6 +93,21 @@ export const FORMAT_ERROR_CODES = [
   'PATH_BONE_MISSING',
   'PATH_MIX_RANGE',
   'ANIM_PATH_UNKNOWN',
+  // Stage F4 (ADR-0014, formatVersion 0.6.0): physics constraints. Families: the six *_RANGE codes are
+  // SCHEMA (structural refinements on the model parameters); PHYSICS_CHANNELS_EMPTY and
+  // PHYSICS_CHANNEL_DUPLICATE are CONSTRAINT (structural refinements on the simulated channel set);
+  // PHYSICS_BONE_MISSING is CONSTRAINT (the bound bone reference); ANIM_PHYSICS_UNKNOWN is ANIM (a physics
+  // timeline references a missing physics constraint).
+  'PHYSICS_STEP_RANGE',
+  'PHYSICS_INERTIA_RANGE',
+  'PHYSICS_STRENGTH_RANGE',
+  'PHYSICS_DAMPING_RANGE',
+  'PHYSICS_MASS_RANGE',
+  'PHYSICS_MIX_RANGE',
+  'PHYSICS_CHANNELS_EMPTY',
+  'PHYSICS_CHANNEL_DUPLICATE',
+  'PHYSICS_BONE_MISSING',
+  'ANIM_PHYSICS_UNKNOWN',
 ] as const;
 
 export type FormatErrorCode = (typeof FORMAT_ERROR_CODES)[number];

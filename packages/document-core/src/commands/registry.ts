@@ -98,6 +98,7 @@ import { renameBoneSpec } from './rename-bone.command';
 import { renameSlotSpec } from './rename-slot.command';
 import { reorderSlotSpec } from './reorder-slot.command';
 import { reparentBoneSpec } from './reparent-bone.command';
+import { pasteBoneSubtreeSpec } from './paste-bone-subtree.command';
 import { rotateBoneSpec } from './rotate-bone.command';
 import { scaleBoneSpec } from './scale-bone.command';
 import { setBoneShearSpec } from './set-bone-shear.command';
@@ -145,6 +146,8 @@ export const commandRegistry: readonly CommandSpec[] = [
   renameBoneSpec,
   reparentBoneSpec,
   deleteBoneSpec,
+  // PP-D7 bone copy/paste/duplicate
+  pasteBoneSubtreeSpec,
   createSlotSpec,
   deleteSlotSpec,
   renameSlotSpec,

@@ -282,6 +282,9 @@ export {
   RenameBoneCommand,
   ReparentBoneCommand,
   DeleteBoneCommand,
+  PasteBoneSubtreeCommand,
+  captureBoneSubtree,
+  uniqueDuplicateName,
   CreateSlotCommand,
   DeleteSlotCommand,
   RenameSlotCommand,
@@ -424,6 +427,9 @@ export {
 } from './commands';
 export type {
   BoneGeometry,
+  BoneSubtreeClip,
+  ClipBone,
+  ClipSlot,
   SlotInit,
   RegionAttachmentInit,
   PathAttachmentInit,

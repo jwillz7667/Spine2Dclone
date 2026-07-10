@@ -19,6 +19,14 @@ export {
 } from './set-bone-transform-mode.command';
 export { ReparentBoneCommand, reparentBoneSpec } from './reparent-bone.command';
 export { DeleteBoneCommand, deleteBoneSpec } from './delete-bone.command';
+export { PasteBoneSubtreeCommand, pasteBoneSubtreeSpec } from './paste-bone-subtree.command';
+export {
+  captureBoneSubtree,
+  uniqueDuplicateName,
+  type BoneSubtreeClip,
+  type ClipBone,
+  type ClipSlot,
+} from './bone-subtree-support';
 export { CreateSlotCommand, createSlotSpec } from './create-slot.command';
 export type { SlotInit } from './create-slot.command';
 export { DeleteSlotCommand, deleteSlotSpec } from './delete-slot.command';

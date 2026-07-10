@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { parseDocument } from '@marionette/format';
-import type { MeshAttachment, SkeletonDocument } from '@marionette/format/types';
+import type { LinkedMeshAttachment, MeshAttachment, SkeletonDocument } from '@marionette/format/types';
 import { renderFrame, resolveRenderMesh, type AtlasPixelSource } from '@marionette/render-preview';
 import { decode, pixelAt } from './helpers';
 
@@ -102,9 +102,10 @@ describe('render-preview linked meshes', () => {
   it('resolves a linked mesh to the parent geometry with its own path and color', () => {
     const doc: SkeletonDocument = parseDocument(linkedMeshDoc(), { verifyHash: false });
 
-    const resolved = resolveRenderMesh(doc, 'default', 'limb', 'skinB');
     const base = doc.skins[0]!.attachments.limb!.base as MeshAttachment;
+    const linked = doc.skins[0]!.attachments.limb!.skinB as LinkedMeshAttachment;
 
+    const resolved = resolveRenderMesh(doc, 'default', 'limb', linked);
     expect(resolved).not.toBeNull();
     // Geometry is the PARENT mesh (same uvs/triangles/vertices object).
     expect(resolved!.source).toBe(base);
@@ -112,7 +113,7 @@ describe('render-preview linked meshes', () => {
     expect(resolved!.path).toBe('skinBTex');
 
     // A plain mesh resolves to itself.
-    const plain = resolveRenderMesh(doc, 'default', 'limb', 'base');
+    const plain = resolveRenderMesh(doc, 'default', 'limb', base);
     expect(plain!.source).toBe(base);
     expect(plain!.path).toBe('baseTex');
   });

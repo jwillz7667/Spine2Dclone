@@ -2,6 +2,8 @@ import type {
   Attachment,
   LinkedMeshAttachment,
   MeshAttachment,
+  RGBA,
+  Sequence,
   SkeletonDocument,
 } from '@marionette/format/types';
 import { MAT2X3_STRIDE } from '../math/affine';
@@ -195,6 +197,70 @@ function resolveMeshGeometry(
     throw new MeshAttachmentError('not-a-mesh', skinName, slotName, attachmentName);
   }
   return { geometry: node, deformSkin, deformSlot: slotName, deformName };
+}
+
+// The public render-mesh resolution (ADR-0009 section 2, ADR-0011 section 1): the SOURCE geometry a
+// renderer skins plus the ORIGIN attachment's own render properties. For a plain mesh `source` is the mesh
+// itself and path/color/size/sequence are its own; for a linked mesh `source` is the resolved parent-chain
+// root mesh (uvs/triangles/vertices) while path/color/size are the linked mesh's own and `sequence` is
+// undefined (a linked mesh never carries one, ADR-0009 section 3). The WORLD positions are NOT here: they
+// come from skinMeshInto (setup) / sampleMeshVertices (animated), which resolve the same chain, so a
+// renderer never re-derives the skinning math. This is the single public twin of the geometry walk in
+// resolveMeshGeometry above; runtime-web and render-preview consume it instead of each keeping a private
+// copy (the two used to duplicate this walk). NO PixiJS, NO DOM: pure document lookup, ports to C#/GDScript.
+export interface ResolvedRenderMesh {
+  readonly source: MeshAttachment;
+  readonly path: string;
+  readonly color: RGBA;
+  readonly width: number;
+  readonly height: number;
+  readonly sequence: Sequence | undefined;
+}
+
+// Resolve a mesh or linked-mesh attachment (the already-resolved object the caller holds while iterating a
+// skin, plus the skin/slot that own it) to its render geometry and properties. Returns null ONLY when a
+// linked chain fails to reach a real mesh, which a validated document never does (LINKED_MESH_* validators);
+// callers skip a null exactly as they skip a non-drawable attachment. Unlike the internal resolveMeshGeometry
+// (which throws a MeshAttachmentError for the sampling path), this render accessor is null-returning to match
+// the renderers' existing skip-on-missing contract. Allocation-free apart from the returned record.
+export function resolveRenderMesh(
+  document: SkeletonDocument,
+  skinName: string,
+  slotName: string,
+  attachment: MeshAttachment | LinkedMeshAttachment,
+): ResolvedRenderMesh | null {
+  if (attachment.type === 'mesh') {
+    return {
+      source: attachment,
+      path: attachment.path,
+      color: attachment.color,
+      width: attachment.width,
+      height: attachment.height,
+      sequence: attachment.sequence,
+    };
+  }
+
+  const linked: LinkedMeshAttachment = attachment;
+  // Walk the parent chain (same slot; skin follows each node's optional `skin`) to the root mesh, mirroring
+  // resolveMeshGeometry's GEOMETRY walk exactly.
+  let currentSkin = skinName;
+  let node: Attachment = linked;
+  for (let hop = 0; hop < MAX_LINKED_MESH_DEPTH && node.type === 'linkedmesh'; hop += 1) {
+    const parentSkin = node.skin ?? currentSkin;
+    const parent = lookupAttachment(document, parentSkin, slotName, node.parent);
+    if (parent === undefined) return null;
+    currentSkin = parentSkin;
+    node = parent;
+  }
+  if (node.type !== 'mesh') return null;
+  return {
+    source: node,
+    path: linked.path,
+    color: linked.color,
+    width: linked.width,
+    height: linked.height,
+    sequence: undefined,
+  };
 }
 
 function findDeformChannel(

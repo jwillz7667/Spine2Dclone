@@ -35,11 +35,11 @@ export { blendModeToPixi } from './scene/blend-mode';
 export { combineTwoColor } from './scene/two-color';
 export type { StraightColor } from './scene/two-color';
 export { TwoColorFilter, updateTwoColorFilter } from './scene/two-color-filter';
-// Linked-mesh geometry resolution (PP-C8): resolves a mesh or linkedmesh attachment to the source geometry
-// runtime-core skins plus the origin attachment's own render properties. The twin of render-preview's
-// resolver; exported so tests can assert both renderers resolve the same source.
-export { resolveRenderMesh } from './scene/linked-mesh';
-export type { ResolvedRenderMesh } from './scene/linked-mesh';
+// Linked-mesh geometry resolution (PP-C8): re-exported from runtime-core, the single public resolver both
+// renderers consume (this package no longer keeps a private copy). Kept on the runtime-web barrel so its
+// consumers and tests import it from the renderer surface unchanged.
+export { resolveRenderMesh } from '@marionette/runtime-core';
+export type { ResolvedRenderMesh } from '@marionette/runtime-core';
 // Sequence-attachment region naming (PP-C8): the twin of render-preview's, exported so both renderers and
 // tests name frame regions identically.
 export { sequenceRegionName } from './scene/sequence-region';

@@ -10,6 +10,7 @@ import {
   computeWorldTransforms,
   MAT2X3_STRIDE,
   resetToSetupPose,
+  resolveRenderMesh,
   sampleMeshVertices,
   sampleSkeleton,
   sampleSlotSequenceFrame,
@@ -21,7 +22,6 @@ import {
 import type { AtlasIndex, TextureSampler } from './atlas';
 import type { Color } from './color';
 import { UnknownAnimationError } from './errors';
-import { resolveRenderMesh } from './linked-mesh';
 import { sequenceRegionName } from './sequence-region';
 import {
   regionWorldCorners,
@@ -212,7 +212,7 @@ export function gatherDrawItemsFromPose(
       // mesh or linkedmesh: resolve the SOURCE geometry (a linked mesh reuses a parent mesh's uvs/triangles
       // and vertex stream); the world positions still come from runtime-core (sampleMeshVertices resolves
       // the same chain when animated, skinMeshInto over the source at setup), so the geometry never drifts.
-      const resolved = resolveRenderMesh(document, DEFAULT_SKIN_NAME, slot.name, activeName);
+      const resolved = resolveRenderMesh(document, DEFAULT_SKIN_NAME, slot.name, attachment);
       if (resolved === null) continue;
       items.push(
         meshItem(

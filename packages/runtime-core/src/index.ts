@@ -78,6 +78,11 @@ export type { PreparedEventTimeline, PreparedDrawOrderTimeline } from './skeleto
 // runtime-web mesh rendering build on.
 export { sampleMeshVertices, skinMeshInto, MeshAttachmentError } from './skeleton/mesh-sample';
 export type { MeshAttachmentErrorReason } from './skeleton/mesh-sample';
+// The public linked-mesh render resolver (ADR-0009 section 2, ADR-0011 section 1): the SOURCE geometry to
+// skin plus the origin attachment's own path/color/size/sequence. The single twin of the internal geometry
+// walk, consumed by both renderers (runtime-web + render-preview) so neither keeps a private copy.
+export { resolveRenderMesh } from './skeleton/mesh-sample';
+export type { ResolvedRenderMesh } from './skeleton/mesh-sample';
 // Non-drawing geometry attachments (ADR-0012, PP-B2): clipping evaluation, bounding-box hit testing, and
 // point resolution. Post-step-4 accessors over the solved pose (world pass + draw order); they change no
 // pose fixture (Law 1 presentation-only). The clip STATE (world polygon + clipped slot set) and the clip

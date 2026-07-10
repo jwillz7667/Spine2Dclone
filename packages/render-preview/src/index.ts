@@ -77,11 +77,11 @@ export { TRANSPARENT } from './color';
 // produce the same straight-alpha output for the same inputs.
 export { combineTwoColor } from './two-color';
 
-// Linked-mesh geometry resolution (PP-C8): resolves a mesh or linkedmesh attachment to the source geometry
-// to skin plus the linked mesh's own render properties (path/color). Exported so tests can assert the render
+// Linked-mesh geometry resolution (PP-C8): re-exported from runtime-core, the single public resolver both
+// renderers consume (this package no longer keeps a private copy). Exported so tests can assert the render
 // path resolves the same source runtime-core skins.
-export { resolveRenderMesh } from './linked-mesh';
-export type { ResolvedRenderMesh } from './linked-mesh';
+export { resolveRenderMesh } from '@marionette/runtime-core';
+export type { ResolvedRenderMesh } from '@marionette/runtime-core';
 
 // Sequence-attachment region naming (PP-C8): turns a resolved frame index into its atlas region name
 // (ADR-0009 section 3). The twin of runtime-web's; exported so tests and tooling name frames identically.

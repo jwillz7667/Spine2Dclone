@@ -17,6 +17,7 @@ import {
   getTrackEntry,
   MAT2X3_STRIDE,
   resetToSetupPose,
+  resolveRenderMesh,
   sampleMeshVertices,
   sampleSkeleton,
   sampleSlotSequenceFrame,
@@ -38,7 +39,6 @@ import {
   type RegionTrim,
 } from './attachment-sprites';
 import { createMeshDisplay, markMeshPositionsDirty, type MeshDisplay } from './mesh-display';
-import { resolveRenderMesh } from './linked-mesh';
 import { sequenceRegionName } from './sequence-region';
 import { TwoColorFilter, updateTwoColorFilter } from './two-color-filter';
 import { computeRegionSized, placeRegion } from './region-placement';

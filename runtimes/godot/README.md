@@ -1,7 +1,8 @@
-# runtimes/godot: Marionette runtime core (GDScript)
+# runtimes/godot: Marionette runtime (GDScript solve + view layer)
 
-The Godot port of `packages/runtime-core` (PP-E2, Lane E of the Pro Parity Execution Program). It is the
-fixture-driven solve core plus a headless conformance harness, written in pure GDScript.
+The Godot port of `packages/runtime-core` (PP-E2, Lane E of the Pro Parity Execution Program) plus the Godot
+view layer that drops into a 2D scene. It is the fixture-driven solve core, an engine-agnostic view build,
+a drop-in `Node2D` renderer, and two headless harnesses, written in pure GDScript.
 
 Unlike the Unity runtime (`runtimes/unity`, a shared C# library per ADR-0001), this port does NOT reuse a
 shared C# core: the installed Godot is the NON-.NET build, so C# is unavailable and the ADR-0001
@@ -28,15 +29,49 @@ core/                            the platform-agnostic solve, one module per run
   ik.gd, transform_constraint.gd  one/two-bone IK, then transform constraints (document order)
   skin.gd, deform.gd, mesh_sample.gd  skinning (weighted + rigid) and post-skin additive deform
   prng.gd, crc32.gd              the integer determinism surface (Mulberry32/hash32/FNV-1a, CRC-32)
+view/                            the ENGINE-AGNOSTIC view build (no Node, no RenderingServer), headless-tested:
+  render_model.gd                the render-only projection the solve reader skips (region/mesh/atlas)
+  render_model_reader.gd         parse the format JSON's render fields, typed RenderModelReadError (Law 3)
+  atlas_index.gd                 region name to page UV window, rotated-region mapping, trim
+  region_geometry.gd             region-quad world corners (render-preview placement parity)
+  draw_item.gd, draw_item_builder.gd   gather draw items in draw order from a solved pose, pooled
+  mesh_buffer_assembler.gd       flatten draw items into pooled batches by (blend mode, atlas page)
+  marionette_skeleton.gd         the DROP-IN Node2D renderer (drives solve in _process, MeshInstance2D per
+                                 batch); the ONLY view script that touches Node/RenderingServer
 tests/
   repo_paths.gd                  walks up to packages/conformance/src (single source of truth)
   tolerance.gd                   the ported A.5 atol/rtol table
   conformance_harness.gd         loads rig + sample-spec + fixture, solves, compares
   cross_language_vectors.gd      reproduces the integer determinism corpus bit for bit
   rig_reader_boundary.gd         validate-on-import positive + negative checks (Law 3)
-  run_conformance.gd             the SceneTree entry (per-rig results, exits nonzero on failure)
-  run.sh                         hardened wrapper (checks the success sentinel)
+  view_harness.gd                the view-build checks (draw items vs fixtures, geometry/UV units, batching)
+  run_conformance.gd             the solve SceneTree entry (per-rig results, exits nonzero on failure)
+  run_view.gd                    the view SceneTree entry (also compiles the Node2D renderer as a guard)
+  run.sh                         hardened wrapper (runs BOTH harnesses, checks BOTH success sentinels)
 ```
+
+## The view layer (headless-tested logic, in-editor rendering)
+
+The `view/` scripts split the same way the Unity runtime does: the draw-item build, atlas UV mapping, region
+placement, draw-order batching, and blend-mode grouping are pure GDScript with NO `Node` and NO
+`RenderingServer`, so they run under the headless harness and are compared to the SAME committed fixtures the
+solve uses. Only `marionette_skeleton.gd` (a `Node2D`) touches the rendering server; it is a thin driver that
+solves and gathers, then uploads one `MeshInstance2D` per draw batch. Its RENDERING is verified in-editor,
+but the harness PRELOADS it so a GDScript parse or type error in it fails CI (the sentinel goes absent).
+
+### Drop-in usage
+
+1. Copy the `runtimes/godot/core/` and `runtimes/godot/view/` folders into your Godot 4 project (or add this
+   project as a submodule and reference `res://view/marionette_skeleton.gd`).
+2. Add a `MarionetteSkeleton` node (attach `view/marionette_skeleton.gd` to a `Node2D`).
+3. In the inspector set `document_path` (a `.mrnt` export saved as `.json`), `animation_name`, `skin_name`,
+   and fill `atlas_pages` with the page `Texture2D`s. Each texture's file name must match a page `file` in
+   the document atlas. Run the scene: it solves and renders the animation, looping by default.
+
+The example scene is one `Node2D` with `marionette_skeleton.gd`, framed by any `Camera2D`; `screen` blend
+falls back to Godot's `MIX` canvas blend (Godot has no built-in screen canvas blend; a custom
+`CanvasItemMaterial` shader is the extension point), and the two-color dark tint is carried in the batch but
+not applied by the default material.
 
 The module boundaries mirror `runtime-core` one for one; only the names follow GDScript conventions
 (`snake_case`, and `TimelineCurve`/`SkinDef`/`AnimationDef`/`Curves` where a plain transliteration would
@@ -55,12 +90,22 @@ It prints per-rig pass/fail with the max observed error per tolerance class, the
 results, and the rig-reader boundary result, then exits 0 on success and 1 on any drift. The last line is
 the sentinel `GODOT_CONFORMANCE_RESULT: PASS` or `FAIL`.
 
-For CI, prefer the wrapper, which additionally treats a MISSING sentinel as a failure (Godot exits 0 on a
-script parse error, so a broken harness would otherwise look green):
+The view-layer harness is a second entry with its own sentinel `GODOT_VIEW_RESULT: PASS`:
+
+```sh
+/Applications/Godot.app/Contents/MacOS/Godot --headless --path runtimes/godot \
+    --script tests/run_view.gd
+```
+
+For CI, prefer the wrapper, which runs BOTH harnesses and additionally treats a MISSING sentinel from either
+as a failure (Godot exits 0 on a script parse error, so a broken harness would otherwise look green):
 
 ```sh
 GODOT=/path/to/godot runtimes/godot/tests/run.sh
 ```
+
+ALWAYS run headless Godot under a watchdog (a GDScript compile error can make it hang instead of exiting);
+`run.sh` does not itself impose a timeout, so wrap it (for example `pkill` after a fixed budget) in CI.
 
 The harness reads the committed rigs, sample specs, fixtures, and the cross-language vector file DIRECTLY
 from `packages/conformance/src` (found by walking up to the repo root). Nothing is copied, so a fixture

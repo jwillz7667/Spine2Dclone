@@ -11,6 +11,7 @@ export type {
   AtlasExportBuildResult,
   RunProfileAtlasExportParams,
 } from './atlas-export-build';
+export { exportAtlasWithProfile } from './export-atlas';
 
 export {
   runMediaExport,

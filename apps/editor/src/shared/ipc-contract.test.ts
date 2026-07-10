@@ -5,6 +5,8 @@ import {
   atlasImportPremadeRequestSchema,
   atlasImportRequestSchema,
   atlasImportResponseSchema,
+  exportAtlasRequestSchema,
+  exportAtlasResponseSchema,
   exportCancelRequestSchema,
   exportMediaRequestSchema,
   exportMediaResponseSchema,
@@ -274,9 +276,88 @@ describe('ipc-contract validation', () => {
     expect(isAllowedChannel(IpcChannel.exportWriteVideo)).toBe(true);
     expect(isAllowedChannel(IpcChannel.exportProfileLoad)).toBe(true);
     expect(isAllowedChannel(IpcChannel.exportProfileSave)).toBe(true);
+    expect(isAllowedChannel(IpcChannel.exportAtlas)).toBe(true);
+    expect(isAllowedChannel('export:atlas')).toBe(true);
     expect(isAllowedChannel(IpcChannel.exportProgress)).toBe(true);
     expect(isAllowedChannel(IpcChannel.exportCancel)).toBe(true);
     expect(isMenuActionId('file:export')).toBe(true);
+  });
+
+  it('gates the export:atlas request by the full profile schema and validates its response', () => {
+    const profile = {
+      exportProfileVersion: '1.0.0',
+      atlasExport: {
+        maxPageSize: 2048,
+        padding: 2,
+        allowRotation: true,
+        blendBinning: true,
+        textureTransport: 'uastc-ktx2',
+        compressionTargets: ['astc6x6', 'bc7', 'etc2'],
+        premultipliedAlpha: true,
+        scaleVariants: [1, 0.5, 0.25],
+      },
+      particleProfiles: {
+        mobile: { maxLiveParticles: 600, ambientQualityTier: 'medium' },
+        desktop: { maxLiveParticles: 2000, ambientQualityTier: 'high' },
+      },
+      coldStartBudgets: {
+        unityIosNativeMs: 1500,
+        webWarmFirstFrameMs: 1500,
+        webColdInteractiveMs: 4000,
+      },
+    };
+    expect(validateWith(exportAtlasRequestSchema, { profile }, 'IPC_BAD_REQUEST').ok).toBe(true);
+    // An empty profile is malformed (the schema gate is the full exportProfileSchema).
+    expect(validateWith(exportAtlasRequestSchema, { profile: {} }, 'IPC_BAD_REQUEST').ok).toBe(
+      false,
+    );
+
+    expect(
+      validateWith(
+        exportAtlasResponseSchema,
+        {
+          status: 'exported',
+          outputDir: '/out',
+          pageFiles: ['atlas-0.png', '@0.5x/atlas-0.png'],
+          manifestFile: 'atlas-targets.json',
+          diagnostics: [
+            { code: 'ATLAS_COMPRESSION_UNSUPPORTED', target: 'bc7', message: 'no encoder' },
+          ],
+        },
+        'IPC_BAD_RESPONSE',
+      ).ok,
+    ).toBe(true);
+    expect(
+      validateWith(exportAtlasResponseSchema, { status: 'canceled' }, 'IPC_BAD_RESPONSE').ok,
+    ).toBe(true);
+    // An empty pageFiles array is malformed on an exported response (at least the canonical page exists).
+    expect(
+      validateWith(
+        exportAtlasResponseSchema,
+        {
+          status: 'exported',
+          outputDir: '/out',
+          pageFiles: [],
+          manifestFile: 'atlas-targets.json',
+          diagnostics: [],
+        },
+        'IPC_BAD_RESPONSE',
+      ).ok,
+    ).toBe(false);
+    // An unknown diagnostic code is rejected.
+    expect(
+      validateWith(
+        exportAtlasResponseSchema,
+        {
+          status: 'exported',
+          outputDir: '/out',
+          pageFiles: ['atlas-0.png'],
+          manifestFile: 'atlas-targets.json',
+          diagnostics: [{ code: 'SOMETHING_ELSE', target: 'bc7', message: 'x' }],
+        },
+        'IPC_BAD_RESPONSE',
+      ).ok,
+    ).toBe(false);
   });
 
   it('accepts a valid export:project request and rejects an unknown format', () => {

@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type {
   AtlasImportResponse,
+  ExportAtlasResponse,
   ExportCancelResponse,
   ExportMediaResponse,
   ExportProfileLoadResponse,
@@ -92,6 +93,12 @@ function installApi(behavior: Behavior): { savedDocument: () => unknown } {
       data: { status: 'canceled' },
     }),
     saveExportProfile: async (): Promise<IpcResult<ExportProfileSaveResponse>> => ({
+      ok: true,
+      data: { status: 'canceled' },
+    }),
+    // The MarionetteApi contract gained exportAtlas (export:atlas, WP-5.2 wiring). These file actions never
+    // export an atlas; a canceled default keeps the bridge complete.
+    exportAtlas: async (): Promise<IpcResult<ExportAtlasResponse>> => ({
       ok: true,
       data: { status: 'canceled' },
     }),

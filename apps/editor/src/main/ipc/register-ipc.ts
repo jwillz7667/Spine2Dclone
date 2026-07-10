@@ -9,6 +9,7 @@ import {
   atlasImportImagesRequestSchema,
   atlasImportPremadeRequestSchema,
   atlasImportRequestSchema,
+  exportAtlasRequestSchema,
   exportCancelRequestSchema,
   exportMediaRequestSchema,
   exportProfileLoadRequestSchema,
@@ -23,6 +24,7 @@ import {
   spineImportRequestSchema,
   validateWith,
   type AtlasImportResponse,
+  type ExportAtlasResponse,
   type ExportCancelResponse,
   type ExportMediaResponse,
   type ExportProfileLoadResponse,
@@ -41,6 +43,7 @@ import { importPremadeAtlasFromFile } from '../atlas-premade-import';
 import { importGridAtlasFromImage } from '../atlas-premade-io';
 import {
   cancelMediaExport,
+  exportAtlasWithProfile,
   exportMediaToFile,
   exportProjectToFile,
   loadExportProfileFromDialog,
@@ -166,6 +169,15 @@ export function registerIpc(): void {
   );
 
   ipcMain.handle(
+    IpcChannel.exportAtlas,
+    async (_event, payload: unknown): Promise<IpcResult<ExportAtlasResponse>> => {
+      const request = validateWith(exportAtlasRequestSchema, payload, 'IPC_BAD_REQUEST');
+      if (!request.ok) return request;
+      return exportAtlasWithProfile(request.data.profile);
+    },
+  );
+
+  ipcMain.handle(
     IpcChannel.atlasImportPremade,
     async (_event, payload: unknown): Promise<IpcResult<AtlasImportResponse>> => {
       const request = validateWith(atlasImportPremadeRequestSchema, payload, 'IPC_BAD_REQUEST');
@@ -206,6 +218,7 @@ export function disposeIpc(): void {
   ipcMain.removeHandler(IpcChannel.exportWriteVideo);
   ipcMain.removeHandler(IpcChannel.exportProfileLoad);
   ipcMain.removeHandler(IpcChannel.exportProfileSave);
+  ipcMain.removeHandler(IpcChannel.exportAtlas);
   ipcMain.removeHandler(IpcChannel.atlasImportPremade);
   ipcMain.removeHandler(IpcChannel.atlasImportGrid);
   ipcMain.removeHandler(IpcChannel.layeredImport);

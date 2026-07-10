@@ -57,6 +57,12 @@ export const IpcChannel = {
   // writing it (the on-disk gate). The renderer edits an in-memory copy and never touches the filesystem.
   exportProfileLoad: 'export:profileLoad',
   exportProfileSave: 'export:profileSave',
+  // export:atlas runs the shipping-atlas pipeline (WP-5.2 runAtlasExport) driven by the current export
+  // profile: main owns the source-sprites and output-directory dialogs (no renderer path), packs the atlas
+  // per the profile's atlasExport knobs, and writes the variant pages + compressed-texture manifest. The
+  // response carries the written page files and the ATLAS_COMPRESSION_UNSUPPORTED diagnostics so the dialog
+  // surfaces them (never swallowed).
+  exportAtlas: 'export:atlas',
   // export:progress is a MAIN -> RENDERER push (webContents.send): a long media export reports its frame
   // progress by job id so the dialog can show a determinate bar. export:cancel is the RENDERER -> MAIN
   // request that aborts the in-flight job (the export loop checks its AbortSignal between frames).
@@ -489,6 +495,39 @@ export const exportProfileSaveResponseSchema = z.discriminatedUnion('status', [
 ]);
 export type ExportProfileSaveResponse = z.infer<typeof exportProfileSaveResponseSchema>;
 
+// export:atlas. The renderer sends the edited profile; main re-validates it against exportProfileSchema
+// (the same on-disk gate as profileSave), owns the source + output dialogs, and runs runAtlasExport.
+export const exportAtlasRequestSchema = z.object({ profile: exportProfileSchema }).strict();
+export type ExportAtlasRequest = z.infer<typeof exportAtlasRequestSchema>;
+
+// A surfaced compressed-texture diagnostic (mirrors atlas-pack's CompressionDiagnostic): the stubbed
+// encoder records one ATLAS_COMPRESSION_UNSUPPORTED per requested target/page until a real encoder lands.
+export const atlasCompressionDiagnosticSchema = z
+  .object({
+    code: z.literal('ATLAS_COMPRESSION_UNSUPPORTED'),
+    target: z.enum(['astc6x6', 'bc7', 'etc2']),
+    message: z.string(),
+  })
+  .strict();
+export type AtlasCompressionDiagnostic = z.infer<typeof atlasCompressionDiagnosticSchema>;
+
+// On success `pageFiles` lists every variant page written (relative to `outputDir`, e.g. `atlas-0.png` and
+// `@0.5x/atlas-0.png`); `manifestFile` is the atlas-targets manifest; `diagnostics` carries the compression
+// diagnostics so the dialog reports the unsupported targets rather than hiding them.
+export const exportAtlasResponseSchema = z.discriminatedUnion('status', [
+  z
+    .object({
+      status: z.literal('exported'),
+      outputDir: z.string().min(1),
+      pageFiles: z.array(z.string().min(1)).nonempty(),
+      manifestFile: z.string().min(1),
+      diagnostics: z.array(atlasCompressionDiagnosticSchema),
+    })
+    .strict(),
+  z.object({ status: z.literal('canceled') }).strict(),
+]);
+export type ExportAtlasResponse = z.infer<typeof exportAtlasResponseSchema>;
+
 // The typed surface exposed on window.marionette by the preload. The renderer depends on THIS
 // type (from editor-shared), never on the preload module, so the process split holds.
 export interface MarionetteApi {
@@ -562,4 +601,8 @@ export interface MarionetteApi {
   loadExportProfile(): Promise<IpcResult<ExportProfileLoadResponse>>;
   // Save an edited export profile via a main-owned save dialog; main re-validates before writing.
   saveExportProfile(profile: ExportProfile): Promise<IpcResult<ExportProfileSaveResponse>>;
+  // Run the shipping-atlas export (runAtlasExport) driven by the profile; main owns the source-sprites and
+  // output dialogs, writes the variant pages + manifest, and returns the written files plus the compression
+  // diagnostics, or a canceled status.
+  exportAtlas(profile: ExportProfile): Promise<IpcResult<ExportAtlasResponse>>;
 }

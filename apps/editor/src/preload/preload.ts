@@ -42,6 +42,7 @@ const api: MarionetteApi = {
     ipcRenderer.invoke(IpcChannel.exportWriteVideo, { data, container, defaultName }),
   loadExportProfile: () => ipcRenderer.invoke(IpcChannel.exportProfileLoad, undefined),
   saveExportProfile: (profile) => ipcRenderer.invoke(IpcChannel.exportProfileSave, { profile }),
+  exportAtlas: (profile) => ipcRenderer.invoke(IpcChannel.exportAtlas, { profile }),
 };
 
 contextBridge.exposeInMainWorld('marionette', api);

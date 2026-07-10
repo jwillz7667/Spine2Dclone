@@ -176,6 +176,20 @@ switching costumes to check them is never an undoable change and is never saved.
 listed for preview but is edited through the Inspector (its attachments are the default-slot
 attachments).
 
+### Skin scoping (Stage F2)
+
+A named skin can also declare bones and constraints that are ACTIVE ONLY while it is the active
+skin. This is how one skeleton carries structure that only some costumes need: extra bones for a
+cape or a tail, or a constraint that should drive the rig only in a particular look. Each entry is
+a NAME reference (a bone name, or a constraint name resolved across both the IK and transform
+arrays, which share one namespace), so a rename never breaks the scoping. In the Skins panel, the
+"Active only in this skin" section on the selected skin lists its scoped bones and constraints as
+chips: add one from the dropdown of available names, or remove one with its `x`. Adding a name that
+does not resolve, adding a duplicate, or removing one that is not scoped is rejected at the command
+boundary; clearing the last entry in a dimension leaves the skin unscoped there. The runtime
+activation semantics (which scoped bones and constraints participate under a given active skin) are
+the player's to honor; the editor authors and validates the lists.
+
 ## 3.9 A rigging order that works
 
 For a typical character:

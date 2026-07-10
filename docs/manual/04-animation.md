@@ -14,8 +14,12 @@ Each animation may key, independently per target:
 | Bone | `translate` | `{ x, y }` |
 | Bone | `scale` | `{ x, y }` |
 | Bone | `shear` | `{ x, y }` degrees |
+| Bone | `translateX`/`translateY`, `scaleX`/`scaleY`, `shearX`/`shearY` (Stage F2) | `{ value }` |
 | Slot | `color` | `{ color: { r, g, b, a } }` |
+| Slot | `dark` (Stage F2 two-color tint) | `{ color: { r, g, b, a } }` |
+| Slot | `rgb`/`alpha` (Stage F2 split color) | `{ rgb: { r, g, b } }` / `{ alpha }` |
 | Slot | attachment swap | attachment name or `null` |
+| Slot | frame sequence (Stage F2) | `{ mode, index, delay }` |
 | IK constraint | mix + bend | `{ mix, bendPositive }` |
 | Transform constraint | mixes | any subset of the six mix factors |
 | Mesh attachment | deform | per-vertex offset array |
@@ -24,6 +28,26 @@ Unkeyed channels stay at the setup pose. Keyed values are ABSOLUTE: a rotate key
 `{ angle: 20 }` means the bone's local rotation IS 20 degrees at that time, replacing (not
 adding to) the setup value. If you want "setup plus a wiggle", key the setup value at the
 loop's rest points explicitly.
+
+### Per-component and split channels (Stage F2)
+
+A bone transform can be keyed as one JOINT channel or as its per-axis SPLIT components, never
+both at once. Key `translate` for a linked x/y motion that shares one curve, or key `translateX`
+and `translateY` independently when the two axes need different timing or easing (a foot that
+slides horizontally on one curve while lifting on another). The same choice applies to
+`scale`/`scaleX`/`scaleY` and `shear`/`shearX`/`shearY`. In the inspector, "Key" plants the joint
+channels and "Key Split" plants the six per-component channels; the dopesheet shows one row per
+non-empty channel.
+
+Slot color is the same pattern: key the joint `color` (RGBA) OR the split `rgb` (an RGB triple)
+and `alpha` (a lone channel), so a fade-out can ease alpha on its own curve while the hue holds.
+The `dark` channel animates the slot's optional two-color dark tint (enable a dark color on the
+slot first). Mixing a joint channel with its split components on one bone/slot is rejected
+(`TIMELINE`, reason `componentConflict`); pick one encoding per channel.
+
+The frame-sequence channel steps a region/mesh attachment's image sequence over time: each key
+sets a playback `mode` (`hold`, `once`, `loop`, `pingpong`, and the three reverse variants), a
+starting `index`, and a per-frame `delay`. Sequence keys are discrete (no curve).
 
 ## 4.2 Keyframes
 

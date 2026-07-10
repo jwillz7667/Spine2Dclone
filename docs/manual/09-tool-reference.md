@@ -5,7 +5,7 @@ The GUI panels and the MCP tools drive the exact same command layer (`@marionett
 so everything in this reference is also a precise description of what the editor itself can do.
 Anything you can click, you can script; anything you can script, you can undo.
 
-This chapter is the complete reference: 166 tools across 23 namespaces. For a guided walkthrough
+This chapter is the complete reference: 172 tools across 23 namespaces. For a guided walkthrough
 that uses a small subset of these, read Chapter 1 (Getting Started) first.
 
 ## Conventions used by every tool
@@ -89,6 +89,7 @@ tools here operate on skeletal draw slots.
 | `slot.rename` | Rename a slot | `slotId`, `name` |
 | `slot.blend` | Set the slot's blend mode | `slotId`, `blendMode` (`normal`, `additive`, `multiply`, `screen`) |
 | `slot.color` | Set the slot tint | `slotId`, `color` |
+| `slot.darkColor` | Set or clear the slot's setup two-color DARK tint (Stage F2) | `slotId`, `darkColor` (RGBA) or `null` |
 | `slot.reorder` | Move the slot within the draw order | `slotId`, `toIndex` |
 | `slot.activeAttachment` | Set the setup-pose active attachment (or `null` to hide) | `slotId`, `attachment` |
 | `slot.list` | List slots in draw order | (documentId only) |
@@ -189,6 +190,8 @@ The default skin always exists and cannot be renamed or deleted (`SKIN` error, r
 | `skin.create` | Create a named skin | `name` |
 | `skin.rename` | Rename a named skin | `skinId`, `name` |
 | `skin.delete` | Delete a named skin and cascade its deform timelines | `skinId` |
+| `skin.scope.add` | Add a bone or constraint NAME to the skin's Stage F2 active-only scoping list | `skinId`, `scope` (`bones`/`constraints`), `name` |
+| `skin.scope.remove` | Remove a name from the skin's scoping list (clears the dimension when empty) | `skinId`, `scope`, `name` |
 | `skin.setAttachment` | Add or replace a region attachment in the skin at (slot, name) | `skinId`, `slotId`, `attachment` (full region description) |
 | `skin.removeAttachment` | Remove the attachment at (slot, name) | `skinId`, `slotId`, `name` |
 | `skin.list` | List named skins | |
@@ -217,12 +220,20 @@ by skin (`"default"` or a named skin id), slot, and attachment name.
 | `anim.duplicate` | Duplicate under a new name | `animationId`, `name` |
 | `anim.list` | List animations with track counts | |
 | `anim.get` | Get an animation with all timelines and keyframes | `animationId` |
+| `anim.sequence.set` | Insert or update a slot frame-sequence key (Stage F2) | `animationId`, `slotId`, `time`, `mode`, `index`, `delay` |
+| `anim.sequence.move` | Move a sequence key (by id) to a new time (rejects a collision) | `animationId`, `slotId`, `keyframeId`, `time` |
+| `anim.sequence.delete` | Delete a sequence key at a time | `animationId`, `slotId`, `time` |
 
 ## Keyframes: `kf.*`
 
-The channel selects the target kind: `rotate`, `translate`, `scale`, `shear` take a `boneId`;
-`color` takes a `slotId`. The value shape must match the channel: `{ angle }` for rotate,
-`{ x, y }` for translate/scale/shear, `{ color }` for color.
+The channel selects the target kind. The bone channels take a `boneId`: the joint channels `rotate`,
+`translate`, `scale`, `shear`, plus the Stage F2 per-component split channels `translateX`, `translateY`,
+`scaleX`, `scaleY`, `shearX`, `shearY`. The slot channels take a `slotId`: the joint `color`, the two-color
+`dark` tint, and the Stage F2 split color channels `rgb` and `alpha`. The value shape must match the
+channel: `{ angle }` for rotate, `{ x, y }` for translate/scale/shear, `{ value }` for the split bone
+components, `{ color }` for color/dark, `{ rgb }` for rgb, and `{ alpha }` for alpha. A joint channel and
+its split components never coexist on one bone/slot (`TIMELINE`, reason `componentConflict`): key
+`translate` OR `translateX`/`translateY` (likewise scale/shear), and `color` OR `rgb`/`alpha`.
 
 Curves are per-key outgoing interpolation: `"linear"`, `"stepped"`, or
 `{ type: "bezier", cx1, cy1, cx2, cy2 }`.

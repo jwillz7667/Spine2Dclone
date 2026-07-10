@@ -24,8 +24,8 @@ packages/
   format/            # THE CONTRACT: Zod schemas, validators, hashing, migrations, MRNT binary
   runtime-core/      # platform-agnostic solve: skeleton, effects, slot sequencer (no PixiJS/DOM/Node)
   runtime-web/       # PixiJS v8 playback; also powers the editor viewport
-  document-core/     # DocumentModel + 113 commands + History (shared by GUI and MCP; ADR-0001)
-  mcp-server/        # 166 MCP tools over stdio: full headless authoring control (AI + scripts)
+  document-core/     # DocumentModel + 107 commands + History (shared by GUI and MCP; ADR-0001)
+  mcp-server/        # 172 MCP tools over stdio: full headless authoring control (AI + scripts)
   render-preview/    # deterministic CPU rasterizer -> PNG for headless render feedback (ADR-0006)
   atlas-pack/        # deterministic sprite-atlas pipeline (ADR-0007)
   math-bridge/       # the LAW 1 boundary: SpinResult contract, validator, mock + real engine adapter
@@ -88,7 +88,7 @@ Full text in `CLAUDE.md`; every subsystem below is shaped by them.
    GUI panels / viewport tools            MCP client (AI agent)
               |                                   |
               v                                   v
-   apps/editor renderer                 packages/mcp-server (166 tools, stdio)
+   apps/editor renderer                 packages/mcp-server (172 tools, stdio)
               \                                   /
                \                                 /
                 +--> @marionette/document-core <-+
@@ -174,7 +174,7 @@ section 10 and are CI-gated (`check:format-semver`, `check:format-version-stable
 | Behavior | Pinned by |
 |---|---|
 | Solve order and numeric results | `packages/conformance` fixtures + drift gate + closed-form oracle |
-| Command undo correctness | the round-trip harness over all 102 commands |
+| Command undo correctness | the round-trip harness over all 107 commands |
 | Coalescing (250 ms window, sessions) | `coalesce.test.ts`, `cancel-interaction.test.ts` |
 | Format acceptance/rejection | positive corpus + negative fixtures named by exact error code |
 | Content hash | hash oracle + stability tests |

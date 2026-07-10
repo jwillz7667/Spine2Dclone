@@ -24,6 +24,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Marionette.Runtime.Core\Marionette.Runtime.Core.csproj" />
+    <ProjectReference Include="..\Marionette.Runtime.View\Marionette.Runtime.View.csproj" />
   </ItemGroup>
 
 </Project>

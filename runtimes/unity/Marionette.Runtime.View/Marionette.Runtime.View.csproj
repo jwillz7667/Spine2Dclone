@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The engine-agnostic C# VIEW layer (PP-E1 view-layer remainder). It turns a solved Pose plus the
+    render-only document (region/mesh geometry, atlas) into ordered, batched draw buffers a host engine
+    uploads verbatim. Like Marionette.Runtime.Core it targets netstandard2.1 and references NOTHING beyond
+    the base class library and the solve core: NO UnityEngine, NO third party packages. The Unity-specific
+    MonoBehaviour wrapper lives in ../Marionette.Runtime.Unity.View (a Unity asmdef, NOT part of this
+    solution) and is the ONLY place that references UnityEngine, so this assembly stays headless-testable
+    and the core stays engine-agnostic (ADR-0001). The buffer-building, draw-order batching, blend-mode
+    grouping, and vertex assembly all live here and are covered by the xUnit conformance harness.
+  -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AssemblyName>Marionette.Runtime.View</AssemblyName>
+    <RootNamespace>Marionette.Runtime.View</RootNamespace>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <Deterministic>true</Deterministic>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Marionette.Runtime.Core\Marionette.Runtime.Core.csproj" />
+  </ItemGroup>
+
+</Project>

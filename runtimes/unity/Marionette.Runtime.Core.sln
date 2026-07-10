@@ -7,6 +7,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Marionette.Runtime.Core", "
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Marionette.Runtime.Core.Tests", "Marionette.Runtime.Core.Tests\Marionette.Runtime.Core.Tests.csproj", "{2D9C4AAE-0CAE-4195-AFB4-25E56401C924}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Marionette.Runtime.View", "Marionette.Runtime.View\Marionette.Runtime.View.csproj", "{3E7B5A21-9C4D-4F88-B0E2-6A1F2C3D4E5F}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -24,5 +26,9 @@ Global
 		{2D9C4AAE-0CAE-4195-AFB4-25E56401C924}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{2D9C4AAE-0CAE-4195-AFB4-25E56401C924}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{2D9C4AAE-0CAE-4195-AFB4-25E56401C924}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3E7B5A21-9C4D-4F88-B0E2-6A1F2C3D4E5F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3E7B5A21-9C4D-4F88-B0E2-6A1F2C3D4E5F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3E7B5A21-9C4D-4F88-B0E2-6A1F2C3D4E5F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3E7B5A21-9C4D-4F88-B0E2-6A1F2C3D4E5F}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

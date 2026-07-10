@@ -1,11 +1,21 @@
 import { describe, expect, it } from 'vitest';
 import {
+  ALL_KINDS_VISIBLE,
+  DEFAULT_SKIN_NAME,
   DEFAULT_TREE_BONE_LENGTH,
+  buildConstraintNodes,
   buildHierarchyRows,
+  buildSkeletonTree,
+  buildSkinNodes,
   canReparent,
+  filterSectionNodes,
+  filterSkeletonTree,
   isDescendant,
   treeBoneGeometry,
   type HierarchyBone,
+  type HierarchyFilter,
+  type HierarchyNode,
+  type HierarchySlot,
 } from './hierarchy-tree';
 
 // A two-level rig whose subtrees are deliberately NOT contiguous in boneOrder: 'childA1' (under
@@ -96,5 +106,135 @@ describe('treeBoneGeometry', () => {
       shearY: 0,
       transformMode: 'normal',
     });
+  });
+});
+
+// Bones root -> arm; slot 'body' rides root, slot 'hand' rides arm. Exercises slot nesting under bones.
+const SLOTS: readonly HierarchySlot[] = [
+  { id: 'body', name: 'body', bone: 'root' },
+  { id: 'hand', name: 'hand', bone: 'arm' },
+];
+const RIG2: readonly HierarchyBone[] = [
+  { id: 'root', name: 'root', parent: null },
+  { id: 'arm', name: 'arm', parent: 'root' },
+];
+
+const allVisible: HierarchyFilter = { query: '', kinds: ALL_KINDS_VISIBLE };
+
+describe('buildSkeletonTree', () => {
+  it('nests each slot under its riding bone at depth + 1', () => {
+    const nodes = buildSkeletonTree(RIG2, SLOTS);
+
+    expect(nodes.map((n) => [n.kind, n.id, n.depth])).toEqual([
+      ['bone', 'root', 0],
+      ['slot', 'body', 1],
+      ['bone', 'arm', 1],
+      ['slot', 'hand', 2],
+    ]);
+    // A slot node carries the id of the bone it rides.
+    expect(nodes.find((n) => n.id === 'body')!.boneId).toBe('root');
+  });
+
+  it('emits a bone with no slots and no slots for a childless-of-slots bone', () => {
+    const nodes = buildSkeletonTree([{ id: 'root', name: 'root', parent: null }], []);
+    expect(nodes.map((n) => n.kind)).toEqual(['bone']);
+  });
+});
+
+describe('buildConstraintNodes', () => {
+  it('lists the four constraint kinds in ik, transform, path, physics order', () => {
+    const nodes = buildConstraintNodes({
+      ik: [{ id: 'ik1', name: 'limb-ik' }],
+      transform: [{ id: 'tc1', name: 'follow' }],
+      path: [{ id: 'pc1', name: 'rail' }],
+      physics: [{ id: 'phy1', name: 'jiggle' }],
+    });
+
+    expect(nodes.map((n) => [n.kind, n.name])).toEqual([
+      ['ik', 'limb-ik'],
+      ['transform', 'follow'],
+      ['path', 'rail'],
+      ['physics', 'jiggle'],
+    ]);
+  });
+});
+
+describe('buildSkinNodes', () => {
+  it('lists the implicit default skin first, then named skins keyed by name', () => {
+    const nodes = buildSkinNodes([
+      { id: 'skin_2', name: 'variant' },
+      { id: 'skin_3', name: 'gold' },
+    ]);
+
+    expect(nodes.map((n) => n.id)).toEqual([DEFAULT_SKIN_NAME, 'variant', 'gold']);
+    // A skin node's id IS its name (the preview store keys on the name).
+    expect(nodes.every((n) => n.kind === 'skin' && n.id === n.name)).toBe(true);
+  });
+});
+
+describe('filterSkeletonTree', () => {
+  const tree = buildSkeletonTree(RIG2, SLOTS);
+
+  it('returns the whole tree for an empty query with all kinds visible', () => {
+    expect(filterSkeletonTree(tree, allVisible)).toEqual(tree);
+  });
+
+  it('keeps a matching slot and its parent bone for context', () => {
+    const result = filterSkeletonTree(tree, { query: 'hand', kinds: ALL_KINDS_VISIBLE });
+    // 'hand' rides 'arm', so both survive; 'root'/'body' drop.
+    expect(result.map((n) => n.id)).toEqual(['arm', 'hand']);
+  });
+
+  it('matches bone names case-insensitively and drops non-matching subtrees', () => {
+    const result = filterSkeletonTree(tree, { query: 'ROOT', kinds: ALL_KINDS_VISIBLE });
+    expect(result.map((n) => n.id)).toEqual(['root', 'body']);
+  });
+
+  it('hides slots when the slots kind is disabled', () => {
+    const result = filterSkeletonTree(tree, {
+      query: '',
+      kinds: { bones: true, slots: false, constraints: true, skins: true },
+    });
+    expect(result.every((n) => n.kind === 'bone')).toBe(true);
+    expect(result.map((n) => n.id)).toEqual(['root', 'arm']);
+  });
+
+  it('drops a bone entirely when neither it nor its slots match', () => {
+    const result = filterSkeletonTree(tree, { query: 'zzz', kinds: ALL_KINDS_VISIBLE });
+    expect(result).toEqual([]);
+  });
+});
+
+describe('filterSectionNodes', () => {
+  const constraintNodes: readonly HierarchyNode[] = buildConstraintNodes({
+    ik: [{ id: 'ik1', name: 'limb-ik' }],
+    transform: [{ id: 'tc1', name: 'follow' }],
+    path: [],
+    physics: [{ id: 'phy1', name: 'tail-jiggle' }],
+  });
+
+  it('keeps only name matches within the section', () => {
+    const result = filterSectionNodes(constraintNodes, {
+      query: 'jiggle',
+      kinds: ALL_KINDS_VISIBLE,
+    });
+    expect(result.map((n) => n.name)).toEqual(['tail-jiggle']);
+  });
+
+  it('drops the whole section when the constraints kind is disabled', () => {
+    const result = filterSectionNodes(constraintNodes, {
+      query: '',
+      kinds: { bones: true, slots: true, constraints: false, skins: true },
+    });
+    expect(result).toEqual([]);
+  });
+
+  it('drops skin nodes when the skins kind is disabled', () => {
+    const skinNodes = buildSkinNodes([{ id: 'skin_2', name: 'variant' }]);
+    const result = filterSectionNodes(skinNodes, {
+      query: '',
+      kinds: { bones: true, slots: true, constraints: true, skins: false },
+    });
+    expect(result).toEqual([]);
   });
 });

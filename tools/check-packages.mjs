@@ -34,6 +34,11 @@ const ALLOWED = {
     // MockMathEngine + the non-transacting real adapter), per phase-4-slot-composer.md section 5.3. It
     // does not exist before Phase 4 (LAW 5); it lands with WP-4.1.
     'math-bridge',
+    // import-spine is the quarantined, import-only, strictly clean-room Spine project importer (PP-A5,
+    // LAW 4's single sanctioned exception). It PRODUCES a validated format document and never writes any
+    // Spine format; it imports @marionette/format and nothing else in-repo imports it except the editor
+    // import flow and the MCP server.
+    'import-spine',
   ]),
   apps: new Set(['editor']),
   // The two native runtimes are the only workspace directories the frozen dependency graph admits

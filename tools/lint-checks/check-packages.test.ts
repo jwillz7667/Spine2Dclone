@@ -54,6 +54,8 @@ describe('findForbiddenPackages (LAW 5)', () => {
       'render-preview',
       // math-bridge is allowed from Phase 4 (the engine OUTCOME boundary, WP-4.1).
       'math-bridge',
+      // import-spine is the quarantined, import-only, clean-room Spine importer (PP-A5, LAW 4 exception).
+      'import-spine',
     ]) {
       mkdirSync(join(root, 'packages', pkg), { recursive: true });
     }

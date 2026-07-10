@@ -1,0 +1,26 @@
+{
+  "name": "@marionette/import-spine",
+  "version": "0.0.0",
+  "private": true,
+  "license": "UNLICENSED",
+  "author": "Viral Ventures LLC (Maple Grove, MN)",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./src/index.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@marionette/format": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}

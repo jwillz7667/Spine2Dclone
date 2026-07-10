@@ -519,6 +519,53 @@ export default tseslint.config(
     },
   },
 
+  // import-spine: the quarantined, import-only, clean-room Spine importer (PP-A5, LAW 4 exception). It is
+  // a pure logic leaf over the format contract: it converts a user-owned Spine export into a validated
+  // format document and never writes any Spine format. It must stay renderer-free and dependency-light,
+  // so PixiJS, React, runtime-web, Electron, Node built-ins, and every in-repo package other than
+  // @marionette/format are banned. Determinism globals are banned too (the conversion is a pure function
+  // of its input; no clock, no RNG).
+  {
+    files: ['packages/import-spine/src/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [ELECTRON_PATH],
+          patterns: [
+            PIXI_PATTERN,
+            NODE_BUILTIN_PATTERN,
+            {
+              group: [
+                'react',
+                'react-dom',
+                '@marionette/runtime-web',
+                '@marionette/runtime-web/*',
+                '@marionette/runtime-core',
+                '@marionette/runtime-core/*',
+                '@marionette/document-core',
+                '@marionette/document-core/*',
+                '@marionette/mcp-server',
+                '@marionette/mcp-server/*',
+                '@marionette/conformance',
+                '@marionette/conformance/*',
+                '@marionette/math-bridge',
+                '@marionette/math-bridge/*',
+                '@marionette/atlas-pack',
+                '@marionette/atlas-pack/*',
+                '@marionette/render-preview',
+                '@marionette/render-preview/*',
+              ],
+              message:
+                'import-spine imports the format contract only (PP-A5): no renderer, runtime, document-core, or other in-repo package.',
+            },
+          ],
+        },
+      ],
+      'no-restricted-syntax': ['error', ...DETERMINISM_SYNTAX],
+    },
+  },
+
   // Editor process split (phase-0-foundations.md WP-0.1 matrix). eslint-plugin-boundaries
   // enforces the element-to-element edges; the per-element no-restricted-imports below add the
   // package-name and Node-built-in bans that boundaries (which classifies by file path) cannot.
@@ -544,6 +591,10 @@ export default tseslint.config(
         { type: 'document-core', pattern: 'packages/document-core/src/**' },
         { type: 'mcp-server', pattern: 'packages/mcp-server/src/**' },
         { type: 'conformance', pattern: 'packages/conformance/src/**' },
+        // import-spine is the quarantined, import-only clean-room Spine importer (PP-A5). It converts a
+        // user-owned Spine JSON/binary export into a validated format document and imports the format
+        // contract only; nothing but the editor import flow and the MCP server may import it.
+        { type: 'import-spine', pattern: 'packages/import-spine/src/**' },
         { type: 'editor-main', pattern: 'apps/editor/src/main/**' },
         { type: 'editor-preload', pattern: 'apps/editor/src/preload/**' },
         { type: 'editor-shared', pattern: 'apps/editor/src/shared/**' },
@@ -606,6 +657,9 @@ export default tseslint.config(
               from: ['conformance'],
               allow: ['conformance', 'format', 'runtime-core', 'math-bridge'],
             },
+            // import-spine (PP-A5) is a leaf over the format contract: it PRODUCES a validated format
+            // document from a user-owned Spine export and imports nothing else in-repo (LAW 4 exception).
+            { from: ['import-spine'], allow: ['import-spine', 'format'] },
             // editor-main hosts the headless MCP server (WP-M.1), which drives document-core commands
             // and reads runtime-core solves; it stays off the renderer/UI packages.
             {

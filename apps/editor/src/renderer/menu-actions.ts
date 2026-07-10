@@ -6,6 +6,7 @@ import {
 } from './document';
 import { runSpriteImport } from './actions/import-sprites';
 import { importSpineProjectFromDialog } from './actions/import-spine';
+import { openExportDialog } from './actions/export';
 import { useToolStore } from './editor-state/tool-store';
 import { usePlaybackStore } from './editor-state/playback-store';
 import { bridge } from './ipc-bridge';
@@ -41,6 +42,9 @@ export function attachMenuActions(): () => void {
             console.error(`[marionette] Spine import failed: ${outcome.message}`);
           }
         });
+        return;
+      case 'file:export':
+        openExportDialog();
         return;
       case 'edit:undo':
         documentHost.current().history.undo();

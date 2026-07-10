@@ -62,6 +62,9 @@ importers:
       '@marionette/math-bridge':
         specifier: workspace:*
         version: link:../../packages/math-bridge
+      '@marionette/render-preview':
+        specifier: workspace:*
+        version: link:../../packages/render-preview
       '@marionette/runtime-core':
         specifier: workspace:*
         version: link:../../packages/runtime-core
@@ -71,6 +74,9 @@ importers:
       dockview:
         specifier: ^1.17.0
         version: 1.17.2
+      mp4-muxer:
+        specifier: 5.2.2
+        version: 5.2.2
       pixi.js:
         specifier: 8.19.0
         version: 8.19.0
@@ -80,6 +86,9 @@ importers:
       react-dom:
         specifier: ^18.3.1
         version: 18.3.1(react@18.3.1)
+      webm-muxer:
+        specifier: 5.1.4
+        version: 5.1.4
       zod:
         specifier: ^3.23.8
         version: 3.25.76
@@ -1314,6 +1323,9 @@ packages:
   '@types/debug@4.1.13':
     resolution: {integrity: sha512-KSVgmQmzMwPlmtljOomayoR89W4FynCAi3E8PPs7vmDVPe84hT+vGPKkJfThkmXs0x0jAaa9U8uW8bbfyS2fWw==}
 
+  '@types/dom-webcodecs@0.1.18':
+    resolution: {integrity: sha512-vAvE8C9DGWR+tkb19xyjk1TSUlJ7RUzzp4a9Anu7mwBT+fpyePWK1UxmH14tMO5zHmrnrRIMg5NutnnDztLxgg==}
+
   '@types/earcut@3.0.0':
     resolution: {integrity: sha512-k/9fOUGO39yd2sCjrbAJvGDEQvRwRnQIZlBz43roGwUZo5SHAmyVvSFyaVVZkicRVCaDXPKlbxrUcBuJoSWunQ==}
 
@@ -1363,6 +1375,9 @@ packages:
 
   '@types/verror@1.10.11':
     resolution: {integrity: sha512-RlDm9K7+o5stv0Co8i8ZRGxDbrTxhJtgjqjFyVh/tXQyl/rYtTKlnTvZ88oSTeYREWurwx20Js4kTuKCsFkUtg==}
+
+  '@types/wicg-file-system-access@2020.9.8':
+    resolution: {integrity: sha512-ggMz8nOygG7d/stpH40WVaNvBwuyYLnrg5Mbyf6bmsj/8+gb6Ei4ZZ9/4PNpcPNTT8th9Q8sM8wYmWGjMWLX/A==}
 
   '@types/yauzl@2.10.3':
     resolution: {integrity: sha512-oJoftv0LSuaDZE3Le4DbKX+KS9G36NzOeSap90UIK0yMA/NhKJhqlSGtNDORNRaIbQfzjXDrQa0ytJ6mNRGz/Q==}
@@ -2928,6 +2943,10 @@ packages:
     engines: {node: '>=10'}
     hasBin: true
 
+  mp4-muxer@5.2.2:
+    resolution: {integrity: sha512-dhozjTywI0h2qFzeShagt8YYw811fh1XlwiDCE2f6Aeqf6xG2CyuShoSa5E0AZDO8pPF0JOZ3wOmWBNWIGdSpQ==}
+    deprecated: This library is superseded by Mediabunny. Please migrate to it.
+
   ms@2.1.3:
     resolution: {integrity: sha512-6FlzubTLZG3J2a/NVCAleEhjzq5oxgHyaCU9yYXvcLsvoVaHJq/s5xXI6/XXP6tz7R9xAOtHnSO/tXtF3WRTlA==}
 
@@ -3674,6 +3693,10 @@ packages:
 
   wcwidth@1.0.1:
     resolution: {integrity: sha512-XHPEwS0q6TaxcvG85+8EYkbiCux2XtWG2mkc47Ng2A77BQu9+DqIOJldST4HgPkuea7dvKSj5VgX3P1d4rW8Tg==}
+
+  webm-muxer@5.1.4:
+    resolution: {integrity: sha512-ditzgFVFbfqPaugkIr4mGhAdob5K9HY6Rzlh7TRsA368yA1sp/m5O7nQCcMLdgFDeNGtFPg8B+MeXLtpzKWX6Q==}
+    deprecated: This library is superseded by Mediabunny. Please migrate to it.
 
   which@2.0.2:
     resolution: {integrity: sha512-BLI3Tl1TW3Pvl70l3yq3Y64i+awpwXqsGBYWkkqMtnbXgrMD+yj7rhW0kuEDxzJaYXGjEW5ogapKNMEKNMjibA==}
@@ -4611,6 +4634,8 @@ snapshots:
     dependencies:
       '@types/ms': 2.1.0
 
+  '@types/dom-webcodecs@0.1.18': {}
+
   '@types/earcut@3.0.0': {}
 
   '@types/estree@1.0.9': {}
@@ -4664,6 +4689,8 @@ snapshots:
 
   '@types/verror@1.10.11':
     optional: true
+
+  '@types/wicg-file-system-access@2020.9.8': {}
 
   '@types/yauzl@2.10.3':
     dependencies:
@@ -6504,6 +6531,11 @@ snapshots:
 
   mkdirp@1.0.4: {}
 
+  mp4-muxer@5.2.2:
+    dependencies:
+      '@types/dom-webcodecs': 0.1.18
+      '@types/wicg-file-system-access': 2020.9.8
+
   ms@2.1.3: {}
 
   nanoid@3.3.15: {}
@@ -7342,6 +7374,11 @@ snapshots:
   wcwidth@1.0.1:
     dependencies:
       defaults: 1.0.4
+
+  webm-muxer@5.1.4:
+    dependencies:
+      '@types/dom-webcodecs': 0.1.18
+      '@types/wicg-file-system-access': 2020.9.8
 
   which@2.0.2:
     dependencies:

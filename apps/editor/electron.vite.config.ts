@@ -36,7 +36,15 @@ export default defineConfig(({ command }) => {
       // npm deps (maxrects-packer, pngjs) and the transitive @noble/hashes are not listed editor dependencies,
       // so they bundle automatically; zod is a direct editor dependency and stays external (Node resolves it).
       plugins: [
-        externalizeDepsPlugin({ exclude: ['@marionette/format', '@marionette/atlas-pack'] }),
+        externalizeDepsPlugin({
+          exclude: [
+            '@marionette/format',
+            '@marionette/atlas-pack',
+            // Bundled for the same reason (consumed as TS source): the media-export pipeline behind the
+            // export:media IPC handler uses render-preview's renderSequence + GIF/APNG encoders in main.
+            '@marionette/render-preview',
+          ],
+        }),
       ],
       build: {
         rollupOptions: {

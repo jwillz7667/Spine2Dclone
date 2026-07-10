@@ -76,6 +76,17 @@ describe('buildAppMenuTemplate', () => {
     expect(dispatch).toHaveBeenCalledWith('file:importSpine');
   });
 
+  it('File has Export wired to file:export with a discoverable, unregistered accelerator (PP-D6)', () => {
+    const { template, dispatch } = build(false);
+    const file = submenuOf(template, 'File');
+    const item = file.find((i) => i.label === 'Export...');
+    expect(item).toBeDefined();
+    expect(item?.accelerator).toBe('Ctrl+E');
+    expect(item?.registerAccelerator).toBe(false);
+    item?.click?.(undefined as never, undefined, undefined as never);
+    expect(dispatch).toHaveBeenCalledWith('file:export');
+  });
+
   it('Edit undo/redo dispatch the document actions (not the DOM undo role)', () => {
     const { template, dispatch } = build(false);
     const edit = submenuOf(template, 'Edit');

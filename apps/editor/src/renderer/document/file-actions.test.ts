@@ -1,6 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type {
   AtlasImportResponse,
+  ExportCancelResponse,
+  ExportMediaResponse,
+  ExportProfileLoadResponse,
+  ExportProfileSaveResponse,
+  ExportProjectResponse,
+  ExportWriteVideoResponse,
   FileOpenResponse,
   FileSaveResponse,
   GetVersionResponse,
@@ -58,6 +64,33 @@ function installApi(behavior: Behavior): { savedDocument: () => unknown } {
     // The MarionetteApi contract gained importSpineProject (spine:import, PP-A5). These file actions never
     // import a Spine project; a canceled default keeps the bridge complete.
     importSpineProject: async (): Promise<IpcResult<SpineImportResponse>> => ({
+      ok: true,
+      data: { status: 'canceled' },
+    }),
+    // The MarionetteApi contract gained the export surface (PP-D6 / PP-C10 slice 2). These file actions
+    // never export; canceled / no-op stubs keep the bridge contract complete.
+    exportProject: async (): Promise<IpcResult<ExportProjectResponse>> => ({
+      ok: true,
+      data: { status: 'canceled' },
+    }),
+    exportMedia: async (): Promise<IpcResult<ExportMediaResponse>> => ({
+      ok: true,
+      data: { status: 'canceled' },
+    }),
+    cancelExport: async (): Promise<IpcResult<ExportCancelResponse>> => ({
+      ok: true,
+      data: { canceled: false },
+    }),
+    onExportProgress: () => () => {},
+    writeVideo: async (): Promise<IpcResult<ExportWriteVideoResponse>> => ({
+      ok: true,
+      data: { status: 'canceled' },
+    }),
+    loadExportProfile: async (): Promise<IpcResult<ExportProfileLoadResponse>> => ({
+      ok: true,
+      data: { status: 'canceled' },
+    }),
+    saveExportProfile: async (): Promise<IpcResult<ExportProfileSaveResponse>> => ({
       ok: true,
       data: { status: 'canceled' },
     }),

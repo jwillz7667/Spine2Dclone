@@ -7,6 +7,12 @@ import {
   IpcChannel,
   atlasImportImagesRequestSchema,
   atlasImportRequestSchema,
+  exportCancelRequestSchema,
+  exportMediaRequestSchema,
+  exportProfileLoadRequestSchema,
+  exportProfileSaveRequestSchema,
+  exportProjectRequestSchema,
+  exportWriteVideoRequestSchema,
   fileOpenRequestSchema,
   fileSaveRequestSchema,
   getVersionRequestSchema,
@@ -14,6 +20,12 @@ import {
   spineImportRequestSchema,
   validateWith,
   type AtlasImportResponse,
+  type ExportCancelResponse,
+  type ExportMediaResponse,
+  type ExportProfileLoadResponse,
+  type ExportProfileSaveResponse,
+  type ExportProjectResponse,
+  type ExportWriteVideoResponse,
   type FileOpenResponse,
   type FileSaveResponse,
   type GetVersionResponse,
@@ -21,6 +33,14 @@ import {
   type SpineImportResponse,
 } from '../../shared';
 import { importAtlasFromDirectory, importAtlasImages } from '../atlas-import';
+import {
+  cancelMediaExport,
+  exportMediaToFile,
+  exportProjectToFile,
+  loadExportProfileFromDialog,
+  saveExportProfileFromDialog,
+  writeVideoToFile,
+} from '../export';
 import { openDocumentFromFile, saveDocumentToFile } from '../file-io';
 import { importSpineProjectFromFile } from '../spine-import';
 
@@ -82,6 +102,61 @@ export function registerIpc(): void {
       return importSpineProjectFromFile();
     },
   );
+
+  ipcMain.handle(
+    IpcChannel.exportProject,
+    async (_event, payload: unknown): Promise<IpcResult<ExportProjectResponse>> => {
+      const request = validateWith(exportProjectRequestSchema, payload, 'IPC_BAD_REQUEST');
+      if (!request.ok) return request;
+      return exportProjectToFile(request.data.document, request.data.format);
+    },
+  );
+
+  ipcMain.handle(
+    IpcChannel.exportMedia,
+    async (event, payload: unknown): Promise<IpcResult<ExportMediaResponse>> => {
+      const request = validateWith(exportMediaRequestSchema, payload, 'IPC_BAD_REQUEST');
+      if (!request.ok) return request;
+      const { jobId, document, pages, options } = request.data;
+      return exportMediaToFile(event.sender, jobId, document, pages, options);
+    },
+  );
+
+  ipcMain.handle(
+    IpcChannel.exportCancel,
+    async (_event, payload: unknown): Promise<IpcResult<ExportCancelResponse>> => {
+      const request = validateWith(exportCancelRequestSchema, payload, 'IPC_BAD_REQUEST');
+      if (!request.ok) return request;
+      return cancelMediaExport(request.data.jobId);
+    },
+  );
+
+  ipcMain.handle(
+    IpcChannel.exportWriteVideo,
+    async (_event, payload: unknown): Promise<IpcResult<ExportWriteVideoResponse>> => {
+      const request = validateWith(exportWriteVideoRequestSchema, payload, 'IPC_BAD_REQUEST');
+      if (!request.ok) return request;
+      return writeVideoToFile(request.data.data, request.data.container, request.data.defaultName);
+    },
+  );
+
+  ipcMain.handle(
+    IpcChannel.exportProfileLoad,
+    async (_event, payload: unknown): Promise<IpcResult<ExportProfileLoadResponse>> => {
+      const request = validateWith(exportProfileLoadRequestSchema, payload, 'IPC_BAD_REQUEST');
+      if (!request.ok) return request;
+      return loadExportProfileFromDialog();
+    },
+  );
+
+  ipcMain.handle(
+    IpcChannel.exportProfileSave,
+    async (_event, payload: unknown): Promise<IpcResult<ExportProfileSaveResponse>> => {
+      const request = validateWith(exportProfileSaveRequestSchema, payload, 'IPC_BAD_REQUEST');
+      if (!request.ok) return request;
+      return saveExportProfileFromDialog(request.data.profile);
+    },
+  );
 }
 
 export function disposeIpc(): void {
@@ -91,4 +166,10 @@ export function disposeIpc(): void {
   ipcMain.removeHandler(IpcChannel.atlasImport);
   ipcMain.removeHandler(IpcChannel.atlasImportImages);
   ipcMain.removeHandler(IpcChannel.spineImport);
+  ipcMain.removeHandler(IpcChannel.exportProject);
+  ipcMain.removeHandler(IpcChannel.exportMedia);
+  ipcMain.removeHandler(IpcChannel.exportCancel);
+  ipcMain.removeHandler(IpcChannel.exportWriteVideo);
+  ipcMain.removeHandler(IpcChannel.exportProfileLoad);
+  ipcMain.removeHandler(IpcChannel.exportProfileSave);
 }

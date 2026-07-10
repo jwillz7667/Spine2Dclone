@@ -4,6 +4,7 @@
 // except for Zod. WP-0.8 extends this with the file IO channels.
 
 import { z } from 'zod';
+import { exportProfileSchema, type ExportProfile } from './export-profile-schema';
 
 // Namespaced channel names. The main process registers handlers ONLY for these, and the preload
 // exposes ONLY these; any other channel has no handler and is rejected by Electron.
@@ -24,6 +25,25 @@ export const IpcChannel = {
   // lives in the main process, and a menu click dispatches one of the allowlisted MenuActionId strings to
   // the renderer, which maps it to the same action a keybinding would (undo/redo/save/open/import/tool/mode).
   menuAction: 'menu:action',
+  // export:* are the Export dialog channels (PP-D6). The renderer hands main an already-exported document
+  // (document-core exportDocument) plus, for media, the atlas page bytes; main owns every filesystem path
+  // (dialog, path-injection defense) and every disk write, and re-validates with @marionette/format /
+  // exportProfileSchema at this boundary (LAW 3). export:project writes the .mrnt / format-JSON project;
+  // export:media renders and encodes a PNG-sequence / GIF / APNG clip; export:writeVideo persists the
+  // renderer-muxed WebM / MP4 bytes (the WebCodecs encode runs in a renderer worker, never in main).
+  exportProject: 'export:project',
+  exportMedia: 'export:media',
+  exportWriteVideo: 'export:writeVideo',
+  // export:profileLoad / export:profileSave read and write the third store (export-profile.json); main
+  // owns the open/save dialog and validates the artifact against exportProfileSchema before returning or
+  // writing it (the on-disk gate). The renderer edits an in-memory copy and never touches the filesystem.
+  exportProfileLoad: 'export:profileLoad',
+  exportProfileSave: 'export:profileSave',
+  // export:progress is a MAIN -> RENDERER push (webContents.send): a long media export reports its frame
+  // progress by job id so the dialog can show a determinate bar. export:cancel is the RENDERER -> MAIN
+  // request that aborts the in-flight job (the export loop checks its AbortSignal between frames).
+  exportProgress: 'export:progress',
+  exportCancel: 'export:cancel',
 } as const;
 
 export type IpcChannel = (typeof IpcChannel)[keyof typeof IpcChannel];
@@ -43,6 +63,7 @@ export const MENU_ACTION_IDS = [
   'file:save',
   'file:importSprites',
   'file:importSpine',
+  'file:export',
   'edit:undo',
   'edit:redo',
   'tool:select',
@@ -222,6 +243,162 @@ export function validateWith<T>(
   };
 }
 
+// ----------------------------------------------------------------------------------------------------
+// Export dialog (PP-D6 / PP-C10 slice 2). Every payload is validated at the main boundary with these
+// schemas (LAW 3). The renderer supplies NO filesystem path: main owns every dialog and every write.
+// ----------------------------------------------------------------------------------------------------
+
+// export:project. The renderer sends an already-exported document (validated by document-core); main
+// deep-validates with @marionette/format, then writes the .mrnt binary (encodeBinary) or pretty JSON to a
+// dialog-chosen path. The document is opaque at the transport layer (z.unknown); the format validator in
+// main is the gate, exactly like file:save.
+export const exportProjectFormatSchema = z.enum(['mrnt', 'json']);
+export type ExportProjectFormat = z.infer<typeof exportProjectFormatSchema>;
+
+export const exportProjectRequestSchema = z
+  .object({ document: z.unknown(), format: exportProjectFormatSchema })
+  .strict();
+export type ExportProjectRequest = z.infer<typeof exportProjectRequestSchema>;
+
+export const exportProjectResponseSchema = z.discriminatedUnion('status', [
+  z.object({ status: z.literal('saved'), path: z.string().min(1) }).strict(),
+  z.object({ status: z.literal('canceled') }).strict(),
+]);
+export type ExportProjectResponse = z.infer<typeof exportProjectResponseSchema>;
+
+// A straight-alpha RGBA background color, each channel in [0, 1]. `null` at the option level means a fully
+// transparent background (GIF hard transparency / APNG + PNG straight alpha).
+export const exportColorSchema = z
+  .object({
+    r: z.number().min(0).max(1),
+    g: z.number().min(0).max(1),
+    b: z.number().min(0).max(1),
+    a: z.number().min(0).max(1),
+  })
+  .strict();
+export type ExportColor = z.infer<typeof exportColorSchema>;
+
+// A clip range endpoint: a frame index (the deterministic form) or a time in seconds. Mirrors
+// render-preview's SequenceBound so main forwards it straight into renderSequence.
+export const exportBoundSchema = z.union([
+  z.object({ frame: z.number().int().min(0) }).strict(),
+  z.object({ seconds: z.number().min(0) }).strict(),
+]);
+export type ExportBound = z.infer<typeof exportBoundSchema>;
+
+// The media-export knobs shared by every raster medium (PNG sequence / GIF / APNG) and, for the timing
+// fields, by the renderer video encoder. `animation` null renders the setup pose (then `to` is required,
+// enforced in main). width/height are the output framebuffer; the clip is content-fit into it.
+export const mediaExportOptionsSchema = z
+  .object({
+    medium: z.enum(['png-sequence', 'gif', 'apng']),
+    animation: z.string().min(1).nullable(),
+    fps: z.number().int().min(1).max(120),
+    width: z.number().int().min(1).max(4096),
+    height: z.number().int().min(1).max(4096),
+    from: exportBoundSchema.optional(),
+    to: exportBoundSchema.optional(),
+    background: exportColorSchema.nullable(),
+    // GIF-only knobs (ignored for other media). loopCount 0 loops forever.
+    gif: z
+      .object({
+        palette: z.enum(['global', 'per-frame']),
+        loopCount: z.number().int().min(0),
+        alphaThreshold: z.number().min(0).max(1),
+      })
+      .strict()
+      .optional(),
+    // APNG-only knob. loopCount 0 loops forever.
+    apng: z
+      .object({ loopCount: z.number().int().min(0) })
+      .strict()
+      .optional(),
+  })
+  .strict();
+export type MediaExportOptions = z.infer<typeof mediaExportOptionsSchema>;
+
+// export:media. Carries the job id (so progress + cancel can address it), the exported document, the atlas
+// page bytes (empty when no atlas is loaded), and the validated options.
+export const exportMediaRequestSchema = z
+  .object({
+    jobId: z.string().min(1),
+    document: z.unknown(),
+    pages: z.array(atlasImportPageSchema),
+    options: mediaExportOptionsSchema,
+  })
+  .strict();
+export type ExportMediaRequest = z.infer<typeof exportMediaRequestSchema>;
+
+// On success `paths` holds the written file(s): one for GIF / APNG, one per frame for a PNG sequence.
+export const exportMediaResponseSchema = z.discriminatedUnion('status', [
+  z
+    .object({
+      status: z.literal('saved'),
+      paths: z.array(z.string().min(1)).nonempty(),
+      frameCount: z.number().int().min(1),
+    })
+    .strict(),
+  z.object({ status: z.literal('canceled') }).strict(),
+]);
+export type ExportMediaResponse = z.infer<typeof exportMediaResponseSchema>;
+
+// export:progress push payload (main -> renderer). `completed` of `total` frames done for `jobId`.
+export const exportProgressSchema = z
+  .object({
+    jobId: z.string().min(1),
+    completed: z.number().int().min(0),
+    total: z.number().int().min(1),
+  })
+  .strict();
+export type ExportProgress = z.infer<typeof exportProgressSchema>;
+
+// export:cancel request (renderer -> main). Aborts the in-flight job if its id matches.
+export const exportCancelRequestSchema = z.object({ jobId: z.string().min(1) }).strict();
+export type ExportCancelRequest = z.infer<typeof exportCancelRequestSchema>;
+export const exportCancelResponseSchema = z.object({ canceled: z.boolean() }).strict();
+export type ExportCancelResponse = z.infer<typeof exportCancelResponseSchema>;
+
+// export:writeVideo. The WebCodecs encode + WebM/MP4 mux runs in a renderer worker (main has no
+// VideoEncoder); the renderer ships the finished container bytes here and main writes them to a
+// dialog-chosen path. `defaultName` seeds the save dialog's filename.
+export const exportVideoContainerSchema = z.enum(['webm', 'mp4']);
+export type ExportVideoContainer = z.infer<typeof exportVideoContainerSchema>;
+
+export const exportWriteVideoRequestSchema = z
+  .object({
+    data: z.instanceof(Uint8Array),
+    container: exportVideoContainerSchema,
+    defaultName: z.string().min(1),
+  })
+  .strict();
+export type ExportWriteVideoRequest = z.infer<typeof exportWriteVideoRequestSchema>;
+
+export const exportWriteVideoResponseSchema = z.discriminatedUnion('status', [
+  z.object({ status: z.literal('saved'), path: z.string().min(1) }).strict(),
+  z.object({ status: z.literal('canceled') }).strict(),
+]);
+export type ExportWriteVideoResponse = z.infer<typeof exportWriteVideoResponseSchema>;
+
+// export:profileLoad. No request payload; main shows an open dialog for an export-profile.json, validates
+// it against exportProfileSchema, and returns the typed profile (opaque z.unknown at transport; the schema
+// gate is main) plus its path, or a canceled status. A malformed file fails loudly as an IPC_HANDLER_ERROR.
+export const exportProfileLoadRequestSchema = z.undefined();
+export const exportProfileLoadResponseSchema = z.discriminatedUnion('status', [
+  z.object({ status: z.literal('loaded'), profile: z.unknown(), path: z.string().min(1) }).strict(),
+  z.object({ status: z.literal('canceled') }).strict(),
+]);
+export type ExportProfileLoadResponse = z.infer<typeof exportProfileLoadResponseSchema>;
+
+// export:profileSave. The renderer sends the edited profile; main re-validates it against
+// exportProfileSchema (the on-disk gate) and writes pretty JSON to a dialog-chosen path.
+export const exportProfileSaveRequestSchema = z.object({ profile: exportProfileSchema }).strict();
+export type ExportProfileSaveRequest = z.infer<typeof exportProfileSaveRequestSchema>;
+export const exportProfileSaveResponseSchema = z.discriminatedUnion('status', [
+  z.object({ status: z.literal('saved'), path: z.string().min(1) }).strict(),
+  z.object({ status: z.literal('canceled') }).strict(),
+]);
+export type ExportProfileSaveResponse = z.infer<typeof exportProfileSaveResponseSchema>;
+
 // The typed surface exposed on window.marionette by the preload. The renderer depends on THIS
 // type (from editor-shared), never on the preload module, so the process split holds.
 export interface MarionetteApi {
@@ -252,4 +429,34 @@ export interface MarionetteApi {
   // one allowlisted MenuActionId per click; returns an unsubscribe function. This is the only MAIN ->
   // RENDERER push in the bridge; everything else is request/response.
   onMenuAction(callback: (action: MenuActionId) => void): () => void;
+  // Export the current document as an .mrnt binary or format JSON; main validates, shows the save dialog,
+  // and writes. Returns the written path or a canceled status.
+  exportProject(
+    document: unknown,
+    format: ExportProjectFormat,
+  ): Promise<IpcResult<ExportProjectResponse>>;
+  // Render + encode a PNG-sequence / GIF / APNG clip. `jobId` addresses this export for progress + cancel;
+  // main shows the save dialog, runs the deterministic sequence pipeline, and writes the output(s).
+  exportMedia(
+    jobId: string,
+    document: unknown,
+    pages: readonly AtlasImportPage[],
+    options: MediaExportOptions,
+  ): Promise<IpcResult<ExportMediaResponse>>;
+  // Cancel the in-flight media export with this id (aborts the frame loop between frames).
+  cancelExport(jobId: string): Promise<IpcResult<ExportCancelResponse>>;
+  // Subscribe to media-export frame progress pushed from main (export:progress). Returns an unsubscribe
+  // function. Like onMenuAction, this is a MAIN -> RENDERER push.
+  onExportProgress(callback: (progress: ExportProgress) => void): () => void;
+  // Persist renderer-muxed WebM / MP4 bytes to a dialog-chosen path (the encode ran in a renderer worker).
+  writeVideo(
+    data: Uint8Array,
+    container: ExportVideoContainer,
+    defaultName: string,
+  ): Promise<IpcResult<ExportWriteVideoResponse>>;
+  // Load an export-profile.json via a main-owned open dialog; the returned profile is validated against
+  // exportProfileSchema in main. Returns the profile + path or a canceled status.
+  loadExportProfile(): Promise<IpcResult<ExportProfileLoadResponse>>;
+  // Save an edited export profile via a main-owned save dialog; main re-validates before writing.
+  saveExportProfile(profile: ExportProfile): Promise<IpcResult<ExportProfileSaveResponse>>;
 }

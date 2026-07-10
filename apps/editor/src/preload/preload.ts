@@ -4,7 +4,7 @@
 // (the sandbox cannot require external modules at runtime).
 
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
-import { IpcChannel, isMenuActionId, type MarionetteApi } from '../shared';
+import { IpcChannel, exportProgressSchema, isMenuActionId, type MarionetteApi } from '../shared';
 
 const api: MarionetteApi = {
   getVersion: () => ipcRenderer.invoke(IpcChannel.getVersion),
@@ -21,6 +21,24 @@ const api: MarionetteApi = {
     ipcRenderer.on(IpcChannel.menuAction, listener);
     return () => ipcRenderer.removeListener(IpcChannel.menuAction, listener);
   },
+  exportProject: (document, format) =>
+    ipcRenderer.invoke(IpcChannel.exportProject, { document, format }),
+  exportMedia: (jobId, document, pages, options) =>
+    ipcRenderer.invoke(IpcChannel.exportMedia, { jobId, document, pages, options }),
+  cancelExport: (jobId) => ipcRenderer.invoke(IpcChannel.exportCancel, { jobId }),
+  onExportProgress: (callback) => {
+    // Forward only well-formed progress payloads for the export:progress push (defense in depth).
+    const listener = (_event: IpcRendererEvent, payload: unknown): void => {
+      const parsed = exportProgressSchema.safeParse(payload);
+      if (parsed.success) callback(parsed.data);
+    };
+    ipcRenderer.on(IpcChannel.exportProgress, listener);
+    return () => ipcRenderer.removeListener(IpcChannel.exportProgress, listener);
+  },
+  writeVideo: (data, container, defaultName) =>
+    ipcRenderer.invoke(IpcChannel.exportWriteVideo, { data, container, defaultName }),
+  loadExportProfile: () => ipcRenderer.invoke(IpcChannel.exportProfileLoad, undefined),
+  saveExportProfile: (profile) => ipcRenderer.invoke(IpcChannel.exportProfileSave, { profile }),
 };
 
 contextBridge.exposeInMainWorld('marionette', api);

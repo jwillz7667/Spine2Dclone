@@ -3,6 +3,13 @@ import {
   atlasImportImagesRequestSchema,
   atlasImportRequestSchema,
   atlasImportResponseSchema,
+  exportCancelRequestSchema,
+  exportMediaRequestSchema,
+  exportMediaResponseSchema,
+  exportProfileSaveRequestSchema,
+  exportProgressSchema,
+  exportProjectRequestSchema,
+  exportWriteVideoRequestSchema,
   fileOpenResponseSchema,
   fileSaveRequestSchema,
   fileSaveResponseSchema,
@@ -11,6 +18,7 @@ import {
   IpcChannel,
   isAllowedChannel,
   isMenuActionId,
+  mediaExportOptionsSchema,
   spineImportResponseSchema,
   validateWith,
 } from './ipc-contract';
@@ -253,6 +261,146 @@ describe('ipc-contract validation', () => {
         { status: 'imported', name: 'hero', document: {} },
         'IPC_BAD_RESPONSE',
       ).ok,
+    ).toBe(false);
+  });
+
+  it('allowlists the export channels and the file:export menu action', () => {
+    expect(isAllowedChannel(IpcChannel.exportProject)).toBe(true);
+    expect(isAllowedChannel(IpcChannel.exportMedia)).toBe(true);
+    expect(isAllowedChannel(IpcChannel.exportWriteVideo)).toBe(true);
+    expect(isAllowedChannel(IpcChannel.exportProfileLoad)).toBe(true);
+    expect(isAllowedChannel(IpcChannel.exportProfileSave)).toBe(true);
+    expect(isAllowedChannel(IpcChannel.exportProgress)).toBe(true);
+    expect(isAllowedChannel(IpcChannel.exportCancel)).toBe(true);
+    expect(isMenuActionId('file:export')).toBe(true);
+  });
+
+  it('accepts a valid export:project request and rejects an unknown format', () => {
+    expect(
+      validateWith(
+        exportProjectRequestSchema,
+        { document: { any: 'shape' }, format: 'mrnt' },
+        'IPC_BAD_REQUEST',
+      ).ok,
+    ).toBe(true);
+    expect(
+      validateWith(exportProjectRequestSchema, { document: {}, format: 'svg' }, 'IPC_BAD_REQUEST')
+        .ok,
+    ).toBe(false);
+  });
+
+  it('accepts valid media export options and rejects out-of-range fps / dimensions', () => {
+    const valid = {
+      medium: 'gif',
+      animation: 'idle',
+      fps: 24,
+      width: 512,
+      height: 512,
+      from: { frame: 0 },
+      to: { seconds: 2 },
+      background: { r: 0, g: 0, b: 0, a: 1 },
+      gif: { palette: 'global', loopCount: 0, alphaThreshold: 0.5 },
+    };
+    expect(validateWith(mediaExportOptionsSchema, valid, 'IPC_BAD_REQUEST').ok).toBe(true);
+    // setup pose is a null animation.
+    expect(
+      validateWith(
+        mediaExportOptionsSchema,
+        { medium: 'apng', animation: null, fps: 30, width: 64, height: 64, background: null },
+        'IPC_BAD_REQUEST',
+      ).ok,
+    ).toBe(true);
+    // fps above the 120 cap is rejected.
+    expect(
+      validateWith(
+        mediaExportOptionsSchema,
+        { medium: 'gif', animation: 'idle', fps: 240, width: 64, height: 64, background: null },
+        'IPC_BAD_REQUEST',
+      ).ok,
+    ).toBe(false);
+    // a zero dimension is rejected.
+    expect(
+      validateWith(
+        mediaExportOptionsSchema,
+        { medium: 'gif', animation: 'idle', fps: 24, width: 0, height: 64, background: null },
+        'IPC_BAD_REQUEST',
+      ).ok,
+    ).toBe(false);
+  });
+
+  it('accepts a valid export:media request and rejects a missing jobId', () => {
+    const options = {
+      medium: 'png-sequence',
+      animation: 'idle',
+      fps: 24,
+      width: 128,
+      height: 128,
+      to: { frame: 10 },
+      background: null,
+    };
+    expect(
+      validateWith(
+        exportMediaRequestSchema,
+        { jobId: 'job-1', document: {}, pages: [], options },
+        'IPC_BAD_REQUEST',
+      ).ok,
+    ).toBe(true);
+    expect(
+      validateWith(
+        exportMediaRequestSchema,
+        { document: {}, pages: [], options },
+        'IPC_BAD_REQUEST',
+      ).ok,
+    ).toBe(false);
+  });
+
+  it('accepts saved (with non-empty paths) and canceled export:media responses', () => {
+    expect(
+      validateWith(
+        exportMediaResponseSchema,
+        { status: 'saved', paths: ['/a/frame_0000.png'], frameCount: 1 },
+        'IPC_BAD_RESPONSE',
+      ).ok,
+    ).toBe(true);
+    expect(
+      validateWith(exportMediaResponseSchema, { status: 'canceled' }, 'IPC_BAD_RESPONSE').ok,
+    ).toBe(true);
+    // an empty paths array is malformed on a saved response.
+    expect(
+      validateWith(
+        exportMediaResponseSchema,
+        { status: 'saved', paths: [], frameCount: 1 },
+        'IPC_BAD_RESPONSE',
+      ).ok,
+    ).toBe(false);
+  });
+
+  it('validates the progress, cancel, write-video, and profile-save schemas', () => {
+    expect(
+      validateWith(exportProgressSchema, { jobId: 'j', completed: 3, total: 10 }, 'IPC_BAD_REQUEST')
+        .ok,
+    ).toBe(true);
+    expect(validateWith(exportCancelRequestSchema, { jobId: 'j' }, 'IPC_BAD_REQUEST').ok).toBe(
+      true,
+    );
+    expect(
+      validateWith(
+        exportWriteVideoRequestSchema,
+        { data: new Uint8Array([1, 2]), container: 'webm', defaultName: 'clip.webm' },
+        'IPC_BAD_REQUEST',
+      ).ok,
+    ).toBe(true);
+    // an unknown container is rejected.
+    expect(
+      validateWith(
+        exportWriteVideoRequestSchema,
+        { data: new Uint8Array([1]), container: 'mov', defaultName: 'clip.mov' },
+        'IPC_BAD_REQUEST',
+      ).ok,
+    ).toBe(false);
+    // the profile-save request is gated by the full exportProfileSchema (an empty object is malformed).
+    expect(
+      validateWith(exportProfileSaveRequestSchema, { profile: {} }, 'IPC_BAD_REQUEST').ok,
     ).toBe(false);
   });
 });

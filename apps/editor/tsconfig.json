@@ -15,6 +15,7 @@
   "references": [
     { "path": "../../packages/format" },
     { "path": "../../packages/atlas-pack" },
+    { "path": "../../packages/render-preview" },
     { "path": "../../packages/runtime-core" },
     { "path": "../../packages/runtime-web" },
     { "path": "../../packages/document-core" },

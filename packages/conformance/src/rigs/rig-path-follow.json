@@ -1,0 +1,214 @@
+{
+  "formatVersion": "0.5.0",
+  "name": "rig-path-follow",
+  "hash": "",
+  "bones": [
+    {
+      "name": "railBone",
+      "parent": null,
+      "length": 100,
+      "x": 0,
+      "y": 0,
+      "rotation": 0,
+      "scaleX": 1,
+      "scaleY": 1,
+      "shearX": 0,
+      "shearY": 0,
+      "transformMode": "normal"
+    },
+    {
+      "name": "t0",
+      "parent": null,
+      "length": 100,
+      "x": 0,
+      "y": 0,
+      "rotation": 0,
+      "scaleX": 1,
+      "scaleY": 1,
+      "shearX": 0,
+      "shearY": 0,
+      "transformMode": "normal"
+    },
+    {
+      "name": "c0",
+      "parent": null,
+      "length": 100,
+      "x": 0,
+      "y": 0,
+      "rotation": 0,
+      "scaleX": 1,
+      "scaleY": 1,
+      "shearX": 0,
+      "shearY": 0,
+      "transformMode": "normal"
+    },
+    {
+      "name": "c1",
+      "parent": null,
+      "length": 100,
+      "x": 0,
+      "y": 0,
+      "rotation": 0,
+      "scaleX": 1,
+      "scaleY": 1,
+      "shearX": 0,
+      "shearY": 0,
+      "transformMode": "normal"
+    },
+    {
+      "name": "s0",
+      "parent": null,
+      "length": 100,
+      "x": 0,
+      "y": 0,
+      "rotation": 0,
+      "scaleX": 1,
+      "scaleY": 1,
+      "shearX": 0,
+      "shearY": 0,
+      "transformMode": "normal"
+    },
+    {
+      "name": "s1",
+      "parent": null,
+      "length": 100,
+      "x": 0,
+      "y": 0,
+      "rotation": 0,
+      "scaleX": 1,
+      "scaleY": 1,
+      "shearX": 0,
+      "shearY": 0,
+      "transformMode": "normal"
+    }
+  ],
+  "slots": [
+    {
+      "name": "rail",
+      "bone": "railBone",
+      "color": {
+        "r": 1,
+        "g": 1,
+        "b": 1,
+        "a": 1
+      },
+      "attachment": "spine",
+      "blendMode": "normal"
+    }
+  ],
+  "skins": [
+    {
+      "name": "default",
+      "attachments": {
+        "rail": {
+          "spine": {
+            "type": "path",
+            "closed": false,
+            "constantSpeed": true,
+            "lengths": [
+              424.26406871192853
+            ],
+            "vertices": [
+              0,
+              0,
+              100,
+              100,
+              200,
+              200,
+              300,
+              300
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "events": [],
+  "ikConstraints": [],
+  "transformConstraints": [],
+  "pathConstraints": [
+    {
+      "name": "pc_tangent",
+      "target": "rail",
+      "bones": [
+        "t0"
+      ],
+      "positionMode": "percent",
+      "spacingMode": "fixed",
+      "rotateMode": "tangent",
+      "position": 0,
+      "spacing": 0,
+      "offsetRotation": 0,
+      "mixRotate": 1,
+      "mixX": 1,
+      "mixY": 1
+    },
+    {
+      "name": "pc_chain",
+      "target": "rail",
+      "bones": [
+        "c0",
+        "c1"
+      ],
+      "positionMode": "fixed",
+      "spacingMode": "fixed",
+      "rotateMode": "chain",
+      "position": 0,
+      "spacing": 150,
+      "offsetRotation": 0,
+      "mixRotate": 1,
+      "mixX": 1,
+      "mixY": 1
+    },
+    {
+      "name": "pc_chainscale",
+      "target": "rail",
+      "bones": [
+        "s0",
+        "s1"
+      ],
+      "positionMode": "fixed",
+      "spacingMode": "fixed",
+      "rotateMode": "chainScale",
+      "position": 0,
+      "spacing": 200,
+      "offsetRotation": 0,
+      "mixRotate": 1,
+      "mixX": 1,
+      "mixY": 1
+    }
+  ],
+  "animations": {
+    "follow": {
+      "duration": 1,
+      "bones": {},
+      "slots": {},
+      "ik": {},
+      "transform": {},
+      "path": {
+        "pc_tangent": [
+          {
+            "time": 0,
+            "value": {
+              "position": 0
+            },
+            "curve": "linear"
+          },
+          {
+            "time": 1,
+            "value": {
+              "position": 1
+            },
+            "curve": "linear"
+          }
+        ]
+      },
+      "deform": {},
+      "drawOrder": [],
+      "events": []
+    }
+  },
+  "atlas": {
+    "pages": []
+  }
+}

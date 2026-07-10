@@ -73,6 +73,15 @@ export const RIG_IDS = [
   // prior fixture regenerates byte-identical. Authored first-principles (Law 4).
   'rig-clipping',
   'rig-hit-point',
+  // PP-B6 (pro-parity Stage F3, ADR-0011 format 0.5.0 + ADR-0013 solve) path-constraint rigs. `rig-path-follow`
+  // drives bones along an OPEN straight diagonal path with all three rotate modes (tangent, chain, chainScale),
+  // percent and fixed position, and an animated position channel; `rig-path-spacing` drives four 3-bone chains
+  // along a CLOSED square path, one per spacing mode (length, fixed, percent, proportional), constant-speed on,
+  // with an animated spacing channel. Both are straight-segment paths so an analytic oracle (path-oracle.test.ts)
+  // independently checks the first generation. A path constraint writes bone transforms, so both observe only the
+  // existing bone-world-affine lane and every pre-F3 fixture regenerates byte-identical. Authored first-principles.
+  'rig-path-follow',
+  'rig-path-spacing',
 ] as const;
 
 export type RigId = (typeof RIG_IDS)[number];
@@ -109,6 +118,11 @@ export const RIG_PHASE: Readonly<Record<RigId, number>> = {
   // phase (the RIG_PHASE gate models "the rig's solve features exist", satisfied here).
   'rig-clipping': 2,
   'rig-hit-point': 2,
+  // PP-B6 path rigs: the path-constraint solve features land now (Stage F3). Like the other PP additions they
+  // are ordinary skeletons in the phase-2 catalog track and gate at the current phase (the RIG_PHASE gate models
+  // "the rig's solve features exist", satisfied here).
+  'rig-path-follow': 2,
+  'rig-path-spacing': 2,
 };
 
 // The committed current phase (B.2 landed-rig gating). Bumped per phase milestone in this file, NOT

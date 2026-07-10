@@ -90,7 +90,9 @@
       "rig-split-tracks": 2600499152,
       "rig-skin-scoped": 3430990204,
       "rig-clipping": 2854985442,
-      "rig-hit-point": 3511290493
+      "rig-hit-point": 3511290493,
+      "rig-path-follow": 37588945,
+      "rig-path-spacing": 1630216955
     }
   }
 }

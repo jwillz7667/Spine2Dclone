@@ -1,7 +1,7 @@
 # @marionette/mcp-server
 
 The headless control surface: a Model Context Protocol (MCP) server exposing the complete authoring
-capability of Armature 2D as 187 tools over stdio. An AI agent (or any MCP client) can build,
+capability of Armature 2D as 200 tools over stdio. An AI agent (or any MCP client) can build,
 inspect, render, and save everything the GUI can, because every mutating tool drives the same
 `@marionette/document-core` commands through the same `History` (LAW 2, ADR-0001). The complete
 tool-by-tool reference is the user manual chapter `docs/manual/09-tool-reference.md`.
@@ -31,7 +31,7 @@ MCP host configuration:
 }
 ```
 
-## Tool catalog (187 tools)
+## Tool catalog (200 tools)
 
 Assembled in `src/tools.ts` (plus the spread-in effects and slot-composer tool sets); a catalog
 test asserts the names are unique and the count matches.
@@ -46,6 +46,7 @@ test asserts the names are unique and the count matches.
 | ik | 10 | constraint create/mix/bendPositive/setDepth/delete, keyframes set/delete/move, list, get |
 | transform | 9 | constraint create/params/setVariants/delete, keyframes set/delete/move, list, get |
 | constraints | 1 | reorder (explicit cross-array solve order) |
+| physics | 13 | constraint create/delete/rename/setTargetBone/setChannels/setParams, settings get/set, keyframes set/delete/move, list, get |
 | skin | 9 | create, rename, delete, scope add/remove, setAttachment, removeAttachment, list, get |
 | deform | 4 | set/delete/move keyframe, clear attachment deform |
 | anim | 10 | create, delete, rename, duration, duplicate, list, get, sequence set/move/delete |

@@ -54,6 +54,16 @@ import {
   SetPathKeyframeCommand,
   DeletePathKeyframeCommand,
   MovePathKeyframeCommand,
+  CreatePhysicsConstraintCommand,
+  DeletePhysicsConstraintCommand,
+  RenamePhysicsConstraintCommand,
+  SetPhysicsConstraintTargetBoneCommand,
+  SetPhysicsConstraintChannelsCommand,
+  SetPhysicsConstraintParamsCommand,
+  SetPhysicsSettingsCommand,
+  SetPhysicsKeyframeCommand,
+  DeletePhysicsKeyframeCommand,
+  MovePhysicsKeyframeCommand,
   PathError,
   UnlinkMeshCommand,
   SetAttachmentSequenceCommand,
@@ -189,6 +199,11 @@ import {
   type PathConstraintParams,
   type PathConstraintParamPatch,
   type PathKeyframeChannels,
+  type PhysicsConstraintEntity,
+  type PhysicsConstraintId,
+  type PhysicsConstraintParams,
+  type PhysicsConstraintParamPatch,
+  type PhysicsKeyframeChannels,
   type SkinEntity,
   type SkinId,
   type SlotEntity,
@@ -222,7 +237,12 @@ import {
   type DrawOrderOffsetEntity,
 } from '@marionette/document-core';
 import { FormatValidationError } from '@marionette/format';
-import type { AtlasRef, SkeletonDocument, SkeletonMeta } from '@marionette/format/types';
+import type {
+  AtlasRef,
+  PhysicsSettings,
+  SkeletonDocument,
+  SkeletonMeta,
+} from '@marionette/format/types';
 import type { EffectsDocument } from '@marionette/format/effects-types';
 import type { SymbolId } from '@marionette/format/slot-types';
 import {
@@ -560,6 +580,19 @@ function requirePathConstraint(session: Session, id: string): PathConstraintEnti
   return constraint;
 }
 
+function asPhysicsConstraintId(id: string): PhysicsConstraintId {
+  return id as PhysicsConstraintId;
+}
+
+// Require an existing physics constraint by id (Stage F4, PP-D12), rejected as PHYSICS_CONSTRAINT_NOT_FOUND.
+function requirePhysicsConstraint(session: Session, id: string): PhysicsConstraintEntity {
+  const constraint = session.document.model.getPhysicsConstraint(asPhysicsConstraintId(id));
+  if (constraint === undefined) {
+    throw new McpToolError('PHYSICS_CONSTRAINT_NOT_FOUND', `no physics constraint with id "${id}"`);
+  }
+  return constraint;
+}
+
 function asSkinId(id: string): SkinId {
   return id as SkinId;
 }
@@ -789,6 +822,25 @@ function pathConstraintView(c: PathConstraintEntity): Record<string, unknown> {
   };
 }
 
+// Project a physics constraint for `physics.listConstraints` / `physics.getConstraint` (Stage F4, PP-D12).
+function physicsConstraintView(c: PhysicsConstraintEntity): Record<string, unknown> {
+  return {
+    id: c.id,
+    name: c.name,
+    bone: c.bone,
+    channels: [...c.channels],
+    step: c.step,
+    inertia: c.inertia,
+    strength: c.strength,
+    damping: c.damping,
+    mass: c.mass,
+    wind: c.wind,
+    gravity: c.gravity,
+    mix: c.mix,
+    ...(c.order !== undefined ? { order: c.order } : {}),
+  };
+}
+
 // Project a named skin for `skin.list` / `skin.get`: its attachments as a flat list of (slotId, name, kind)
 // addresses (the geometry detail lives on the slot's default-skin attachment query, mirroring slot.get).
 function skinView(skin: SkinEntity): Record<string, unknown> {
@@ -914,6 +966,23 @@ function animationView(animation: AnimationEntity): Record<string, unknown> {
         mixRotate: kf.mixRotate,
         mixX: kf.mixX,
         mixY: kf.mixY,
+        curve: kf.curve,
+      })),
+    })),
+    // Stage F4 (ADR-0014 section 7, PP-D12) physics-constraint timelines, keyed by physics constraint id. Each
+    // keyframe carries its id so physics.deleteKeyframe / physics.moveKeyframe have a target to name; each
+    // dynamic channel is a value or null (an absent partial channel keeps its base value at solve time).
+    physics: [...animation.physics.entries()].map(([constraintIdKey, frames]) => ({
+      physicsConstraintId: constraintIdKey,
+      keyframes: frames.map((kf) => ({
+        id: kf.id,
+        time: kf.time,
+        mix: kf.mix,
+        inertia: kf.inertia,
+        strength: kf.strength,
+        damping: kf.damping,
+        wind: kf.wind,
+        gravity: kf.gravity,
         curve: kf.curve,
       })),
     })),
@@ -1046,7 +1115,44 @@ const curveSchema = z.union([z.literal('linear'), z.literal('stepped'), bezierCu
 const ikConstraintId = z.string().min(1);
 const transformConstraintId = z.string().min(1);
 const pathConstraintId = z.string().min(1);
+const physicsConstraintId = z.string().min(1);
 const skinId = z.string().min(1);
+
+// Physics-constraint channel + parameter schemas (Stage F4, ADR-0014). `channels` is the simulated local
+// channel subset (x/y/rotation/scaleX/shearX); step/mass are strictly positive, inertia/damping/mix are
+// [0, 1], strength is >= 0, and wind/gravity are unbounded finite world forces.
+const physicsChannelSchema = z.enum(['x', 'y', 'rotation', 'scaleX', 'shearX']);
+const physicsMixSchema = z.number().finite().min(0).max(1);
+const physicsInertiaSchema = z.number().finite().min(0).max(1);
+const physicsDampingSchema = z.number().finite().min(0).max(1);
+const physicsStrengthSchema = z.number().finite().min(0);
+const physicsMassSchema = z.number().finite().gt(0);
+const physicsStepSchema = z.number().finite().gt(0);
+const physicsForceSchema = z.number().finite();
+
+// The eight physics-constraint parameters on create (the fixed step, the model knobs, and the world forces).
+// The channel set is a separate required input. The boundary validates ranges; the command stores verbatim.
+const physicsParamsSchema = z
+  .object({
+    step: physicsStepSchema.default(1 / 60),
+    inertia: physicsInertiaSchema.default(0),
+    strength: physicsStrengthSchema.default(0),
+    damping: physicsDampingSchema.default(1),
+    mass: physicsMassSchema.default(1),
+    wind: physicsForceSchema.default(0),
+    gravity: physicsForceSchema.default(0),
+    mix: physicsMixSchema.default(1),
+  })
+  .strict();
+
+// The three global physics settings (ADR-0014 section 5): world gravity/wind defaults and a master mix.
+const physicsSettingsSchema = z
+  .object({
+    gravity: physicsForceSchema,
+    wind: physicsForceSchema,
+    mix: physicsMixSchema,
+  })
+  .strict();
 
 // Path-constraint mode enums and channel schemas (Stage F3, ADR-0011 section 2). `position`/`spacing`/
 // `offsetRotation` are unbounded finite (wrap/clamp is solve behavior); the three mix channels are [0, 1].
@@ -5371,6 +5477,363 @@ export const TOOLS: readonly ToolDefinition[] = [
           throw new McpToolError(
             'KEYFRAME_NOT_FOUND',
             `no path keyframe "${input.keyframeId}" on constraint "${input.pathConstraintId}"`,
+          );
+        }
+        throw error;
+      }
+      return { revision: session.document.model.revision };
+    },
+  ),
+
+  // ----- physics constraints + settings + timelines (Stage F4, PP-D12, same command + History, LAW 2) -----
+  defineTool(
+    {
+      name: 'physics.createConstraint',
+      title: 'Create physics constraint',
+      description:
+        "Create a physics constraint that simulates a subset of ONE bone's local channels " +
+        '(x/y/rotation/scaleX/shearX) as a damped-driven spring, and return its id. `channels` must be ' +
+        'non-empty and duplicate-free. Rejected as CONSTRAINT (reason: boneMissing, channelsEmpty, ' +
+        'channelDuplicate, or duplicateName).',
+      input: z
+        .object({
+          documentId,
+          name: z.string().min(1),
+          boneId,
+          channels: z.array(physicsChannelSchema).min(1),
+          params: physicsParamsSchema.default({}),
+        })
+        .strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      const bone = requireBone(session, input.boneId).id;
+      const newId = session.document.ids.mint('physicsConstraint');
+      const params: PhysicsConstraintParams = input.params;
+      executeConstraintEdit(
+        session,
+        new CreatePhysicsConstraintCommand(
+          asPhysicsConstraintId(newId),
+          input.name,
+          bone,
+          input.channels,
+          params,
+        ),
+      );
+      return { physicsConstraintId: newId };
+    },
+  ),
+  defineTool(
+    {
+      name: 'physics.deleteConstraint',
+      title: 'Delete physics constraint',
+      description:
+        'Delete a physics constraint, cascading every animation physics timeline keyed to it (one undo step).',
+      input: z.object({ documentId, physicsConstraintId }).strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requirePhysicsConstraint(session, input.physicsConstraintId);
+      return {
+        revision: executeConstraintEdit(
+          session,
+          new DeletePhysicsConstraintCommand(asPhysicsConstraintId(input.physicsConstraintId)),
+        ),
+      };
+    },
+  ),
+  defineTool(
+    {
+      name: 'physics.renameConstraint',
+      title: 'Rename physics constraint',
+      description:
+        'Rename a physics constraint (identity is the id, so its timeline tracks are unaffected). Rejected ' +
+        'as CONSTRAINT (reason: notFound or duplicateName).',
+      input: z.object({ documentId, physicsConstraintId, name: z.string().min(1) }).strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requirePhysicsConstraint(session, input.physicsConstraintId);
+      return {
+        revision: executeConstraintEdit(
+          session,
+          new RenamePhysicsConstraintCommand(
+            asPhysicsConstraintId(input.physicsConstraintId),
+            input.name,
+          ),
+        ),
+      };
+    },
+  ),
+  defineTool(
+    {
+      name: 'physics.setTargetBone',
+      title: 'Set physics target bone',
+      description:
+        'Retarget a physics constraint to a different bone (the single driven/setpoint bone). Rejected as ' +
+        'CONSTRAINT (reason: notFound or boneMissing).',
+      input: z.object({ documentId, physicsConstraintId, boneId }).strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requirePhysicsConstraint(session, input.physicsConstraintId);
+      const bone = requireBone(session, input.boneId).id;
+      return {
+        revision: executeConstraintEdit(
+          session,
+          new SetPhysicsConstraintTargetBoneCommand(
+            asPhysicsConstraintId(input.physicsConstraintId),
+            bone,
+          ),
+        ),
+      };
+    },
+  ),
+  defineTool(
+    {
+      name: 'physics.setChannels',
+      title: 'Set physics channels',
+      description:
+        "Replace a physics constraint's simulated channel set (non-empty, duplicate-free subset of " +
+        'x/y/rotation/scaleX/shearX). Rejected as CONSTRAINT (reason: notFound, channelsEmpty, or ' +
+        'channelDuplicate).',
+      input: z
+        .object({ documentId, physicsConstraintId, channels: z.array(physicsChannelSchema).min(1) })
+        .strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requirePhysicsConstraint(session, input.physicsConstraintId);
+      return {
+        revision: executeConstraintEdit(
+          session,
+          new SetPhysicsConstraintChannelsCommand(
+            asPhysicsConstraintId(input.physicsConstraintId),
+            input.channels,
+          ),
+        ),
+      };
+    },
+  ),
+  defineTool(
+    {
+      name: 'physics.setParams',
+      title: 'Set physics constraint params',
+      description:
+        'Patch a physics constraint scalar parameter: step (>0), inertia/damping/mix ([0,1]), strength (>=0), ' +
+        'mass (>0), or wind/gravity (finite). Only the named fields change; at least one is required.',
+      input: z
+        .object({
+          documentId,
+          physicsConstraintId,
+          step: physicsStepSchema.optional(),
+          inertia: physicsInertiaSchema.optional(),
+          strength: physicsStrengthSchema.optional(),
+          damping: physicsDampingSchema.optional(),
+          mass: physicsMassSchema.optional(),
+          wind: physicsForceSchema.optional(),
+          gravity: physicsForceSchema.optional(),
+          mix: physicsMixSchema.optional(),
+        })
+        .strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requirePhysicsConstraint(session, input.physicsConstraintId);
+      const patch: PhysicsConstraintParamPatch = {
+        ...(input.step !== undefined ? { step: input.step } : {}),
+        ...(input.inertia !== undefined ? { inertia: input.inertia } : {}),
+        ...(input.strength !== undefined ? { strength: input.strength } : {}),
+        ...(input.damping !== undefined ? { damping: input.damping } : {}),
+        ...(input.mass !== undefined ? { mass: input.mass } : {}),
+        ...(input.wind !== undefined ? { wind: input.wind } : {}),
+        ...(input.gravity !== undefined ? { gravity: input.gravity } : {}),
+        ...(input.mix !== undefined ? { mix: input.mix } : {}),
+      };
+      if (Object.keys(patch).length === 0) {
+        throw new McpToolError('INVALID_INPUT', 'patch must name at least one physics parameter');
+      }
+      session.document.history.execute(
+        new SetPhysicsConstraintParamsCommand(
+          asPhysicsConstraintId(input.physicsConstraintId),
+          patch,
+        ),
+      );
+      return { revision: session.document.model.revision };
+    },
+  ),
+  defineTool(
+    {
+      name: 'physics.listConstraints',
+      title: 'List physics constraints',
+      description: 'List the physics constraints in solve order.',
+      input: z.object({ documentId }).strict(),
+    },
+    (deps, input) => ({
+      physicsConstraints: deps.sessions
+        .get(input.documentId)
+        .document.model.physicsConstraints()
+        .map(physicsConstraintView),
+    }),
+  ),
+  defineTool(
+    {
+      name: 'physics.getConstraint',
+      title: 'Get physics constraint',
+      description: 'Get one physics constraint by id.',
+      input: z.object({ documentId, physicsConstraintId }).strict(),
+    },
+    (deps, input) => ({
+      physicsConstraint: physicsConstraintView(
+        requirePhysicsConstraint(deps.sessions.get(input.documentId), input.physicsConstraintId),
+      ),
+    }),
+  ),
+  defineTool(
+    {
+      name: 'physics.getSettings',
+      title: 'Get physics settings',
+      description:
+        'Get the OPTIONAL skeleton physics settings block (global gravity/wind/master mix), or null when ' +
+        'the document defines none (the identity default: no global weather, unit master mix).',
+      input: z.object({ documentId }).strict(),
+    },
+    (deps, input) => ({
+      physicsSettings: deps.sessions.get(input.documentId).document.model.physicsSettings() ?? null,
+    }),
+  ),
+  defineTool(
+    {
+      name: 'physics.setSettings',
+      title: 'Set physics settings',
+      description:
+        'Set or CLEAR the global physics settings block. Pass { gravity, wind, mix } to set it, or ' +
+        '`settings: null` to clear it (restoring the identity default).',
+      input: z.object({ documentId, settings: physicsSettingsSchema.nullable() }).strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      const settings: PhysicsSettings | null = input.settings;
+      session.document.history.execute(new SetPhysicsSettingsCommand(settings));
+      return { revision: session.document.model.revision };
+    },
+  ),
+  defineTool(
+    {
+      name: 'physics.setKeyframe',
+      title: 'Set physics keyframe',
+      description:
+        'Insert or update a physics-constraint keyframe at a time. Each dynamic channel (mix/inertia/' +
+        'strength/damping/wind/gravity) is optional; an omitted channel keeps its base value at solve time. ' +
+        'Updating an existing time keeps its curve; a new keyframe takes the optional insert `curve` ' +
+        '(default linear). step/mass/channels are NOT keyable.',
+      input: z
+        .object({
+          documentId,
+          animationId,
+          physicsConstraintId,
+          time: z.number().finite().nonnegative(),
+          mix: physicsMixSchema.optional(),
+          inertia: physicsInertiaSchema.optional(),
+          strength: physicsStrengthSchema.optional(),
+          damping: physicsDampingSchema.optional(),
+          wind: physicsForceSchema.optional(),
+          gravity: physicsForceSchema.optional(),
+          curve: curveSchema.optional(),
+        })
+        .strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireAnimation(session, input.animationId);
+      requirePhysicsConstraint(session, input.physicsConstraintId);
+      const channels: PhysicsKeyframeChannels = {
+        mix: input.mix,
+        inertia: input.inertia,
+        strength: input.strength,
+        damping: input.damping,
+        wind: input.wind,
+        gravity: input.gravity,
+      };
+      session.document.history.execute(
+        input.curve === undefined
+          ? new SetPhysicsKeyframeCommand(
+              asAnimationId(input.animationId),
+              asPhysicsConstraintId(input.physicsConstraintId),
+              input.time,
+              channels,
+            )
+          : new SetPhysicsKeyframeCommand(
+              asAnimationId(input.animationId),
+              asPhysicsConstraintId(input.physicsConstraintId),
+              input.time,
+              channels,
+              input.curve,
+            ),
+      );
+      return { revision: session.document.model.revision };
+    },
+  ),
+  defineTool(
+    {
+      name: 'physics.deleteKeyframe',
+      title: 'Delete physics keyframe',
+      description: 'Delete a physics keyframe (by id) from a constraint physics channel.',
+      input: z.object({ documentId, animationId, physicsConstraintId, keyframeId }).strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireAnimation(session, input.animationId);
+      requirePhysicsConstraint(session, input.physicsConstraintId);
+      session.document.history.execute(
+        new DeletePhysicsKeyframeCommand(
+          asAnimationId(input.animationId),
+          asPhysicsConstraintId(input.physicsConstraintId),
+          asKeyframeId(input.keyframeId),
+        ),
+      );
+      return { revision: session.document.model.revision };
+    },
+  ),
+  defineTool(
+    {
+      name: 'physics.moveKeyframe',
+      title: 'Move physics keyframe',
+      description:
+        'Move a physics keyframe (by id) to a new time (physics times are strictly ascending). Landing on an ' +
+        'occupied time is a typed KEYFRAME_COLLISION; a missing key is a typed KEYFRAME_NOT_FOUND. The moved ' +
+        'keyframe keeps its channels/curve.',
+      input: z
+        .object({
+          documentId,
+          animationId,
+          physicsConstraintId,
+          keyframeId,
+          time: z.number().finite().nonnegative(),
+        })
+        .strict(),
+    },
+    (deps, input) => {
+      const session = deps.sessions.get(input.documentId);
+      requireAnimation(session, input.animationId);
+      requirePhysicsConstraint(session, input.physicsConstraintId);
+      try {
+        session.document.history.execute(
+          new MovePhysicsKeyframeCommand(
+            asAnimationId(input.animationId),
+            asPhysicsConstraintId(input.physicsConstraintId),
+            asKeyframeId(input.keyframeId),
+            input.time,
+          ),
+        );
+      } catch (error) {
+        if (error instanceof KeyframeCollisionError) {
+          throw new McpToolError('KEYFRAME_COLLISION', error.message);
+        }
+        if (error instanceof CommandTargetMissingError) {
+          throw new McpToolError(
+            'KEYFRAME_NOT_FOUND',
+            `no physics keyframe "${input.keyframeId}" on constraint "${input.physicsConstraintId}"`,
           );
         }
         throw error;

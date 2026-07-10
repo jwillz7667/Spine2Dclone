@@ -1350,6 +1350,140 @@ describe('MCP path constraint + timeline tools (PP-D11)', () => {
   });
 });
 
+describe('MCP physics constraint + settings + timeline tools (PP-D12)', () => {
+  it('creates, edits, keys, and reads a physics constraint through the AI surface', async () => {
+    const deps = makeDeps();
+    const { documentId } = asRecord(await call(deps, 'document.new', { name: 'rig' }));
+    const { boneId: rootId } = asRecord(
+      await call(deps, 'bone.create', { documentId, name: 'root' }),
+    );
+    const { boneId: tailId } = asRecord(
+      await call(deps, 'bone.create', { documentId, parentId: rootId, name: 'tail' }),
+    );
+
+    const created = asRecord(
+      await call(deps, 'physics.createConstraint', {
+        documentId,
+        name: 'tail-jiggle',
+        boneId: tailId,
+        channels: ['rotation'],
+        params: { strength: 40, damping: 0.9, inertia: 0.5 },
+      }),
+    );
+    const physicsConstraintId = String(created['physicsConstraintId']);
+
+    await call(deps, 'physics.setParams', { documentId, physicsConstraintId, strength: 55 });
+    await call(deps, 'physics.setChannels', {
+      documentId,
+      physicsConstraintId,
+      channels: ['rotation', 'x'],
+    });
+    await call(deps, 'physics.setTargetBone', { documentId, physicsConstraintId, boneId: rootId });
+    await call(deps, 'physics.renameConstraint', {
+      documentId,
+      physicsConstraintId,
+      name: 'jiggle2',
+    });
+
+    const got = asRecord(
+      asRecord(await call(deps, 'physics.getConstraint', { documentId, physicsConstraintId }))[
+        'physicsConstraint'
+      ],
+    );
+    expect(got['name']).toBe('jiggle2');
+    expect(got['strength']).toBe(55);
+    expect(got['channels']).toEqual(['rotation', 'x']);
+    expect(got['bone']).toBe(rootId);
+
+    const listed = asRecord(await call(deps, 'physics.listConstraints', { documentId }));
+    expect((listed['physicsConstraints'] as unknown[]).length).toBe(1);
+
+    // Global settings get/set.
+    await call(deps, 'physics.setSettings', {
+      documentId,
+      settings: { gravity: 9.8, wind: 2, mix: 0.75 },
+    });
+    const settings = asRecord(await call(deps, 'physics.getSettings', { documentId }));
+    expect(settings['physicsSettings']).toEqual({ gravity: 9.8, wind: 2, mix: 0.75 });
+
+    // Key the physics timeline, then read it back through anim.get's physics projection.
+    const { animationId } = asRecord(
+      await call(deps, 'anim.create', { documentId, name: 'jiggle', duration: 1 }),
+    );
+    await call(deps, 'physics.setKeyframe', {
+      documentId,
+      animationId,
+      physicsConstraintId,
+      time: 0,
+      mix: 1,
+      wind: 0,
+    });
+    await call(deps, 'physics.setKeyframe', {
+      documentId,
+      animationId,
+      physicsConstraintId,
+      time: 1,
+      mix: 0,
+      wind: 5,
+    });
+    const anim = asRecord(
+      asRecord(await call(deps, 'anim.get', { documentId, animationId }))['animation'],
+    );
+    const physicsTracks = anim['physics'] as Array<{
+      physicsConstraintId: string;
+      keyframes: unknown[];
+    }>;
+    expect(physicsTracks).toHaveLength(1);
+    expect(physicsTracks[0]!.physicsConstraintId).toBe(physicsConstraintId);
+    expect(physicsTracks[0]!.keyframes).toHaveLength(2);
+  });
+
+  it('round-trips a physics-rich document through document.save and document.open', async () => {
+    const files = inMemoryFiles();
+    const deps: ToolDeps = { sessions: new SessionRegistry(), files: files.store };
+
+    const { documentId } = asRecord(await call(deps, 'document.new', { name: 'phys' }));
+    const { boneId: rootId } = asRecord(
+      await call(deps, 'bone.create', { documentId, name: 'root' }),
+    );
+    const { boneId: tailId } = asRecord(
+      await call(deps, 'bone.create', { documentId, parentId: rootId, name: 'tail' }),
+    );
+    const created = asRecord(
+      await call(deps, 'physics.createConstraint', {
+        documentId,
+        name: 'tail-jiggle',
+        boneId: tailId,
+        channels: ['rotation'],
+        params: { strength: 40, damping: 0.9 },
+      }),
+    );
+    const physicsConstraintId = String(created['physicsConstraintId']);
+    await call(deps, 'physics.setSettings', {
+      documentId,
+      settings: { gravity: 9.8, wind: 2, mix: 0.75 },
+    });
+    const { animationId } = asRecord(
+      await call(deps, 'anim.create', { documentId, name: 'jiggle', duration: 1 }),
+    );
+    await call(deps, 'physics.setKeyframe', {
+      documentId,
+      animationId,
+      physicsConstraintId,
+      time: 0,
+      mix: 1,
+    });
+
+    await call(deps, 'document.save', { documentId, path: '/phys.json' });
+    const opened = asRecord(await call(deps, 'document.open', { path: '/phys.json' }));
+    const reExported = asRecord(
+      await call(deps, 'document.export', { documentId: opened.documentId }),
+    );
+    const original = asRecord(await call(deps, 'document.export', { documentId }));
+    expect(reExported.document).toEqual(original.document);
+  });
+});
+
 describe('MCP IK constraint tools (WP-2.6)', () => {
   it('creates, edits, keys, and deletes an IK constraint through the AI surface', async () => {
     const deps = makeDeps();
@@ -2597,6 +2731,29 @@ describe('MCP tool catalog', () => {
 
   it('exposes every Stage F3 path constraint / timeline tool with a unique name', () => {
     for (const name of PP_D11_PATH_CONSTRAINT_TOOLS) {
+      expect(byName.has(name), `missing tool ${name}`).toBe(true);
+    }
+    expect(byName.size).toBe(TOOLS.length);
+  });
+
+  const PP_D12_PHYSICS_TOOLS = [
+    'physics.createConstraint',
+    'physics.deleteConstraint',
+    'physics.renameConstraint',
+    'physics.setTargetBone',
+    'physics.setChannels',
+    'physics.setParams',
+    'physics.listConstraints',
+    'physics.getConstraint',
+    'physics.getSettings',
+    'physics.setSettings',
+    'physics.setKeyframe',
+    'physics.deleteKeyframe',
+    'physics.moveKeyframe',
+  ] as const;
+
+  it('exposes every Stage F4 physics constraint / settings / timeline tool with a unique name', () => {
+    for (const name of PP_D12_PHYSICS_TOOLS) {
       expect(byName.has(name), `missing tool ${name}`).toBe(true);
     }
     expect(byName.size).toBe(TOOLS.length);

@@ -161,7 +161,11 @@ which is what makes five-way parallelism safe.
 - **Stage F4:** **PP-B7:** physics solve: fixed-dt semi-implicit integration exactly as the ADR
   pins it, integer step clock, seedless (physics is deterministic, not random), pose-reset
   semantics, fixtures sampling long runs, allocation probe, and cross-language vectors for the
-  integrator's arithmetic.
+  integrator's arithmetic. LANDED: the `runtime-core` solve (fixed step, integer step clock,
+  RESET_DISTANCE pinned at 1000 local units), two long-horizon conformance rigs
+  (`rig-physics-pendulum` rotation oscillator, `rig-physics-swing` translate/scale with
+  gravity/wind/mass/mix/teleport) with the `physicsStepFixed` cross-language vectors, and the
+  Unity + Godot native chase, all green.
 - **Standing orders:** every behavior change regenerates fixtures on Node 22.13.1 in the same PR
   behind the behavior-change gate; every new integer primitive is added to
   `cross-language/seed-prng-crc-vectors.json`; nothing in this lane may import PixiJS, Zod, DOM,

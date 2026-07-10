@@ -66,6 +66,10 @@ function resetSlotsToSetup(pose: Pose): void {
   // Reset the two-color dark lane too (mirrors sampleSkeleton's step-1 slotDarkColor reset), so the
   // setup-pose two-color render reads the setup dark tint, not the zeroed allocation default.
   pose.slotDarkColor.set(pose.slotSetupDarkColor);
+  // Reset the render order to the setup (identity) draw order, mirroring runtime-core's step-1 reset so a
+  // setup-pose render composites in setup slot order even when this pose was previously solved to a
+  // non-identity draw order (the sequence pipeline reuses one pose across a clip).
+  pose.drawOrder.set(pose.slotSetupDrawOrder);
   for (let i = 0; i < pose.slotCount; i += 1) {
     pose.slotAttachment[i] = pose.slotSetupAttachment[i] ?? null;
   }
@@ -150,7 +154,12 @@ export function gatherDrawItemsFromPose(
   const slotColor = pose.slotColor;
   const slotDarkColor = pose.slotDarkColor;
   const slotHasDarkColor = pose.slotHasDarkColor;
-  for (let slotIndex = 0; slotIndex < document.slots.length; slotIndex += 1) {
+  // Walk the SOLVED current draw order (canonical solve step 6), not document slot order:
+  // `pose.drawOrder[position] = slotIndex`, renderPosition 0 furthest back. A draw-order timeline permutes
+  // this at runtime, so gathering (and therefore compositing) in slot order would paint an active reorder
+  // in the wrong z-order. This is the same walk clipping.ts uses, so the two agree per frame (ADR-0008).
+  for (let position = 0; position < pose.drawOrder.length; position += 1) {
+    const slotIndex = pose.drawOrder[position]!;
     const slot = document.slots[slotIndex]!;
     const boneIndex = pose.slotBoneIndices[slotIndex]!;
     if (boneIndex < 0) continue;

@@ -310,3 +310,65 @@ export function filterSectionNodes<TId extends string>(
     (node) => categoryEnabled(node.kind, filter.kinds) && nameMatches(node.name, filter.query),
   );
 }
+
+// ----- Selection routing (pure): map a node to a selection target and read selection state -----
+// Selecting a node drives one of four ephemeral stores (bone, slot, tagged constraint, skin preview). The
+// DECISION of which store, and whether a node currently reads as selected, is pure and tested here; the
+// panel is left to dispatch the returned target to the actual store and to construct commands.
+
+// The four constraint kinds, the discriminant a tagged constraint selection carries.
+export type ConstraintNodeKind = 'ik' | 'transform' | 'path' | 'physics';
+
+// Where a click on a node routes its selection. Bone/slot carry the entity id; a constraint carries its
+// kind tag plus id (the constraint stores are tagged by kind); a skin carries the skin NAME (the preview
+// store keys on the name).
+export type NodeSelectionTarget<TId extends string = string> =
+  | { readonly target: 'bone'; readonly id: TId }
+  | { readonly target: 'slot'; readonly id: TId }
+  | { readonly target: 'constraint'; readonly kind: ConstraintNodeKind; readonly id: TId }
+  | { readonly target: 'skin'; readonly name: TId };
+
+// Resolve which store a node's selection routes to. Total over HierarchyNodeKind (the four constraint
+// kinds collapse to the constraint target with their kind tag preserved).
+export function nodeSelectionTarget<TId extends string>(
+  node: HierarchyNode<TId>,
+): NodeSelectionTarget<TId> {
+  switch (node.kind) {
+    case 'bone':
+      return { target: 'bone', id: node.id };
+    case 'slot':
+      return { target: 'slot', id: node.id };
+    case 'skin':
+      return { target: 'skin', name: node.id };
+    default:
+      return { target: 'constraint', kind: node.kind, id: node.id };
+  }
+}
+
+// The current selection across the four stores, as the tree reads it to highlight rows.
+export interface HierarchySelectionState {
+  readonly boneIds: ReadonlySet<string>;
+  readonly slotId: string | null;
+  readonly constraintKind: ConstraintNodeKind | null;
+  readonly constraintId: string | null;
+  readonly activeSkin: string;
+}
+
+// Whether a node currently reads as selected, given the four stores' state. A bone matches the bone
+// selection set, a slot the single slot selection, a constraint the tagged constraint selection (kind AND
+// id), a skin the active preview name.
+export function isNodeSelected<TId extends string>(
+  node: HierarchyNode<TId>,
+  selection: HierarchySelectionState,
+): boolean {
+  switch (node.kind) {
+    case 'bone':
+      return selection.boneIds.has(node.id);
+    case 'slot':
+      return selection.slotId === node.id;
+    case 'skin':
+      return selection.activeSkin === node.id;
+    default:
+      return selection.constraintKind === node.kind && selection.constraintId === node.id;
+  }
+}

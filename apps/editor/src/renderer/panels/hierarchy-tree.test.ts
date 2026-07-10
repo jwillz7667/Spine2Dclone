@@ -11,10 +11,13 @@ import {
   filterSectionNodes,
   filterSkeletonTree,
   isDescendant,
+  isNodeSelected,
+  nodeSelectionTarget,
   treeBoneGeometry,
   type HierarchyBone,
   type HierarchyFilter,
   type HierarchyNode,
+  type HierarchySelectionState,
   type HierarchySlot,
 } from './hierarchy-tree';
 
@@ -236,5 +239,75 @@ describe('filterSectionNodes', () => {
       kinds: { bones: true, slots: true, constraints: true, skins: false },
     });
     expect(result).toEqual([]);
+  });
+});
+
+describe('nodeSelectionTarget', () => {
+  const node = (kind: HierarchyNode['kind'], id: string): HierarchyNode => ({
+    kind,
+    id,
+    name: id,
+    depth: 0,
+    boneId: null,
+  });
+
+  it('routes each node kind to its store target', () => {
+    expect(nodeSelectionTarget(node('bone', 'b1'))).toEqual({ target: 'bone', id: 'b1' });
+    expect(nodeSelectionTarget(node('slot', 's1'))).toEqual({ target: 'slot', id: 's1' });
+    // Constraints keep their kind tag (the constraint store is tagged by kind).
+    expect(nodeSelectionTarget(node('ik', 'ik1'))).toEqual({
+      target: 'constraint',
+      kind: 'ik',
+      id: 'ik1',
+    });
+    expect(nodeSelectionTarget(node('physics', 'phy1'))).toEqual({
+      target: 'constraint',
+      kind: 'physics',
+      id: 'phy1',
+    });
+    // A skin node's id IS its name (the preview store keys on the name).
+    expect(nodeSelectionTarget(node('skin', 'variant'))).toEqual({
+      target: 'skin',
+      name: 'variant',
+    });
+  });
+});
+
+describe('isNodeSelected', () => {
+  const node = (kind: HierarchyNode['kind'], id: string): HierarchyNode => ({
+    kind,
+    id,
+    name: id,
+    depth: 0,
+    boneId: null,
+  });
+  const selection: HierarchySelectionState = {
+    boneIds: new Set(['b1']),
+    slotId: 's1',
+    constraintKind: 'transform',
+    constraintId: 'tc1',
+    activeSkin: 'variant',
+  };
+
+  it('matches a bone against the bone selection set', () => {
+    expect(isNodeSelected(node('bone', 'b1'), selection)).toBe(true);
+    expect(isNodeSelected(node('bone', 'b2'), selection)).toBe(false);
+  });
+
+  it('matches a slot against the single slot selection', () => {
+    expect(isNodeSelected(node('slot', 's1'), selection)).toBe(true);
+    expect(isNodeSelected(node('slot', 's2'), selection)).toBe(false);
+  });
+
+  it('matches a constraint only when BOTH kind and id agree', () => {
+    expect(isNodeSelected(node('transform', 'tc1'), selection)).toBe(true);
+    // Same id, wrong kind: not selected (kinds share no id namespace but the tag disambiguates).
+    expect(isNodeSelected(node('ik', 'tc1'), selection)).toBe(false);
+    expect(isNodeSelected(node('transform', 'tc2'), selection)).toBe(false);
+  });
+
+  it('matches a skin against the active preview name', () => {
+    expect(isNodeSelected(node('skin', 'variant'), selection)).toBe(true);
+    expect(isNodeSelected(node('skin', 'default'), selection)).toBe(false);
   });
 });

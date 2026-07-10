@@ -1,0 +1,92 @@
+{
+  "formatVersion": "0.6.0",
+  "name": "rig-physics-swing",
+  "hash": "",
+  "bones": [
+    {
+      "name": "root",
+      "parent": null,
+      "length": 100,
+      "x": 0,
+      "y": 0,
+      "rotation": 0,
+      "scaleX": 1,
+      "scaleY": 1,
+      "shearX": 0,
+      "shearY": 0,
+      "transformMode": "normal"
+    },
+    {
+      "name": "prop",
+      "parent": "root",
+      "length": 80,
+      "x": 0,
+      "y": 0,
+      "rotation": 0,
+      "scaleX": 1,
+      "scaleY": 1,
+      "shearX": 0,
+      "shearY": 0,
+      "transformMode": "normal"
+    }
+  ],
+  "slots": [],
+  "skins": [{ "name": "default", "attachments": {} }],
+  "physics": { "gravity": 200, "wind": 80, "mix": 0.9 },
+  "animations": {
+    "sway": {
+      "duration": 2.5,
+      "bones": {
+        "prop": {
+          "translateX": [
+            { "time": 0, "value": { "value": 0 }, "curve": "linear" },
+            { "time": 0.2, "value": { "value": 40 }, "curve": "linear" },
+            { "time": 0.4, "value": { "value": 40 }, "curve": "stepped" },
+            { "time": 0.42, "value": { "value": 1500 }, "curve": "linear" },
+            { "time": 2.5, "value": { "value": 1500 }, "curve": "linear" }
+          ],
+          "scaleX": [
+            { "time": 0, "value": { "value": 1 }, "curve": "linear" },
+            { "time": 0.1, "value": { "value": 1.4 }, "curve": "linear" },
+            { "time": 0.25, "value": { "value": 1 }, "curve": "linear" },
+            { "time": 2.5, "value": { "value": 1 }, "curve": "linear" }
+          ]
+        }
+      },
+      "slots": {},
+      "ik": {},
+      "transform": {},
+      "deform": {},
+      "drawOrder": [],
+      "events": [],
+      "path": {},
+      "physics": {
+        "sway-phys": [
+          { "time": 0.5, "value": { "wind": 120 }, "curve": "linear" },
+          { "time": 0.7, "value": { "wind": 400 }, "curve": "linear" },
+          { "time": 1, "value": { "wind": 120 }, "curve": "linear" }
+        ]
+      }
+    }
+  },
+  "atlas": { "pages": [] },
+  "ikConstraints": [],
+  "transformConstraints": [],
+  "events": [],
+  "pathConstraints": [],
+  "physicsConstraints": [
+    {
+      "name": "sway-phys",
+      "bone": "prop",
+      "channels": ["x", "y", "scaleX"],
+      "step": 0.015,
+      "inertia": 0.5,
+      "strength": 50,
+      "damping": 0.9,
+      "mass": 2,
+      "wind": 120,
+      "gravity": 300,
+      "mix": 0.8
+    }
+  ]
+}

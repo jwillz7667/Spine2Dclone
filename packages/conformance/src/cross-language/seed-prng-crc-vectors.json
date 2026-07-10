@@ -92,7 +92,18 @@
       "rig-clipping": 1309647959,
       "rig-hit-point": 1814237778,
       "rig-path-follow": 1797450500,
-      "rig-path-spacing": 456740429
+      "rig-path-spacing": 456740429,
+      "rig-physics-pendulum": 3784361790,
+      "rig-physics-swing": 2441249542
     }
+  },
+  "physicsStepFixed": {
+    "_algorithm": "physicsStepsFixed(frameDt, step) = roundHalfAwayFromZero(frameDt / step * 65536) (ADR-0014 section 2.2, PP-B7). The integer fixed-point step count a frame schedules against the constraint's fixed timestep. Keyed by \"frameDt,step\"; every value is an integer (uint) on the physics step clock, the one determinism surface the physics solve adds. A native runtime asserts its own physicsStepsFixed equals these.",
+    "1/60,1/60": 65536,
+    "0.02,0.02": 65536,
+    "0.02,0.015": 87381,
+    "1/60,0.02": 54613,
+    "0.05,0.015": 218453,
+    "0,0.02": 0
   }
 }

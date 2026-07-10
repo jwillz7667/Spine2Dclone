@@ -82,6 +82,18 @@ export const RIG_IDS = [
   // existing bone-world-affine lane and every pre-F3 fixture regenerates byte-identical. Authored first-principles.
   'rig-path-follow',
   'rig-path-spacing',
+  // PP-B7 (pro-parity Stage F4, ADR-0014 format 0.6.0 + solve) physics-constraint rigs. `rig-physics-pendulum`
+  // is a rotation-channel damped oscillator (an animated angular impulse the spring overshoots and rings down)
+  // with a physics timeline keying strength + a mix fade-in, under nonzero scene gravity/wind that a
+  // rotation-only constraint provably ignores (external forces feed x/y only, ADR section 2.3).
+  // `rig-physics-swing` simulates x/y/scaleX under gravity + wind + mass (a hanging prop that sags and sways),
+  // with a keyed wind gust, the global-times-local mix product, and a mid-clip translation TELEPORT that trips
+  // the RESET_DISTANCE snap. Both step over time deterministically (fixed step, integer step clock) and observe
+  // only the existing bone-world-affine lane, so every pre-F4 fixture regenerates byte-identical. The physics
+  // rigs are sampled SEQUENTIALLY (the harness advances the physics clock by the poseTime delta each frame).
+  // Authored first-principles (Law 4).
+  'rig-physics-pendulum',
+  'rig-physics-swing',
 ] as const;
 
 export type RigId = (typeof RIG_IDS)[number];
@@ -123,6 +135,11 @@ export const RIG_PHASE: Readonly<Record<RigId, number>> = {
   // "the rig's solve features exist", satisfied here).
   'rig-path-follow': 2,
   'rig-path-spacing': 2,
+  // PP-B7 physics rigs: the physics-constraint solve features land now (Stage F4). Like the other PP additions
+  // they are ordinary skeletons in the phase-2 catalog track and gate at the current phase (the RIG_PHASE gate
+  // models "the rig's solve features exist", satisfied here).
+  'rig-physics-pendulum': 2,
+  'rig-physics-swing': 2,
 };
 
 // The committed current phase (B.2 landed-rig gating). Bumped per phase milestone in this file, NOT

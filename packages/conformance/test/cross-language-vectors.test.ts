@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { hash32, makePrng, nextU32, spinSeed } from '@marionette/runtime-core';
+import { hash32, makePrng, nextU32, physicsStepsFixed, spinSeed } from '@marionette/runtime-core';
 import { crc32 } from '@marionette/format';
 import { LANDED_RIG_IDS } from '../src/registry';
 import { readBytes, rigBinPath } from '../src/io';
@@ -64,6 +64,24 @@ describe('cross-language seed/PRNG/CRC vectors (WP-5.5, TASK-5.5.7)', () => {
       const trailer =
         (bytes[t]! | (bytes[t + 1]! << 8) | (bytes[t + 2]! << 16) | (bytes[t + 3]! << 24)) >>> 0;
       expect(bodyCrc).toBe(trailer);
+    }
+  });
+
+  it('physicsStepsFixed matches the golden for every committed (frameDt, step) pair (ADR-0014 section 2.2)', () => {
+    // Each key is "frameDt,step"; a part is a decimal or a "num/den" fraction so the reciprocal frame rates
+    // (1/60) stay exact in the corpus. The physics step clock is the only determinism surface physics adds.
+    const parse = (token: string): number => {
+      const slash = token.indexOf('/');
+      return slash < 0
+        ? Number(token)
+        : Number(token.slice(0, slash)) / Number(token.slice(slash + 1));
+    };
+    for (const [pair, expected] of Object.entries(golden.physicsStepFixed)) {
+      if (pair.startsWith('_')) continue;
+      const comma = pair.indexOf(',');
+      const frameDt = parse(pair.slice(0, comma));
+      const step = parse(pair.slice(comma + 1));
+      expect(physicsStepsFixed(frameDt, step), pair).toBe(expected);
     }
   });
 });

@@ -256,7 +256,12 @@ export function buildFixtureSamples(document: SkeletonDocument, spec: SampleSpec
   for (let sampleIndex = 0; sampleIndex < spec.poseTimes.length; sampleIndex += 1) {
     const time = spec.poseTimes[sampleIndex]!;
     const activeSkin = spec.activeSkins?.[sampleIndex] ?? null;
-    sampleSkeleton(document, spec.animation, time, pose, activeSkin);
+    // The physics frame delta (ADR-0014, PP-B7): the wall-clock time advanced since the previous sample,
+    // 0 on the first sample. Physics carries velocity across frames, so a physics rig authors poseTimes as
+    // a monotonic sequence of frame times and the solve steps its clock by this delta. Non-physics rigs
+    // ignore it (empty physicsConstraints), so every prior fixture regenerates byte-identically.
+    const frameDt = sampleIndex === 0 ? 0 : time - spec.poseTimes[sampleIndex - 1]!;
+    sampleSkeleton(document, spec.animation, time, pose, activeSkin, frameDt);
     const bones: Record<string, Affine> = {};
     for (let i = 0; i < pose.boneNames.length; i += 1) {
       bones[pose.boneNames[i]!] = readAffine(pose.world, i);

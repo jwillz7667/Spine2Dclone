@@ -1,0 +1,101 @@
+{
+  "formatVersion": "0.6.0",
+  "name": "rig-physics-pendulum",
+  "hash": "",
+  "bones": [
+    {
+      "name": "root",
+      "parent": null,
+      "length": 100,
+      "x": 0,
+      "y": 0,
+      "rotation": 0,
+      "scaleX": 1,
+      "scaleY": 1,
+      "shearX": 0,
+      "shearY": 0,
+      "transformMode": "normal"
+    },
+    {
+      "name": "pendulum",
+      "parent": "root",
+      "length": 120,
+      "x": 0,
+      "y": 0,
+      "rotation": 0,
+      "scaleX": 1,
+      "scaleY": 1,
+      "shearX": 0,
+      "shearY": 0,
+      "transformMode": "normal"
+    }
+  ],
+  "slots": [],
+  "skins": [{ "name": "default", "attachments": {} }],
+  "physics": { "gravity": 400, "wind": 200, "mix": 1 },
+  "animations": {
+    "swing": {
+      "duration": 2.5,
+      "bones": {
+        "pendulum": {
+          "rotate": [
+            { "time": 0, "value": { "angle": 0 }, "curve": "linear" },
+            { "time": 0.1, "value": { "angle": 40 }, "curve": "linear" },
+            { "time": 2.5, "value": { "angle": 40 }, "curve": "linear" }
+          ]
+        }
+      },
+      "slots": {},
+      "ik": {},
+      "transform": {},
+      "deform": {},
+      "drawOrder": [],
+      "events": [],
+      "path": {},
+      "physics": {
+        "swing-phys": [
+          {
+            "time": 0,
+            "value": { "mix": 0, "strength": 60 },
+            "curve": "linear"
+          },
+          {
+            "time": 0.1,
+            "value": { "mix": 1, "strength": 60 },
+            "curve": "linear"
+          },
+          {
+            "time": 0.5,
+            "value": { "mix": 1, "strength": 120 },
+            "curve": "linear"
+          },
+          {
+            "time": 1,
+            "value": { "mix": 1, "strength": 60 },
+            "curve": "linear"
+          }
+        ]
+      }
+    }
+  },
+  "atlas": { "pages": [] },
+  "ikConstraints": [],
+  "transformConstraints": [],
+  "events": [],
+  "pathConstraints": [],
+  "physicsConstraints": [
+    {
+      "name": "swing-phys",
+      "bone": "pendulum",
+      "channels": ["rotation"],
+      "step": 0.02,
+      "inertia": 0.7,
+      "strength": 60,
+      "damping": 0.92,
+      "mass": 1,
+      "wind": 0,
+      "gravity": 0,
+      "mix": 1
+    }
+  ]
+}

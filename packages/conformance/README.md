@@ -12,7 +12,7 @@ All under `src/`:
 
 | Track | Rigs / inputs | Fixtures | Lock |
 |---|---|---|---|
-| **Skeleton** | `rigs/` (22 rigs, each committed as `.json` AND a binary `.bin` twin): rig-2bone, rig-rigid-mesh, rig-weighted-mesh, rig-one-bone-ik, rig-two-bone-ik, rig-transform-constraint, rig-deform, rig-transform-modes, rig-blendmodes, rig-events-draworder, rig-events-loop, rig-ik-depth, rig-constraint-order, rig-transform-variants, rig-linked-mesh, rig-sequences, rig-split-tracks, rig-skin-scoped, rig-clipping, rig-hit-point, rig-path-follow, rig-path-spacing | `fixtures/` (22, driven by `sample-spec/`) | `.fixtures.lock` |
+| **Skeleton** | `rigs/` (24 rigs, each committed as `.json` AND a binary `.bin` twin): rig-2bone, rig-rigid-mesh, rig-weighted-mesh, rig-one-bone-ik, rig-two-bone-ik, rig-transform-constraint, rig-deform, rig-transform-modes, rig-blendmodes, rig-events-draworder, rig-events-loop, rig-ik-depth, rig-constraint-order, rig-transform-variants, rig-linked-mesh, rig-sequences, rig-split-tracks, rig-skin-scoped, rig-clipping, rig-hit-point, rig-path-follow, rig-path-spacing, rig-physics-pendulum, rig-physics-swing | `fixtures/` (24, driven by `sample-spec/`) | `.fixtures.lock` |
 | **Effects / particles** | `effects-rigs/` (4): coin-burst, ribbon-trail, circle-spawn, god-rays-sprite | `effects-fixtures/` (4) | `.effects-fixtures.lock` |
 | **AnimationState** (ADR-0005) | `anim-state-rigs/anim-state-rig.json` | `anim-state-fixtures/` (4): discrete-flip, additive-layer, queue-loop-boundary, crossfade-fractions | `.anim-state-fixtures.lock` |
 | **Slot** | `slot/scenes/` (4 scenes) x `slot/spins/` (6 spins) via `slot/sample-spec/` | `slot/expected/` (6 golden `PresentationTimeline`s) | `.slot.fixtures.lock` |
@@ -106,6 +106,21 @@ channel. A path constraint writes bone transforms, so both observe only the exis
 Bezier segments (evenly spaced control points, so each curve's arc length is linear in the parameter), an
 INDEPENDENT analytic oracle (`test/path-oracle.test.ts`) checks the first generation against closed-form
 world transforms, so the fixtures are verified rather than merely frozen.
+
+The last two skeleton rigs are the PP-B7 physics pair (Stage F4, ADR-0014 format 0.6.0 + solve), locking the
+physics-constraint solve, the ONE constraint kind that steps over time. **rig-physics-pendulum** is a
+rotation-channel damped-driven oscillator: an animated angular impulse the spring overshoots and rings down,
+with a physics timeline keying `strength` and fading `mix` in, under nonzero scene gravity/wind that a
+rotation-only constraint provably ignores (external forces feed the x and y channels only, ADR section 2.3).
+**rig-physics-swing** simulates x/y/scaleX under gravity + wind + mass (a hanging prop that sags under gravity
+and sways in the wind), with a keyed wind gust, the global-times-local `mix` product, and a mid-clip
+translation TELEPORT that trips the RESET_DISTANCE snap (the bone jumps to the new pose at rest rather than
+whipping across the gap). Physics carries velocity across frames, so unlike every other rig these are sampled
+SEQUENTIALLY: the harness advances the physics clock by the poseTime delta each frame (0 on the first). The
+integrator is a fixed-timestep semi-implicit (symplectic) Euler on an integer step clock (STEP_FIXED_ONE =
+65536), mirroring the emitter solve exactly; the step-clock integer primitive is locked cross-language by the
+`physicsStepFixed` vectors in `cross-language/seed-prng-crc-vectors.json`. Both observe only the existing
+bone-world-affine lane, so every pre-F4 fixture regenerates byte-identically.
 
 ## Structure
 

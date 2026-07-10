@@ -5,12 +5,14 @@ import {
   addAnimation,
   addBone,
   addIkConstraint,
+  addPathConstraint,
   addSlot,
   addTransformConstraint,
   createEmptyDocument,
   rotateKeyframes,
   setAttachmentKeys,
   setIkKeys,
+  setPathKeys,
   setRotateKeys,
   setSequenceKeys,
   setTransformKeys,
@@ -46,6 +48,11 @@ function ikTimes(doc: Document, animId: AnimationId): number[] {
 
 function transformTimes(doc: Document, animId: AnimationId): number[] {
   const keys = [...anim(doc, animId).transform.values()][0];
+  return keys ? keys.map((k) => k.time) : [];
+}
+
+function pathTimes(doc: Document, animId: AnimationId): number[] {
+  const keys = [...anim(doc, animId).path.values()][0];
   return keys ? keys.map((k) => k.time) : [];
 }
 
@@ -87,6 +94,23 @@ describe('dopesheet timeline-row drag (PP-D10)', () => {
 
     updateThroughSession(doc, animId, [first.id], 0.3);
     expect(transformTimes(doc, animId)).toEqual([0.5, 0.8]);
+
+    doc.history.undo();
+    expect(doc.model.snapshot()).toEqual(before);
+  });
+
+  it('drags a path-constraint key and undoes in one step', () => {
+    const doc = createEmptyDocument();
+    const root = addBone(doc, 'root');
+    const slotId = addSlot(doc, 'rail', root);
+    const animId = addAnimation(doc, 'glide', DURATION);
+    const pathId = addPathConstraint(doc, 'follow', root, slotId);
+    setPathKeys(doc, animId, pathId, [0.2, 0.8]);
+    const first = [...anim(doc, animId).path.values()][0]![0]!;
+    const before = doc.model.snapshot();
+
+    updateThroughSession(doc, animId, [first.id], 0.3);
+    expect(pathTimes(doc, animId)).toEqual([0.5, 0.8]);
 
     doc.history.undo();
     expect(doc.model.snapshot()).toEqual(before);

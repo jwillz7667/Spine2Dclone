@@ -6,6 +6,7 @@ import type {
   IkConstraintId,
   KeyframeId,
   KeyframeTarget,
+  PathConstraintId,
   SlotId,
   TransformConstraintId,
 } from '../document';
@@ -69,6 +70,7 @@ export interface TrackNames {
   slotName(id: SlotId): string;
   ikName(id: IkConstraintId): string;
   transformName(id: TransformConstraintId): string;
+  pathName(id: PathConstraintId): string;
   skinName(key: DeformSkinKey): string;
 }
 
@@ -263,6 +265,25 @@ export function buildTracks(animation: AnimationEntity, names: TrackNames): Trac
       kind: 'timeline',
       key: `tc:${id}:mix`,
       label: 'Mix',
+      keyframes: keys.map((kf) => ({ id: kf.id, time: kf.time })),
+    });
+  }
+
+  // Path-constraint timelines (PP-D11), keyed by PathConstraintId like ik/transform. Each path keyframe
+  // carries the position, spacing, and the three mix channels at one time (a single frame per time,
+  // ADR-0011 section 3), so a constraint gets ONE timeline row (not a value channel: no KeyframeTarget, no
+  // interpolated scalar); the panel moves/deletes its keys through the path-keyframe move/delete commands
+  // exactly as it does the ik/transform rows.
+  const pathGroups = [...animation.path.entries()]
+    .filter(([, keys]) => keys.length > 0)
+    .map(([id, keys]) => ({ id, keys, name: names.pathName(id) }))
+    .sort((a, b) => compareLabel(a.name, a.id, b.name, b.id));
+  for (const { id, keys, name } of pathGroups) {
+    rows.push({ kind: 'group', key: `path:${id}`, label: name });
+    rows.push({
+      kind: 'timeline',
+      key: `path:${id}:path`,
+      label: 'Position/Spacing/Mix',
       keyframes: keys.map((kf) => ({ id: kf.id, time: kf.time })),
     });
   }

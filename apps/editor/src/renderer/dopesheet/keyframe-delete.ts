@@ -5,6 +5,7 @@ import {
   DeleteEventKeyCommand,
   DeleteIkKeyframeCommand,
   DeleteKeyframeCommand,
+  DeletePathKeyframeCommand,
   DeleteSequenceKeyframeCommand,
   DeleteTransformKeyframeCommand,
   type AnimationEntity,
@@ -16,9 +17,10 @@ import {
 
 // The dopesheet's unified keyframe-deletion wiring (PP-D2). Every dopesheet row kind is deletable from
 // ONE Delete-key handler: the value channels (bone rotate/translate/scale/shear, slot color), the slot
-// attachment-swap timeline, the per-(skin, slot, attachment) deform timelines, the IK-mix and
-// transform-constraint timelines, and the two discrete special timelines (events, draw order). Each id
-// resolves to the ONE document-core delete command that owns its timeline (LAW 2: no direct mutation);
+// attachment-swap timeline, the per-(skin, slot, attachment) deform timelines, the IK-mix,
+// transform-constraint, and path-constraint timelines, and the two discrete special timelines (events,
+// draw order). Each id resolves to the ONE document-core delete command that owns its timeline (LAW 2: no
+// direct mutation);
 // this module never mutates the document. A multi-key delete opens a SINGLE History interaction session,
 // so removing several keys across several timelines is ONE undo step. Selection is by branded KeyframeId
 // throughout, so it survives inserts, reorders, and renames (the id never addresses a keyframe by index).
@@ -73,6 +75,12 @@ function buildDeleteIndex(animation: AnimationEntity): Map<KeyframeId, () => Com
   for (const [constraintId, keys] of animation.transform) {
     for (const kf of keys) {
       index.set(kf.id, () => new DeleteTransformKeyframeCommand(animId, constraintId, kf.id));
+    }
+  }
+
+  for (const [constraintId, keys] of animation.path) {
+    for (const kf of keys) {
+      index.set(kf.id, () => new DeletePathKeyframeCommand(animId, constraintId, kf.id));
     }
   }
 

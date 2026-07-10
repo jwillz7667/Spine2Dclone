@@ -3,6 +3,7 @@ import type {
   BoneId,
   DeformSkinKey,
   IkConstraintId,
+  PathConstraintId,
   SlotId,
   TransformConstraintId,
 } from '../document';
@@ -11,12 +12,14 @@ import {
   addAnimation,
   addBone,
   addIkConstraint,
+  addPathConstraint,
   addSlot,
   addTransformConstraint,
   createEmptyDocument,
   setAttachmentKeys,
   setComponentKeys,
   setIkKeys,
+  setPathKeys,
   setRotateKeys,
   setSequenceKeys,
   setSlotAlphaKeys,
@@ -30,6 +33,7 @@ function names(doc: ReturnType<typeof createEmptyDocument>): TrackNames {
     slotName: (id: SlotId) => doc.model.getSlot(id)?.name ?? id,
     ikName: (id: IkConstraintId) => doc.model.getIkConstraint(id)?.name ?? id,
     transformName: (id: TransformConstraintId) => doc.model.getTransformConstraint(id)?.name ?? id,
+    pathName: (id: PathConstraintId) => doc.model.getPathConstraint(id)?.name ?? id,
     skinName: (key: DeformSkinKey) =>
       key === 'default' ? 'default' : (doc.model.getSkin(key)?.name ?? key),
   };
@@ -141,6 +145,28 @@ describe('dopesheet tracks', () => {
     if (attachment?.kind === 'timeline') expect(attachment.keyframes).toHaveLength(2);
     const transformRow = rows[7];
     if (transformRow?.kind === 'timeline') expect(transformRow.keyframes).toHaveLength(2);
+  });
+
+  it('emits a path-constraint timeline row keyed by PathConstraintId', () => {
+    const doc = createEmptyDocument();
+    const bone = addBone(doc, 'root');
+    const slot = addSlot(doc, 'rail', bone);
+    const anim = addAnimation(doc, 'glide', 2);
+    const path = addPathConstraint(doc, 'follow', bone, slot);
+    setPathKeys(doc, anim, path, [0.25, 0.75]);
+
+    const rows = buildTracks(doc.model.getAnimation(anim)!, names(doc));
+
+    expect(rows.map((row) => `${row.kind}:${row.label}`)).toEqual([
+      'group:follow',
+      'timeline:Position/Spacing/Mix',
+    ]);
+    const pathRow = rows[1];
+    expect(pathRow?.kind).toBe('timeline');
+    if (pathRow?.kind === 'timeline') {
+      expect(pathRow.key).toBe(`path:${path}:path`);
+      expect(pathRow.keyframes).toHaveLength(2);
+    }
   });
 
   it('returns no rows for an animation with no keyframes', () => {

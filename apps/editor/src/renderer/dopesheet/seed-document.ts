@@ -2,6 +2,7 @@ import {
   CreateAnimationCommand,
   CreateBoneCommand,
   CreateIkConstraintCommand,
+  CreatePathConstraintCommand,
   CreateSlotCommand,
   CreateTransformConstraintCommand,
   DefineEventCommand,
@@ -10,6 +11,7 @@ import {
   SetEventKeyCommand,
   SetIkKeyframeCommand,
   SetKeyframeCommand,
+  SetPathKeyframeCommand,
   SetSequenceKeyframeCommand,
   SetTransformKeyframeCommand,
   createDocument,
@@ -24,6 +26,7 @@ import {
   type KeyframeId,
   type KeyframeTarget,
   type KeyframeValue,
+  type PathConstraintId,
   type SlotId,
   type TransformConstraintId,
 } from '../document';
@@ -315,4 +318,51 @@ export function drawOrderKeys(
 ): readonly { id: KeyframeId; time: number }[] {
   const animation = doc.model.getAnimation(animId);
   return animation ? animation.drawOrder.map((key) => ({ id: key.id, time: key.time })) : [];
+}
+
+// Create a 1-bone path constraint targeting `targetSlot` (which needs no path attachment for the timeline
+// tests: the constraint entity only has to exist so its keyframes resolve), all mix channels zeroed, for the
+// dopesheet path-row tests.
+export function addPathConstraint(
+  doc: Document,
+  name: string,
+  chain: BoneId,
+  targetSlot: SlotId,
+): PathConstraintId {
+  const id = doc.ids.mint('pathConstraint');
+  doc.history.execute(
+    new CreatePathConstraintCommand(id, name, targetSlot, [chain], {
+      positionMode: 'percent',
+      spacingMode: 'length',
+      rotateMode: 'tangent',
+      position: 0,
+      spacing: 0,
+      offsetRotation: 0,
+      mixRotate: 0,
+      mixX: 0,
+      mixY: 0,
+    }),
+  );
+  return id;
+}
+
+// Key the path-constraint timeline at each of `times` (only position present per key), for the dopesheet
+// path-row tests.
+export function setPathKeys(
+  doc: Document,
+  animId: AnimationId,
+  constraintId: PathConstraintId,
+  times: readonly number[],
+): void {
+  for (const time of times) {
+    doc.history.execute(
+      new SetPathKeyframeCommand(animId, constraintId, time, {
+        position: 0.5,
+        spacing: undefined,
+        mixRotate: undefined,
+        mixX: undefined,
+        mixY: undefined,
+      }),
+    );
+  }
 }

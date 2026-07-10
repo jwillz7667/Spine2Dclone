@@ -5,6 +5,13 @@ export { buildProjectExport } from './project-export-build';
 export type { ProjectExportArtifact, BuildProjectExportResult } from './project-export-build';
 export { exportProjectToFile } from './export-project';
 
+export { atlasExportInputsFromProfile, runProfileAtlasExport } from './atlas-export-build';
+export type {
+  AtlasExportInputs,
+  AtlasExportBuildResult,
+  RunProfileAtlasExportParams,
+} from './atlas-export-build';
+
 export {
   runMediaExport,
   MediaExportAbortedError,

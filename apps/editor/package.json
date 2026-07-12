@@ -2,9 +2,10 @@
   "name": "editor",
   "version": "0.0.0",
   "private": true,
-  "license": "UNLICENSED",
-  "author": "Viral Ventures LLC (Maple Grove, MN)",
+  "license": "SEE LICENSE IN LICENSE",
+  "author": "Viral Ventures LLC (Maple Grove, MN) <jwillz7667@gmail.com>",
   "description": "Armature 2D: a local-only desktop authoring tool for 2D skeletal animation and slot presentation.",
+  "homepage": "https://github.com/jwillz7667/Spine2Dclone",
   "type": "module",
   "main": "./out/main/main.js",
   "scripts": {

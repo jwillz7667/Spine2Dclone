@@ -147,6 +147,12 @@ function onReady(event: DockviewReadyEvent): void {
     title: 'Value Graph',
     position: { referencePanel: curveeditor, direction: 'within' },
   });
+  // Dockview activates the LAST panel added to a group, which would open the app on Slot / Constraints /
+  // Draw Order / Value Graph. Re-activate the intended defaults: the artist entry points.
+  hierarchy.api.setActive();
+  inspector.api.setActive();
+  animations.api.setActive();
+  curveeditor.api.setActive();
 }
 
 export function App(): ReactElement {

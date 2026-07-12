@@ -1,8 +1,9 @@
 import { Application, type Ticker } from 'pixi.js';
-import { useEffect, useRef, type CSSProperties, type ReactElement } from 'react';
+import { useEffect, useMemo, useRef, type CSSProperties, type ReactElement } from 'react';
 import { SkeletonView } from '@marionette/runtime-web';
 import type { SkeletonDocument } from '@marionette/format/types';
 import { documentHost, exportDocument } from '../document';
+import { useDocumentRevision } from '../editor-state/use-document-revision';
 import { atlasTextureStore } from '../editor-state/atlas-texture-store';
 import { useCameraStore } from '../editor-state/camera-store';
 import { useMeshEditStore } from '../editor-state/mesh-edit-store';
@@ -488,6 +489,38 @@ export function ViewportPanelContent(): ReactElement {
       <div ref={hostRef} className="viewport-host" />
       <ViewportModeOverlay />
       <ViewportToolbar />
+      <EmptyDocumentHint />
+    </div>
+  );
+}
+
+// First-run guidance (pointer-transparent, editor chrome only): shown while the document has no bones
+// and no atlas, which is exactly the state where a new user stares at an empty viewport with no idea
+// where to begin. It names the three entry paths and disappears the moment any content exists.
+function EmptyDocumentHint(): ReactElement | null {
+  const revision = useDocumentRevision();
+  const isEmpty = useMemo(() => {
+    void revision;
+    const model = documentHost.current().model;
+    return model.bones().length === 0 && model.preserved().atlas.pages.length === 0;
+  }, [revision]);
+
+  if (!isEmpty) return null;
+  return (
+    <div style={emptyHintWrapStyle} aria-hidden>
+      <div style={emptyHintBoxStyle}>
+        <div style={emptyHintTitleStyle}>Start a rig</div>
+        <div>
+          Import art: <b>File &gt; Import Sprites</b>, <b>Import PSD/ORA</b>, or{' '}
+          <b>Import Spine Project</b>
+        </div>
+        <div>
+          or press <b>B</b> and drag in the viewport to create bones
+        </div>
+        <div>
+          Pan: <b>Space + drag</b> &nbsp; Zoom: <b>scroll</b>
+        </div>
+      </div>
     </div>
   );
 }
@@ -712,11 +745,12 @@ const animationTintStyle: CSSProperties = {
   border: '2px solid rgba(214, 132, 46, 0.85)',
 };
 
+// Top-RIGHT, not centered: a centered banner collides with the top-left toolbar on narrow viewports
+// (observed as overlapping buttons in the packaged app).
 const animationBannerStyle: CSSProperties = {
   position: 'absolute',
   top: 8,
-  left: '50%',
-  transform: 'translateX(-50%)',
+  right: 8,
   display: 'flex',
   alignItems: 'center',
   gap: 8,
@@ -747,4 +781,32 @@ const notKeyingBadgeStyle: CSSProperties = {
   padding: '1px 6px',
   borderRadius: 3,
   fontWeight: 600,
+};
+
+const emptyHintWrapStyle: CSSProperties = {
+  position: 'absolute',
+  inset: 0,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  pointerEvents: 'none',
+};
+
+const emptyHintBoxStyle: CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 8,
+  padding: '18px 26px',
+  borderRadius: 8,
+  background: 'rgba(24, 26, 32, 0.82)',
+  border: '1px solid #3a3f4a',
+  color: '#aab2c0',
+  fontSize: 13,
+  textAlign: 'center',
+};
+
+const emptyHintTitleStyle: CSSProperties = {
+  fontSize: 15,
+  fontWeight: 600,
+  color: '#dde3ee',
 };

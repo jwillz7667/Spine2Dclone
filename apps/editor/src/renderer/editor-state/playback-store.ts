@@ -52,7 +52,9 @@ interface PlaybackStore {
 }
 
 export const usePlaybackStore = create<PlaybackStore>((set) => ({
-  mode: 'animation',
+  // Setup is the first-run mode (rig first, animate second, the Spine-workflow convention); switching
+  // to Animation is an explicit act, which also keeps the auto-key default from keying a first pose.
+  mode: 'setup',
   activeAnimation: null,
   playhead: 0,
   isPlaying: false,

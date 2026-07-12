@@ -25,6 +25,7 @@ import { PathEditOverlay } from './path-overlay';
 import { resolveWeightPaintTarget } from './weight-paint';
 import { WeightPaintOverlay } from './weight-overlay';
 import { MarqueeOverlay } from './marquee-overlay';
+import { GridOverlay } from './grid-overlay';
 import { OnionSkinOverlay } from './onion-overlay';
 import { deriveOnionGhosts } from './onion-skin';
 import { solveWorldById } from './scene-solve';
@@ -99,6 +100,10 @@ export function ViewportPanelContent(): ReactElement {
       const layers = createViewportLayers();
       app.stage.addChild(layers.world);
 
+      // The reference grid sits at index 0 of the world container so ALL content renders above it.
+      const gridOverlay = new GridOverlay();
+      layers.world.addChildAt(gridOverlay.container, 0);
+
       // Content: the shared runtime-web scene. Overlay: the gizmo (editor-only chrome). The onion-skin ghosts
       // are added FIRST so they render BEHIND the live pose (PP-D3); the overlay pools its own SkeletonViews.
       const onion = new OnionSkinOverlay();
@@ -132,6 +137,7 @@ export function ViewportPanelContent(): ReactElement {
       const applyCamera = (camera: Camera): void => {
         layers.world.position.set(camera.x, camera.y);
         layers.world.scale.set(camera.zoom);
+        gridOverlay.refresh(camera, app?.screen.width ?? 0, app?.screen.height ?? 0);
         gizmo.applyZoom(camera.zoom); // keep handles a constant pixel size as zoom changes
         meshOverlay.applyZoom(camera.zoom);
         pathOverlay.applyZoom(camera.zoom);
@@ -144,6 +150,14 @@ export function ViewportPanelContent(): ReactElement {
       };
       applyCamera(useCameraStore.getState());
       unsubscribeCamera = useCameraStore.subscribe(applyCamera);
+      // A panel resize changes the visible world span without a camera change; re-span the grid.
+      app.renderer.on('resize', () => {
+        gridOverlay.refresh(
+          useCameraStore.getState(),
+          app?.screen.width ?? 0,
+          app?.screen.height ?? 0,
+        );
+      });
       // Frame the world origin at the viewport center now that the renderer has a size.
       useCameraStore.getState().centerOrigin(app.screen.width / 2, app.screen.height / 2);
 

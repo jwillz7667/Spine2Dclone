@@ -43,6 +43,11 @@ export default defineConfig(({ command }) => {
             // Bundled for the same reason (consumed as TS source): the media-export pipeline behind the
             // export:media IPC handler uses render-preview's renderSequence + GIF/APNG encoders in main.
             '@marionette/render-preview',
+            // render-preview imports runtime-core; leaving it external makes main require the raw
+            // ./src/index.ts export at runtime (ERR_UNKNOWN_FILE_EXTENSION crash on launch).
+            '@marionette/runtime-core',
+            // The spine:import IPC handler converts in main; same TS-source-export bundling requirement.
+            '@marionette/import-spine',
           ],
         }),
       ],
